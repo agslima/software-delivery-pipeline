@@ -163,8 +163,8 @@ npm start
 * **Supply Chain:** Cosign, Syft
 * **Monitoring (Concept):** Prometheus & Grafana methodologies
 
-<!---
-## License
+---
 
-This project is for educational purposes as part of the Coursera/IBM curriculum.
--->
+## License 
+
+This project is licensed under the Apache 2 License. See the LICENSE file for details.
