@@ -12,13 +12,12 @@
 
 This repository hosts a **Full-Stack Web Application (Node.js + React)** designed to showcase modern Software Engineering and DevOps practices.
 
-<!--Originally developed as a vulnerability remediation capstone, this project has evolved to implement **SLSA (Supply-chain Levels for Software Artifacts)** principles, **Test-Driven Development (TDD)**, designed to showcase modern Software Engineering and DevOps practices. **GitHub Actions**.
--->
+The primary focus is on **integrating security at every stage of the development lifecycle**—from coding to deployment. The project implements a robust CI/CD pipeline that incorporates automated security checks, container security measures, and legacy code remediation.
 
 ### Key Features
 
 * **Automated Security Gates:** Builds fail if vulnerabilities or secrets are detected.
-* **Container Security:** Image scanning, signing, and verification.<!--* **Observability:** Implementation of Software Bill of Materials (SBOM).-->
+* **Container Security:** Image scanning, signing, and verification.
 * **Legacy Remediation:** A documented case study of fixing critical CVEs.
 
 ---
@@ -41,13 +40,13 @@ graph TD
 
 ### Tooling Strategy
 
-| Stage |Tool |Purpose |
+| Stage | Tool | Purpose |
 | :--- | :---: | :---: |
 | 1. Secret Scanning | Gitleaks | Prevents hardcoded  credentials/secrets from entering the repo. |
-| 2. SCA & SAST | Snyk |Scans dependencies and code logic for known vulnerabilities. |
-| 3. Testing (TDD) |Jest + Supertest | Validates application logic and API endpoints before build. |
+| 2. SCA & SAST | Snyk | Scans dependencies and code logic for known vulnerabilities. |
+| 3. Testing (TDD) | Jest + Supertest | Validates application logic and API endpoints before build. |
 | 4. Docker Linting | Hadolint | Enforces best practices in Dockerfile construction. |
-| 5. Container Scan |Trivy | Scans the built Docker image for OS-level vulnerabilities. |
+| 5. Container Scan | Trivy | Scans the built Docker image for OS-level vulnerabilities. |
 | 6. Image Signing | Cosign | Cryptographically signs the image to guarantee integrity (SLSA). |
 | 7. SBOM Generation | Syft | Generates a Software Bill of Materials (SPDX) for transparency. |
 
@@ -81,14 +80,14 @@ After applying the fixes and re-running the CI/CD pipeline checks:
 | :--- | :---: | :---: | :--- |
 | **Critical** | 27 | 0 | ✅ Fixed |
 | **High** | 116 | 0 | ✅ Fixed |
-| **Medium** | 191 | 2 |⚠️ Accepted Risk (Documented)|
-| **Low** | 345 | 22 |ℹ️ Backlog |
+| **Medium** | 191 | 2 | ⚠️ Accepted Risk (Documented) |
+| **Low** | 345 | 22 | ℹ️ Backlog |
 
 #### Evidence of Remediation
 
 | Initial Vulnerability Scan | Post-Fix Clean Scan |
-|---|---|
-| ![image](https://github.com/agslima/secure-app-analysis/blob/main/images/scan-snyk-01.png) | ![image](https://github.com/agslima/secure-app-analysis/blob/main/images/scan-snyk-02.png) |
+| --- | --- |
+| ![image](https://github.com/agslima/secure-app-analysis/blob/main/docs/images/scan-snyk-01.png) | ![image](https://github.com/agslima/secure-app-analysis/blob/main/docs/images/scan-snyk-02.png) |
 
 ## Local Development & Testing
 
@@ -165,6 +164,6 @@ npm start
 
 ---
 
-## License 
+## License
 
 This project is licensed under the Apache 2 License. See the LICENSE file for details.
