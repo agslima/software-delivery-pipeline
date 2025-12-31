@@ -19,7 +19,7 @@ jobs:
     # This tells 'run' commands (npm ci, npm test) to execute inside 'server'
     defaults:
       run:
-        working-directory: ./server
+        working-directory: .app/server
         
     steps:
       - name: Checkout Code
