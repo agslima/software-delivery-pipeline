@@ -10,9 +10,7 @@ ENV NODE_ENV=production
 WORKDIR /app
 
 # 3. Dependencies (The Caching Layer)
-# Copy ONLY the package definition files first.
-# If package.json hasn't changed, Docker uses the cached layer here,
-# making your builds instant.
+WORKDIR /app/server
 COPY server/package*.json ./
 
 # 'npm ci' is strictly for CI/CD (uses lockfile).
@@ -23,18 +21,21 @@ RUN npm ci --only=production && \
     npm uninstall -g npm && \
     rm -rf /usr/local/lib/node_modules/npm
 
-# 4. Application Code
-# --chown=node:node is CRITICAL. It ensures the files belong to the
-# non-root user, allowing the app to read them without root permissions.
-COPY --chown=node:node server/ .
+# 4. Copy Codebase (Preserving Structure)
+# Go back to the root /app to copy folders correctly
+WORKDIR /app
 
-# 5. Security: Non-Root User
-# This prevents an attacker from having root access to the container
-# if they manage to compromise the application.
+# COPY public folder to /app/public
+COPY --chown=node:node public/ ./public/
+
+# COPY server folder to /app/server
+COPY --chown=node:node server/ ./server/
+
+# 5. Execution Setup
+# Switch back to server directory so "node index.js" works
+WORKDIR /app/server
 USER node
-
-# 6. Network
 EXPOSE 8080
 
-# 7. Execution
+# Run the app
 CMD [ "node", "index.js" ]
