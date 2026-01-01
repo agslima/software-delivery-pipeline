@@ -51,10 +51,9 @@ Every container image is:
 
 ### 3. Risk Management
 
-Security is **not binary**
-The system differentiates between:
-- Blockers: Critical / High vulnerabilities
-- Managed Debt: Medium / Low vulnerabilities tracked and documented
+Security is **not binary**. The system differentiates between:
+- **Blockers:** Critical / High vulnerabilities
+- **Managed Debt:** Medium / Low vulnerabilities tracked and documented
 
 ---
 
