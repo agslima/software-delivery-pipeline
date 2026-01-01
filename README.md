@@ -109,24 +109,24 @@ The system applies overlapping controls to reduce blind spots and false negative
 - Prevents hardcoded credentials from entering the repository.
 - Runs before dependency installation to avoid wasted compute on compromised commits.
 
-**SAST & SCA (Snyk)**
+* **SAST & SCA (Snyk)**
 Focuses on:
-- Source code
-- Dependency tree (package.json)
+  - Source code
+  - Dependency tree (package.json)
 
-** Decision Rationale:**
-Snyk is utilized here for its robust vulnerability intelligence within the Node.js ecosystem.
+* ** Decision Rationale:**
+  - Snyk is utilized here for its robust vulnerability intelligence within the Node.js ecosystem.
 
 ### Layer 2: Artifact Security (Post-Build)
 
-**Container Scanning (Trivy)**
-Detects OS-level and runtime vulnerabilities (e.g., Alpine Linux packages).
+* **Container Scanning (Trivy)**
+  - Detects OS-level and runtime vulnerabilities (e.g., Alpine Linux packages).
 
-**Infrastructure Linting (Hadolint)**
-Enforces Dockerfile best practices, including version pinning and deterministic builds.
+* **Infrastructure Linting (Hadolint)**
+  - Enforces Dockerfile best practices, including version pinning and deterministic builds.
 
 * **Decision Reasoning:**
-  This layer catches risks that application-level scanners cannot see.
+  - This layer catches risks that application-level scanners cannot see.
 
 ### Layer 3: Supply Chain Guarantees
 
@@ -135,7 +135,7 @@ Enforces Dockerfile best practices, including version pinning and deterministic 
   - A production cluster could enforce this via an admission controller.
 
 * **Transparency (Syft)**
-  Generates an SPDX-formatted SBOM for every release, enabling rapid impact analysis during future zero-day events (e.g., Log4Shell).
+  - Generates an SPDX-formatted SBOM for every release, enabling rapid impact analysis during future zero-day events (e.g., Log4Shell).
 
 ---
 
