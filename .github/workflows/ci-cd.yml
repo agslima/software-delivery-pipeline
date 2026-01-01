@@ -93,7 +93,7 @@ jobs:
         - name: Start App Container
           run: |
             docker build --load -t target-app ./app
-            docker run -d -p 3000:8000 --name app-under-test target-app
+            docker run -d -p 3000:8080 --name app-under-test target-app
             timeout 60s bash -c 'until curl -s -f http://localhost:3000 > /dev/null; do sleep 5; done'
 
         - name: OWASP ZAP Baseline Scan
