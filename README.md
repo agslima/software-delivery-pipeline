@@ -139,28 +139,6 @@ Focuses on:
 
 ---
 
-## Case Study: Legacy Risk Remediation 🔬
-
-To validate the effectiveness of the delivery control plane, a legacy application with known security debt was intentionally passed through the pipeline.
-
-### 1. The Problem (Initial Assessment)
-
-A baseline scan revealed significant technical and security debt across transitive dependencies.
-
-**Common Vulnerabilities Detected:**
-
-* **Cross-Site Scripting (XSS):** Detected in older frontend libraries.
-* **Prototype Pollution:** Found in backend utility packages.
-* **Arbitrary Code Execution:** Critical flaw in a deep dependency.
-
-### 2. The Solution (Remediation Process)
-
-I adopted a systematic approach to fix these issues:
-
-1. **Direct Upgrades:** Prioritized direct upgrades where safe versions were available.
-2. **Patches:** Applied patches when upgrades were not feasible without breaking changes.
-3. **Defensive Coding:** Refactored backend logic to validate input and sanitize headers (OWASP Top 10).
-
 ### 3. The Result (Final Status)
 
 After applying the fixes and re-running the CI/CD pipeline checks:
