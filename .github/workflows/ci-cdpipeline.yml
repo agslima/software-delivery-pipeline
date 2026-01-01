@@ -1,0 +1,233 @@
+name: "CI/CD Pipeline"
+
+on:
+  push:
+    branches: [ "main" ]
+    tags: [ "v*.*.*" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  NODE_VERSION: '20' # Upgraded to current LTS
+  Checkov_Skip_Check: CKV_DOCKER_2 # Example: Global skips for security tools
+
+jobs:
+  # ==================================================================
+  # STAGE 1: CI & VALIDATION
+  # ==================================================================
+  
+  code-quality:
+    name: Code Quality & Security
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: app/server/package-lock.json
+
+      - name: Install Dependencies
+        run: npm ci
+      
+      - name: Unit Tests
+        run: npm test
+
+      # Secret Scanning
+      - name: Secret Scanning (Gitleaks)
+        if: vars.ENABLE_GITLEAKS == 'true'
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # (SAST) - Snyk
+      - name: Snyk Security Check
+        if: vars.ENABLE_SNYK_SCANS == 'true'
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          npm install -g snyk
+          snyk test --severity-threshold=high
+
+  # ------------------------------------------------------------------
+  # JOB 2: Infrastructure Linting (Docker)
+  # ------------------------------------------------------------------
+  docker-lint:
+    name: Docker Linting
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hadolint/hadolint-action@v3.3.0
+        with:
+          dockerfile: app/Dockerfile
+
+  # ------------------------------------------------------------------
+  # JOB 3: Layer 4: Dynamic Analysis (DAST)
+  # DAST: Only runs on Main branch (post-merge) or Tags to save PR time
+  # ------------------------------------------------------------------
+  dast-analysis:
+      name: "DAST (OWASP ZAP)"
+      runs-on: ubuntu-latest
+      needs: [ code-quality, docker-lint ]
+      if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+      permissions:
+        contents: read
+      steps:
+        - uses: actions/checkout@v4
+        
+        # Use Buildx to use cache from previous runs
+        - name: Set up Docker Buildx
+          uses: docker/setup-buildx-action@v3
+
+        - name: Start App Container
+          run: |
+            docker build --load -t target-app ./app
+            docker run -d -p 3000:3000 --name app-under-test target-app
+            timeout 60s bash -c 'until curl -s -f http://localhost:3000 > /dev/null; do sleep 5; done'
+
+        - name: OWASP ZAP Baseline Scan
+          uses: zaproxy/action-baseline@v0.12.0
+          with:
+            target: 'http://localhost:3000'
+            allow_issue_writing: false 
+            cmd_options: '-a'
+
+  # ==================================================================
+  # STAGE 2: RELEASE (TAGS ONLY)
+  # ==================================================================
+
+  build-push:
+    name: Release Build
+    runs-on: ubuntu-latest
+    # Needs DAST only if DAST ran. Since DAST is conditional, we trust previous stages.
+    needs: [ code-quality, docker-lint ] 
+    if: startsWith(github.ref, 'refs/tags/v')
+    environment: production
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      fail-fast: true # Fail fast in production releases!
+      matrix:
+        include:
+          - name: app
+            context: ./app
+            image_repo: software-delivery-pipeline
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+
+      # Optimization: Enable Caching
+      - name: Build & Push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          # Enable GitHub Actions Caching
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          tags: |
+            ${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}:${{ github.sha }}
+            ${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}:latest
+            ${{ format('{0}/{1}:{2}', secrets.DOCKER_HUB_USERNAME, matrix.image_repo, github.ref_name) }}
+
+      - name: Export Digest
+        run: |
+          mkdir -p digests
+          echo "${{ steps.build.outputs.digest }}" > digests/digest-${{ matrix.name }}
+      
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.name }}
+          path: digests/digest-${{ matrix.name }}
+          retention-days: 1
+
+      - name: Trivy Scan
+        uses: aquasecurity/trivy-action@0.29.0
+        with:
+          image-ref: ${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}:${{ github.sha }}
+          severity: "CRITICAL,HIGH"
+          exit-code: "1"
+
+  sign-and-attest:
+    name: Sign & Attest
+    needs: build-push
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    environment: production
+    permissions:
+      packages: write
+      id-token: write
+      attestations: write
+
+    strategy:
+      matrix:
+        include:
+          - name: backend
+            image_repo: software-delivery-pipeline
+
+    steps:
+      - uses: sigstore/cosign-installer@v3.7.0
+      
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: digest-${{ matrix.name }}
+          path: digests
+
+      - name: Read Digest
+        run: |
+          DIGEST=$(cat digests/digest-${{ matrix.name }})
+          echo "DIGEST=$DIGEST" >> $GITHUB_ENV
+          echo "IMAGE=${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@$DIGEST" >> $GITHUB_ENV
+
+      - run: cosign sign --yes "$IMAGE"
+
+      - run: |
+          cosign verify "$IMAGE" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            --certificate-identity-regexp "https://github.com/${{ github.repository }}/.*"
+
+      - uses: anchore/sbom-action@v0
+        with:
+          image: ${{env.IMAGE}}
+          format: spdx-json
+          output-file: sbom-${{ matrix.image_repo }}.spdx.json
+          artifact-name: sbom-${{ matrix.image_repo }}.spdx.json
+
+      - run: |
+          cosign attest --yes --type spdx --predicate sbom-${{ matrix.image_repo }}.spdx.json "$IMAGE"
+
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: index.docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}
+          subject-digest: ${{ env.DIGEST }}
+          push-to-registry: true
