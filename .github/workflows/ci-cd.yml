@@ -58,6 +58,10 @@ jobs:
           npm install -g snyk
           snyk test --severity-threshold=high
 
+      
+      - name: Enforce Risk Acceptance Policy
+        run: ./scripts/check-security-debt.sh snyk-results.json
+         
   # ------------------------------------------------------------------
   # JOB 2: Infrastructure Linting (Docker)
   # ------------------------------------------------------------------
@@ -119,9 +123,10 @@ jobs:
           uses: zaproxy/action-baseline@v0.14.0
           with:
             target: 'http://localhost:3000'
-            allow_issue_writing: false 
-            cmd_options: '-a'
+            fail_action: true
+            allow_issue_writing: false
             artifact_name: zap_scan
+            cmd_options: '-a -T 10'
 
   # ==================================================================
   # STAGE 2: RELEASE (TAGS ONLY)
@@ -246,8 +251,9 @@ jobs:
       - run: |
           cosign verify "$IMAGE" \
             --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-            --certificate-identity-regexp "https://github.com/${{ github.repository }}/.*"
-
+            --certificate-identity \
+            "https://github.com/${{ github.repository }}/.github/workflows/ci-cd.yml@refs/tags/${{ github.ref_name }}"
+      
       - uses: anchore/sbom-action@v0
         with:
           image: ${{env.IMAGE}}
@@ -268,6 +274,18 @@ jobs:
       # Update Manifest
       # ------------------------------------------------------------------
  
+      - name: Install Kyverno CLI
+        run: |
+          curl -LO https://github.com/kyverno/kyverno/releases/latest/download/kyverno-cli_linux_x86_64.tar.gz
+          tar -xzf kyverno-cli_linux_x86_64.tar.gz
+          sudo mv kyverno /usr/local/bin/
+
+      - name: Validate Kubernetes Manifest Against Policy
+        run: |
+          kyverno apply k8s/policies/cluster-policy.yaml \
+          --resource k8s/deployment.yaml \
+          --audit-warn=false
+      
       - name: GitOps - Update Manifest Version
         run: |
           # Use sed to replace the image tag with the new digest or tag
