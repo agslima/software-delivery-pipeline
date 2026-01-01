@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: software-delivery-pipeline
+  namespace: prod
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: software-delivery-pipeline
+  template:
+    metadata:
+      labels:
+        app: software-delivery-pipeline
+    spec:
+      containers:
+      - name: app
+        # The CI pipeline will update this tag
+        image: agslima/software-delivery-pipeline:latest 
+        ports:
+        - containerPort: 3000

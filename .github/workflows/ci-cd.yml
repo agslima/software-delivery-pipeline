@@ -263,3 +263,19 @@ jobs:
           subject-name: index.docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}
           subject-digest: ${{ env.DIGEST }}
           push-to-registry: true
+
+      # ------------------------------------------------------------------
+      # Update Manifest
+      # ------------------------------------------------------------------
+ 
+      - name: GitOps - Update Manifest Version
+        run: |
+          # Use sed to replace the image tag with the new digest or tag
+          # We use the Digest (SHA) because it is immutable (Best Practice)
+          sed -i "s|image: .*|image: ${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@${{ env.DIGEST }}|g" k8s/deployment.yaml
+          
+          # In a real setup, you would commit and push this back. 
+          # For this demo, we just print the diff to prove it works.
+          echo "Updated Kubernetes Manifest:"
+          cat k8s/deployment.yaml
+ 

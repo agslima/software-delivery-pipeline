@@ -1,0 +1,28 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-signed-images
+  annotations:
+    pod-policies.kyverno.io/autogen-controllers: none
+spec:
+  validationFailureAction: Enforce # Block the deployment if verification fails
+  background: false
+  rules:
+    - name: verify-image-signature
+      match:
+        any:
+        - resources:
+            kinds:
+              - Pod
+      verifyImages:
+      - imageReferences:
+        - "docker.io/agslima/software-delivery-pipeline*" # Match image repo
+        attestors:
+        - entries:
+          - keyless:
+              # 1. Verify the Issuer (Who issued the ID token?)
+              issuer: "https://token.actions.githubusercontent.com"
+              # 2. Verify the Subject (Who is the signer?)
+              # This ensures ONLY your specific GitHub Repo can sign valid images
+              subject: "https://github.com/agslima/secure-app-analysis/.github/workflows/ci-cd.yml@refs/tags/*"
+              
