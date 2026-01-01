@@ -248,7 +248,7 @@ npm start
 
 ## License
 
-This project is licensed under the Apache 2 License. See the `LICENSE file for details.
+This project is licensed under the Apache 2 License. See the `LICENSE` file for details.
 
 ---
 
