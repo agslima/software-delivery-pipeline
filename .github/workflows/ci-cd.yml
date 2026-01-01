@@ -12,10 +12,6 @@ concurrency:
   group: ci-cd-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-env:
-  NODE_VERSION: '20' # Upgraded to current LTS
-  Checkov_Skip_Check: CKV_DOCKER_2 # Example: Global skips for security tools
-
 jobs:
   # ==================================================================
   # STAGE 1: CI & VALIDATION
@@ -29,13 +25,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-
-      
+          fetch-depth: 0      
 
       - uses: actions/setup-node@v3
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: 'app/server/package.json'
           cache: 'npm'
           cache-dependency-path: app/server/package-lock.json
 
