@@ -3,11 +3,11 @@
 > A Secure Software Supply Chain Reference Implementation
 
 ![CD/CD Status](https://github.com/agslima/secure-app-analysis/actions/workflows/ci-cd.yml/badge.svg)
-![Security: Snyk](https://img.shields.io/badge/Security-Snyk-4C4A73.svg)](https://snyk.io/)
-![OWASP](https://img.shields.io/badge/Compliance-OWASP%20Top%2010-red.svg)](https://owasp.org/)
-![SLSA](https://img.shields.io/badge/SLSA-Level%202-blue?logo=linuxfoundation)
-![Docker](https://img.shields.io/badge/Deployment-Docker-blue.svg)](https://docker.com)
-![License](https://img.shields.io/badge/License-Apache%202.0-lightgrey.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Security: Snyk](https://img.shields.io/badge/Security-Snyk-4C4A73.svg)](https://snyk.io/)
+[![OWASP](https://img.shields.io/badge/Compliance-OWASP%20Top%2010-red.svg)](https://owasp.org/)
+[![SLSA](https://img.shields.io/badge/SLSA-Level%202-blue?logo=linuxfoundation)
+[![Docker](https://img.shields.io/badge/Deployment-Docker-blue.svg)](https://docker.com)
+[![License](https://img.shields.io/badge/License-Apache%202.0-lightgrey.svg)](https://opensource.org/licenses/Apache-2.0)
 
 ## TL;DR
 
