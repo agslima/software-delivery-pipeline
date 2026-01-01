@@ -1,7 +1,5 @@
 # Governed Software Delivery Pipeline (Full-Stack Reference Implementation)
 
-
-
 ![CD/CD Status](https://github.com/agslima/secure-app-analysis/actions/workflows/ci-cd.yml/badge.svg)
 [![Security: Snyk](https://img.shields.io/badge/Security-Snyk-4C4A73.svg)](https://snyk.io/)
 [![OWASP](https://img.shields.io/badge/Compliance-OWASP%20Top%2010-red.svg)](https://owasp.org/)
@@ -20,7 +18,6 @@ This repository demonstrates how to design and operate a governed CI/CD pipeline
 - The CI/CD pipeline acts as the primary control plane for software delivery
 
 The application is intentionally simple — the focus is on **software delivery architecture, DevOps practices, and engineering governance**, not framework complexity.
-
 
 ## Project Overview 🛡️
 
@@ -84,6 +81,28 @@ graph TD
     G -->|7. Sign & SBOM| H(Cosign & Syft)
     H --> I[Registry Push]
 ```
+
+```mermaid
+graph TD
+    subgraph "Phase 1: Code & Dependencies"
+        A[Code Commit] -->|Gate 1: Secrets| B(Gitleaks)
+        B -->|Gate 2: SAST & SCA| C(Snyk)
+        C -->|Gate 3: Unit Tests| D(Jest / TDD)
+    end
+    
+    subgraph "Phase 2: Artifact Construction"
+        D -->|Build| E[Docker Build]
+        E -->|Gate 4: Dockerfile Policy| F(Hadolint)
+        E -->|Gate 5: Image Scan| G(Trivy)
+    end
+    
+    subgraph "Phase 3: Supply Chain Trust"
+        G -->|Attestation| H(Syft SBOM)
+        H -->|Signing| I(Cosign)
+        I --> J[Container Registry]
+    end
+```
+
 This pipeline is intentionally **fail-fast**: artifacts are never built or published unless all required quality gates pass.
 
 ### Tooling Strategy
