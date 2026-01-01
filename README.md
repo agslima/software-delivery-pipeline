@@ -17,7 +17,9 @@ This repository demonstrates how to design and operate a governed CI/CD pipeline
 - Vulnerabilities are managed through explicit risk policies, not binary pass/fail rules
 - The CI/CD pipeline acts as the primary control plane for software delivery
 
-The application is intentionally simple — the focus is on **software delivery architecture, DevOps practices, and engineering governance**, not framework complexity.
+> The application is intentionally simple — the focus is on **software delivery architecture, DevOps practices, and engineering governance**, not framework complexity.
+
+---
 
 ## Project Overview 🛡️
 
@@ -33,54 +35,42 @@ The result is a **production-oriented reference implementation** of how modern t
 
 ## Engineering Goals
 
-The pipeline and architecture were designed around the following outcomes:
+The architecture was designed to satisfy three core **non-functional requirements**:
 
-### 1. Reproducible and Verifiable Builds
+### 1. Reliability
 
-Every build produces traceable artifacts that can be:
-- Scanned
-- Signed
-- Verified post-build
+- The pipeline must produce deterministic builds
+- If code, tests, or policies fail, no artifact is created
 
-### 2. Early Risk Detection (Shift Left)
+### 2. Traceability
 
-Quality and security checks are executed before artifact creation, reducing downstream risk and cost.
+Every container image is:
+- Cryptographically signed
+- Linked to a specific Git commit
+- Associated with a Software Bill of Materials (SBOM)
 
-### 3. Policy Enforcement Through Automation
+### 3. Risk Management
 
-Engineering standards are enforced by the pipeline itself, not by manual review.
+Security is **not binary**
+The system differentiates between:
+- Blockers: Critical / High vulnerabilities
+- Managed Debt: Medium / Low vulnerabilities tracked and documented
 
-### 4. Explicit Risk Management
-
-Not all findings are treated equally — risks are prioritized, remediated, or formally accepted with documentation.
 ---
 
 ## Delivery Architecture (CI/CD as a Control Plane)
 
-GitHub Actions is used as the delivery control plane to orchestrate validation, testing, scanning, and artifact governance.
-```mermaid
-graph TD
-    A[Code Commit] -->|1. Secret Detection| B(Gitleaks)
-    B -->|2. Dependency & Code Analysis| C(Snyk)
-    C -->|3. Automated Tests| D(Jest / TDD)
-    D -->|4. Container Build| E[Docker Build]
-    E -->|5. Dockerfile Policy| F(Hadolint)
-    E -->|6. Image Vulnerability Scan| G(Trivy)
-    G -->|7. Signing & SBOM| H(Cosign & Syft)
-    H --> I[Container Registry]
-```
+### CI/CD as a Control Plane
 
-```mermaid
-graph TD
-    A[Code Commit] -->|1. Secret Scan| B(Gitleaks)
-    B -->|2. SCA & SAST| C(Snyk)
-    C -->|3. Unit Tests| D(Jest/TDD)
-    D -->|4. Build| E[Docker Build]
-    E -->|5. Linting| F(Hadolint)
-    E -->|6. Image Scan| G(Trivy)
-    G -->|7. Sign & SBOM| H(Cosign & Syft)
-    H --> I[Registry Push]
-```
+GitHub Actions is used as the delivery control plane, following a **Pipeline-as-Code** model.
+
+#### Design Decision:
+GitHub Actions was chosen over traditional CI servers (e.g., Jenkins) to:
+- Minimize operational overhead
+- Keep pipeline logic versioned alongside the application
+- Treat CI/CD as part of the codebase, not external infrastructure
+
+### Governance Pipeline
 
 ```mermaid
 graph TD
@@ -103,21 +93,51 @@ graph TD
     end
 ```
 
-This pipeline is intentionally **fail-fast**: artifacts are never built or published unless all required quality gates pass.
+> This pipeline is intentionally **fail-fast**: artifacts are never built or published unless all required quality gates pass.
 
-### Tooling Strategy
+--- 
 
-| Stage | Tool | Purpose |
-| :--- | :---: | :---: |
-| 1. Secret Scanning | Gitleaks | Prevents hardcoded  credentials/secrets from entering the repo. |
-| 2. SCA & SAST | Snyk | Scans dependencies and code logic for known vulnerabilities. |
-| 3. Testing (TDD) | Jest + Supertest | Validates application logic and API endpoints before build. |
-| 4. Docker Linting | Hadolint | Enforces best practices in Dockerfile construction. |
-| 5. Container Scan | Trivy | Scans the built Docker image for OS-level vulnerabilities. |
-| 6. Image Signing | Cosign | Cryptographically signs the image to guarantee integrity (SLSA). |
-| 7. SBOM Generation | Syft | Generates a Software Bill of Materials (SPDX) for transparency. |
+## Quality & Risk Controls
 
-> Tool choice is intentional but interchangeable — the architecture and controls matter more than the vendor.
+### Defense in Depth
+
+The system applies overlapping controls to reduce blind spots and false negatives.
+
+### Layer 1: Application Security (Pre-Build)
+
+**Secret Detection (Gitleaks)**
+- Prevents hardcoded credentials from entering the repository.
+- Runs before dependency installation to avoid wasted compute on compromised commits.
+
+**SAST & SCA (Snyk)**
+Focuses on:
+- Source code
+- Dependency tree (package.json)
+
+** Decision Rationale:**
+Snyk is utilized here for its robust vulnerability intelligence within the Node.js ecosystem.
+
+### Layer 2: Artifact Security (Post-Build)
+
+**Container Scanning (Trivy)**
+Detects OS-level and runtime vulnerabilities (e.g., Alpine Linux packages).
+
+**Infrastructure Linting (Hadolint)**
+Enforces Dockerfile best practices, including version pinning and deterministic builds.
+
+**Decision Reasoning:**
+This layer catches risks that application-level scanners cannot see.
+
+### Layer 3: Supply Chain Guarantees
+
+* **Non-Repudiation (Cosign)**
+  - Container images are cryptographically signed.
+  - A production cluster could enforce this via an admission controller.
+
+* **Transparency (Syft)**
+  - Generates an SPDX-formatted SBOM for every release, enabling rapid impact analysis during future zero-day events (e.g., Log4Shell).
+
+---
 
 ## Case Study: Legacy Risk Remediation 🔬
 
@@ -166,8 +186,8 @@ Accepted Risk: Medium / Low vulnerabilities may proceed if no patch exists, prio
 | :--- | :---: | :---: | :--- |
 | **Critical** | 27 | 0 | ✅ Fixed |
 | **High** | 116 | 0 | ✅ Fixed |
-| **Medium** | 191 | 2 | ⚠️ Accepted Risk (Documented) |
-| **Low** | 345 | 22 | ℹ️ Backlog |
+| **Medium** | 191 | 2 | ⚠️ Risk Accepted (Backlog) |
+| **Low** | 345 | 22 | ℹ️ Monitoring |
 
 > This demonstrates risk-based decision making, not absolute zero-tolerance — a more realistic production posture.
 
@@ -201,8 +221,6 @@ npm test
 # Run tests in watch mode (for development)
 npm run test:watch
 ```
-
-To verify the current security status of the application, follow these steps:
 
 ### 3. Security Validation (Optional)
 
