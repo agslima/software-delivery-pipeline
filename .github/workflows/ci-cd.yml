@@ -93,8 +93,25 @@ jobs:
         - name: Start App Container
           run: |
             docker build --load -t target-app ./app
+          
+            # Run the container
             docker run -d -p 3000:8080 --name app-under-test target-app
-            timeout 60s bash -c 'until curl -s -f http://localhost:3000 > /dev/null; do sleep 5; done'
+          
+            echo "Waiting for application to launch..."
+          
+            # Attempt to connect. If it times out after 60s, run the "||" block
+            if ! timeout 60s bash -c 'until curl -s -f http://localhost:3000 > /dev/null; do sleep 2; done'; then
+              echo "❌ CRITICAL: Application failed to respond!"
+              echo "🔍 DUMPING CONTAINER LOGS:"
+            
+              # --- THIS COMMAND SAVES YOU HOURS OF DEBUGGING ---
+              docker logs app-under-test
+              # -------------------------------------------------
+            
+              exit 1
+            fi
+          
+            echo "✅ Application is live!"
 
         - name: OWASP ZAP Baseline Scan
           uses: zaproxy/action-baseline@v0.12.0
