@@ -159,7 +159,7 @@ jobs:
       # Optimization: Enable Caching
       - name: Build & Push
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
         with:
           context: ${{ matrix.context }}
           push: true
@@ -174,13 +174,25 @@ jobs:
       - name: Export Digest
         run: |
           mkdir -p digests
-          echo "${{ steps.build.outputs.digest }}" > digests/digest-${{ matrix.name }}
+          DIGEST="${{ steps.build.outputs.digest }}"
+          
+          # Debugging: Print digest to logs to prove it exists
+          echo "Captured Digest: $DIGEST"
+          
+          if [[ -z "$DIGEST" ]]; then
+            echo "❌ Error: Digest is empty!"
+            exit 1
+          fi
+          
+          echo "$DIGEST" > digests/digest-${{ matrix.name }}
       
-      - uses: actions/upload-artifact@v4
+      - name: Upload Digest Artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: digest-${{ matrix.name }}
+          name: digest-${{ matrix.name }}     
           path: digests/digest-${{ matrix.name }}
           retention-days: 1
+          if-no-files-found: error              # Fail if file is missing
 
       - name: Trivy Scan
         uses: aquasecurity/trivy-action@0.29.0
@@ -203,7 +215,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - name: backend
+          - name: app-build
             image_repo: software-delivery-pipeline
 
     steps:
@@ -214,13 +226,17 @@ jobs:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
-      - uses: actions/download-artifact@v4
+      - name: Download Digest Artifact
+        uses: actions/download-artifact@v4
         with:
           name: digest-${{ matrix.name }}
           path: digests
 
       - name: Read Digest
         run: |
+          # Verify file exists
+          ls -R digests/
+          
           DIGEST=$(cat digests/digest-${{ matrix.name }})
           echo "DIGEST=$DIGEST" >> $GITHUB_ENV
           echo "IMAGE=${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@$DIGEST" >> $GITHUB_ENV
