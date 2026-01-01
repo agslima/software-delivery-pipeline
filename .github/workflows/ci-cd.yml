@@ -71,7 +71,7 @@ jobs:
   cd-build-push:
     if: >
       github.event_name == 'push' &&
-      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+      (startsWith(github.ref, 'refs/tags/v'))
     needs: ci-security-check
     runs-on: ubuntu-latest
     permissions:
