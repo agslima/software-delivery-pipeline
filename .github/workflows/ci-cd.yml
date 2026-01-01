@@ -215,7 +215,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - name: app-build
+          - name: app
             image_repo: software-delivery-pipeline
 
     steps:
