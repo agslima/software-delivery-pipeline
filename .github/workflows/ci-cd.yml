@@ -27,16 +27,19 @@ jobs:
         with:
           fetch-depth: 0      
 
-      - uses: actions/setup-node@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
         with:
           node-version-file: 'app/server/package.json'
           cache: 'npm'
           cache-dependency-path: app/server/package-lock.json
 
       - name: Install Dependencies
+        working-directory: app/server 
         run: npm ci
       
       - name: Unit Tests
+        working-directory: app/server
         run: npm test
 
       # Secret Scanning
