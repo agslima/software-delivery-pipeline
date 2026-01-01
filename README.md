@@ -105,16 +105,16 @@ The system applies overlapping controls to reduce blind spots and false negative
 
 ### Layer 1: Application Security (Pre-Build)
 
-**Secret Detection (Gitleaks)**
-- Prevents hardcoded credentials from entering the repository.
-- Runs before dependency installation to avoid wasted compute on compromised commits.
+* **Secret Detection (Gitleaks)**
+  - Prevents hardcoded credentials from entering the repository.
+  - Runs before dependency installation to avoid wasted compute on compromised commits.
 
 * **SAST & SCA (Snyk)**
 Focuses on:
   - Source code
   - Dependency tree (package.json)
 
-* ** Decision Rationale:**
+* **Decision Rationale:**
   - Snyk is utilized here for its robust vulnerability intelligence within the Node.js ecosystem.
 
 ### Layer 2: Artifact Security (Post-Build)
