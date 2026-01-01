@@ -51,10 +51,9 @@ Every container image is:
 
 ### 3. Risk Management
 
-Security is **not binary**
-The system differentiates between:
-- Blockers: Critical / High vulnerabilities
-- Managed Debt: Medium / Low vulnerabilities tracked and documented
+Security is **not binary**. The system differentiates between:
+- **Blockers:** Critical / High vulnerabilities
+- **Managed Debt:** Medium / Low vulnerabilities tracked and documented
 
 ---
 
@@ -138,10 +137,6 @@ Focuses on:
   - Generates an SPDX-formatted SBOM for every release, enabling rapid impact analysis during future zero-day events (e.g., Log4Shell).
 
 ---
-
-### 3. The Result (Final Status)
-
-After applying the fixes and re-running the CI/CD pipeline checks:
 
 ## Operational Evidence
 
