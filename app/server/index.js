@@ -2,7 +2,7 @@
 require('dotenv').config(); // Load environment variables first
 const app = require('./app');
 
-const PORT = process.env.PORT || 8090;
+const PORT = process.env.PORT || 8080;
 
 app.listen(PORT, () => {
     console.log(`Server running at http://localhost:${PORT}`);
