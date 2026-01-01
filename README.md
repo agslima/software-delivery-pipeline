@@ -10,6 +10,7 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-lightgrey.svg)](https://opensource.org/licenses/Apache-2.0)
 
 > A Secure Software Supply Chain Reference Implementation
+
 ## TL;DR
 
 This repository demonstrates how to design and operate a governed CI/CD pipeline where:
