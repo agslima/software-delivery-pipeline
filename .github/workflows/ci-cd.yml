@@ -44,19 +44,22 @@ jobs:
 
       # Secret Scanning
       - name: Secret Scanning (Gitleaks)
-        if: vars.ENABLE_GITLEAKS == 'true'
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # (SAST) - Snyk
       - name: Snyk Security Check
-        if: vars.ENABLE_SNYK_SCANS == 'true'
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: |
           npm install -g snyk
-          snyk test --severity-threshold=high
+          snyk test --severity-threshold=high --json-file-output=snyk-results.json
+
+      - name: Upload Snyk Results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: snyk-results.json
 
   # ------------------------------------------------------------------
   # JOB 2: Infrastructure Linting (Docker)
