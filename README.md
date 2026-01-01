@@ -231,6 +231,8 @@ npm start
 * **Artifact Verification:** Container images can be verified using the public Cosign key in this repository
 * **Responsible Disclosure:** See SECURITY.md
 
+---
+
 ## Technology Stack (Reference)
 
 * **Frontend:** React
@@ -247,6 +249,8 @@ npm start
 ## License
 
 This project is licensed under the Apache 2 License. See the `LICENSE file for details.
+
+---
 
 ## Final Note
 
