@@ -114,13 +114,11 @@ jobs:
 
          # 2. RUN ZAP SCAN
         - name: OWASP ZAP Baseline Scan
-          # FIX: Upgrade to v0.14.0 (Uses the new Artifacts API)
-          uses: zaproxy/action-baseline@v0.14.0
-          with:
-            target: 'http://localhost:3000'
-            allow_issue_writing: false 
-            cmd_options: '-a'
-            artifact_name: zap_scan
+          run: |
+            # Use --network host to access localhost:3000 from inside the ZAP container
+            docker run --network host -v $(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
+            -t http://localhost:3000 \
+            -a
 
   # ==================================================================
   # STAGE 2: RELEASE (TAGS ONLY)
@@ -130,7 +128,7 @@ jobs:
     name: Release Build
     runs-on: ubuntu-latest
     # Needs DAST only if DAST ran. Since DAST is conditional, we trust previous stages.
-    needs: [ code-quality, docker-lint ] 
+    needs: [ code-quality, docker-lint, dast-analysis ] 
     if: startsWith(github.ref, 'refs/tags/v')
     environment: production
     permissions:
