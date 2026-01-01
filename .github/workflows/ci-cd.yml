@@ -95,30 +95,32 @@ jobs:
             docker build --load -t target-app ./app
           
             # Run the container
-            docker run -d -p 3000:8080 --name app-under-test target-app
-          
-            echo "Waiting for application to launch..."
-          
+            docker run -d -p 3000:8080 --name app-under-test target-app          
+            echo "Waiting for application to launch..."          
             # Attempt to connect. If it times out after 60s, run the "||" block
             if ! timeout 60s bash -c 'until curl -s -f http://localhost:3000 > /dev/null; do sleep 2; done'; then
               echo "❌ CRITICAL: Application failed to respond!"
-              echo "🔍 DUMPING CONTAINER LOGS:"
-            
+              echo "🔍 DUMPING CONTAINER LOGS:"            
               # --- THIS COMMAND SAVES YOU HOURS OF DEBUGGING ---
               docker logs app-under-test
-              # -------------------------------------------------
-            
+              # -------------------------------------------------            
               exit 1
-            fi
-          
+            fi          
             echo "✅ Application is live!"
 
+        # Ensure ZAP container can write the report files
+        - name: Fix Permissions for ZAP
+          run: chmod -R 777 .
+
+         # 2. RUN ZAP SCAN
         - name: OWASP ZAP Baseline Scan
-          uses: zaproxy/action-baseline@v0.12.0
+          # FIX: Upgrade to v0.14.0 (Uses the new Artifacts API)
+          uses: zaproxy/action-baseline@v0.14.0
           with:
             target: 'http://localhost:3000'
             allow_issue_writing: false 
             cmd_options: '-a'
+            artifact_name: zap_scan
 
   # ==================================================================
   # STAGE 2: RELEASE (TAGS ONLY)
