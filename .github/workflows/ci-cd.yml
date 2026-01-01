@@ -70,7 +70,8 @@ jobs:
   # Job 2: CD and Container Security
   cd-build-push:
     if: >
-      startsWith(github.ref, 'refs/tags/v'))
+      github.event_name == 'push' &&
+      (startsWith(github.ref, 'refs/tags/v'))
     needs: ci-security-check
     runs-on: ubuntu-latest
     permissions:
