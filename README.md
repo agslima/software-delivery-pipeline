@@ -125,8 +125,8 @@ Detects OS-level and runtime vulnerabilities (e.g., Alpine Linux packages).
 **Infrastructure Linting (Hadolint)**
 Enforces Dockerfile best practices, including version pinning and deterministic builds.
 
-**Decision Reasoning:**
-This layer catches risks that application-level scanners cannot see.
+* **Decision Reasoning:**
+  This layer catches risks that application-level scanners cannot see.
 
 ### Layer 3: Supply Chain Guarantees
 
@@ -135,7 +135,7 @@ This layer catches risks that application-level scanners cannot see.
   - A production cluster could enforce this via an admission controller.
 
 * **Transparency (Syft)**
-  - Generates an SPDX-formatted SBOM for every release, enabling rapid impact analysis during future zero-day events (e.g., Log4Shell).
+  Generates an SPDX-formatted SBOM for every release, enabling rapid impact analysis during future zero-day events (e.g., Log4Shell).
 
 ---
 
