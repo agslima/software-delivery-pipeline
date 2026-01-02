@@ -1,8 +1,7 @@
 # Branch Protection & Governance Model
 
-> [!Notes]
-> **Objective**
-> Make governance controls non-bypassable, even for contributors with write access.
+> [!NOTE]
+> **Objective**: Make governance controls non-bypassable, even for contributors with write access.
 > This turns GitHub itself into part of the control plane.
 
 This model ensures that no artifact can reach production unless it passes policy-defined quality, security, and provenance requirements, enforced before, during, and after CI execution.
@@ -17,58 +16,6 @@ This Branch Protection Model ensures that:
 - Governance failures surface immediately — not after deployment
 
 ## GitHub as the Control Plane
-
-<!--
-
-flowchart TB
-    %% Developers
-    Dev[Developer] -->|PR| GH[GitHub Control Plane]
-
-    %% GitHub as Control Plane
-    subgraph GitHub["GitHub Control Plane"]
-        BR[Branch Protection Rules]
-        PR[Pull Request Workflow]
-        CI["Governed CI/CD Pipeline<br/>(GitHub Actions)"]
-        ENV["Protected Environments<br/>(Production)"]
-        TAG[Protected Release Tags]
-    end
-
-    GH --> BR
-    GH --> PR
-    PR --> CI
-    CI --> ENV
-    CI --> TAG
-
-    %% CI/CD Governance
-    subgraph CI_GOV["Governance Pipeline"]
-        S1[Secrets • SAST • SCA • Tests]
-        S2[Build • Lint • Scan • DAST]
-        S3[Sign • SBOM • Provenance]
-    end
-
-    CI --> S1
-    S1 --> S2
-    S2 --> S3
-
-    %% Artifact Flow
-    S3 --> IMG["Signed & Attested Image<br/>(Digest-based)"]
-    IMG --> REG[Container Registry]
-
-    %% GitOps & Runtime Enforcement
-    REG --> GITOPS[GitOps Manifest Update]
-    GITOPS --> K8S[Kubernetes Cluster]
-
-    subgraph RUNTIME["Runtime Enforcement"]
-        ADM["Admission Controller<br/>(Kyverno)"]
-    end
-
-    K8S --> ADM
-    ADM -->|Verify Signature & Provenance| RUN[Running Workload]
-
-    %% Rejection Path
-    ADM -.->|Reject Unsigned / Untrusted| REJ[Deployment Blocked]
-
--->
 
 ```mermaid
 flowchart TB
