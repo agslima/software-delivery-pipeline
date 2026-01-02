@@ -100,6 +100,35 @@ graph TD
     end
 ```
 
+```mermaid
+
+graph TD
+    subgraph "Phase 1: Code & Dependencies"
+        A[Code Commit] -->|Gate 1: Secrets| B(Gitleaks)
+        B -->|Gate 2: SAST & SCA| C(Snyk)
+        C -->|Gate 3: Unit Tests| D(Jest / TDD)
+    end
+    
+    subgraph "Phase 2: Artifact Construction"
+        D -->|Build (Ephemeral)| E[Docker Build]
+        E -->|Gate 4: Dockerfile Policy| F(Hadolint)
+        F -->|Gate 5: DAST (Runtime)| G(OWASP ZAP)
+    end
+    
+    subgraph "Phase 3: Release & Trust"
+        G -->|Build & Push| H[Container Registry]
+        H -->|Gate 6: Image Scan| I(Trivy)
+        I -->|Attestation| J(Syft SBOM)
+        J -->|Signing & Provenance| K(Cosign / SLSA)
+    end
+
+    subgraph "Phase 4: Delivery (GitOps)"
+        K -->|Policy Check| L(Kyverno CLI)
+        L -->|Update Manifest| M[k8s/deployment.yaml]
+        M -->|Git Commit & Push| N[Main Branch]
+    end
+```
+
 > This pipeline is intentionally **fail-fast**: artifacts are never built or published unless all required quality gates pass.
 
 ---
