@@ -2,7 +2,13 @@
 
 ![CD/CD Status](https://github.com/agslima/secure-app-analysis/actions/workflows/ci-cd.yml/badge.svg)
 ![SLSA](https://img.shields.io/badge/SLSA-Level%203-blue?logo=linuxfoundation)
-[![Docker](https://img.shields.io/badge/Deployment-Docker-blue.svg)](https://docker.com)
+[![Docker](https://img.shields.io/badge/Deployment-Docker-blue.svg)](https://docker.com))
+[![Docker Pulls](https://img.shields.io/docker/pulls/agslima/software-delivery-pipeline.svg)](https://hub.docker.com/r/agslima/software-delivery-pipeline)
+[![Infrastructure: Kubernetes](https://img.shields.io/badge/Infra-Kubernetes-326CE5?logo=kubernetes&logoColor=white)](https://kubernetes.io/)
+[![Security: Snyk](https://img.shields.io/badge/Security-Snyk-4C4A73.svg?logo=snyk&logoColor=white)](https://snyk.io/)
+[![Security: Trivy](https://img.shields.io/badge/Container-Trivy-0077C2.svg?logo=aquasecurity&logoColor=white)](https://github.com/aquasecurity/trivy)
+[![Security: ZAP](https://img.shields.io/badge/DAST-OWASP%20ZAP-blue?logo=owasp&logoColor=white)](https://www.zaproxy.org/)
+[![Signed with Sigstore](https://img.shields.io/badge/Signed_with-Sigstore-purple?logo=sigstore&logoColor=white)](https://sigstore.dev)
 [![License](https://img.shields.io/badge/License-Apache%202.0-lightgrey.svg)](https://opensource.org/licenses/Apache-2.0)
 
 ### A Secure Software Supply Chain & DevOps Reference Implementation
