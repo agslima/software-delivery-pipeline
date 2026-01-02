@@ -60,14 +60,14 @@ jobs:
 
           # 1. Generate JSON for your Debt Script (Must include Low/Medium)
           #  Use '|| true' so the pipeline doesn't crash here; the script decides later.
-          echo "📝 Generating JSON for Security Debt Script..."
+          echo "Generating JSON for Security Debt Script..."
 
           snyk test --json > snyk-results.json || true
           
           # snyk test --severity-threshold=high --json-file-output=snyk-results.json
 
           # 2. Generate SARIF for GitHub Security Tab (Usually High/Critical only)
-          echo "🛡️ Generating SARIF for GitHub Dashboard..."
+          echo "Generating SARIF for GitHub Dashboard..."
           snyk test --severity-threshold=high --sarif > snyk-results.sarif || true
 
       - name: Upload Snyk Results
@@ -123,15 +123,15 @@ jobs:
             
             # Attempt to connect. If it times out after 60s, run the "||" block
             if ! timeout 60s bash -c 'until curl -s -f http://localhost:3000 > /dev/null; do sleep 2; done'; then
-              echo "❌ CRITICAL: Application failed to respond!"
-              echo "🔍 DUMPING CONTAINER LOGS:"            
+              echo "CRITICAL: Application failed to respond!"
+              echo "DUMPING CONTAINER LOGS:"            
               # --- THIS COMMAND SAVES YOU HOURS OF DEBUGGING ---
               docker logs app-under-test
               # -------------------------------------------------            
               exit 1
             fi          
             
-            echo "✅ Application is live!"
+            echo "Application is live!"
 
         # Ensure ZAP container can write the report files
         - name: Fix Permissions for ZAP
@@ -204,7 +204,7 @@ jobs:
           echo "Captured Digest: $DIGEST"
           
           if [[ -z "$DIGEST" ]]; then
-            echo "❌ Error: Digest is empty!"
+            echo "Error: Digest is empty!"
             exit 1
           fi
           
@@ -351,7 +351,7 @@ jobs:
           # 2. Construct the correct filename
           FILE_NAME="kyverno-cli_${KYVERNO_VERSION}_linux_x86_64.tar.gz"
           
-          echo "⬇️ Downloading Kyverno version: $KYVERNO_VERSION"
+          echo "Downloading Kyverno version: $KYVERNO_VERSION"
           
           # 3. Download the asset from the specific tag URL
           curl -LO "https://github.com/kyverno/kyverno/releases/download/${KYVERNO_VERSION}/${FILE_NAME}"
@@ -361,7 +361,7 @@ jobs:
           sudo mv kyverno /usr/local/bin/
           
           # 5. Verify Installation
-          echo "✅ Kyverno Installed:"
+          echo "Kyverno Installed:"
           kyverno version
 
       - name: Validate Kubernetes Manifest Against Policy
@@ -372,35 +372,29 @@ jobs:
       
       - name: GitOps - Update Manifest Version
         run: |
-          # Use sed to replace the image tag with the new digest or tag
-          # We use the Digest (SHA) because it is immutable (Best Practice)
           sed -i "s|image: .*|image: ${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@${{ env.DIGEST }}|g" k8s/deployment.yaml
           
-          # In a real setup, you would commit and push this back. 
-          # For this demo, we just print the diff to prove it works.
           echo "Updated Kubernetes Manifest:"
           cat k8s/deployment.yaml
 
       - name: Commit & Push Changes
         run: |
-          # Configure Git Identity
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Stage changes
           git add k8s/deployment.yaml
 
-          # Idempotency check
           if git diff --staged --quiet; then
             echo "No changes to commit."
             exit 0
           fi
 
-          # Commit
           git commit -m "gitops: update deployment digest to ${{ env.DIGEST }} [skip ci]"
 
-          # PULL & REBASE (Fixes Detached HEAD & Syncs with Remote)
+          # 1. Pull changes using the PAT (Explicitly)
+          git remote set-url origin "https://${{ secrets.GH_PAT }}@github.com/${{ github.repository }}.git"
+          
+          # 2. Rebase with autostash (Handles the dirty state safely)
           git pull --rebase --autostash origin main
 
-          # PUSH (Uses the PAT from the checkout step automatically)
           git push origin HEAD:main
