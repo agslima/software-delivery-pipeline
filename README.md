@@ -5,7 +5,7 @@
 [![Docker](https://img.shields.io/badge/Deployment-Docker-blue.svg)](https://docker.com)
 [![License](https://img.shields.io/badge/License-Apache%202.0-lightgrey.svg)](https://opensource.org/licenses/Apache-2.0)
 
-### A Secure Software Supply Chain & DevSecOps Reference Implementation
+### A Secure Software Supply Chain & DevOps Reference Implementation
 
 > Mission: Design and implement a secure software delivery pipeline that balances strong security guarantees with development velocity, using CI/CD as the primary governance control plane.
 
