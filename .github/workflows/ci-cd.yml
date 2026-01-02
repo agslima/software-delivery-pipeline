@@ -76,7 +76,9 @@ jobs:
 
       
       - name: Enforce Risk Acceptance Policy
-        run: scripts/check-security-debt.sh app/server/snyk-results.json
+        run: | 
+          chmod +x scripts/check-security-debt.sh 
+          scripts/check-security-debt.sh app/server/snyk-results.json
          
   # ------------------------------------------------------------------
   # JOB 2: Infrastructure Linting (Docker)
