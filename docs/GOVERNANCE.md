@@ -1,6 +1,6 @@
 # Branch Protection & Governance Model
 
-> ![Notes]
+> [!Notes]
 > **Objective**
 > Make governance controls non-bypassable, even for contributors with write access.
 > This turns GitHub itself into part of the control plane.
@@ -18,7 +18,8 @@ This Branch Protection Model ensures that:
 
 ## GitHub as the Control Plane
 
-```mermaid
+<!--
+
 flowchart TB
     %% Developers
     Dev[Developer] -->|PR| GH[GitHub Control Plane]
@@ -66,7 +67,9 @@ flowchart TB
 
     %% Rejection Path
     ADM -.->|Reject Unsigned / Untrusted| REJ[Deployment Blocked]
-```
+
+-->
+
 ```mermaid
 flowchart TB
     %% Actors
@@ -108,14 +111,10 @@ flowchart TB
     ADM -->|3. Verify Signature| POD
     ADM -.->|Fail Verification| BLOCK[Block Deployment]
 
-    %% Styles
-    style ADM fill:#f9f,stroke:#333,stroke-width:2px
-    style Build fill:#bbf,stroke:#333,stroke-width:2px
 ```
 
-
 > Key Principle:
-Governance is enforced before code merges, during artifact creation, and at runtime admission, ensuring that CI pipelines cannot be weakened without detection or enforcement failure.
+> Governance is enforced before code merges, during artifact creation, and at runtime admission, ensuring that CI pipelines cannot be weakened without detection or enforcement failure.
 
 ---
 
@@ -210,9 +209,8 @@ This enforces separation of duties:
 
 ## CODEOWNERS
 
-`.github/CODEOWNERS`:
-
 ```text
+# `.github/CODEOWNERS`
 # Governance ownership
 .github/workflows/*  @agslima
 k8s/**               @agslima
