@@ -89,7 +89,7 @@ flowchart TB
     TAG_RULE -->|Triggers| Build
 
     %% 🚨 BREAK-GLASS FLOW 🚨
-    Admin -.->|🚨 EMERGENCY BYPASS<br/>(Audit Logged)| Main
+    Admin -.->|🚨 "EMERGENCY BYPASS<br/>(Audit Logged)"| Main
 
     %% Artifact Flow
     Build -->|1. Sign & Attest| IMG["Signed Artifact"]
