@@ -72,7 +72,7 @@ jobs:
       - name: Upload Snyk Results
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: app/server/snyk-results.json
+          sarif_file: app/server/snyk-results.sarif
 
       
       - name: Enforce Risk Acceptance Policy
