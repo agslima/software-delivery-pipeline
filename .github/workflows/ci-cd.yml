@@ -56,16 +56,27 @@ jobs:
         working-directory: app/server
         run: |
           npm install -g snyk
-          snyk test --severity-threshold=high --json-file-output=snyk-results.json
+
+          # 1. Generate JSON for your Debt Script (Must include Low/Medium)
+          #  Use '|| true' so the pipeline doesn't crash here; the script decides later.
+          echo "📝 Generating JSON for Security Debt Script..."
+
+          snyk test --json > snyk-results.json || true
+          
+          # snyk test --severity-threshold=high --json-file-output=snyk-results.json
+
+          # 2. Generate SARIF for GitHub Security Tab (Usually High/Critical only)
+          echo "🛡️ Generating SARIF for GitHub Dashboard..."
+          snyk test --severity-threshold=high --sarif > snyk-results.sarif || true
 
       - name: Upload Snyk Results
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: snyk-results.json
+          sarif_file: app/server/snyk-results.json
 
       
       - name: Enforce Risk Acceptance Policy
-        run: scripts/check-security-debt.sh snyk-results.json
+        run: scripts/check-security-debt.sh app/server/snyk-results.json
          
   # ------------------------------------------------------------------
   # JOB 2: Infrastructure Linting (Docker)
