@@ -2,7 +2,6 @@
 
 ![CD/CD Status](https://github.com/agslima/secure-app-analysis/actions/workflows/ci-cd.yml/badge.svg)
 ![SLSA](https://img.shields.io/badge/SLSA-Level%203-blue?logo=linuxfoundation)
-[![Docker Pulls](https://img.shields.io/docker/pulls/agslima/software-delivery-pipeline.svg)](https://hub.docker.com/r/agslima/software-delivery-pipeline)
 [![Infrastructure: Kubernetes](https://img.shields.io/badge/Infra-Kubernetes-326CE5?logo=kubernetes&logoColor=white)](https://kubernetes.io/)
 [![Security: Snyk](https://img.shields.io/badge/Security-Snyk-4C4A73.svg?logo=snyk&logoColor=white)](https://snyk.io/)
 [![Security: Trivy](https://img.shields.io/badge/Container-Trivy-0077C2.svg?logo=aquasecurity&logoColor=white)](https://github.com/aquasecurity/trivy)
@@ -21,7 +20,6 @@ This repository demonstrates how to design and operate a governed CI/CD pipeline
 - Quality and security gates are enforced automatically
 - Container artifacts are **signed, traceable, and SLSA Level 3–compliant**
 - Vulnerabilities are managed through explicit **risk policies**, not binary pass/fail rules
-- The pipeline extends beyond build to include **Runtime Verification (DAST)** and **GitOps-based Admission Control**
 
 > The application is intentionally simple. The focus is on **software delivery architecture, DevOps practices, and engineering governance**, not framework complexity.
 
@@ -83,27 +81,6 @@ GitHub Actions was chosen over traditional CI servers (e.g., Jenkins) to:
 - Treat CI/CD as part of the codebase, not external infrastructure
 
 ### Governance Pipeline
-
-```mermaid
-graph TD
-    subgraph "Phase 1: Code & Dependencies"
-        A[Code Commit] -->|Gate 1: Secrets| B(Gitleaks)
-        B -->|Gate 2: SAST & SCA| C(Snyk)
-        C -->|Gate 3: Unit Tests| D(Jest / TDD)
-    end
-    
-    subgraph "Phase 2: Artifact Construction"
-        D -->|Build| E[Docker Build]
-        E -->|Gate 4: Dockerfile Policy| F(Hadolint)
-        E -->|Gate 5: Image Scan| G(Trivy)
-    end
-    
-    subgraph "Phase 3: Supply Chain Trust"
-        G -->|Attestation| H(Syft SBOM)
-        H -->|Signing| I(Cosign)
-        I --> J[Container Registry]
-    end
-```
 
 ```mermaid
 
