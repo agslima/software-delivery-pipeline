@@ -6,8 +6,28 @@ const helmet = require("helmet"); // Security addition
 
 const app = express();
 
-// 1. Security: Set various HTTP headers (XSS, HSTS, etc.)
-app.use(helmet());
+
+// 1. Security: Helmet (XSS, HSTS, Frame Options)
+app.use(helmet({
+  contentSecurityPolicy: {
+    useDefaults: true,
+    directives: {
+      "default-src": ["'self'"],
+      "script-src": ["'self'"], // Removes wildcards
+      "object-src": ["'none'"],
+      "upgrade-insecure-requests": [],
+    },
+  },
+}));
+
+// 2. Security: Add "Permissions-Policy"
+app.use((req, res, next) => {
+  res.setHeader(
+    "Permissions-Policy",
+    "geolocation=(self), microphone=(), camera=(), payment=()"
+  );
+  next();
+});
 
 // 2. Security: Rate limiter
 const limiter = RateLimit({
