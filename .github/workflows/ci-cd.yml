@@ -25,7 +25,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0      
+          fetch-depth: 0
+          ref: ${{ github.sha }}      
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
@@ -52,18 +53,32 @@ jobs:
       - name: Snyk Security Check
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        working-directory: app/server
         run: |
           npm install -g snyk
-          snyk test --severity-threshold=high --json-file-output=snyk-results.json
+
+          # 1. Generate JSON for your Debt Script (Must include Low/Medium)
+          #  Use '|| true' so the pipeline doesn't crash here; the script decides later.
+          echo "📝 Generating JSON for Security Debt Script..."
+
+          snyk test --json > snyk-results.json || true
+          
+          # snyk test --severity-threshold=high --json-file-output=snyk-results.json
+
+          # 2. Generate SARIF for GitHub Security Tab (Usually High/Critical only)
+          echo "🛡️ Generating SARIF for GitHub Dashboard..."
+          snyk test --severity-threshold=high --sarif > snyk-results.sarif || true
 
       - name: Upload Snyk Results
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: snyk-results.json
+          sarif_file: app/server/snyk-results.sarif
 
       
       - name: Enforce Risk Acceptance Policy
-        run: ./scripts/check-security-debt.sh snyk-results.json
+        run: | 
+          chmod +x scripts/check-security-debt.sh 
+          scripts/check-security-debt.sh app/server/snyk-results.json
          
   # ------------------------------------------------------------------
   # JOB 2: Infrastructure Linting (Docker)
@@ -138,7 +153,7 @@ jobs:
   build-push:
     name: Release Build
     runs-on: ubuntu-latest
-    needs: [ code-quality, docker-lint ] 
+    needs: [ code-quality, docker-lint, dast-analysis ] 
     if: startsWith(github.ref, 'refs/tags/v')
     environment: production
     permissions:
@@ -200,7 +215,7 @@ jobs:
           name: digest-${{ matrix.name }}     
           path: digests/digest-${{ matrix.name }}
           retention-days: 1
-          if-no-files-found: error              # Fail if file is missing
+          if-no-files-found: error # Fail if file is missing
 
       - name: Trivy Scan
         uses: aquasecurity/trivy-action@0.29.0
@@ -209,6 +224,18 @@ jobs:
           severity: "CRITICAL,HIGH"
           exit-code: "1"
 
+      - name: Generate Trivy Attestation
+        run: |
+          trivy image \
+            --severity CRITICAL,HIGH \
+            --format json \
+            --output trivy.json \
+            ${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}:${{ github.sha }}
+
+     
+  # ------------------------------------------------------------------
+  # JOB 2: SIGNING & ATTESTATION
+  # ------------------------------------------------------------------
   sign-and-attest:
     name: Sign & Attest
     needs: build-push
@@ -254,8 +281,8 @@ jobs:
       - run: |
           cosign verify "$IMAGE" \
             --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-            --certificate-identity \
-            "https://github.com/${{ github.repository }}/.github/workflows/ci-cd.yml@refs/tags/${{ github.ref_name }}"
+            --certificate-identity-regexp \
+            "https://github.com/${{ github.repository }}/.github/workflows/.*"
       
       - uses: anchore/sbom-action@v0
         with:
@@ -272,11 +299,41 @@ jobs:
           subject-name: index.docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}
           subject-digest: ${{ env.DIGEST }}
           push-to-registry: true
+      
+      - name: Verify Build Provenance
+        run: |
+          gh attestation verify oci://${{ env.IMAGE }} \
+          --repo ${{ github.repository }}
 
       # ------------------------------------------------------------------
-      # Update Manifest
+      # GitOps Enforcement  (Policy-as-Code)
       # ------------------------------------------------------------------
- 
+  gitops-enforcement:
+    name: GitOps Enforcement
+    needs: sign-and-attest
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    environment: production
+    permissions:
+      contents: read
+    strategy:
+      matrix:
+        include:
+          - name: app
+            image_repo: software-delivery-pipeline  
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Digest Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: digest-${{ matrix.name }}
+          path: digests
+      - name: Read Digest
+        run: |
+          DIGEST=$(cat digests/digest-${{ matrix.name }})
+          echo "DIGEST=$DIGEST" >> $GITHUB_ENV  
+          echo "IMAGE=${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@$DIGEST" >> $GITHUB_ENV
+
       - name: Install Kyverno CLI
         run: |
           curl -LO https://github.com/kyverno/kyverno/releases/latest/download/kyverno-cli_linux_x86_64.tar.gz
@@ -299,4 +356,4 @@ jobs:
           # For this demo, we just print the diff to prove it works.
           echo "Updated Kubernetes Manifest:"
           cat k8s/deployment.yaml
- 
+

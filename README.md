@@ -35,7 +35,7 @@ Rather than emphasizing a specific programming language or framework, the applic
 - Zero Trust supply-chain controls using keyless signing
 - Managed security debt in a real-world delivery scenario
 
-The result is a production-oriented reference implementation of how modern teams enforce engineering standards across the SDLC.
+The result is a **production-oriented reference implementation** of how modern teams enforce engineering standards across the SDLC.
 
 ## Engineering Goals
 
@@ -43,21 +43,23 @@ The architecture was designed to satisfy three core **non-functional requirement
 
 ### 1. Reliability
 
-- The pipeline must produce deterministic builds
-- If code, tests, or policies fail, no artifact is created
+- Builds must be deterministic
+- If code, tests, or policies fail, **no artifact is created**
 
 ### 2. Traceability
 
 Every container image is:
-- Cryptographically signed
-- Linked to a specific Git commit
-- Associated with a Software Bill of Materials (SBOM)
+
+- Cryptographically signed using Sigstore/Cosign
+- Attested with build provenance verifying the builder identity
+- Linked to a specific Git commit and SBOM
 
 ### 3. Risk Management
 
-Security is **not binary**. The system differentiates between:
-- **Blockers:** Critical / High vulnerabilities
-- **Managed Debt:** Medium / Low vulnerabilities tracked and documented
+Security is not binary. The system differentiates between:
+
+- **Blockers:** Critical / High vulnerabilities → pipeline fails
+- **Managed Debt:** Medium / Low vulnerabilities tracked in `docs/security-debt.md`
 
 ---
 
@@ -67,8 +69,10 @@ Security is **not binary**. The system differentiates between:
 
 GitHub Actions is used as the delivery control plane, following a **Pipeline-as-Code** model.
 
-#### Design Decision:
+#### Design Decision
+
 GitHub Actions was chosen over traditional CI servers (e.g., Jenkins) to:
+
 - Minimize operational overhead
 - Keep pipeline logic versioned alongside the application
 - Treat CI/CD as part of the codebase, not external infrastructure
@@ -98,47 +102,49 @@ graph TD
 
 > This pipeline is intentionally **fail-fast**: artifacts are never built or published unless all required quality gates pass.
 
---- 
+---
 
 ## Quality & Risk Controls
 
-### Defense in Depth
-
-The system applies overlapping controls to reduce blind spots and false negatives.
-
 ### Layer 1: Application Security (Pre-Build)
 
-* **Secret Detection (Gitleaks)**
-  - Prevents hardcoded credentials from entering the repository.
-  - Runs before dependency installation to avoid wasted compute on compromised commits.
-
-* **SAST & SCA (Snyk)**
-Focuses on:
-  - Source code
-  - Dependency tree (package.json)
-
-* **Decision Rationale:**
-  - Snyk is utilized here for its robust vulnerability intelligence within the Node.js ecosystem.
+- **Gitleaks:** Prevents hardcoded credentials
+- **Snyk (SAST/SCA):** Analyzes source code and dependency trees
 
 ### Layer 2: Artifact Security (Post-Build)
 
-* **Container Scanning (Trivy)**
-  - Detects OS-level and runtime vulnerabilities (e.g., Alpine Linux packages).
+- **Trivy:** Detects OS-level vulnerabilities in the final image
+- **Hadolint:** Enforces Dockerfile best practices (non-root users, pinned versions)
 
-* **Infrastructure Linting (Hadolint)**
-  - Enforces Dockerfile best practices, including version pinning and deterministic builds.
+### Layer 3: Runtime Analysis (DAST)
 
-* **Decision Reasoning:**
-  - This layer catches risks that application-level scanners cannot see.
+- **OWASP ZAP**
+  - Pipeline spins up an ephemeral application instance
+  - Actively scans runtime behavior (headers, cookies, misconfigurations)
+  - Validates behavior, not just code
 
-### Layer 3: Supply Chain Guarantees
+### Layer 4: Supply Chain Guarantees (SLSA Level 3)
 
-* **Non-Repudiation (Cosign)**
-  - Container images are cryptographically signed.
-  - A production cluster could enforce this via an admission controller.
+- **Cosign (Keyless):** OIDC-bound image signing
+- **SLSA Provenance:** Verifiable build identity and process
+- **Syft:** SPDX-formatted SBOM for transparency and future incident response
 
-* **Transparency (Syft)**
-  - Generates an SPDX-formatted SBOM for every release, enabling rapid impact analysis during future zero-day events (e.g., Log4Shell).
+---
+
+## Deployment Architecture & Enforcement
+
+### Secret Management (12-Factor App)
+
+- Secrets stored in GitHub Actions Secrets
+- Injected as environment variables at runtime
+
+### GitOps & Admission Control
+
+- The pipeline does not deploy directly.
+- CI updates Kubernetes manifests with immutable image digests
+- Kyverno policies enforce that only images signed by this workflow identity can run
+
+This demonstrates how build trust is enforced at runtime, not just at CI time.
 
 ---
 
@@ -150,14 +156,14 @@ To validate the effectiveness of the delivery control plane, a legacy applicatio
 
 ### Remediation Workflow
 
-* **Baseline:**
-  -  Initial scans detected 27 Critical vulnerabilities
+- **Baseline:**
+  - Initial scans detected 27 Critical vulnerabilities
 
-* **Triage:**
+- **Triage:**
   - Dependency upgrades automated via Snyk
   - Manual refactoring to mitigate XSS and Prototype Pollution
 
-* **Risk Acceptance Policy:**
+- **Risk Acceptance Policy:**
   - Zero Tolerance: Critical / High vulnerabilities block the pipeline
   - Accepted Risk: Medium / Low vulnerabilities may proceed if no patch exists, prioritizing delivery velocity
 
@@ -167,10 +173,11 @@ To validate the effectiveness of the delivery control plane, a legacy applicatio
 | :--- | :---: | :---: | :--- |
 | **Critical** | 27 | 0 | ✅ Fixed |
 | **High** | 116 | 0 | ✅ Fixed |
-| **Medium** | 191 | 2 | ⚠️ Risk Accepted (Backlog) |
-| **Low** | 345 | 22 | ℹ️ Monitoring |
+| **Medium** | 191 | 2 | ✅ Fixed (29/12/2025) |
+| **Low** | 345 | 2 | ℹ️ Managed Debt |
 
 > This demonstrates risk-based decision making, not absolute zero-tolerance — a more realistic production posture.
+> Managed debt is tracked in `docs/security-debt.md`, demonstrating risk-based decision making
 
 ### Evidence
 
@@ -180,45 +187,37 @@ To validate the effectiveness of the delivery control plane, a legacy applicatio
 
 ---
 
+## Verification (How to Audit)
+
+### Verify Image Signature
+
+```bash
+cosign verify \
+  --certificate-identity-regexp "https://github.com/agslima/secure-app-analysis/.*" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  docker.io/agslima/software-delivery-pipeline:latest
+  ```
+
+### Verify SLSA Provenance
+
+```bash
+gh attestation verify oci://docker.io/agslima/software-delivery-pipeline:latest \
+  --owner agslima \
+  --repo secure-app-analysis
+  ```
+
 ## Local Development & Testing
 
 ### Prerequisites
 
-* **Node.js v18+**
-* **Docker**
-
-### Setup
+- **Node.js v18+**
+- **Docker**
 
 ```bash
-git clone https://github.com/agslima/.git
-cd folder
+git clone https://github.com/agslima/software-delivery-pipeline.git
+cd software-delivery-pipeline
 npm install
-```
-
-### 2. Running Tests (TDD)
-
-```bash
-# Run unit and integration tests
 npm test
-
-# Run tests in watch mode (for development)
-npm run test:watch
-```
-
-### 3. Security Validation (Optional)
-
-You need a Snyk account and CLI installed.
-
-Download a standalone executable (for macOS, Linux, and Windows) of the Snyk CLI for your platform.
-
-```bash
-snyk auth
-snyk test
-```
-
-### 4. Running the App
-
-```bash
 npm start
 ```
 
@@ -226,22 +225,23 @@ npm start
 
 ## Policy, Governance & Verification
 
-* **Security by Design:** Controls embedded early in the SDLC
-* **Artifact Verification:** Container images can be verified using the public Cosign key in this repository
-* **Responsible Disclosure:** See SECURITY.md
+- **Security by Design:** Controls embedded early in the SDLC
+- **Artifact Verification:** Container images can be verified using the public Cosign key in this repository
+- **Responsible Disclosure:** See SECURITY.md
 
 ---
 
 ## Technology Stack (Reference)
 
-* **Frontend:** React
-* **Backend:** Node.js / Express
-* **CI/CD:** GitHub Actions
-* **Containers:** Docker
-* **Supply Chain:** Cosign, Syft
-* **Security Analysis:** [Snyk](https://snyk.io) (Software Composition Analysis & SAST), Trivy, Gitleaks
+- **Frontend/Backend:** React /Node.js
+- **CI/CD:** GitHub Actions
+- **Containers:** Docker
+- **Supply Chain:** Cosign, Syft, SLSA Generator
+- **Security Analysis:** Snyk, Trivy, OWASP ZAP, Gitleaks
+- **Governance:** Kyverno
 
 > The application stack is intentionally simple — the focus is on delivery architecture, not framework complexity.
+CI/CD: GitHub Actions
 
 ---
 
@@ -253,5 +253,5 @@ This project is licensed under the Apache 2 License. See the `LICENSE` file for 
 
 ## Final Note
 
-> This repository should be read as a software delivery system, not an application demo.
-> The application exists to validate the policies, controls, and engineering decisions enforced by the pipeline.
+> This repository should be read as a **software delivery system**, not an application demo.
+> The application exists to validate the **policies, controls, and engineering decisions** enforced by the pipeline.

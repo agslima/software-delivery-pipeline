@@ -1,28 +1,99 @@
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
-  name: require-signed-images
+  name: enforce-governed-artifacts
   annotations:
-    pod-policies.kyverno.io/autogen-controllers: none
+    policies.kyverno.io/title: Enforce Governed Supply Chain
+    policies.kyverno.io/category: Supply Chain Security
+    policies.kyverno.io/severity: critical
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >
+      Ensures that only container images built by the approved GitHub Actions
+      workflow are allowed to run, and that each image has mandatory
+      attestations: provenance (SLSA), SBOM, and vulnerability scan.
 spec:
-  validationFailureAction: Enforce # Block the deployment if verification fails
+  validationFailureAction: Enforce
   background: false
   rules:
-    - name: verify-image-signature
-      match:
-        any:
-        - resources:
-            kinds:
-              - Pod
-      verifyImages:
+
+  # ------------------------------------------------------------
+  # Rule 1: Enforce Image Signature (Cosign Keyless)
+  # ------------------------------------------------------------
+  - name: require-signed-image
+    match:
+      resources:
+        kinds:
+          - Pod
+    verifyImages:
       - imageReferences:
-        - "docker.io/agslima/software-delivery-pipeline*" # Match image repo
+          - "docker.io/agslima/software-delivery-pipeline*"
         attestors:
-        - entries:
-          - keyless:
-              # 1. Verify the Issuer (Who issued the ID token?)
-              issuer: "https://token.actions.githubusercontent.com"
-              # 2. Verify the Subject (Who is the signer?)
-              # This ensures ONLY your specific GitHub Repo can sign valid images
-              subject: "https://github.com/agslima/secure-app-analysis/.github/workflows/ci-cd.yml@refs/tags/*"
-              
+          - entries:
+              - keyless:
+                  issuer: https://token.actions.githubusercontent.com
+                  subjectRegExp: >
+                    https://github.com/agslima/secure-app-analysis/
+                    .github/workflows/ci-cd.yml@refs/tags/v.*
+
+  # ------------------------------------------------------------
+  # Rule 2: Require SLSA Build Provenance
+  # ------------------------------------------------------------
+  - name: require-build-provenance
+    match:
+      resources:
+        kinds:
+          - Pod
+    verifyImages:
+      - imageReferences:
+          - "docker.io/agslima/software-delivery-pipeline*"
+        attestations:
+          - predicateType: https://slsa.dev/provenance/v1
+            conditions:
+              - all:
+                  - key: "{{ builder.id }}"
+                    operator: Equals
+                    value: https://github.com/actions/runner
+
+  # ------------------------------------------------------------
+  # Rule 3: Require SBOM Attestation
+  # ------------------------------------------------------------
+  - name: require-sbom
+    match:
+      resources:
+        kinds:
+          - Pod
+    verifyImages:
+      - imageReferences:
+          - "docker.io/agslima/software-delivery-pipeline*"
+        attestations:
+          - predicateType: https://spdx.dev/Document
+            conditions:
+              - all:
+                  - key: "{{ metadata.spdxVersion }}"
+                    operator: Equals
+                    value: SPDX-2.3
+
+  # ------------------------------------------------------------
+  # Rule 4: Require Vulnerability Scan Attestation (Trivy)
+  # ------------------------------------------------------------
+  - name: require-vulnerability-scan
+    match:
+      resources:
+        kinds:
+          - Pod
+    verifyImages:
+      - imageReferences:
+          - "docker.io/agslima/software-delivery-pipeline*"
+        attestations:
+          - predicateType: vuln
+            conditions:
+              - all:
+                  - key: "{{ scanner }}"
+                    operator: Equals
+                    value: trivy
+                  - key: "{{ summary.critical }}"
+                    operator: LessThanOrEquals
+                    value: 0
+                  - key: "{{ summary.high }}"
+                    operator: LessThanOrEquals
+                    value: 0
