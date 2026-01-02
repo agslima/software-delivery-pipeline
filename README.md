@@ -184,7 +184,7 @@ To validate the effectiveness of the delivery control plane, a legacy applicatio
 | :--- | :---: | :---: | :--- |
 | **Critical** | 27 | 0 | ✅ Fixed |
 | **High** | 116 | 0 | ✅ Fixed |
-| **Medium** | 191 | 2 | ✅ Fixed (29/12/2025) |
+| **Medium** | 191 | 0 | ✅ Fixed (29/12/2025) |
 | **Low** | 345 | 2 | ℹ️ Managed Debt |
 
 > This demonstrates risk-based decision making, not absolute zero-tolerance — a more realistic production posture.
