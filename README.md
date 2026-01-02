@@ -2,7 +2,6 @@
 
 ![CD/CD Status](https://github.com/agslima/secure-app-analysis/actions/workflows/ci-cd.yml/badge.svg)
 ![SLSA](https://img.shields.io/badge/SLSA-Level%203-blue?logo=linuxfoundation)
-[![Docker](https://img.shields.io/badge/Deployment-Docker-blue.svg)](https://docker.com))
 [![Docker Pulls](https://img.shields.io/docker/pulls/agslima/software-delivery-pipeline.svg)](https://hub.docker.com/r/agslima/software-delivery-pipeline)
 [![Infrastructure: Kubernetes](https://img.shields.io/badge/Infra-Kubernetes-326CE5?logo=kubernetes&logoColor=white)](https://kubernetes.io/)
 [![Security: Snyk](https://img.shields.io/badge/Security-Snyk-4C4A73.svg?logo=snyk&logoColor=white)](https://snyk.io/)
@@ -116,9 +115,9 @@ graph TD
     end
     
     subgraph "Phase 2: Artifact Construction"
-        D -->|Build (Ephemeral)| E[Docker Build]
+        D -->|"Build (Ephemeral)"| E[Docker Build]
         E -->|Gate 4: Dockerfile Policy| F(Hadolint)
-        F -->|Gate 5: DAST (Runtime)| G(OWASP ZAP)
+        F -->|"Gate 5: DAST (Runtime)"| G(OWASP ZAP)
     end
     
     subgraph "Phase 3: Release & Trust"
