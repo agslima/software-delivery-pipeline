@@ -2,7 +2,11 @@
 
 ![CD/CD Status](https://github.com/agslima/secure-app-analysis/actions/workflows/ci-cd.yml/badge.svg)
 ![SLSA](https://img.shields.io/badge/SLSA-Level%203-blue?logo=linuxfoundation)
-[![Docker](https://img.shields.io/badge/Deployment-Docker-blue.svg)](https://docker.com)
+[![Infrastructure: Kubernetes](https://img.shields.io/badge/Infra-Kubernetes-326CE5?logo=kubernetes&logoColor=white)](https://kubernetes.io/)
+[![Security: Snyk](https://img.shields.io/badge/Security-Snyk-4C4A73.svg?logo=snyk&logoColor=white)](https://snyk.io/)
+[![Security: Trivy](https://img.shields.io/badge/Container-Trivy-0077C2.svg?logo=aquasecurity&logoColor=white)](https://github.com/aquasecurity/trivy)
+[![Security: ZAP](https://img.shields.io/badge/DAST-OWASP%20ZAP-blue?logo=owasp&logoColor=white)](https://www.zaproxy.org/)
+[![Signed with Sigstore](https://img.shields.io/badge/Signed_with-Sigstore-purple?logo=sigstore&logoColor=white)](https://sigstore.dev)
 [![License](https://img.shields.io/badge/License-Apache%202.0-lightgrey.svg)](https://opensource.org/licenses/Apache-2.0)
 
 ### A Secure Software Supply Chain & DevOps Reference Implementation
@@ -16,7 +20,6 @@ This repository demonstrates how to design and operate a governed CI/CD pipeline
 - Quality and security gates are enforced automatically
 - Container artifacts are **signed, traceable, and SLSA Level 3–compliant**
 - Vulnerabilities are managed through explicit **risk policies**, not binary pass/fail rules
-- The pipeline extends beyond build to include **Runtime Verification (DAST)** and **GitOps-based Admission Control**
 
 > The application is intentionally simple. The focus is on **software delivery architecture, DevOps practices, and engineering governance**, not framework complexity.
 
@@ -80,6 +83,7 @@ GitHub Actions was chosen over traditional CI servers (e.g., Jenkins) to:
 ### Governance Pipeline
 
 ```mermaid
+
 graph TD
     subgraph "Phase 1: Code & Dependencies"
         A[Code Commit] -->|Gate 1: Secrets| B(Gitleaks)
@@ -88,19 +92,28 @@ graph TD
     end
     
     subgraph "Phase 2: Artifact Construction"
-        D -->|Build| E[Docker Build]
+        D -->|"Build (Ephemeral)"| E[Docker Build]
         E -->|Gate 4: Dockerfile Policy| F(Hadolint)
-        E -->|Gate 5: Image Scan| G(Trivy)
+        F -->|"Gate 5: DAST (Runtime)"| G(OWASP ZAP)
     end
     
-    subgraph "Phase 3: Supply Chain Trust"
-        G -->|Attestation| H(Syft SBOM)
-        H -->|Signing| I(Cosign)
-        I --> J[Container Registry]
+    subgraph "Phase 3: Release & Trust"
+        G -->|Build & Push| H[Container Registry]
+        H -->|Gate 6: Image Scan| I(Trivy)
+        I -->|Attestation| J(Syft SBOM)
+        J -->|Signing & Provenance| K(Cosign / SLSA)
+    end
+
+    subgraph "Phase 4: Delivery (GitOps)"
+        K -->|Policy Check| L(Kyverno CLI)
+        L -->|Update Manifest| M[k8s/deployment.yaml]
+        M -->|Git Commit & Push| N[Main Branch]
     end
 ```
 
 > This pipeline is intentionally **fail-fast**: artifacts are never built or published unless all required quality gates pass.
+
+For more details on how is enforce branch protection, code ownership, and release integrity, see `docs/GOVERNANCE.md`.
 
 ---
 
@@ -173,7 +186,7 @@ To validate the effectiveness of the delivery control plane, a legacy applicatio
 | :--- | :---: | :---: | :--- |
 | **Critical** | 27 | 0 | ✅ Fixed |
 | **High** | 116 | 0 | ✅ Fixed |
-| **Medium** | 191 | 2 | ✅ Fixed (29/12/2025) |
+| **Medium** | 191 | 0 | ✅ Fixed (29/12/2025) |
 | **Low** | 345 | 2 | ℹ️ Managed Debt |
 
 > This demonstrates risk-based decision making, not absolute zero-tolerance — a more realistic production posture.
