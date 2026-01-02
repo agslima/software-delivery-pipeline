@@ -20,59 +20,6 @@ This repository demonstrates how to design and operate a governed CI/CD pipeline
 
 > The application is intentionally simple. The focus is on **software delivery architecture, DevOps practices, and engineering governance**, not framework complexity.
 
-```mermaid
-flowchart TB
-    %% Developers
-    Dev[Developer] -->|PR| GH[GitHub Control Plane]
-
-    %% GitHub as Control Plane
-    subgraph GitHub["GitHub Control Plane"]
-        BR[Branch Protection Rules]
-        PR[Pull Request Workflow]
-        CI["Governed CI/CD Pipeline<br/>(GitHub Actions)"]
-        ENV["Protected Environments<br/>(Production)"]
-        TAG[Protected Release Tags]
-    end
-
-    GH --> BR
-    GH --> PR
-    PR --> CI
-    CI --> ENV
-    CI --> TAG
-
-    %% CI/CD Governance
-    subgraph CI_GOV["Governance Pipeline"]
-        S1[Secrets • SAST • SCA • Tests]
-        S2[Build • Lint • Scan • DAST]
-        S3[Sign • SBOM • Provenance]
-    end
-
-    CI --> S1
-    S1 --> S2
-    S2 --> S3
-
-    %% Artifact Flow
-    S3 --> IMG["Signed & Attested Image<br/>(Digest-based)"]
-    IMG --> REG[Container Registry]
-
-    %% GitOps & Runtime Enforcement
-    REG --> GITOPS[GitOps Manifest Update]
-    GITOPS --> K8S[Kubernetes Cluster]
-
-    subgraph RUNTIME["Runtime Enforcement"]
-        ADM["Admission Controller<br/>(Kyverno)"]
-    end
-
-    K8S --> ADM
-    ADM -->|Verify Signature & Provenance| RUN[Running Workload]
-
-    %% Rejection Path
-    ADM -.->|Reject Unsigned / Untrusted| REJ[Deployment Blocked]
-```
-
-> Figure: GitHub is treated as the primary control plane for software delivery.
-> Governance is enforced before, during, and after CI execution — from branch protection and policy-driven pipelines to cryptographic supply chain guarantees and runtime admission control.
-
 ## Project Overview 🛡️
 
 This project demonstrates the design and operation of a governed software delivery pipeline, focusing on:
