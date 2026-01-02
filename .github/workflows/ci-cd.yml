@@ -319,7 +319,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     environment: production
     permissions:
-      contents: read
+      contents: write
     strategy:
       matrix:
         include:
@@ -376,3 +376,23 @@ jobs:
           echo "Updated Kubernetes Manifest:"
           cat k8s/deployment.yaml
 
+      - name: Commit & Push Changes
+        run: |
+          # 1. Configure the "Bot" Identity
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # 2. Stage the modified manifest
+          git add k8s/deployment.yaml
+
+          # 3. Check if there are changes (idempotency check)
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          # 4. Commit with [skip ci] to prevent infinite loops
+          git commit -m "gitops: update deployment digest to ${{ env.DIGEST }} [skip ci]"
+
+          # 5. Push to the main branch
+          git push origin HEAD:main
