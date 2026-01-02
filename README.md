@@ -114,6 +114,7 @@ graph TD
 > This pipeline is intentionally **fail-fast**: artifacts are never built or published unless all required quality gates pass.
 
 For more details on how is enforce branch protection, code ownership, and release integrity, see `docs/GOVERNANCE.md`.
+
 ---
 
 ## Quality & Risk Controls
