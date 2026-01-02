@@ -53,6 +53,7 @@ jobs:
       - name: Snyk Security Check
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        working-directory: app/server
         run: |
           npm install -g snyk
           snyk test --severity-threshold=high --json-file-output=snyk-results.json
@@ -342,4 +343,4 @@ jobs:
           # For this demo, we just print the diff to prove it works.
           echo "Updated Kubernetes Manifest:"
           cat k8s/deployment.yaml
-          
+
