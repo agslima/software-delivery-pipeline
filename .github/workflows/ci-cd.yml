@@ -144,9 +144,8 @@ jobs:
             target: 'http://localhost:3000'
             fail_action: false # (Allows pipeline to pass, but still uploads the report)
             allow_issue_writing: false
-            artifact_name: zap_scan
-            # 🔴 cmd_options: '-a -T 10' (This forces a crash on ANY warning)
-            cmd_options: '-T 10'
+            artifact_name: zap_scan            
+            cmd_options: '-T 10' # options: '-a -T 10' (This forces a crash on ANY warning)
 
   # ==================================================================
   # STAGE 2: RELEASE (TAGS ONLY)
@@ -401,7 +400,7 @@ jobs:
           git commit -m "gitops: update deployment digest to ${{ env.DIGEST }} [skip ci]"
 
           # PULL & REBASE (Fixes Detached HEAD & Syncs with Remote)
-          git pull --rebase origin main
+          git pull --rebase --autostash origin main
 
           # PUSH (Uses the PAT from the checkout step automatically)
           git push origin HEAD:main
