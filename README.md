@@ -1,37 +1,41 @@
 # Governed Software Delivery Pipeline (Full-Stack Reference Implementation)
 
 ![CD/CD Status](https://github.com/agslima/secure-app-analysis/actions/workflows/ci-cd.yml/badge.svg)
-[![Security: Snyk](https://img.shields.io/badge/Security-Snyk-4C4A73.svg)](https://snyk.io/)
-[![OWASP](https://img.shields.io/badge/Compliance-OWASP%20Top%2010-red.svg)](https://owasp.org/)
-![SLSA](https://img.shields.io/badge/SLSA-Level%202-blue?logo=linuxfoundation)
+![SLSA](https://img.shields.io/badge/SLSA-Level%203-blue?logo=linuxfoundation)
 [![Docker](https://img.shields.io/badge/Deployment-Docker-blue.svg)](https://docker.com)
 [![License](https://img.shields.io/badge/License-Apache%202.0-lightgrey.svg)](https://opensource.org/licenses/Apache-2.0)
 
-> A Secure Software Supply Chain Reference Implementation
+### A Secure Software Supply Chain & DevSecOps Reference Implementation
+
+> Mission: Design and implement a secure software delivery pipeline that balances strong security guarantees with development velocity, using CI/CD as the primary governance control plane.
 
 ## TL;DR
 
 This repository demonstrates how to design and operate a governed CI/CD pipeline where:
+
 - Quality and security gates are enforced automatically
-- Container artifacts are signed, traceable, and auditable
-- Vulnerabilities are managed through explicit risk policies, not binary pass/fail rules
-- The CI/CD pipeline acts as the primary control plane for software delivery
+- Container artifacts are **signed, traceable, and SLSA Level 3–compliant**
+- Vulnerabilities are managed through explicit **risk policies**, not binary pass/fail rules
+- The pipeline extends beyond build to include **Runtime Verification (DAST)** and **GitOps-based Admission Control**
 
-> The application is intentionally simple — the focus is on **software delivery architecture, DevOps practices, and engineering governance**, not framework complexity.
-
----
+> The application is intentionally simple. The focus is on **software delivery architecture, DevOps practices, and engineering governance**, not framework complexity.
 
 ## Project Overview 🛡️
 
-This repository demonstrates the **design and operation of a governed software delivery pipeline**, focusing on **DevOps engineering principles, risk management, and supply chain integrity**.
+This project demonstrates the design and operation of a governed software delivery pipeline, focusing on:
 
-Rather than emphasizing a specific programming language or framework, the project treats the application as a delivery vehicle used to showcase:
-- Policy-driven CI/CD pipelines
-- Built-in quality and security gates
-- Artifact traceability and verification
-- Controlled risk acceptance in a real-world scenario
+- DevOps and Platform Engineering principles
+- Risk-based security management
+- Secure software supply-chain practices
 
-The result is a **production-oriented reference implementation** of how modern teams can enforce engineering standards across the entire Software Development Lifecycle (SDLC).
+Rather than emphasizing a specific programming language or framework, the application serves as a delivery vehicle to showcase:
+
+- Policy-driven CI/CD (GitHub Actions as the control plane)
+- Defense in Depth across build, artifact, and runtime phases
+- Zero Trust supply-chain controls using keyless signing
+- Managed security debt in a real-world delivery scenario
+
+The result is a production-oriented reference implementation of how modern teams enforce engineering standards across the SDLC.
 
 ## Engineering Goals
 
