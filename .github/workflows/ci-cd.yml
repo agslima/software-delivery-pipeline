@@ -303,9 +303,11 @@ jobs:
           push-to-registry: true
       
       - name: Verify Build Provenance
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh attestation verify oci://${{ env.IMAGE }} \
-          --repo ${{ github.repository }}
+          gh attestation verify "oci://${{ env.IMAGE }}" \
+            --repo "${{ github.repository }}"
 
       # ------------------------------------------------------------------
       # GitOps Enforcement  (Policy-as-Code)
