@@ -29,8 +29,8 @@ flowchart TB
     subgraph GitHub["GitHub Control Plane"]
         BR[Branch Protection Rules]
         PR[Pull Request Workflow]
-        CI[Governed CI/CD Pipeline (GitHub Actions)]
-        ENV[Protected Environments (Production)]
+        CI["Governed CI/CD Pipeline<br/>(GitHub Actions)"]
+        ENV["Protected Environments<br/>(Production)"]
         TAG[Protected Release Tags]
     end
 
@@ -52,7 +52,7 @@ flowchart TB
     S2 --> S3
 
     %% Artifact Flow
-    S3 --> IMG[Signed & Attested Image<br/>(Digest-based)]
+    S3 --> IMG["Signed & Attested Image<br/>(Digest-based)"]
     IMG --> REG[Container Registry]
 
     %% GitOps & Runtime Enforcement
@@ -60,7 +60,7 @@ flowchart TB
     GITOPS --> K8S[Kubernetes Cluster]
 
     subgraph RUNTIME["Runtime Enforcement"]
-        ADM[Admission Controller<br/>(Kyverno)]
+        ADM["Admission Controller<br/>(Kyverno)"]
     end
 
     K8S --> ADM
