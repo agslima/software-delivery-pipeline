@@ -340,9 +340,24 @@ jobs:
 
       - name: Install Kyverno CLI
         run: |
-          curl -LO https://github.com/kyverno/kyverno/releases/latest/download/kyverno-cli_linux_x86_64.tar.gz
-          tar -xzf kyverno-cli_linux_x86_64.tar.gz
+          # 1. Fetch the latest version tag from GitHub API
+          KYVERNO_VERSION=$(curl -s "https://api.github.com/repos/kyverno/kyverno/releases/latest" | jq -r .tag_name)
+          
+          # 2. Construct the correct filename
+          FILE_NAME="kyverno-cli_${KYVERNO_VERSION}_linux_x86_64.tar.gz"
+          
+          echo "⬇️ Downloading Kyverno version: $KYVERNO_VERSION"
+          
+          # 3. Download the asset from the specific tag URL
+          curl -LO "https://github.com/kyverno/kyverno/releases/download/${KYVERNO_VERSION}/${FILE_NAME}"
+          
+          # 4. Extract and Install
+          tar -xzf "$FILE_NAME"
           sudo mv kyverno /usr/local/bin/
+          
+          # 5. Verify Installation
+          echo "✅ Kyverno Installed:"
+          kyverno version
 
       - name: Validate Kubernetes Manifest Against Policy
         run: |
