@@ -29,8 +29,8 @@ flowchart TB
     subgraph GitHub["GitHub Control Plane"]
         BR[Branch Protection Rules]
         PR[Pull Request Workflow]
-        CI[Governed CI/CD Pipeline(GitHub Actions)]
-        ENV[Protected Environments(Production)]
+        CI[Governed CI/CD Pipeline (GitHub Actions)]
+        ENV[Protected Environments (Production)]
         TAG[Protected Release Tags]
     end
 
