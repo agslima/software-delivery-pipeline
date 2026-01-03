@@ -35,7 +35,7 @@ spec:
           - entries:
               - keyless:
                   issuer: https://token.actions.githubusercontent.com
-                  subjectRegExp: "^https://github.com/agslima/secure-app-analysis/.github/workflows/ci-cd.yml@refs/tags/v.*"
+                  subjectRegExp: "^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-cd.yml@refs/tags/v.*"
 
   # -------------------------------------------------------------------------
   # Rule 2: Require SLSA Build Provenance (v1)
