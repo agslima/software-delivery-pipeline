@@ -417,7 +417,6 @@ jobs:
 
       - name: Commit & Push Changes
         env:
-          # Map the secret to an environment variable for safety
           GH_PAT: ${{ secrets.TOKEN_GITHUB }}
         run: |
           git config user.name "github-actions[bot]"
@@ -432,9 +431,15 @@ jobs:
 
           git commit -m "gitops: update deployment digest to ${{ env.DIGEST }} [skip ci]"
 
-          # 1. Pull Rebase (Using default auth is usually fine for reading)
+          # 🔴 1. THE CRITICAL FIX: Remove the "Sticky" Bot Credentials
+          # This command deletes the default auth header so Git accepts your PAT
+          git config --local --unset-all http.https://github.com/.extraheader
+
+          # 2. Pull Rebase (Now using the PAT automatically because header is gone)
+          # We need to set the remote URL to use the PAT for the pull too
+          git remote set-url origin "https://$GH_PAT@github.com/${{ github.repository }}.git"
+          
           git pull --rebase --autostash origin main
 
-          # 2. THE FIX: Construct the URL manually with the Token inside it
-          # This bypasses the credential helper completely.
-          git push "https://$GH_PAT@github.com/${{ github.repository }}.git" HEAD:main
+          # 3. Push
+          git push origin HEAD:main
