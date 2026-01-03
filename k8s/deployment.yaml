@@ -3,6 +3,8 @@ kind: Deployment
 metadata:
   name: software-delivery-pipeline
   namespace: prod
+  labels:
+    app: software-delivery-pipeline
 spec:
   replicas: 2
   selector:
@@ -13,9 +15,53 @@ spec:
       labels:
         app: software-delivery-pipeline
     spec:
+      # SECURITY ISSUE: Ensure the pod runs as a dedicated non-root user
+      securityContext:
+        runAsUser: 10001        # Arbitrary non-root UID
+        runAsGroup: 10001       # Arbitrary non-root GID
+        fsGroup: 10001          # Ensure volume mounts are readable by this GID
+        runAsNonRoot: true      # Hard check: Kubelet will refuse to start if image is root
+
       containers:
       - name: app
-        # The CI pipeline will update this tag
-        image: agslima/software-delivery-pipeline:latest 
+        # SECURITY ISSUE: Don't use :latest in Prod. It's not immutable. 
+        # Use a specific SHA or version tag (e.g., :v1.2.0) to ensure consistency.
+        image: agslima/software-delivery-pipeline:v1.0.0 
+        
         ports:
         - containerPort: 3000
+        
+        # SECURITY ISSUE: The "Container Sandbox"
+        securityContext:
+          allowPrivilegeEscalation: false  # Block setuid binaries
+          readOnlyRootFilesystem: true     # Make the OS immutable
+          capabilities:
+            drop: ["ALL"]                  # Drop network/system capabilities
+
+        # SECURITY ISSUE: Prevent Noisy Neighbor & DoS
+        resources:
+          requests:
+            memory: "64Mi"      # Guaranteed memory
+            cpu: "250m"         # Guaranteed 1/4 core
+          limits:
+            memory: "128Mi"     # Hard kill limit (OOMKilled if exceeded)
+            cpu: "500m"         # Throttling limit
+
+        # SECURITY ISSUE: Availability Check
+        # If the app deadlocks, K8s will restart it automatically
+        livenessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+
+        # SECURITY ISSUE: Handle Read-Only FS
+        # Mount a temp volume for /tmp or logs
+        volumeMounts:
+        - name: tmp-volume
+          mountPath: /tmp
+      
+      volumes:
+      - name: tmp-volume
+        emptyDir: {}
