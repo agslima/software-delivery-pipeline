@@ -1,0 +1,11 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: software-delivery-pipeline-pdb
+  namespace: production
+spec:
+  # Ensures at least 1 pod is always up during voluntary disruptions
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: software-delivery-pipeline
