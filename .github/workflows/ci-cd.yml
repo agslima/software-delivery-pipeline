@@ -416,6 +416,9 @@ jobs:
           cat k8s/deployment.yaml
 
       - name: Commit & Push Changes
+        env:
+          # Map the secret to an environment variable for safety
+          GH_PAT: ${{ secrets.TOKEN_GITHUB }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -429,10 +432,9 @@ jobs:
 
           git commit -m "gitops: update deployment digest to ${{ env.DIGEST }} [skip ci]"
 
-          # 1. Pull changes using the PAT (Explicitly)
-          git remote set-url origin "https://${{ secrets.GH_PAT }}@github.com/${{ github.repository }}.git"
-          
-          # 2. Rebase with autostash (Handles the dirty state safely)
+          # 1. Pull Rebase (Using default auth is usually fine for reading)
           git pull --rebase --autostash origin main
 
-          git push origin HEAD:main
+          # 2. THE FIX: Construct the URL manually with the Token inside it
+          # This bypasses the credential helper completely.
+          git push "https://$GH_PAT@github.com/${{ github.repository }}.git" HEAD:main
