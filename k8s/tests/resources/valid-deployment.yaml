@@ -1,0 +1,18 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: governed-app
+  namespace: production
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: governed
+  template:
+    metadata:
+      labels:
+        app: governed
+    spec:
+      containers:
+        - name: app
+          image: docker.io/agslima/software-delivery-pipeline@sha256:VALID_DIGEST

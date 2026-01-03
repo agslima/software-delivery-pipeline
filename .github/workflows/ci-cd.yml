@@ -397,13 +397,17 @@ jobs:
           # 5. Verify Installation
           echo "Kyverno Installed:"
           kyverno version
+        
+      - name: Kyverno Policy Unit Tests
+        run: |
+          kyverno test k8s/tests/
 
       - name: Validate Kubernetes Manifest Against Policy
         run: |
           kyverno apply k8s/policies/cluster-policy.yaml \
           --resource k8s/deployment.yaml \
           --audit-warn=false
-      
+  
       - name: GitOps - Update Manifest Version
         run: |
           sed -i "s|image: .*|image: ${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@${{ env.DIGEST }}|g" k8s/deployment.yaml
