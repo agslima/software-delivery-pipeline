@@ -60,6 +60,61 @@ flowchart TB
 
 ```
 
+```mermaid
+flowchart TB
+    %% Actors
+    Dev[Developer]
+    Admin[Admin / Maintainer]
+
+    %% GitHub Control Plane
+    subgraph GitHub["GitHub Control Plane"]
+        BR[Branch Protection Rules]
+        PR[Pull Request Workflow]
+        TAG_RULE[Tag Protection Rules]
+        
+        subgraph CI["Governed CI/CD (Actions)"]
+            Check["PR Checks<br/>(Tests/SAST/Lint)"]
+            Build["Release Pipeline<br/>(Build/Sign/Attest)"]
+        end
+    end
+
+    %% Standard Flow (Happy Path)
+    Dev -->|Push Code| PR
+    PR -->|Triggers| Check
+    Check -->|Status Pass| BR
+    BR -->|Merge| Main[Main Branch]
+    
+    %% Release Flow
+    Admin -->|Push Tag v1.0| TAG_RULE
+    TAG_RULE -->|Triggers| Build
+
+    %% 🚨 BREAK-GLASS FLOW 🚨
+    Admin -.->|"EMERGENCY BYPASS<br/>(Audit Logged)"| Main
+
+    %% Artifact Flow
+    Build -->|1. Sign & Attest| IMG["Signed Artifact"]
+    IMG -->|2. Push| REG[Container Registry]
+
+    %% Runtime
+    subgraph RUNTIME["Runtime (Kubernetes)"]
+        ADM["Admission Controller<br/>(Kyverno)"]
+        POD[Running Workload]
+    end
+
+    REG -->|GitOps Sync| ADM
+    ADM -->|3. Verify Signature| POD
+    ADM -.->|Fail Verification| BLOCK[Block Deployment]
+
+    %% Styles
+    style Admin fill:#f96,stroke:#333,stroke-width:2px
+    style ADM fill:#f9f,stroke:#333,stroke-width:2px
+    style BLOCK fill:#ff9999,stroke:#333,stroke-width:1px
+    
+    %% Highlight the Emergency Link in Red
+    linkStyle 5 stroke:red,stroke-width:3px,stroke-dasharray: 5 5;
+```
+
+
 > Key Principle:
 > Governance is enforced before code merges, during artifact creation, and at runtime admission, ensuring that CI pipelines cannot be weakened without detection or enforcement failure.
 
