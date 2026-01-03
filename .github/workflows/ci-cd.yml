@@ -1,1 +1,425 @@
+name: "CI/CD Pipeline"
 
+on:
+  push:
+    branches: [ "main" ]
+    tags: [ "v*.*.*" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # ==================================================================
+  # STAGE 1: CI & VALIDATION
+  # ==================================================================
+  
+  code-quality:
+    name: Code Quality & Security
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}      
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version-file: 'app/server/package.json'
+          cache: 'npm'
+          cache-dependency-path: app/server/package-lock.json
+
+      - name: Install Dependencies
+        working-directory: app/server 
+        run: npm ci
+      
+      - name: Unit Tests
+        working-directory: app/server
+        run: npm test
+
+      # Secret Scanning
+      - name: Secret Scanning (Gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # (SAST) - TRIVY SETUP
+      - name: Install Trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+          echo "Trivy installed successfully."
+
+      # 4. TRIVY SCAN: Filesystem (Dependencies & Code Secrets)
+      - name: Trivy Scan - Root FS
+        run: |
+          # A. Generate JSON for Governance Script (Includes ALL severities)
+          # Scan the specific app directory to be precise
+          trivy fs app/server \
+            --scanners vuln,secret \
+            --format json \
+            --output trivy-results.json \
+            || true # Don't crash yet
+          
+          # B. Generate SARIF for GitHub Security Tab (High/Critical Only)
+          trivy fs app/server \
+            --scanners vuln,secret \
+            --severity HIGH,CRITICAL \
+            --format sarif \
+            --output trivy-results.sarif \
+            || true
+
+      # 5. TRIVY SCAN: Kubernetes (IaC / Misconfigurations)
+      - name: Trivy Scan - Infrastructure (K8s)
+        run: |
+          echo "Scanning Kubernetes Manifests..."
+          trivy config k8s/ \
+            --severity HIGH,CRITICAL \
+            --format sarif \
+            --output trivy-k8s.sarif \
+            || true
+
+      # 6. Upload BOTH SARIF files (Code + K8s)
+      - name: Upload Trivy SARIFs
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: .
+          category: trivy
+
+      # 7. Enforce Governance
+      - name: Enforce Risk Acceptance Policy
+        run: | 
+          chmod +x scripts/check-security-debt.sh 
+          # Point to the new Trivy JSON file
+          scripts/check-security-debt.sh trivy-results.json  
+          
+  # ------------------------------------------------------------------
+  # JOB 2: Infrastructure Linting (Docker)
+  # ------------------------------------------------------------------
+  docker-lint:
+    name: Docker Linting
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hadolint/hadolint-action@v3.3.0
+        with:
+          dockerfile: app/Dockerfile
+
+  # ------------------------------------------------------------------
+  # JOB 3: Layer 4: Dynamic Analysis (DAST)
+  # DAST: Only runs on Main branch (post-merge) or Tags to save PR time
+  # ------------------------------------------------------------------
+  dast-analysis:
+      name: "DAST (OWASP ZAP)"
+      runs-on: ubuntu-latest
+      needs: [ code-quality, docker-lint ]
+      if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+      permissions:
+        contents: read
+      steps:
+        - uses: actions/checkout@v4
+        
+        # Use Buildx to use cache from previous runs
+        - name: Set up Docker Buildx
+          uses: docker/setup-buildx-action@v3
+
+        - name: Start App Container
+          run: |
+            docker build --load -t target-app ./app
+            
+            docker run -d -p 3000:8080 --name app-under-test target-app          
+            
+            echo "Waiting for application to launch..."          
+            
+            # Attempt to connect. If it times out after 60s, run the "||" block
+            if ! timeout 60s bash -c 'until curl -s -f http://localhost:3000 > /dev/null; do sleep 2; done'; then
+              echo "❌ CRITICAL: Application failed to respond!"
+              echo "🔍 DUMPING CONTAINER LOGS:"            
+              # --- THIS COMMAND SAVES YOU HOURS OF DEBUGGING ---
+              docker logs app-under-test
+              # -------------------------------------------------            
+              exit 1
+            fi          
+            
+            echo "✅ Application is live!"
+
+        # Ensure ZAP container can write the report files
+        - name: Fix Permissions for ZAP
+          run: chmod -R 777 .
+
+         # 2. RUN ZAP SCAN
+        - name: OWASP ZAP Baseline Scan
+          uses: zaproxy/action-baseline@v0.14.0
+          with:
+            target: 'http://localhost:3000'
+            fail_action: false # (Allows pipeline to pass, but still uploads the report)
+            allow_issue_writing: false
+            artifact_name: zap_scan
+            # 🔴 cmd_options: '-a -T 10' (This forces a crash on ANY warning)
+            cmd_options: '-T 10'
+
+  # ==================================================================
+  # STAGE 2: RELEASE (TAGS ONLY)
+  # ==================================================================
+
+  build-push:
+    name: Release Build
+    runs-on: ubuntu-latest
+    needs: [ code-quality, docker-lint, dast-analysis ] 
+    if: startsWith(github.ref, 'refs/tags/v')
+    environment: production
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      fail-fast: true # Fail fast in production releases!
+      matrix:
+        include:
+          - name: app
+            context: ./app
+            image_repo: software-delivery-pipeline
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+
+      # Enable Caching
+      - name: Build & Push
+        id: build
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          # Enable GitHub Actions Caching
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          tags: |
+            ${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}:${{ github.sha }}
+            ${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}:latest
+            ${{ format('{0}/{1}:{2}', secrets.DOCKER_HUB_USERNAME, matrix.image_repo, github.ref_name) }}
+
+      - name: Export Digest
+        run: |
+          mkdir -p digests
+          DIGEST="${{ steps.build.outputs.digest }}"
+          
+          # Debugging: Print digest to logs to prove it exists
+          echo "Captured Digest: $DIGEST"
+          
+          if [[ -z "$DIGEST" ]]; then
+            echo "❌ Error: Digest is empty!"
+            exit 1
+          fi
+          
+          echo "$DIGEST" > digests/digest-${{ matrix.name }}
+      
+      - name: Upload Digest Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.name }}     
+          path: digests/digest-${{ matrix.name }}
+          retention-days: 1
+          if-no-files-found: error # Fail if file is missing
+
+      - name: Trivy Scan
+        uses: aquasecurity/trivy-action@0.29.0
+        with:
+          image-ref: ${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}:${{ github.sha }}
+          severity: "CRITICAL,HIGH"
+          exit-code: "1"
+
+      - name: Generate Trivy Attestation
+        run: |
+          trivy image \
+            --severity CRITICAL,HIGH \
+            --format json \
+            --output trivy.json \
+            ${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}:${{ github.sha }}
+
+     
+  # ------------------------------------------------------------------
+  # JOB 2: SIGNING & ATTESTATION
+  # ------------------------------------------------------------------
+  sign-and-attest:
+    name: Sign & Attest
+    needs: build-push
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    environment: production
+    permissions:
+      packages: write
+      id-token: write
+      attestations: write
+
+    strategy:
+      matrix:
+        include:
+          - name: app
+            image_repo: software-delivery-pipeline
+
+    steps:
+      - uses: sigstore/cosign-installer@v3.7.0
+      
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+
+      - name: Download Digest Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: digest-${{ matrix.name }}
+          path: digests
+
+      - name: Read Digest
+        run: |
+          # Verify file exists
+          ls -R digests/
+          
+          DIGEST=$(cat digests/digest-${{ matrix.name }})
+          echo "DIGEST=$DIGEST" >> $GITHUB_ENV
+          echo "IMAGE=${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@$DIGEST" >> $GITHUB_ENV
+
+      - run: cosign sign --yes "$IMAGE"
+
+      - run: |
+          cosign verify "$IMAGE" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            --certificate-identity-regexp \
+            "https://github.com/${{ github.repository }}/.github/workflows/.*"
+      
+      - uses: anchore/sbom-action@v0
+        with:
+          image: ${{env.IMAGE}}
+          format: spdx-json
+          output-file: sbom-${{ matrix.image_repo }}.spdx.json
+          artifact-name: sbom-${{ matrix.image_repo }}.spdx.json
+
+      - run: |
+          cosign attest --yes --type spdx --predicate sbom-${{ matrix.image_repo }}.spdx.json "$IMAGE"
+
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: index.docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}
+          subject-digest: ${{ env.DIGEST }}
+          push-to-registry: true
+      
+      - name: Verify Build Provenance
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh attestation verify "oci://${{ env.IMAGE }}" \
+            --repo "${{ github.repository }}"
+
+      # ------------------------------------------------------------------
+      # GitOps Enforcement  (Policy-as-Code)
+      # ------------------------------------------------------------------
+  gitops-enforcement:
+    name: GitOps Enforcement
+    needs: sign-and-attest
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    environment: production
+    permissions:
+      contents: read
+    strategy:
+      matrix:
+        include:
+          - name: app
+            image_repo: software-delivery-pipeline  
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.TOKEN_GITHUB }}
+          fetch-depth: 0
+
+      - uses: actions/checkout@v4
+      - name: Download Digest Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: digest-${{ matrix.name }}
+          path: digests
+
+      - name: Read Digest
+        run: |
+          DIGEST=$(cat digests/digest-${{ matrix.name }})
+          echo "DIGEST=$DIGEST" >> $GITHUB_ENV  
+          echo "IMAGE=${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@$DIGEST" >> $GITHUB_ENV
+
+      - name: Install Kyverno CLI
+        run: |
+          # 1. Fetch the latest version tag from GitHub API
+          KYVERNO_VERSION=$(curl -s "https://api.github.com/repos/kyverno/kyverno/releases/latest" | jq -r .tag_name)
+          
+          # 2. Construct the correct filename
+          FILE_NAME="kyverno-cli_${KYVERNO_VERSION}_linux_x86_64.tar.gz"
+          
+          echo "⬇️ Downloading Kyverno version: $KYVERNO_VERSION"
+          
+          # 3. Download the asset from the specific tag URL
+          curl -LO "https://github.com/kyverno/kyverno/releases/download/${KYVERNO_VERSION}/${FILE_NAME}"
+          
+          # 4. Extract and Install
+          tar -xzf "$FILE_NAME"
+          sudo mv kyverno /usr/local/bin/
+          
+          # 5. Verify Installation
+          echo "✅ Kyverno Installed:"
+          kyverno version
+
+      - name: Validate Kubernetes Manifest Against Policy
+        run: |
+          kyverno apply k8s/policies/cluster-policy.yaml \
+          --resource k8s/deployment.yaml \
+          --audit-warn=false
+      
+      - name: GitOps - Update Manifest Version
+        run: |
+          # Use sed to replace the image tag with the new digest or tag
+          # We use the Digest (SHA) because it is immutable (Best Practice)
+          sed -i "s|image: .*|image: ${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@${{ env.DIGEST }}|g" k8s/deployment.yaml
+          
+          # In a real setup, you would commit and push this back. 
+          # For this demo, we just print the diff to prove it works.
+          echo "Updated Kubernetes Manifest:"
+          cat k8s/deployment.yaml
+
+      - name: Commit & Push Changes
+        run: |
+          # Configure Git Identity
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Stage changes
+          git add k8s/deployment.yaml
+
+          # Idempotency check
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          # Commit
+          git commit -m "gitops: update deployment digest to ${{ env.DIGEST }} [skip ci]"
+
+          # PULL & REBASE (Fixes Detached HEAD & Syncs with Remote)
+          git pull --rebase origin main
+
+          # PUSH (Uses the PAT from the checkout step automatically)
+          git push origin HEAD:main
