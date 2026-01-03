@@ -68,8 +68,7 @@ spec:
               - keyless:
                   issuer: https://token.actions.githubusercontent.com
                   subjectRegExp: >
-                    ^https://github.com/agslima/software-delivery-pipeline/
-                    .github/workflows/ci-cd.yml@refs/tags/v.*
+                    ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-cd.yml@refs/tags/v.*
 
   # =====================================================================
   # SLSA BUILD PROVENANCE
