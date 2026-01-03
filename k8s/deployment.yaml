@@ -26,7 +26,7 @@ spec:
       - name: app
         # SECURITY ISSUE: Don't use :latest in Prod. It's not immutable. 
         # Use a specific SHA or version tag (e.g., :v1.2.0) to ensure consistency.
-        image: agslima/software-delivery-pipeline@sha256:2b0b445f2611bccc981ee4bac2b530c062c2f3cfa84aafc65efc64fdf353e8eb
+        image: agslima/software-delivery-pipeline@sha256:fa9a54b6c1237a301edd6a6ede45d83e926baa4d9d369db19a5c68a2f36b2e44
         
         ports:
         - containerPort: 3000
