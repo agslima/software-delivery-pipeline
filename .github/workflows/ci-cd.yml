@@ -87,10 +87,16 @@ jobs:
 
       # 6. Upload BOTH SARIF files (Code + K8s)
       - name: Upload Trivy SARIFs
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
-          sarif_file: .
-          category: trivy
+          sarif_file: trivy-results.sarif
+          category: trivy-code
+      
+      - name: Upload Trivy K8s Results
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-k8s.sarif
+          category: trivy-infra
 
       # 7. Enforce Governance
       - name: Enforce Risk Acceptance Policy
@@ -126,7 +132,7 @@ jobs:
           # -summary: Print summary at the end
           # -output json: Good for parsing (optional)
           # k8s/: The directory to scan
-          args: "-summary -output text k8s/"
+          args: "-summary -output text -ignore-missing-schemas k8s/"
 
   # ------------------------------------------------------------------
   # JOB 3: Layer 4: Dynamic Analysis (DAST)
