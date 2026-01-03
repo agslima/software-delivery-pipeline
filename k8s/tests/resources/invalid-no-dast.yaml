@@ -1,0 +1,17 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: no-dast
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      app: no-dast
+  template:
+    metadata:
+      labels:
+        app: no-dast
+    spec:
+      containers:
+        - name: app
+          image: docker.io/agslima/software-delivery-pipeline@sha256:NO_DAST

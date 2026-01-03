@@ -1,0 +1,153 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: enforce-governed-artifacts
+  annotations:
+    policies.kyverno.io/title: Enforce Governed Supply Chain (Prod)
+    policies.kyverno.io/severity: critical
+    policies.kyverno.io/category: Supply Chain Security
+    policies.kyverno.io/description: >
+      Enforces cryptographically governed workloads:
+      signed images, SLSA provenance, SBOM, Trivy + DAST attestations.
+      Break-glass is strictly controlled.
+spec:
+  validationFailureAction: Enforce
+  background: false
+  webhookTimeoutSeconds: 30
+
+  rules:
+
+  # =====================================================================
+  # GLOBAL MATCH (Workloads Only)
+  # =====================================================================
+  - name: deny-ungoverned-workloads
+    match:
+      resources:
+        kinds:
+          - Deployment
+          - StatefulSet
+          - DaemonSet
+
+  # =====================================================================
+  # BREAK-GLASS GUARDRAIL
+  # =====================================================================
+  - name: break-glass-guardrail
+    match:
+      resources:
+        kinds:
+          - Deployment
+    preconditions:
+      all:
+        - key: "{{ request.object.metadata.labels.security.break-glass || '' }}"
+          operator: Equals
+          value: "true"
+    validate:
+      message: "Break-glass requires break-glass namespace and service account."
+      deny:
+        conditions:
+          any:
+            - key: "{{ request.object.metadata.namespace }}"
+              operator: NotEquals
+              value: break-glass
+            - key: "{{ request.object.spec.template.spec.serviceAccountName }}"
+              operator: NotEquals
+              value: break-glass-sa
+
+  # =====================================================================
+  # IMAGE SIGNATURE
+  # =====================================================================
+  - name: require-signed-image
+    match:
+      resources:
+        kinds: [Deployment, StatefulSet, DaemonSet]
+    verifyImages:
+      - imageReferences:
+          - "docker.io/agslima/software-delivery-pipeline@sha256:*"
+        attestors:
+          - entries:
+              - keyless:
+                  issuer: https://token.actions.githubusercontent.com
+                  subjectRegExp: >
+                    "^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-cd.yml@refs/tags/v.*"
+
+  # =====================================================================
+  # SLSA BUILD PROVENANCE
+  # =====================================================================
+  - name: require-build-provenance
+    match:
+      resources:
+        kinds: [Deployment, StatefulSet, DaemonSet]
+    verifyImages:
+      - imageReferences:
+          - "docker.io/agslima/software-delivery-pipeline@sha256:*"
+        attestations:
+          - predicateType: https://slsa.dev/provenance/v1
+            conditions:
+              - all:
+                  - key: "{{ predicate.builder.id }}"
+                    operator: Equals
+                    value: https://github.com/actions/runner
+                  - key: "{{ predicate.invocation.configSource.uri }}"
+                    operator: Regex
+                    value: "^https://github.com/agslima/software-delivery-pipeline"
+                  - key: "{{ predicate.invocation.configSource.ref }}"
+                    operator: Regex
+                    value: "^refs/tags/v.*"
+
+  # =====================================================================
+  # SBOM REQUIRED
+  # =====================================================================
+  - name: require-sbom
+    match:
+      resources:
+        kinds: [Deployment, StatefulSet, DaemonSet]
+    verifyImages:
+      - imageReferences:
+          - "docker.io/agslima/software-delivery-pipeline@sha256:*"
+        attestations:
+          - predicateType: https://spdx.dev/Document
+
+  # =====================================================================
+  # TRIVY VULNERABILITY ATTESTATION
+  # =====================================================================
+  - name: require-trivy-attestation
+    match:
+      resources:
+        kinds: [Deployment, StatefulSet, DaemonSet]
+    verifyImages:
+      - imageReferences:
+          - "docker.io/agslima/software-delivery-pipeline@sha256:*"
+        attestations:
+          - predicateType: https://aquasecurity.github.io/trivy/attestation/v1
+            conditions:
+              - all:
+                  - key: "{{ predicate.scanner.name }}"
+                    operator: Equals
+                    value: trivy
+                  - key: "{{ predicate.summary.critical }}"
+                    operator: Equals
+                    value: 0
+                  - key: "{{ predicate.summary.high }}"
+                    operator: LessThanOrEquals
+                    value: 5
+
+  # =====================================================================
+  # DAST (OWASP ZAP)
+  # =====================================================================
+  - name: require-dast-attestation
+    match:
+      resources:
+        kinds: [Deployment, StatefulSet, DaemonSet]
+    verifyImages:
+      - imageReferences:
+          - "docker.io/agslima/software-delivery-pipeline@sha256:*"
+        attestations:
+          - predicateType: https://www.zaproxy.org/docs/attestations/zap-baseline/v1
+            conditions:
+              - all:
+                  - key: "{{ predicate.site }}"
+                    operator: Regex
+                    value: "^http://"
+                  - key: "{{ predicate.summary.high }}"
+                    operator: Equals
+                    value: 0
