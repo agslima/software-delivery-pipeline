@@ -50,26 +50,44 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # (SAST) - TRIVY SETUP
+      # (SAST) 
+      # 3. TRIVY SETUP
       - name: Install Trivy
         run: |
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
           echo "Trivy installed successfully."
 
-          # 1. Generate JSON for your Debt Script (Must include Low/Medium)
-          #  Use '|| true' so the pipeline doesn't crash here; the script decides later.
-          echo "Generating JSON for Security Debt Script..."
-
-          snyk test --json > snyk-results.json || true
+      # 4. TRIVY SCAN: Filesystem (Dependencies & Code Secrets)
+      - name: Trivy Scan - Root FS
+        run: |
+          # A. Generate JSON for Governance Script (Includes ALL severities)
+          trivy fs app/server \
+            --scanners vuln,secret \
+            --format json \
+            --output trivy-results.json \
+            || true
           
-          # snyk test --severity-threshold=high --json-file-output=snyk-results.json
+          # B. Generate SARIF for GitHub Security Tab (High/Critical Only)
+          trivy fs app/server \
+            --scanners vuln,secret \
+            --severity HIGH,CRITICAL \
+            --format sarif \
+            --output trivy-results.sarif \
+            || true
 
-          # 2. Generate SARIF for GitHub Security Tab (Usually High/Critical only)
-          echo "Generating SARIF for GitHub Dashboard..."
-          snyk test --severity-threshold=high --sarif > snyk-results.sarif || true
+      # 5. TRIVY SCAN: Kubernetes (IaC / Misconfigurations)
+      - name: Trivy Scan - Infrastructure (K8s)
+        run: |
+          echo "Scanning Kubernetes Manifests..."
+          trivy config k8s/ \
+            --severity HIGH,CRITICAL \
+            --format sarif \
+            --output trivy-k8s.sarif \
+            || true
 
-      - name: Upload Snyk Results
-        uses: github/codeql-action/upload-sarif@v4
+      # 6. Upload BOTH SARIF files (Code + K8s)
+      - name: Upload Trivy SARIFs
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: .
           category: trivy
@@ -79,13 +97,13 @@ jobs:
         run: | 
           chmod +x scripts/check-security-debt.sh 
           # Point to the new Trivy JSON file
-          scripts/check-security-debt.sh trivy-results.json  
-          
+          scripts/check-security-debt.sh trivy-results.json
+        
   # ------------------------------------------------------------------
   # JOB 2: Infrastructure Linting (Docker, Kubernetes)
   # ------------------------------------------------------------------
   infra-lint:
-    name: Docker Linting
+    name: Infrastructure Linting
     runs-on: ubuntu-latest
     permissions:
       contents: read
