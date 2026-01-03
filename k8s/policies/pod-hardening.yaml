@@ -1,0 +1,63 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: enforce-pod-hardening
+  annotations:
+    policies.kyverno.io/title: Enforce Pod Hardening Standards
+    policies.kyverno.io/severity: medium
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+
+  # 1. Enforce Non-Root Execution
+  - name: require-non-root
+    match:
+      resources:
+        kinds: ["Pod"]
+    validate:
+      message: "Containers must run as non-root (securityContext.runAsNonRoot: true)."
+      pattern:
+        spec:
+          securityContext:
+            runAsNonRoot: true
+
+  # 2. Enforce Read-Only Root Filesystem
+  - name: require-readonly-rootfs
+    match:
+      resources:
+        kinds: ["Pod"]
+    validate:
+      message: "Containers must use a read-only root filesystem."
+      pattern:
+        spec:
+          containers:
+          - securityContext:
+              readOnlyRootFilesystem: true
+
+  # 3. Enforce Dropped Capabilities
+  - name: drop-all-capabilities
+    match:
+      resources:
+        kinds: ["Pod"]
+    validate:
+      message: "All Linux capabilities must be dropped (NET_ADMIN, SYS_ADMIN, etc)."
+      pattern:
+        spec:
+          containers:
+          - securityContext:
+              capabilities:
+                drop:
+                  - ALL
+
+  # 4. Enforce Immutable Images (No :latest)
+  - name: forbid-latest-tag
+    match:
+      resources:
+        kinds: ["Pod"]
+    validate:
+      message: "Images must use a specific tag or digest. ':latest' is forbidden."
+      pattern:
+        spec:
+          containers:
+          - image: "!*:latest"
