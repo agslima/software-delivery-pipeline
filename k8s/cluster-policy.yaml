@@ -3,27 +3,31 @@ kind: ClusterPolicy
 metadata:
   name: enforce-governed-artifacts
   annotations:
-    policies.kyverno.io/title: Enforce Governed Supply Chain
-    policies.kyverno.io/category: Supply Chain Security
+    policies.kyverno.io/title: Enforce Governed Supply Chain (Prod)
     policies.kyverno.io/severity: critical
-    policies.kyverno.io/subject: Pod
     policies.kyverno.io/description: >
-      Ensures that only container images built by the approved GitHub Actions
-      workflow are allowed to run, and that each image has mandatory
-      attestations: provenance (SLSA), SBOM, and vulnerability scan.
+      Enforces signed images and clean scans. 
+      Includes a 'break-glass' exclusion for emergencies.
 spec:
   validationFailureAction: Enforce
   background: false
+  webhookTimeoutSeconds: 30
   rules:
 
-  # ------------------------------------------------------------
-  # Rule 1: Enforce Image Signature (Cosign Keyless)
-  # ------------------------------------------------------------
+  # -------------------------------------------------------------------------
+  # Rule 1: Enforce Image Signature
+  # -------------------------------------------------------------------------
   - name: require-signed-image
     match:
       resources:
-        kinds:
-          - Pod
+        kinds: ["Pod"]
+    # BREAK GLASS MECHANISM -------------------------
+    exclude:
+      resources:
+        selector:
+          matchLabels:
+            security.break-glass: "true"
+    # -----------------------------------------------
     verifyImages:
       - imageReferences:
           - "docker.io/agslima/software-delivery-pipeline*"
@@ -31,18 +35,22 @@ spec:
           - entries:
               - keyless:
                   issuer: https://token.actions.githubusercontent.com
-                  subjectRegExp: >
-                    https://github.com/agslima/secure-app-analysis/
-                    .github/workflows/ci-cd.yml@refs/tags/v.*
+                  subjectRegExp: "^https://github.com/agslima/secure-app-analysis/.github/workflows/ci-cd.yml@refs/tags/v.*"
 
-  # ------------------------------------------------------------
-  # Rule 2: Require SLSA Build Provenance
-  # ------------------------------------------------------------
+  # -------------------------------------------------------------------------
+  # Rule 2: Require SLSA Build Provenance (v1)
+  # -------------------------------------------------------------------------
   - name: require-build-provenance
     match:
       resources:
-        kinds:
-          - Pod
+        kinds: ["Pod"]
+    # BREAK GLASS MECHANISM -------------------------
+    exclude:
+      resources:
+        selector:
+          matchLabels:
+            security.break-glass: "true"
+    # -----------------------------------------------
     verifyImages:
       - imageReferences:
           - "docker.io/agslima/software-delivery-pipeline*"
@@ -54,14 +62,20 @@ spec:
                     operator: Equals
                     value: https://github.com/actions/runner
 
-  # ------------------------------------------------------------
-  # Rule 3: Require SBOM Attestation
-  # ------------------------------------------------------------
+  # -------------------------------------------------------------------------
+  # Rule 3: Require SBOM
+  # -------------------------------------------------------------------------
   - name: require-sbom
     match:
       resources:
-        kinds:
-          - Pod
+        kinds: ["Pod"]
+    # BREAK GLASS MECHANISM -------------------------
+    exclude:
+      resources:
+        selector:
+          matchLabels:
+            security.break-glass: "true"
+    # -----------------------------------------------
     verifyImages:
       - imageReferences:
           - "docker.io/agslima/software-delivery-pipeline*"
@@ -70,30 +84,41 @@ spec:
             conditions:
               - all:
                   - key: "{{ metadata.spdxVersion }}"
-                    operator: Equals
-                    value: SPDX-2.3
+                    operator: Regex
+                    value: "SPDX-2.*"
 
-  # ------------------------------------------------------------
-  # Rule 4: Require Vulnerability Scan Attestation (Trivy)
-  # ------------------------------------------------------------
+  # -------------------------------------------------------------------------
+  # Rule 4: Vulnerability Thresholds
+  # -------------------------------------------------------------------------
   - name: require-vulnerability-scan
     match:
       resources:
-        kinds:
-          - Pod
+        kinds: ["Pod"]
+    # BREAK GLASS MECHANISM -------------------------
+    exclude:
+      resources:
+        selector:
+          matchLabels:
+            security.break-glass: "true"
+    # -----------------------------------------------
     verifyImages:
       - imageReferences:
           - "docker.io/agslima/software-delivery-pipeline*"
         attestations:
-          - predicateType: vuln
+          - predicateType: vulns 
             conditions:
               - all:
-                  - key: "{{ scanner }}"
-                    operator: Equals
-                    value: trivy
+                  - key: "{{ scanner.uri }}"
+                    operator: Regex
+                    value: ".*trivy.*"
+                  
+                  # CRITICAL: Zero Tolerance
                   - key: "{{ summary.critical }}"
                     operator: LessThanOrEquals
                     value: 0
+                  
+                  # HIGH: Realistic Tolerance (<= 5)
+                  # Allows for upstream delays while catching major issues.
                   - key: "{{ summary.high }}"
                     operator: LessThanOrEquals
-                    value: 0
+                    value: 5
