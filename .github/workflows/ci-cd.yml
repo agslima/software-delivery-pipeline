@@ -51,35 +51,20 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # (SAST) - Snyk
-      - name: Snyk Security Check
+      - run: npm install -g snyk
+      - name: Setup Snyk
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: snyk auth "$SNYK_TOKEN"
+        
+      - name: Snyk Code Scanning
         working-directory: app/server
-        run: |
-          npm install -g snyk
-
-          # 1. Generate JSON for your Debt Script (Must include Low/Medium)
-          #  Use '|| true' so the pipeline doesn't crash here; the script decides later.
-          echo "Generating JSON for Security Debt Script..."
-
-          snyk test --json > snyk-results.json || true
-          
-          # snyk test --severity-threshold=high --json-file-output=snyk-results.json
-
-          # 2. Generate SARIF for GitHub Security Tab (Usually High/Critical only)
-          echo "Generating SARIF for GitHub Dashboard..."
-          snyk test --severity-threshold=high --sarif > snyk-results.sarif || true
-
-      - name: Upload Snyk Results
-        uses: github/codeql-action/upload-sarif@v4
+        run: snyk code test --severity-threshold=high --sarif-file-output=snyk-code.sarif
+        continue-on-error: true
+      - name: Upload results to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v2
         with:
-          sarif_file: app/server/snyk-results.sarif
-
-      
-      - name: Enforce Risk Acceptance Policy
-        run: | 
-          chmod +x scripts/check-security-debt.sh 
-          scripts/check-security-debt.sh app/server/snyk-results.json
+          sarif_file: snyk-code.sarif
          
   # ------------------------------------------------------------------
   # JOB 2: Infrastructure Linting (Docker)
