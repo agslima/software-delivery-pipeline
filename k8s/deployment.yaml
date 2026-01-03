@@ -2,11 +2,11 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: software-delivery-pipeline
-  namespace: prod
+  namespace: production
   labels:
     app: software-delivery-pipeline
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: software-delivery-pipeline
@@ -15,35 +15,39 @@ spec:
       labels:
         app: software-delivery-pipeline
     spec:
-      # SECURITY ISSUE: Ensure the pod runs as a dedicated non-root user
+      # Pod-Level Security Context
       securityContext:
-        runAsUser: 10001        # Arbitrary non-root UID
-        runAsGroup: 10001       # Arbitrary non-root GID
-        fsGroup: 10001          # Ensure volume mounts are readable by this GID
-        runAsNonRoot: true      # Hard check: Kubelet will refuse to start if image is root
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
 
       containers:
       - name: app
-        # Use a specific SHA or version tag (e.g., :v1.2.0) to ensure consistency.
         image: agslima/software-delivery-pipeline@sha256:fa9a54b6c1237a301edd6a6ede45d83e926baa4d9d369db19a5c68a2f36b2e44
+        
+        # Avoid pulling image if it exists locally (Standard for SHA digests)
+        imagePullPolicy: IfNotPresent
         
         ports:
         - containerPort: 3000
         
-        # The "Container Sandbox"
+        # Container Sandbox
         securityContext:
-          allowPrivilegeEscalation: false  # Block setuid binaries
-          readOnlyRootFilesystem: true     # Make the OS immutable
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
           capabilities:
-            drop: ["ALL"]                  # Drop network/system capabilities
+            drop: ["ALL"]
 
         resources:
           requests:
-            memory: "64Mi"      # Guaranteed memory
-            cpu: "250m"         # Guaranteed 1/4 core
+            memory: "64Mi"
+            cpu: "250m"
           limits:
-            memory: "128Mi"     # Hard kill limit (OOMKilled if exceeded)
-            cpu: "500m"         # Throttling limit
+            memory: "128Mi"
+            cpu: "500m"
 
         readinessProbe:
           httpGet:
@@ -52,7 +56,6 @@ spec:
           initialDelaySeconds: 5
           periodSeconds: 5
 
-      # Mount a temp volume for /tmp or logs
         volumeMounts:
         - name: tmp-volume
           mountPath: /tmp
@@ -60,3 +63,4 @@ spec:
       volumes:
       - name: tmp-volume
         emptyDir: {}
+
