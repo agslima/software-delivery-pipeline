@@ -52,6 +52,7 @@ jobs:
 
       # (SAST) - Snyk
       - run: npm install -g snyk
+      
       - name: Setup Snyk
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
@@ -61,8 +62,9 @@ jobs:
         working-directory: app/server
         run: snyk code test --severity-threshold=high --sarif-file-output=snyk-code.sarif
         continue-on-error: true
+        
       - name: Upload results to GitHub Code Scanning
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: snyk-code.sarif
          
