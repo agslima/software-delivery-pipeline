@@ -7,7 +7,6 @@ WORKDIR /build
 
 # Install OS updates to patch vulnerabilities in the base image immediately
 # In case the cache invalidates if security updates are needed
-# hadolint ignore=DL3018
 RUN apk update && apk upgrade --no-cache
 
 # Dependencies (The Caching Layer)
@@ -28,8 +27,9 @@ RUN npm prune --production
 # ==========================================
 FROM node:24.11.1-alpine3.21
 
-# 1. SECURITY FIX: Install Tini (The Init Process)
+# 1. SECURITY ISSUE: Install Tini (The Init Process)
 # Tini ensures signals are forwarded and zombies are reaped.
+# hadolint ignore=DL3018
 RUN apk add --no-cache tini
 
 # 2. Environment Setup
