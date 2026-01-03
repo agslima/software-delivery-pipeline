@@ -353,7 +353,7 @@ jobs:
     name: GitOps Enforcement
     needs: sign-and-attest
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') && github.run_attempt == 1
     environment: production
     permissions: 
       contents: write
