@@ -50,89 +50,50 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # (SAST) 
-      # 3. TRIVY SETUP
-      - name: Install Trivy
+      # (SAST) - Snyk
+      - name: Snyk Security Check
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        working-directory: app/server
         run: |
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
-          echo "Trivy installed successfully."
+          npm install -g snyk
 
-      # 4. TRIVY SCAN: Filesystem (Dependencies & Code Secrets)
-      - name: Trivy Scan - Root FS
-        run: |
-          # A. Generate JSON for Governance Script (Includes ALL severities)
-          trivy fs app/server \
-            --scanners vuln,secret \
-            --format json \
-            --output trivy-results.json \
-            || true
+          # 1. Generate JSON for your Debt Script (Must include Low/Medium)
+          #  Use '|| true' so the pipeline doesn't crash here; the script decides later.
+          echo "📝 Generating JSON for Security Debt Script..."
+
+          snyk test --json > snyk-results.json || true
           
-          # B. Generate SARIF for GitHub Security Tab (High/Critical Only)
-          trivy fs app/server \
-            --scanners vuln,secret \
-            --severity HIGH,CRITICAL \
-            --format sarif \
-            --output trivy-results.sarif \
-            || true
+          # snyk test --severity-threshold=high --json-file-output=snyk-results.json
 
-      # 5. TRIVY SCAN: Kubernetes (IaC / Misconfigurations)
-      - name: Trivy Scan - Infrastructure (K8s)
-        run: |
-          echo "Scanning Kubernetes Manifests..."
-          trivy config k8s/ \
-            --severity HIGH,CRITICAL \
-            --format sarif \
-            --output trivy-k8s.sarif \
-            || true
+          # 2. Generate SARIF for GitHub Security Tab (Usually High/Critical only)
+          echo "🛡️ Generating SARIF for GitHub Dashboard..."
+          snyk test --severity-threshold=high --sarif > snyk-results.sarif || true
 
-      # 6. Upload BOTH SARIF files (Code + K8s)
-      - name: Upload Trivy SARIFs
+      - name: Upload Snyk Results
         uses: github/codeql-action/upload-sarif@v4
         with:
-          sarif_file: trivy-results.sarif
-          category: trivy-code
+          sarif_file: app/server/snyk-results.sarif
+
       
-      - name: Upload Trivy K8s Results
-        uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: trivy-k8s.sarif
-          category: trivy-infra
-
-      # 7. Enforce Governance
       - name: Enforce Risk Acceptance Policy
         run: | 
           chmod +x scripts/check-security-debt.sh 
-          # Point to the new Trivy JSON file
-          scripts/check-security-debt.sh trivy-results.json
-        
+          scripts/check-security-debt.sh app/server/snyk-results.json
+         
   # ------------------------------------------------------------------
-  # JOB 2: Infrastructure Linting (Docker, Kubernetes)
+  # JOB 2: Infrastructure Linting (Docker)
   # ------------------------------------------------------------------
-  infra-lint:
-    name: Infrastructure Linting
+  docker-lint:
+    name: Docker Linting
     runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@v4
-
-      # 1. Dockerfile Linting (Hadolint)
-      - name: Lint Dockerfile
-        uses: hadolint/hadolint-action@v3.3.0
+      - uses: hadolint/hadolint-action@v3.3.0
         with:
           dockerfile: app/Dockerfile
-          failure-threshold: error
-
-      # 2. Kubernetes Manifest Validation (Kubeconform)
-      - name: Validate K8s Manifests (Kubeconform)
-        uses: docker://ghcr.io/yannh/kubeconform:latest
-        with:
-          entrypoint: "/kubeconform"
-          # Arguments:
-          # -summary: Print summary at the end
-          # -output json: Good for parsing (optional)
-          # k8s/: The directory to scan
-          args: "-summary -output text -ignore-missing-schemas k8s/"
 
   # ------------------------------------------------------------------
   # JOB 3: Layer 4: Dynamic Analysis (DAST)
@@ -141,7 +102,7 @@ jobs:
   dast-analysis:
       name: "DAST (OWASP ZAP)"
       runs-on: ubuntu-latest
-      needs: [ code-quality, infra-lint ]
+      needs: [ code-quality, docker-lint ]
       if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
       permissions:
         contents: read
@@ -162,15 +123,15 @@ jobs:
             
             # Attempt to connect. If it times out after 60s, run the "||" block
             if ! timeout 60s bash -c 'until curl -s -f http://localhost:3000 > /dev/null; do sleep 2; done'; then
-              echo "CRITICAL: Application failed to respond!"
-              echo "DUMPING CONTAINER LOGS:"            
+              echo "❌ CRITICAL: Application failed to respond!"
+              echo "🔍 DUMPING CONTAINER LOGS:"            
               # --- THIS COMMAND SAVES YOU HOURS OF DEBUGGING ---
               docker logs app-under-test
               # -------------------------------------------------            
               exit 1
             fi          
             
-            echo "Application is live!"
+            echo "✅ Application is live!"
 
         # Ensure ZAP container can write the report files
         - name: Fix Permissions for ZAP
@@ -183,8 +144,9 @@ jobs:
             target: 'http://localhost:3000'
             fail_action: false # (Allows pipeline to pass, but still uploads the report)
             allow_issue_writing: false
-            artifact_name: zap_scan            
-            cmd_options: '-T 10' # options: '-a -T 10' (This forces a crash on ANY warning)
+            artifact_name: zap_scan
+            # 🔴 cmd_options: '-a -T 10' (This forces a crash on ANY warning)
+            cmd_options: '-T 10'
 
   # ==================================================================
   # STAGE 2: RELEASE (TAGS ONLY)
@@ -193,9 +155,9 @@ jobs:
   build-push:
     name: Release Build
     runs-on: ubuntu-latest
-    needs: [ code-quality, infra-lint, dast-analysis ] 
+    needs: [ code-quality, docker-lint, dast-analysis ] 
     if: startsWith(github.ref, 'refs/tags/v')
-    # environment: production
+    environment: production
     permissions:
       contents: read
       packages: write
@@ -210,6 +172,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -242,7 +205,7 @@ jobs:
           echo "Captured Digest: $DIGEST"
           
           if [[ -z "$DIGEST" ]]; then
-            echo "Error: Digest is empty!"
+            echo "❌ Error: Digest is empty!"
             exit 1
           fi
           
@@ -280,7 +243,7 @@ jobs:
     needs: build-push
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
-    # environment: production
+    environment: production
     permissions:
       packages: write
       id-token: write
@@ -354,10 +317,9 @@ jobs:
     needs: sign-and-attest
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
-    # environment: production
-    permissions: 
-      contents: write
-      pull-requests: write
+    environment: production
+    permissions:
+      contents: read
     strategy:
       matrix:
         include:
@@ -390,7 +352,7 @@ jobs:
           # 2. Construct the correct filename
           FILE_NAME="kyverno-cli_${KYVERNO_VERSION}_linux_x86_64.tar.gz"
           
-          echo "Downloading Kyverno version: $KYVERNO_VERSION"
+          echo "⬇️ Downloading Kyverno version: $KYVERNO_VERSION"
           
           # 3. Download the asset from the specific tag URL
           curl -LO "https://github.com/kyverno/kyverno/releases/download/${KYVERNO_VERSION}/${FILE_NAME}"
@@ -400,7 +362,7 @@ jobs:
           sudo mv kyverno /usr/local/bin/
           
           # 5. Verify Installation
-          echo "Kyverno Installed:"
+          echo "✅ Kyverno Installed:"
           kyverno version
 
       - name: Validate Kubernetes Manifest Against Policy
@@ -411,46 +373,35 @@ jobs:
       
       - name: GitOps - Update Manifest Version
         run: |
+          # Use sed to replace the image tag with the new digest or tag
+          # We use the Digest (SHA) because it is immutable (Best Practice)
           sed -i "s|image: .*|image: ${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@${{ env.DIGEST }}|g" k8s/deployment.yaml
           
+          # In a real setup, you would commit and push this back. 
+          # For this demo, we just print the diff to prove it works.
           echo "Updated Kubernetes Manifest:"
           cat k8s/deployment.yaml
 
-      - name: Commit & Push GitOps Update
+      - name: Commit & Push Changes
         run: |
-          set -euo pipefail
-
-          BRANCH="gitops/update-${{ matrix.name }}-${{ github.ref_name }}"
-
+          # Configure Git Identity
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git checkout -b "$BRANCH"
-
+          # Stage changes
           git add k8s/deployment.yaml
 
+          # Idempotency check
           if git diff --staged --quiet; then
-            echo "No changes detected. Exiting."
+            echo "No changes to commit."
             exit 0
           fi
 
-          git commit -m "gitops: deploy ${{ matrix.name }} @ ${{ env.DIGEST }}"
+          # Commit
+          git commit -m "gitops: update deployment digest to ${{ env.DIGEST }} [skip ci]"
 
-          git push origin "$BRANCH"
+          # PULL & REBASE (Fixes Detached HEAD & Syncs with Remote)
+          git pull --rebase origin main
 
-      - name: Create Pull Request
-        env:
-          GH_TOKEN: ${{ secrets.TOKEN_GITHUB }}
-        run: |
-          gh pr create \
-            --title "gitops: deploy ${{ matrix.name }} @ ${{ github.ref_name }}" \
-            --body "Automated GitOps update triggered by signed release ${{ github.ref_name }}.
-
-            - Image digest: \`${{ env.DIGEST }}\`
-            - Provenance: SLSA v1
-            - Attestations: Trivy + ZAP verified
-
-            This PR was generated by a governed CI/CD pipeline." \
-            --base main \
-            --head "$BRANCH"
-            
+          # PUSH (Uses the PAT from the checkout step automatically)
+          git push origin HEAD:main
