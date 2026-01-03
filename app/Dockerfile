@@ -7,6 +7,7 @@ WORKDIR /build
 
 # Install OS updates to patch vulnerabilities in the base image immediately
 # In case the cache invalidates if security updates are needed
+# hadolint ignore=DL3018
 RUN apk update && apk upgrade --no-cache
 
 # Dependencies (The Caching Layer)
