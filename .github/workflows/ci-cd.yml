@@ -410,7 +410,7 @@ jobs:
   
       - name: GitOps - Update Manifest Version
         run: |
-          sed -i "s|image: .*|image: ${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@${{ env.DIGEST }}|g" k8s/deployment.yaml
+          sed -i "s|image: .*|image: docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@${{ env.DIGEST }}|g" k8s/deployment.yaml
           
           echo "Updated Kubernetes Manifest:"
           cat k8s/deployment.yaml
