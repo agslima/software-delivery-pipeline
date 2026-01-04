@@ -139,15 +139,14 @@ jobs:
           entrypoint: "/kubeconform"
           args: "-summary -output text -ignore-missing-schemas k8s/"
 
-      # 4. POLICY VALIDATION (Kyverno - Shift Left)
-      # Runs your cluster policies against the local manifest file NOW.
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3.8.1
+
       - name: Install Kyverno CLI
-        run: |
-          KYVERNO_VERSION=$(curl -s "https://api.github.com/repos/kyverno/kyverno/releases/latest" | jq -r .tag_name)
-          FILE_NAME="kyverno-cli_${KYVERNO_VERSION}_linux_x86_64.tar.gz"
-          curl -LO "https://github.com/kyverno/kyverno/releases/download/${KYVERNO_VERSION}/${FILE_NAME}"
-          tar -xzf "$FILE_NAME"
-          sudo mv kyverno /usr/local/bin/
+        uses: kyverno/action-install-cli@v0.2.0
+        with:
+          release: 'v1.13.2'
+          verify: true        
 
       - name: Validate Kubernetes Manifest Against Policy
         run: |
