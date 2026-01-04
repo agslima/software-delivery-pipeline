@@ -158,8 +158,7 @@ jobs:
           kyverno apply k8s/policies/cluster-policy.yaml \
             --resource k8s/deployment.yaml \
             --values-file k8s/tests/values.yaml \
-            --audit-warn=false \
-            --verbose
+            --audit-warn=false
 
             
   # ------------------------------------------------------------------
