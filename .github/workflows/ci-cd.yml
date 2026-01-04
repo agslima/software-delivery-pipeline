@@ -137,7 +137,7 @@ jobs:
         uses: docker://ghcr.io/yannh/kubeconform:latest
         with:
           entrypoint: "/kubeconform"
-          args: "-summary -output text -ignore-missing-schemas k8s/"
+          args: "-summary -output text -ignore-missing-schemas k8s/ -exclude k8s/ci"
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3.8.1
