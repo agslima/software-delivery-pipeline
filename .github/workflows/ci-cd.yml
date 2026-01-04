@@ -162,7 +162,6 @@ jobs:
             - name: enforce-governed-artifacts
               resources:
                 - name: software-delivery-pipeline
-                  kind: Deployment
                   values:
                     request.operation: UPDATE
                     images:
