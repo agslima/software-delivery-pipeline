@@ -179,8 +179,9 @@ jobs:
         run: |
           kyverno apply k8s/policies/cluster-policy.yaml \
             --resource k8s/deployment.yaml \
-            --values kyverno-values-ci.yaml \
+            --values-file kyverno-values-ci.yaml \
             --audit-warn=false
+
 
             
   # ------------------------------------------------------------------
