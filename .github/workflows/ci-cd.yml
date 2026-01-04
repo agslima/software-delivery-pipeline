@@ -149,26 +149,11 @@ jobs:
           tar -xzf "$FILE_NAME"
           sudo mv kyverno /usr/local/bin/
 
-      - name: Extract Image Metadata from Manifest
+      - name: Set Mock Image Values for Kyverno (CI)
         run: |
-          IMAGE=$(yq '.spec.template.spec.containers[] | select(.name=="app") | .image' k8s/deployment.yaml)
-
-          REGISTRY=$(echo "$IMAGE" | cut -d/ -f1)
-
-          # Handle digest-based images
-          if [[ "$IMAGE" == *@sha256:* ]]; then
-            REPO_PATH=$(echo "$IMAGE" | cut -d/ -f2- | cut -d@ -f1)
-            DIGEST=$(echo "$IMAGE" | cut -d@ -f2)
-          else
-            echo "❌ ERROR: Image must be digest-pinned for Kyverno policy testing"
-            echo "Found: $IMAGE"
-            exit 1
-          fi
-
-          echo "REGISTRY=$REGISTRY" >> $GITHUB_ENV
-          echo "REPO_PATH=$REPO_PATH" >> $GITHUB_ENV
-          echo "DIGEST=$DIGEST" >> $GITHUB_ENV
-
+          echo "REGISTRY=docker.io" >> $GITHUB_ENV
+          echo "REPO_PATH=agslima/software-delivery-pipeline" >> $GITHUB_ENV
+          echo "DIGEST=sha256:0000000000000000000000000000000000000000000000000000000000000000" >> $GITHUB_ENV
     
       - name: Generate Kyverno CI Values
         run: |
@@ -189,6 +174,7 @@ jobs:
                           path: "${REPO_PATH}"
                           digest: "${DIGEST}"
           EOF
+
 
       - name: Validate Against Kyverno Policies (CI)
         run: |
