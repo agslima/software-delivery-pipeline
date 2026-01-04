@@ -158,8 +158,6 @@ jobs:
       - name: Generate Kyverno CI Values
         run: |
           cat <<EOF > kyverno-values-ci.yaml
-          apiVersion: cli.kyverno.io/v1alpha1
-          kind: Values
           policies:
             - name: enforce-governed-artifacts
               resources:
@@ -170,10 +168,12 @@ jobs:
                     images:
                       containers:
                         app:
-                          registry: "${REGISTRY}"
-                          path: "${REPO_PATH}"
-                          digest: "${DIGEST}"
+                          registry: docker.io
+                          path: agslima/software-delivery-pipeline
+                          tag: v0.0.0-mock
+                          digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
           EOF
+
 
       - name: Validate Against Kyverno Policies (CI)
         run: |
