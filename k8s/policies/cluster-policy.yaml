@@ -20,7 +20,7 @@ spec:
   - name: require-image-signature
     match:
       resources:
-        kinds: ["Pod"]
+        kinds: ["Pod", "Deployment"]
         namespaces: ["prod"]
     exclude:
       resources:
@@ -44,7 +44,7 @@ spec:
   - name: require-trivy-attestation
     match:
       resources:
-        kinds: ["Pod"]
+        kinds: ["Pod", "Deployment"]
         namespaces: ["prod"]
     exclude:
       resources:
@@ -78,7 +78,7 @@ spec:
   - name: require-zap-attestation
     match:
       resources:
-        kinds: ["Pod"]
+        kinds: ["Pod", "Deployment"]
         namespaces: ["prod"]
     exclude:
       resources:
@@ -102,3 +102,20 @@ spec:
                   - key: "{{ summary.high }}"
                     operator: LessThanOrEquals
                     value: 0
+
+
+  # -------------------------------------------------------------------
+  # Rule 4: Ban Mutable Tags (:latest)
+  # -------------------------------------------------------------------
+  - name: ban-latest-tag
+    match:
+      resources:
+        kinds: ["Pod", "Deployment"]
+    validate:
+      message: "Using ':latest' is prohibited. Use immutable digests or specific version tags."
+      pattern:
+        spec:
+          template:
+            spec:
+              containers:
+                - image: "!*:latest"
