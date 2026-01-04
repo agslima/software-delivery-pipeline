@@ -409,23 +409,31 @@ jobs:
           echo "Updated Kubernetes Manifest:"
           cat k8s/deployment.yaml
 
+      # ========================================================
+      # 2. VALIDATE SECOND (Check the candidate artifact)
+      # ========================================================
       - name: Validate Kubernetes Manifest Against Policy
         run: |
-          # 1. Run Kyverno and capture both StdOut and StdErr
-          # We use 'tee' to show it in the logs AND save it to a variable/file
-          OUTPUT=$(kyverno apply k8s/policies/cluster-policy.yaml \
+          # Create a temp file to store logs
+          LOG_FILE=$(mktemp)
+
+          # Run Kyverno and save output to the file
+          kyverno apply k8s/policies/cluster-policy.yaml \
             --resource k8s/deployment.yaml \
-            --audit-warn=false 2>&1 | tee /dev/tty)
+            --audit-warn=false > "$LOG_FILE" 2>&1
           
-          # 2. Check for the "Silent Failure" string
-          if echo "$OUTPUT" | grep -q "Applying 0 policy rule(s)"; then
+          # Print the file content so you can see it in the GitHub Logs
+          cat "$LOG_FILE"
+          
+          # 1. Check for the "Silent Failure" string
+          if grep -q "Applying 0 policy rule(s)" "$LOG_FILE"; then
             echo "::error::❌ CRITICAL: No policy rules were applied! This means your Manifest (k8s/deployment.yaml) does not match the Policy 'match' block."
             echo "Hint: Check if the 'image' name in deployment.yaml lacks 'docker.io/' prefix or if the Kind/Namespace matches."
             exit 1
           fi
           
-          # 3. Check if Kyverno actually failed (pass: 0, fail: >0)
-          if ! echo "$OUTPUT" | grep -q "fail: 0"; then
+          # 2. Check if Kyverno actually failed (fail count should be 0)
+          if ! grep -q "fail: 0" "$LOG_FILE"; then
              echo "::error::❌ Policy Violation Detected."
              exit 1
           fi
