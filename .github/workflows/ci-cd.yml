@@ -154,12 +154,21 @@ jobs:
           IMAGE=$(yq '.spec.template.spec.containers[] | select(.name=="app") | .image' k8s/deployment.yaml)
 
           REGISTRY=$(echo "$IMAGE" | cut -d/ -f1)
-          REPO_PATH=$(echo "$IMAGE" | cut -d/ -f2- | cut -d@ -f1)
-          DIGEST=$(echo "$IMAGE" | cut -d@ -f2)
+
+          # Handle digest-based images
+          if [[ "$IMAGE" == *@sha256:* ]]; then
+            REPO_PATH=$(echo "$IMAGE" | cut -d/ -f2- | cut -d@ -f1)
+            DIGEST=$(echo "$IMAGE" | cut -d@ -f2)
+          else
+            echo "❌ ERROR: Image must be digest-pinned for Kyverno policy testing"
+            echo "Found: $IMAGE"
+            exit 1
+          fi
 
           echo "REGISTRY=$REGISTRY" >> $GITHUB_ENV
           echo "REPO_PATH=$REPO_PATH" >> $GITHUB_ENV
           echo "DIGEST=$DIGEST" >> $GITHUB_ENV
+
     
       - name: Generate Kyverno CI Values
         run: |
@@ -171,23 +180,23 @@ jobs:
               resources:
                 - name: software-delivery-pipeline
                   kind: Deployment
-                    values:
-                      request.operation: UPDATE
-                      images:
-                        containers:
-                          app:
-                            registry: "${REGISTRY}"
-                            path: "${REPO_PATH}"
-                            digest: "${DIGEST}"
+                  values:
+                    request.operation: UPDATE
+                    images:
+                      containers:
+                        app:
+                          registry: "${REGISTRY}"
+                          path: "${REPO_PATH}"
+                          digest: "${DIGEST}"
           EOF
 
-      - name: Validate K8s Policies (Kyverno)
+      - name: Validate Against Kyverno Policies (CI)
         run: |
-          # Use the mock values to simulate a deployment
           kyverno apply k8s/policies/cluster-policy.yaml \
             --resource k8s/deployment.yaml \
-            --values-file kyverno-values-ci.yaml \
+            --values kyverno-values-ci.yaml \
             --audit-warn=false
+
             
   # ------------------------------------------------------------------
   # JOB 3: Layer 4: Dynamic Analysis (DAST)
