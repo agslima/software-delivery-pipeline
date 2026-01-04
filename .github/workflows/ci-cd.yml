@@ -175,7 +175,6 @@ jobs:
                           digest: "${DIGEST}"
           EOF
 
-
       - name: Validate Against Kyverno Policies (CI)
         run: |
           kyverno apply k8s/policies/cluster-policy.yaml \
