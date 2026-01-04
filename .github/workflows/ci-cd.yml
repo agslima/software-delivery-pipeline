@@ -402,12 +402,6 @@ jobs:
         run: |
           kyverno test k8s/tests/
 
-      - name: Validate Kubernetes Manifest Against Policy
-        run: |
-          kyverno apply k8s/policies/cluster-policy.yaml \
-          --resource k8s/deployment.yaml \
-          --audit-warn=false
-  
       - name: GitOps - Update Manifest Version
         run: |
           sed -i "s|image: .*|image: docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@${{ env.DIGEST }}|g" k8s/deployment.yaml
@@ -415,6 +409,29 @@ jobs:
           echo "Updated Kubernetes Manifest:"
           cat k8s/deployment.yaml
 
+      - name: Validate Kubernetes Manifest Against Policy
+        run: |
+          # 1. Run Kyverno and capture both StdOut and StdErr
+          # We use 'tee' to show it in the logs AND save it to a variable/file
+          OUTPUT=$(kyverno apply k8s/policies/cluster-policy.yaml \
+            --resource k8s/deployment.yaml \
+            --audit-warn=false 2>&1 | tee /dev/tty)
+          
+          # 2. Check for the "Silent Failure" string
+          if echo "$OUTPUT" | grep -q "Applying 0 policy rule(s)"; then
+            echo "::error::❌ CRITICAL: No policy rules were applied! This means your Manifest (k8s/deployment.yaml) does not match the Policy 'match' block."
+            echo "Hint: Check if the 'image' name in deployment.yaml lacks 'docker.io/' prefix or if the Kind/Namespace matches."
+            exit 1
+          fi
+          
+          # 3. Check if Kyverno actually failed (pass: 0, fail: >0)
+          if ! echo "$OUTPUT" | grep -q "fail: 0"; then
+             echo "::error::❌ Policy Violation Detected."
+             exit 1
+          fi
+
+          echo "✅ Policy successfully applied and validated."
+       
       - name: Commit & Push GitOps Update
         run: |
           set -euo pipefail
