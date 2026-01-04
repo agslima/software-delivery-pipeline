@@ -1,0 +1,15 @@
+apiVersion: cli.kyverno.io/v1alpha1
+kind: Values
+policies:
+  - name: enforce-governed-artifacts
+    resources:
+      - name: software-delivery-pipeline
+        values:
+          request.operation: UPDATE          
+          images:
+            containers:
+              app:
+                registry: docker.io
+                path: agslima/software-delivery-pipeline
+                tag: v0.0.0-mock
+                digest: sha256:0000000000000000000000000000000000000000000000000000000000000000

@@ -149,42 +149,13 @@ jobs:
           tar -xzf "$FILE_NAME"
           sudo mv kyverno /usr/local/bin/
 
-      - name: Set Mock Image Values for Kyverno (CI)
+      - name: Validate Kubernetes Manifest Against Policy
         run: |
-          echo "REGISTRY=docker.io" >> $GITHUB_ENV
-          echo "REPO_PATH=agslima/software-delivery-pipeline" >> $GITHUB_ENV
-          echo "DIGEST=sha256:0000000000000000000000000000000000000000000000000000000000000000" >> $GITHUB_ENV
-    
-      - name: Generate Kyverno CI Values
-        run: |
-          # Use the NEW schema required by Kyverno CLI v1.10+
-          cat <<EOF > kyverno-values-ci.yaml
-          apiVersion: cli.kyverno.io/v1alpha1
-          kind: Values
-          policies:
-            - name: enforce-governed-artifacts
-              resources:
-                - name: software-delivery-pipeline
-                  kind: Deployment
-                  values:
-                    request.operation: UPDATE
-                    images:
-                      containers:
-                        app:
-                          registry: docker.io
-                          path: agslima/software-delivery-pipeline
-                          tag: v0.0.0-mock
-                          digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
-          EOF
-
-
-      - name: Validate Against Kyverno Policies (CI)
-        run: |
+          # Use the file checked into the repo
           kyverno apply k8s/policies/cluster-policy.yaml \
             --resource k8s/deployment.yaml \
-            --values-file kyverno-values-ci.yaml \
+            --values-file k8s/tests/values.yaml \
             --audit-warn=false
-
 
             
   # ------------------------------------------------------------------
