@@ -149,10 +149,20 @@ jobs:
           tar -xzf "$FILE_NAME"
           sudo mv kyverno /usr/local/bin/
 
-      - name: Mock Kyverno Variables
+      - name: Extract Image Metadata from Manifest
         run: |
-          # 1. We removed the invalid 'namespace' field.
-          # 2. We added 'kind: Deployment' to ensure a strict match.
+          IMAGE=$(yq '.spec.template.spec.containers[] | select(.name=="app") | .image' k8s/deployment.yaml)
+
+          REGISTRY=$(echo "$IMAGE" | cut -d/ -f1)
+          REPO_PATH=$(echo "$IMAGE" | cut -d/ -f2- | cut -d@ -f1)
+          DIGEST=$(echo "$IMAGE" | cut -d@ -f2)
+
+          echo "REGISTRY=$REGISTRY" >> $GITHUB_ENV
+          echo "REPO_PATH=$REPO_PATH" >> $GITHUB_ENV
+          echo "DIGEST=$DIGEST" >> $GITHUB_ENV
+    
+      - name: Generate Kyverno CI Values
+        run: |
           cat <<EOF > kyverno-values-ci.yaml
           apiVersion: cli.kyverno.io/v1alpha1
           kind: Values
@@ -161,18 +171,15 @@ jobs:
               resources:
                 - name: software-delivery-pipeline
                   kind: Deployment
-                  values:
-                    request.operation: UPDATE
-                    images:
-                      containers:
-                        app:
-                          registry: "docker.io"
-                          path: "agslima/software-delivery-pipeline"
-                          tag: "v0.0.0-mock"
-                          digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+                    values:
+                      request.operation: UPDATE
+                      images:
+                        containers:
+                          app:
+                            registry: "${REGISTRY}"
+                            path: "${REPO_PATH}"
+                            digest: "${DIGEST}"
           EOF
-
-
 
       - name: Validate K8s Policies (Kyverno)
         run: |
