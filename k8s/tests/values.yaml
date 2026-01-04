@@ -1,6 +1,15 @@
 apiVersion: cli.kyverno.io/v1alpha1
 kind: Values
 policies:
+  - name: enforce-governed-artifacts  # Must match metadata.name in your ClusterPolicy
+    rules:
+      - name: check-image-signature   # Must match the rule name inside the policy
+        values:
+          # Mock standard AdmissionReview variables often used in policies
+          request.operation: CREATE
+          request.userInfo.username: "agnaldo"
+          serviceAccountName: "pipeline-sa"
+          
   - name: enforce-governed-artifacts
     rules:
       - name: require-image-signature

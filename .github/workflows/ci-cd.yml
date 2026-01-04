@@ -147,7 +147,12 @@ jobs:
         with:
           release: 'v1.13.2'
           verify: true        
-
+      
+      - name: Kyverno Policy Unit Tests
+        run: |
+          kyverno test k8s/tests/
+          echo "Kyverno Policy Unit Tests completed."
+          
       - name: Validate Kubernetes Manifest Against Policy
         run: |
           kyverno apply k8s/policies/cluster-policy.yaml \
@@ -526,31 +531,15 @@ jobs:
           echo "DIGEST=$DIGEST" >> $GITHUB_ENV  
           echo "IMAGE=${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@$DIGEST" >> $GITHUB_ENV
 
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3.8.1
+
       - name: Install Kyverno CLI
-        run: |
-          # 1. Fetch the latest version tag from GitHub API
-          KYVERNO_VERSION=$(curl -s "https://api.github.com/repos/kyverno/kyverno/releases/latest" | jq -r .tag_name)
-          
-          # 2. Construct the correct filename
-          FILE_NAME="kyverno-cli_${KYVERNO_VERSION}_linux_x86_64.tar.gz"
-          
-          echo "Downloading Kyverno version: $KYVERNO_VERSION"
-          
-          # 3. Download the asset from the specific tag URL
-          curl -LO "https://github.com/kyverno/kyverno/releases/download/${KYVERNO_VERSION}/${FILE_NAME}"
-          
-          # 4. Extract and Install
-          tar -xzf "$FILE_NAME"
-          sudo mv kyverno /usr/local/bin/
-          
-          # 5. Verify Installation
-          echo "Kyverno Installed:"
-          kyverno version
-        
-      - name: Kyverno Policy Unit Tests
-        run: |
-          kyverno test k8s/tests/
-      
+        uses: kyverno/action-install-cli@v0.2.0
+        with:
+          release: 'v1.13.2'
+          verify: true  
+                
       - name: Configure Policy with Correct Username
         run: |
           # Dynamic Replacement to ensure policy matches secret
