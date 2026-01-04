@@ -1,8 +1,9 @@
+# k8s/deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: software-delivery-pipeline
-  namespace: production
+  namespace: prod
   labels:
     app: software-delivery-pipeline
 spec:

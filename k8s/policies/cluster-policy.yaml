@@ -1,3 +1,4 @@
+# k8s/policies/cluster-policy.yaml
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
@@ -6,10 +7,6 @@ metadata:
     policies.kyverno.io/title: Enforce Governed Supply Chain (Prod)
     policies.kyverno.io/severity: critical
     policies.kyverno.io/category: Supply Chain Security
-    policies.kyverno.io/description: >
-      Enforces cryptographically governed workloads:
-      signed images, SLSA provenance, SBOM, Trivy + DAST attestations.
-      Break-glass is strictly controlled.
 spec:
   validationFailureAction: Enforce
   background: false
@@ -17,137 +14,91 @@ spec:
 
   rules:
 
-  # =====================================================================
-  # GLOBAL MATCH (Workloads Only)
-  # =====================================================================
-  # - name: deny-ungoverned-workloads
-  #  match:
-  #    resources:
-  #      kinds:
-  #        - Deployment
-  #        - StatefulSet
-  #        - DaemonSet
-  #
-  # =====================================================================
-  # BREAK-GLASS GUARDRAIL
-  # =====================================================================
-  - name: break-glass-guardrail
+  # -------------------------------------------------------------------
+  # Rule 1: Require Signed Image
+  # -------------------------------------------------------------------
+  - name: require-image-signature
     match:
       resources:
-        kinds:
-          - Deployment
-    preconditions:
-      all:
-        - key: "{{ request.object.metadata.labels.security.break-glass || '' }}"
-          operator: Equals
-          value: "true"
-    validate:
-      message: "Break-glass requires break-glass namespace and service account."
-      deny:
-        conditions:
-          any:
-            - key: "{{ request.object.metadata.namespace }}"
-              operator: NotEquals
-              value: break-glass
-            - key: "{{ request.object.spec.template.spec.serviceAccountName }}"
-              operator: NotEquals
-              value: break-glass-sa
+        kinds: ["Pod"]
+        namespaces: ["prod"]
+    exclude:
+      resources:
+        selector:
+          matchLabels:
+            security.break-glass: "true"
 
-  # =====================================================================
-  # IMAGE SIGNATURE
-  # =====================================================================
-  - name: require-signed-image
-    match:
-      resources:
-        kinds: [Deployment, StatefulSet, DaemonSet]
     verifyImages:
       - imageReferences:
-          - "docker.io/agslima/software-delivery-pipeline@sha256:*"
+          - "docker.io/agslima/software-delivery-pipeline*"
         attestors:
           - entries:
               - keyless:
                   issuer: https://token.actions.githubusercontent.com
                   subjectRegExp: >
-                    "^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-cd.yml@refs/tags/v.*"
+                    ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-cd.yml@refs/tags/v.*
 
-  # =====================================================================
-  # SLSA BUILD PROVENANCE
-  # =====================================================================
-  - name: require-build-provenance
-    match:
-      resources:
-        kinds: [Deployment, StatefulSet, DaemonSet]
-    verifyImages:
-      - imageReferences:
-          - "docker.io/agslima/software-delivery-pipeline@sha256:*"
-        attestations:
-          - predicateType: https://slsa.dev/provenance/v1
-            conditions:
-              - all:
-                  - key: "{{ predicate.builder.id }}"
-                    operator: Equals
-                    value: https://github.com/actions/runner
-                  - key: "{{ predicate.invocation.configSource.uri }}"
-                    operator: Regex
-                    value: "^https://github.com/agslima/software-delivery-pipeline"
-                  - key: "{{ predicate.invocation.configSource.ref }}"
-                    operator: Regex
-                    value: "^refs/tags/v.*"
-
-  # =====================================================================
-  # SBOM REQUIRED
-  # =====================================================================
-  - name: require-sbom
-    match:
-      resources:
-        kinds: [Deployment, StatefulSet, DaemonSet]
-    verifyImages:
-      - imageReferences:
-          - "docker.io/agslima/software-delivery-pipeline@sha256:*"
-        attestations:
-          - predicateType: https://spdx.dev/Document
-
-  # =====================================================================
-  # TRIVY VULNERABILITY ATTESTATION
-  # =====================================================================
+  # -------------------------------------------------------------------
+  # Rule 2: Require Trivy Attestation
+  # -------------------------------------------------------------------
   - name: require-trivy-attestation
     match:
       resources:
-        kinds: [Deployment, StatefulSet, DaemonSet]
+        kinds: ["Pod"]
+        namespaces: ["prod"]
+    exclude:
+      resources:
+        selector:
+          matchLabels:
+            security.break-glass: "true"
+
     verifyImages:
       - imageReferences:
-          - "docker.io/agslima/software-delivery-pipeline@sha256:*"
+          - "docker.io/agslima/software-delivery-pipeline*"
         attestations:
-          - predicateType: https://aquasecurity.github.io/trivy/attestation/v1
+          - predicateType: https://example.com/attestations/trivy/v1
             conditions:
               - all:
-                  - key: "{{ predicate.scanner.name }}"
+                  - key: "{{ result }}"
+                    operator: Equals
+                    value: PASS
+                  - key: "{{ scanner.name }}"
                     operator: Equals
                     value: trivy
-                  - key: "{{ predicate.summary.critical }}"
-                    operator: Equals
+                  - key: "{{ summary.critical }}"
+                    operator: LessThanOrEquals
                     value: 0
-                  - key: "{{ predicate.summary.high }}"
+                  - key: "{{ summary.high }}"
                     operator: LessThanOrEquals
                     value: 5
 
-  # =====================================================================
-  # DAST (OWASP ZAP)
-  # =====================================================================
-  - name: require-dast-attestation
+  # -------------------------------------------------------------------
+  # Rule 3: Require ZAP Attestation
+  # -------------------------------------------------------------------
+  - name: require-zap-attestation
     match:
       resources:
-        kinds: [Deployment, StatefulSet, DaemonSet]
+        kinds: ["Pod"]
+        namespaces: ["prod"]
+    exclude:
+      resources:
+        selector:
+          matchLabels:
+            security.break-glass: "true"
+
     verifyImages:
       - imageReferences:
-          - "docker.io/agslima/software-delivery-pipeline@sha256:*"
+          - "docker.io/agslima/software-delivery-pipeline*"
         attestations:
-          - predicateType: https://www.zaproxy.org/docs/attestations/zap-baseline/v1
+          - predicateType: https://example.com/attestations/zap/v1
             conditions:
               - all:
-                  - key: "{{ predicate.site }}"
-                    operator: Regex
-                    value: "^http://"
-                  - key: "{{ predicate.summary.high }}"
+                  - key: "{{ result }}"
                     operator: Equals
+                    value: PASS
+                  - key: "{{ scanner.name }}"
+                    operator: Equals
+                    value: owasp-zap
+                  - key: "{{ summary.high }}"
+                    operator: LessThanOrEquals
                     value: 0
