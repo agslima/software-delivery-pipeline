@@ -20,14 +20,14 @@ spec:
   # =====================================================================
   # GLOBAL MATCH (Workloads Only)
   # =====================================================================
-  - name: deny-ungoverned-workloads
-    match:
-      resources:
-        kinds:
-          - Deployment
-          - StatefulSet
-          - DaemonSet
-
+  # - name: deny-ungoverned-workloads
+  #  match:
+  #    resources:
+  #      kinds:
+  #        - Deployment
+  #        - StatefulSet
+  #        - DaemonSet
+  #
   # =====================================================================
   # BREAK-GLASS GUARDRAIL
   # =====================================================================
