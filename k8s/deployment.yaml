@@ -27,7 +27,7 @@ spec:
 
       containers:
       - name: app
-        image: image: docker.io/agslima/software-delivery-pipeline:placeholder
+        image: docker.io/agslima/software-delivery-pipeline:placeholder
         
         imagePullPolicy: IfNotPresent
         
