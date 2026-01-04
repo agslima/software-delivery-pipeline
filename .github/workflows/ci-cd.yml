@@ -151,8 +151,8 @@ jobs:
 
       - name: Mock Kyverno Variables
         run: |
-          # We use the new CRD format (apiVersion/kind)
-          # CRITICAL: We added 'namespace: production' to the resource matcher
+          # 1. We removed the invalid 'namespace' field.
+          # 2. We added 'kind: Deployment' to ensure a strict match.
           cat <<EOF > kyverno-values-ci.yaml
           apiVersion: cli.kyverno.io/v1alpha1
           kind: Values
@@ -160,21 +160,18 @@ jobs:
             - name: enforce-governed-artifacts
               resources:
                 - name: software-delivery-pipeline
-                  namespace: production
+                  kind: Deployment
                   values:
-                    # 1. Operation Context
                     request.operation: UPDATE
-                    
-                    # 2. Mock Image Data (Bypasses registry lookup failure in CI)
-                    # These variables tell Kyverno: "Assume the image looks like this"
                     images:
                       containers:
                         app:
                           registry: "docker.io"
                           path: "agslima/software-delivery-pipeline"
-                          tag: "latest"
+                          tag: "v0.0.0-mock"
                           digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
           EOF
+
 
 
       - name: Validate K8s Policies (Kyverno)
