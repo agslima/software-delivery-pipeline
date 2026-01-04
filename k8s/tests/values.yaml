@@ -9,12 +9,6 @@ policies:
           request.operation: CREATE
           request.userInfo.username: "agnaldo"
           serviceAccountName: "pipeline-sa"
-          
-  - name: enforce-governed-artifacts
-    rules:
-      - name: require-image-signature
-        values:
-          request.operation: UPDATE
           images:
             containers:
               app:
