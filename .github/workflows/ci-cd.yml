@@ -54,7 +54,8 @@ jobs:
       # 3. TRIVY SETUP
       - name: Install Trivy
         run: |
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+          TRIVY_VERSION=0.58.1
+          curl -sfL raw.githubusercontent.com/aquasecurity/trivy/v${TRIVY_VERSION}/contrib/install.sh | sh -s -- -b /usr/local/bin
           echo "Trivy installed successfully."
 
       # 4. TRIVY SCAN: Filesystem (Dependencies & Code Secrets)
@@ -123,17 +124,57 @@ jobs:
           dockerfile: app/Dockerfile
           failure-threshold: error
 
-      # 2. Kubernetes Manifest Validation (Kubeconform)
+      # 2. DRIFT DETECTION (OPA / Conftest)
+      - name: Policy Check - Dockerfile (OPA)
+        uses: instrumenta/conftest-action@master
+        with:
+          files: app/Dockerfile
+          policy: policies/dockerfile.rego
+          # output: stdout
+
+      # 3. SCHEMA VALIDATION (Kubeconform)
       - name: Validate K8s Manifests (Kubeconform)
         uses: docker://ghcr.io/yannh/kubeconform:latest
         with:
           entrypoint: "/kubeconform"
-          # Arguments:
-          # -summary: Print summary at the end
-          # -output json: Good for parsing (optional)
-          # k8s/: The directory to scan
           args: "-summary -output text -ignore-missing-schemas k8s/"
 
+      # 4. POLICY VALIDATION (Kyverno - Shift Left)
+      # Runs your cluster policies against the local manifest file NOW.
+      - name: Install Kyverno CLI
+        run: |
+          KYVERNO_VERSION=$(curl -s "https://api.github.com/repos/kyverno/kyverno/releases/latest" | jq -r .tag_name)
+          FILE_NAME="kyverno-cli_${KYVERNO_VERSION}_linux_x86_64.tar.gz"
+          curl -LO "https://github.com/kyverno/kyverno/releases/download/${KYVERNO_VERSION}/${FILE_NAME}"
+          tar -xzf "$FILE_NAME"
+          sudo mv kyverno /usr/local/bin/
+
+      - name: Mock Kyverno Variables
+        run: |
+          cat <<EOF > kyverno-values-ci.yaml
+          policies:
+            - name: enforce-governed-artifacts
+              resources:
+                - name: software-delivery-pipeline
+                  values:
+                    request.operation: UPDATE
+                    # Mock the image to pass the 'verifyImages' check structurally
+                    # (The actual signature check happens in GitOps stage)
+                    images.containers.app.registry: "docker.io"
+                    images.containers.app.path: "agslima/software-delivery-pipeline"
+                    images.containers.app.tag: "v0.0.0-mock"
+                    images.containers.app.digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+          EOF
+
+
+      - name: Validate K8s Policies (Kyverno)
+        run: |
+          # Use the mock values to simulate a deployment
+          kyverno apply k8s/policies/cluster-policy.yaml \
+            --resource k8s/deployment.yaml \
+            --values-file kyverno-values-ci.yaml \
+            --audit-warn=false
+            
   # ------------------------------------------------------------------
   # JOB 3: Layer 4: Dynamic Analysis (DAST)
   # DAST: Only runs on Main branch (post-merge) or Tags to save PR time
@@ -248,7 +289,6 @@ jobs:
           cache-to: type=gha,mode=max
           tags: |
             ${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}:${{ github.sha }}
-            ${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}:latest
             ${{ format('{0}/{1}:{2}', secrets.DOCKER_HUB_USERNAME, matrix.image_repo, github.ref_name) }}
 
       - name: Export Digest
@@ -360,79 +400,87 @@ jobs:
         with:
           name: zap-results
 
-      # 2. TRANSFORM TRIVY JSON -> ATTESTATION PREDICATE
-      - name: Create Trivy Attestation
+      - name: Create & Push Trivy Attestation
         run: |
-          jq '{
-            predicateType: "https://security.sigstore.dev/attestations/vuln/trivy/v1",
-            predicate: {
-              scanner: {
-                name: "trivy",
-                version: "0.58.1",
-                uri: "https://github.com/aquasecurity/trivy"
-              },
-              artifact: {
-                type: "container-image",
-                reference: "${{ env.IMAGE }}"
-              },
-              summary: {
-                critical: ([.Results[].Vulnerabilities[]? | select(.Severity=="CRITICAL")] | length),
-                high:     ([.Results[].Vulnerabilities[]? | select(.Severity=="HIGH")] | length),
-                medium:   ([.Results[].Vulnerabilities[]? | select(.Severity=="MEDIUM")] | length),
-                low:      ([.Results[].Vulnerabilities[]? | select(.Severity=="LOW")] | length)
-              },
-              result: "pass",
-              timestamp: (now | todate)
+          # HARDENING LOGIC:
+          # 1. Calculate counts into variables ($crit, $high, etc.)
+          # 2. Derive 'result': IF (crit > 0 OR high > 5) THEN 'fail' ELSE 'pass'
+          
+          jq '
+            ([.Results[].Vulnerabilities[]? | select(.Severity=="CRITICAL")] | length) as $crit |
+            ([.Results[].Vulnerabilities[]? | select(.Severity=="HIGH")] | length) as $high |
+            ([.Results[].Vulnerabilities[]? | select(.Severity=="MEDIUM")] | length) as $med |
+            ([.Results[].Vulnerabilities[]? | select(.Severity=="LOW")] | length) as $low |
+            {
+              predicateType: "https://security.sigstore.dev/attestations/vuln/trivy/v1",
+              predicate: {
+                scanner: {
+                  name: "trivy",
+                  version: "0.58.1",
+                  uri: "https://github.com/aquasecurity/trivy"
+                },
+                summary: {
+                  critical: $crit,
+                  high: $high,
+                  medium: $med,
+                  low: $low
+                },
+                result: (if ($crit > 0 or $high > 5) then "fail" else "pass" end),
+                timestamp: (now | todate)
+              }
             }
-          }' trivy-results.json > trivy-attestation.json
+          ' trivy-results.json > trivy-attestation.json
 
-          # Debug: Show the generated file
+          echo "📝 Generated Trivy Predicate (Audit):"
           cat trivy-attestation.json
 
-      # 3. ATTEST TRIVY (Upload to Registry)
-      - name: Push Trivy Attestation
-        run: |
           cosign attest --yes \
             --predicate trivy-attestation.json \
             --type https://security.sigstore.dev/attestations/vuln/trivy/v1 \
-            "${{ env.IMAGE }}"
+            "$IMAGE"
+
 
       # 4. TRANSFORM ZAP JSON -> ATTESTATION PREDICATE
-      - name: Create ZAP Attestation
+      - name: Create & Push ZAP Attestation
         run: |
-          # JQ logic to map ZAP "Risk Codes" to severity counts
-          # Risk Code: 3=High, 2=Medium, 1=Low, 0=Info
-          jq '{
-            predicateType: "https://security.sigstore.dev/attestations/dast/zap/v1",
-            predicate: {
-              scanner: {
-                name: "owasp-zap",
-                version: "2.14.0",
-                uri: "https://www.zaproxy.org/"
-              },
-              target: {
-                type: "http-service",
-                url: "http://localhost:3000"
-              },
-              summary: {
-                high:     ([.site[].alerts[]? | select(.riskcode=="3")] | length),
-                medium:   ([.site[].alerts[]? | select(.riskcode=="2")] | length),
-                low:      ([.site[].alerts[]? | select(.riskcode=="1")] | length)
-              },
-              result: "pass",
-              timestamp: (now | todate)
+          # HARDENING LOGIC:
+          # 1. ZAP Risk Codes: 3=High, 2=Medium, 1=Low
+          # 2. Derive 'result': IF (high > 0) THEN 'fail' ELSE 'pass'
+          
+          jq '
+            ([.site[].alerts[]? | select(.riskcode=="3")] | length) as $high |
+            ([.site[].alerts[]? | select(.riskcode=="2")] | length) as $med |
+            ([.site[].alerts[]? | select(.riskcode=="1")] | length) as $low |
+            {
+              predicateType: "https://security.sigstore.dev/attestations/dast/zap/v1",
+              predicate: {
+                scanner: {
+                  name: "owasp-zap",
+                  version: "2.14.0",
+                  uri: "https://www.zaproxy.org/"
+                },
+                target: {
+                  type: "http-service",
+                  url: "http://localhost:3000"
+                },
+                summary: {
+                  high: $high,
+                  medium: $med,
+                  low: $low
+                },
+                result: (if ($high > 0) then "fail" else "pass" end),
+                timestamp: (now | todate)
+              }
             }
-          }' zap-report.json > zap-attestation.json
+          ' zap-results/zap-report.json > zap-attestation.json
 
+          echo "📝 Generated ZAP Predicate (Audit):"
           cat zap-attestation.json
 
-      # 5. ATTEST ZAP (Upload to Registry)
-      - name: Push ZAP Attestation
-        run: |
           cosign attest --yes \
             --predicate zap-attestation.json \
             --type https://security.sigstore.dev/attestations/dast/zap/v1 \
-            "${{ env.IMAGE }}"
+            "$IMAGE"
 
       - run: cosign sign --yes "$IMAGE"
 
