@@ -336,8 +336,9 @@ jobs:
           IMAGE_REF="${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}:${{ github.sha }}"
           
           # Install Trivy (Using official script is safer/faster)
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
-          
+          TRIVY_VERSION=0.58.1
+          curl -sfL raw.githubusercontent.com/aquasecurity/trivy/v${TRIVY_VERSION}/contrib/install.sh | sh -s -- -b /usr/local/bin
+      
           trivy image \
             --format json \
             --output trivy-results.json \
