@@ -157,11 +157,15 @@ jobs:
     
       - name: Generate Kyverno CI Values
         run: |
+          # Use the NEW schema required by Kyverno CLI v1.10+
           cat <<EOF > kyverno-values-ci.yaml
+          apiVersion: cli.kyverno.io/v1alpha1
+          kind: Values
           policies:
             - name: enforce-governed-artifacts
               resources:
                 - name: software-delivery-pipeline
+                  kind: Deployment
                   values:
                     request.operation: UPDATE
                     images:
