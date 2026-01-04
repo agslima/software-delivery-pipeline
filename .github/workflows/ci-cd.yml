@@ -151,21 +151,25 @@ jobs:
 
       - name: Mock Kyverno Variables
         run: |
+          # The NEW format requires apiVersion and kind
           cat <<EOF > kyverno-values-ci.yaml
+          apiVersion: cli.kyverno.io/v1alpha1
+          kind: Values
           policies:
             - name: enforce-governed-artifacts
               resources:
                 - name: software-delivery-pipeline
                   values:
+                    # Global mock variables for this resource
                     request.operation: UPDATE
-                    # Mock the image to pass the 'verifyImages' check structurally
-                    # (The actual signature check happens in GitOps stage)
+                    
+                    # Mocking Image verification data so the policy doesn't crash 
+                    # before the image is actually built.
                     images.containers.app.registry: "docker.io"
                     images.containers.app.path: "agslima/software-delivery-pipeline"
                     images.containers.app.tag: "v0.0.0-mock"
                     images.containers.app.digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
           EOF
-
 
       - name: Validate K8s Policies (Kyverno)
         run: |
