@@ -1,10 +1,11 @@
+# k8s/ci/apply-values.yaml
 apiVersion: cli.kyverno.io/v1alpha2
 kind: Values
 
 policies:
   - name: enforce-governed-artifacts
     rules:
-      - name: check-image-signature
+      - name: require-image-signature
         values:
           request:
             operation: CREATE
