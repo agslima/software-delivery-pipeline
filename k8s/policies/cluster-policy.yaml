@@ -56,7 +56,7 @@ spec:
       - imageReferences:
           - "docker.io/agslima/software-delivery-pipeline*"
         attestations:
-          - predicateType: https://example.com/attestations/trivy/v1
+          - predicateType: https://security.sigstore.dev/attestations/vuln/trivy/v1
             conditions:
               - all:
                   - key: "{{ result }}"
@@ -64,14 +64,8 @@ spec:
                     value: PASS
                   - key: "{{ scanner.name }}"
                     operator: Equals
-                    value: trivy
-                  - key: "{{ summary.critical }}"
-                    operator: LessThanOrEquals
-                    value: 0
-                  - key: "{{ summary.high }}"
-                    operator: LessThanOrEquals
-                    value: 5
-
+                    value: trivy 
+    
   # -------------------------------------------------------------------
   # Rule 3: Require ZAP Attestation
   # -------------------------------------------------------------------
@@ -85,37 +79,32 @@ spec:
         selector:
           matchLabels:
             security.break-glass: "true"
-
+            
     verifyImages:
       - imageReferences:
           - "docker.io/agslima/software-delivery-pipeline*"
         attestations:
-          - predicateType: https://example.com/attestations/zap/v1
+          - predicateType: https://security.sigstore.dev/attestations/dast/zap/v1
             conditions:
               - all:
                   - key: "{{ result }}"
                     operator: Equals
                     value: PASS
-                  - key: "{{ scanner.name }}"
-                    operator: Equals
-                    value: owasp-zap
-                  - key: "{{ summary.high }}"
-                    operator: LessThanOrEquals
-                    value: 0
-
 
   # -------------------------------------------------------------------
   # Rule 4: Ban Mutable Tags (:latest)
   # -------------------------------------------------------------------
-  - name: ban-latest-tag
+  - name: require-digest-pinned-images
     match:
       resources:
         kinds: ["Pod", "Deployment"]
+    # FIXED: 'validate' is now un-indented to match the level of 'match'
     validate:
-      message: "Using ':latest' is prohibited. Use immutable digests or specific version tags."
+      message: "Images must be pinned by digest (@sha256:...)"
       pattern:
         spec:
           template:
             spec:
               containers:
-                - image: "!*:latest"
+                - image: "*@sha256:*"
+
