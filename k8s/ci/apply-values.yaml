@@ -1,0 +1,44 @@
+apiVersion: cli.kyverno.io/v1alpha2
+kind: Values
+
+policies:
+  - name: enforce-governed-artifacts
+    rules:
+      - name: check-image-signature
+        values:
+          request:
+            operation: CREATE
+            userInfo:
+              username: "agnaldo"
+          serviceAccountName: "pipeline-sa"
+          images:
+            containers:
+              app:
+                registry: docker.io
+                path: agslima/software-delivery-pipeline
+                tag: v0.0.0-mock
+                digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+
+      - name: require-trivy-attestation
+        values:
+          request:
+            operation: UPDATE
+          images:
+            containers:
+              app:
+                registry: docker.io
+                path: agslima/software-delivery-pipeline
+                tag: v0.0.0-mock
+                digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+
+      - name: require-zap-attestation
+        values:
+          request:
+            operation: UPDATE
+          images:
+            containers:
+              app:
+                registry: docker.io
+                path: agslima/software-delivery-pipeline
+                tag: v0.0.0-mock
+                digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
