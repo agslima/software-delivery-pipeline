@@ -160,7 +160,6 @@ jobs:
             --values-file k8s/ci/apply-values.yaml \
             --audit-warn=false \
             || true
-
             
   # ------------------------------------------------------------------
   # JOB 3: Layer 4: Dynamic Analysis (DAST)
@@ -421,11 +420,11 @@ jobs:
             --type https://security.sigstore.dev/attestations/vuln/trivy/v1 \
             "$IMAGE"
 
-
-
       # 4. TRANSFORM ZAP JSON -> ATTESTATION PREDICATE
       - name: Create & Push ZAP Attestation
         run: |
+          # Debugging: Verify exactly where the file is
+          ls -R 
           # Output ONLY the inner predicate body
           jq '
             ([.site[].alerts[]? | select(.riskcode=="3")] | length) as $high |
@@ -449,7 +448,7 @@ jobs:
               result: (if ($high > 0) then "fail" else "pass" end),
               timestamp: (now | todate)
             }
-          ' zap-results/zap-report.json > zap-attestation.json
+          ' zap-report.json > zap-attestation.json
 
           cosign attest --yes \
             --predicate zap-attestation.json \
@@ -488,9 +487,9 @@ jobs:
           gh attestation verify "oci://${{ env.IMAGE }}" \
             --repo "${{ github.repository }}"
 
-      # ------------------------------------------------------------------
-      # GitOps Enforcement  (Policy-as-Code)
-      # ------------------------------------------------------------------
+  # ------------------------------------------------------------------
+  # GitOps Enforcement  (Policy-as-Code)
+  # ------------------------------------------------------------------
   gitops-enforcement:
     name: GitOps Enforcement
     needs: sign-and-attest
