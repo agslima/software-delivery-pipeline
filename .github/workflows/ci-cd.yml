@@ -394,7 +394,7 @@ jobs:
                 medium: $med,
                 low: $low
               },
-              result: (if ($crit > 0 or $high > 5) then "fail" else "pass" end),
+              result: (if ($crit > 0 or $high > 5) then "FAIL" else "PASS" end),
               timestamp: (now | todate)
             }
           ' trivy-results.json > trivy-attestation.json
@@ -430,7 +430,7 @@ jobs:
                 medium: $med,
                 low: $low
               },
-              result: (if ($high > 0) then "fail" else "pass" end),
+              result: (if ($high > 0) then "FAIL" else "PASS" end),
               timestamp: (now | todate)
             }
           ' zap-report.json > zap-attestation.json

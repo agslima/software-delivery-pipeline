@@ -59,10 +59,10 @@ spec:
           - predicateType: https://security.sigstore.dev/attestations/vuln/trivy/v1
             conditions:
               - all:
-                  - key: "{{ result }}"
+                  - key: "{{ predicate.result }}" #"{{ result }}"
                     operator: Equals
                     value: PASS
-                  - key: "{{ scanner.name }}"
+                  - key: "{{ predicate.scanner.name }}" #"{{ scanner.name }}"
                     operator: Equals
                     value: trivy 
     
@@ -87,7 +87,7 @@ spec:
           - predicateType: https://security.sigstore.dev/attestations/dast/zap/v1
             conditions:
               - all:
-                  - key: "{{ result }}"
+                  - key: "{{ predicate.result }}" #"{{ result }}"
                     operator: Equals
                     value: PASS
 
@@ -98,7 +98,6 @@ spec:
     match:
       resources:
         kinds: ["Pod", "Deployment"]
-    # FIXED: 'validate' is now un-indented to match the level of 'match'
     validate:
       message: "Images must be pinned by digest (@sha256:...)"
       pattern:
