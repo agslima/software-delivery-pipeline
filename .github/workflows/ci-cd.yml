@@ -500,9 +500,15 @@ jobs:
 
       - name: Read Digest
         run: |
+          # Verify file exists
+          ls -R digests/
+          
           DIGEST=$(cat digests/digest-${{ matrix.name }})
-          echo "DIGEST=$DIGEST" >> $GITHUB_ENV  
-          echo "IMAGE=${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@$DIGEST" >> $GITHUB_ENV
+          echo "DIGEST=$DIGEST" >> $GITHUB_ENV
+          
+          # Ensures the attestation is attached to the Fully Qualified Name
+          # that Kyverno is expecting.
+          echo "IMAGE=docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@$DIGEST" >> $GITHUB_ENV
       
       # Add Authentication so Kyverno can fetch signatures/attestations
       - uses: docker/login-action@v3

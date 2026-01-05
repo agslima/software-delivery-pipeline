@@ -55,6 +55,12 @@ spec:
     verifyImages:
       - imageReferences:
           - "docker.io/agslima/software-delivery-pipeline*"
+        attestors:
+          - entries:
+              - keyless:
+                  issuer: https://token.actions.githubusercontent.com
+                  subjectRegExp: >
+                    ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-cd.yml@refs/tags/v.*
         attestations:
           - predicateType: https://security.sigstore.dev/attestations/vuln/trivy/v1
             conditions:
@@ -82,7 +88,13 @@ spec:
             
     verifyImages:
       - imageReferences:
-          - "docker.io/agslima/software-delivery-pipeline*"
+          - "docker.io/agslima/software-delivery-pipeline*"        
+        attestors:
+          - entries:
+              - keyless:
+                  issuer: https://token.actions.githubusercontent.com
+                  subjectRegExp: >
+                    ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-cd.yml@refs/tags/v.*
         attestations:
           - predicateType: https://security.sigstore.dev/attestations/dast/zap/v1
             conditions:
