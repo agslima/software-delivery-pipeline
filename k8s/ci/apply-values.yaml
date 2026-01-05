@@ -1,10 +1,12 @@
-# k8s/ci/apply-values.yaml
-apiVersion: cli.kyverno.io/v1alpha2
+apiVersion: cli.kyverno.io/v1alpha3
 kind: Values
 
 policies:
   - name: enforce-governed-artifacts
     rules:
+      # -----------------------------------------------------------
+      # Rule 1 values
+      # -----------------------------------------------------------
       - name: require-image-signature
         values:
           request:
@@ -17,9 +19,14 @@ policies:
               app:
                 registry: docker.io
                 path: agslima/software-delivery-pipeline
-                tag: v0.0.0-mock
-                digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+                # The tag doesn't matter as much, but let's keep it consistent
+                tag: v0.0.0-test 
+                # MUST MATCH DEPLOYMENT.YAML EXACTLY:
+                digest: sha256:d275b4a4b51a00f544315794beb10e4a2c95a9c4d615cfabec17fbf6bfbe35d9
 
+      # -----------------------------------------------------------
+      # Rule 2 values
+      # -----------------------------------------------------------
       - name: require-trivy-attestation
         values:
           request:
@@ -29,9 +36,13 @@ policies:
               app:
                 registry: docker.io
                 path: agslima/software-delivery-pipeline
-                tag: v0.0.0-mock
-                digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+                tag: v0.0.0-test
+                # MUST MATCH DEPLOYMENT.YAML EXACTLY:
+                digest: sha256:d275b4a4b51a00f544315794beb10e4a2c95a9c4d615cfabec17fbf6bfbe35d9
 
+      # -----------------------------------------------------------
+      # Rule 3 values
+      # -----------------------------------------------------------
       - name: require-zap-attestation
         values:
           request:
@@ -41,5 +52,6 @@ policies:
               app:
                 registry: docker.io
                 path: agslima/software-delivery-pipeline
-                tag: v0.0.0-mock
-                digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+                tag: v0.0.0-test
+                # MUST MATCH DEPLOYMENT.YAML EXACTLY:
+                digest: sha256:d275b4a4b51a00f544315794beb10e4a2c95a9c4d615cfabec17fbf6bfbe35d9
