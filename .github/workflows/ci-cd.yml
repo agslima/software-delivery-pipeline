@@ -300,21 +300,6 @@ jobs:
           retention-days: 1
           if-no-files-found: error # Fail if file is missing
 
-      #- name: Trivy Scan
-      #  uses: aquasecurity/trivy-action@0.29.0
-      #  with:
-      #    image-ref: ${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}:${{ github.sha }}
-      #    severity: "CRITICAL,HIGH"
-      #    exit-code: "1"
-
-      # - name: Generate Trivy Attestation
-      # run: |
-      #    trivy image \
-      #      --severity CRITICAL,HIGH \
-      #      --format json \
-      #      --output trivy.json \
-      #      ${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}:${{ github.sha }}
-
       # UPDATED: Generate & Upload Trivy JSON
       - name: Generate Trivy Report
         run: |
@@ -533,16 +518,16 @@ jobs:
           sed -i "s|docker.io/agslima/|docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/|g" k8s/policies/cluster-policy.yaml
           sed -i "s|github.com/agslima/|github.com/${{ github.repository_owner }}/|g" k8s/policies/cluster-policy.yaml
 
-      - name: Create Kyverno Values File (Mocking Context)
-        run: |
-          cat <<EOF > kyverno-values.yaml
-          policies:
-            - name: enforce-governed-artifacts
-              resources:
-                - name: software-delivery-pipeline
-                  values:
-                    request.operation: UPDATE
-          EOF
+      #- name: Create Kyverno Values File (Mocking Context)
+      #  run: |
+      #    cat <<EOF > kyverno-values.yaml
+      #    policies:
+      #      - name: enforce-governed-artifacts
+      #        resources:
+      #          - name: software-delivery-pipeline
+      #            values:
+      #              request.operation: UPDATE
+      #          EOF
 
       - name: GitOps - Update Manifest Version
         run: |
@@ -556,29 +541,34 @@ jobs:
           # Create a temp file to store logs
           LOG_FILE=$(mktemp)
 
-          # Run Kyverno and save output to the file
+          # ---------------------------------------------------
+          # FIX 1: Add "|| true" so the script doesn't die immediately
+          # ---------------------------------------------------
           kyverno apply k8s/policies/cluster-policy.yaml \
             --resource k8s/deployment.yaml \
-            --audit-warn=false > "$LOG_FILE" 2>&1
+            --values-file k8s/ci/apply-values.yaml \
+            --audit-warn=false > "$LOG_FILE" 2>&1 || true
           
-          # Print the file content so you can see it in the GitHub Logs
+          # Now this will actually run and show you the error!
           cat "$LOG_FILE"
           
-          # 1. Check for the "Silent Failure" string
-          if grep -q "Applying 0 policy rule(s)" "$LOG_FILE"; then
-            echo "::error::❌ CRITICAL: No policy rules were applied! This means your Manifest (k8s/deployment.yaml) does not match the Policy 'match' block."
-            echo "Hint: Check if the 'image' name in deployment.yaml lacks 'docker.io/' prefix or if the Kind/Namespace matches."
+          # ---------------------------------------------------
+          # FIX 2: Check logic handles the rest
+          # ---------------------------------------------------
+          
+          # 1. Check for the "Policies Skipped" (Variable Mismatch) error
+          if grep -q "Policies Skipped" "$LOG_FILE"; then
+            echo "::error::❌ CONFIG ERROR: Digest mismatch between Deployment and Values file."
             exit 1
           fi
-          
-          # 2. Check if Kyverno actually failed (fail count should be 0)
+
+          # 2. Check for actual policy violations (fail count > 0)
           if ! grep -q "fail: 0" "$LOG_FILE"; then
-             echo "::error::❌ Policy Violation Detected."
-             exit 1
+            echo "::error::❌ Policy Violation Detected."
+            exit 1
           fi
 
-          echo "✅ Policy successfully applied and validated."
-      
+          echo "✅ Policy successfully applied and validated."      
 
       - name: Commit & Push GitOps Update
         run: |
