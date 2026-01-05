@@ -27,7 +27,7 @@ spec:
 
       containers:
       - name: app
-        image: docker.io/agslima/software-delivery-pipeline:placeholder
+        image: docker.io/agslima/software-delivery-pipeline@sha256:0000000000000000000000000000000000000000000000000000000000000000
         
         imagePullPolicy: IfNotPresent
         
