@@ -40,7 +40,7 @@ spec:
 
   # -------------------------------------------------------------------
   # Rule 2: Require Trivy Attestation
-  # ------------------------------------------------------------------
+  # -------------------------------------------------------------------
   - name: require-trivy-attestation
     match:
       resources:
@@ -52,22 +52,20 @@ spec:
           matchLabels:
             security.break-glass: "true"
 
-   verifyImages:
-        - imageReferences:
-            - "docker.io/agslima/software-delivery-pipeline*"
-          attestations:
-            - predicateType: https://security.sigstore.dev/attestations/vuln/trivy/v1
-              conditions:
-                - all:
-                    - key: "{{ result }}"
-                      operator: Equals
-                      value: PASS
-                    # Kyverno now correctly finds "scanner.name" at the root of the predicate
-                    - key: "{{ scanner.name }}"
-                      operator: Equals
-                      value: trivy 
+    verifyImages:
+      - imageReferences:
+          - "docker.io/agslima/software-delivery-pipeline*"
+        attestations:
+          - predicateType: https://security.sigstore.dev/attestations/vuln/trivy/v1
+            conditions:
+              - all:
+                  - key: "{{ result }}"
+                    operator: Equals
+                    value: PASS
+                  - key: "{{ scanner.name }}"
+                    operator: Equals
+                    value: trivy 
     
-
   # -------------------------------------------------------------------
   # Rule 3: Require ZAP Attestation
   # -------------------------------------------------------------------
@@ -81,17 +79,17 @@ spec:
         selector:
           matchLabels:
             security.break-glass: "true"
+            
     verifyImages:
-        - imageReferences:
-            - "docker.io/agslima/software-delivery-pipeline*"
-          attestations:
-            # MUST MATCH THE --type FLAG IN GITHUB ACTIONS
-            - predicateType: https://security.sigstore.dev/attestations/dast/zap/v1
-              conditions:
-                - all:
-                    - key: "{{ result }}"
-                      operator: Equals
-                      value: PASS
+      - imageReferences:
+          - "docker.io/agslima/software-delivery-pipeline*"
+        attestations:
+          - predicateType: https://security.sigstore.dev/attestations/dast/zap/v1
+            conditions:
+              - all:
+                  - key: "{{ result }}"
+                    operator: Equals
+                    value: PASS
 
   # -------------------------------------------------------------------
   # Rule 4: Ban Mutable Tags (:latest)
@@ -100,11 +98,13 @@ spec:
     match:
       resources:
         kinds: ["Pod", "Deployment"]
-      validate:
-        message: "Images must be pinned by digest (@sha256:...)"
-        pattern:
-          spec:
-            template:
-              spec:
-                containers:
-                  - image: "*@sha256:*"
+    # FIXED: 'validate' is now un-indented to match the level of 'match'
+    validate:
+      message: "Images must be pinned by digest (@sha256:...)"
+      pattern:
+        spec:
+          template:
+            spec:
+              containers:
+                - image: "*@sha256:*"
+
