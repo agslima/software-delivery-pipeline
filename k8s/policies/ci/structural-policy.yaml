@@ -1,0 +1,44 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: ci-structural-policy
+  annotations:
+    policies.kyverno.io/title: CI Structural Validation
+    policies.kyverno.io/category: CI Guardrails
+spec:
+  validationFailureAction: Enforce
+  background: false
+
+  rules:
+
+  # -------------------------------------------------------------------
+  # Rule 1: Images must be pinned by digest
+  # -------------------------------------------------------------------
+  - name: require-digest-pinned-images
+    match:
+      resources:
+        kinds: ["Deployment", "Pod"]
+    validate:
+      message: "Images must be pinned by digest (@sha256:...)"
+      pattern:
+        spec:
+          template:
+            spec:
+              containers:
+              - image: "*@sha256:*"
+
+  # -------------------------------------------------------------------
+  # Rule 2: Ban mutable tags
+  # -------------------------------------------------------------------
+  - name: ban-latest-tag
+    match:
+      resources:
+        kinds: ["Deployment", "Pod"]
+    validate:
+      message: "The ':latest' tag is not allowed"
+      pattern:
+        spec:
+          template:
+            spec:
+              containers:
+              - image: "!*:latest"
