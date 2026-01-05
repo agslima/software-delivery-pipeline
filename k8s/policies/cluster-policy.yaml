@@ -40,7 +40,7 @@ spec:
 
   # -------------------------------------------------------------------
   # Rule 2: Require Trivy Attestation
-  # -------------------------------------------------------------------
+  # ------------------------------------------------------------------
   - name: require-trivy-attestation
     match:
       resources:
@@ -107,15 +107,15 @@ spec:
   # -------------------------------------------------------------------
   # Rule 4: Ban Mutable Tags (:latest)
   # -------------------------------------------------------------------
-  - name: ban-latest-tag
+  - name: require-digest-pinned-images
     match:
       resources:
         kinds: ["Pod", "Deployment"]
-    validate:
-      message: "Using ':latest' is prohibited. Use immutable digests or specific version tags."
-      pattern:
-        spec:
-          template:
-            spec:
-              containers:
-                - image: "!*:latest"
+      validate:
+        message: "Images must be pinned by digest (@sha256:...)"
+        pattern:
+          spec:
+            template:
+              spec:
+                containers:
+                  - image: "*@sha256:*"
