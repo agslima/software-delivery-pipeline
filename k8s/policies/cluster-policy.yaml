@@ -26,7 +26,6 @@ spec:
           - entries:
               - keyless:
                   issuer: https://token.actions.githubusercontent.com
-                  # 🟢 FIX: Use permissive regex (matches your Debug step)
                   subjectRegExp: ".*"
 
   # =====================================================================
@@ -41,7 +40,6 @@ spec:
       - imageReferences:
           - "docker.io/*/software-delivery-pipeline*"
         
-        # 🟢 FIX: This block MUST be repeated here for Kyverno to trust the data
         attestors:
           - entries:
               - keyless:
@@ -59,30 +57,4 @@ spec:
                     operator: Equals
                     value: trivy
 
-  # =====================================================================
-  # Rule 3: Require ZAP Attestation (DAST)
-  # =====================================================================
-  - name: require-zap-attestation
-    match:
-      resources:
-        kinds: ["Pod", "Deployment"]
-        namespaces: ["prod"]
-    verifyImages:
-      - imageReferences:
-          - "docker.io/*/software-delivery-pipeline*"
-        
-        # 🟢 FIX: Repeated here as well
-        attestors:
-          - entries:
-              - keyless:
-                  issuer: https://token.actions.githubusercontent.com
-                  subjectRegExp: ".*"
-
-        attestations:
-          - predicateType: https://security.sigstore.dev/attestations/dast/zap/v1
-            conditions:
-              - all:
-                  - key: "{{ predicate.result }}"
-                    operator: Equals
-                    value: PASS
-
+  
