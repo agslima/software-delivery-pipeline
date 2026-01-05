@@ -21,7 +21,8 @@ spec:
         namespaces: ["prod"]
     verifyImages:
       - imageReferences:
-          - "docker.io/*/software-delivery-pipeline*" # Allow any org (***)
+          - "docker.io/*/software-delivery-pipeline*"
+          - "index.docker.io/*/software-delivery-pipeline*"
         attestors:
           - entries:
               - keyless:
@@ -39,7 +40,8 @@ spec:
     verifyImages:
       - imageReferences:
           - "docker.io/*/software-delivery-pipeline*"
-        
+          - "index.docker.io/*/software-delivery-pipeline*"
+
         attestors:
           - entries:
               - keyless:
