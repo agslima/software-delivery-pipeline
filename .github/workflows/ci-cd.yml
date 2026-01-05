@@ -538,38 +538,42 @@ jobs:
           echo "Updated Kubernetes Manifest:"
           cat k8s/deployment.yaml
           
+      - name: Debug - Verify Attestation Manually
+        run: |
+          echo "🔍 Debugging Attestations..."
+          
+          # This command will tell us EXACTLY why verification is failing
+          # (e.g., "certificate subject does not match regex")
+          cosign verify-attestation \
+            --type https://security.sigstore.dev/attestations/vuln/trivy/v1 \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            --certificate-identity-regexp ".*" \
+            "${{ env.IMAGE }}" || echo "❌ Manual Verification Failed"
+
       - name: Validate Kubernetes Manifest Against Policy
         run: |
-          # Create a temp file to store logs
           LOG_FILE=$(mktemp)
-
-          # ---------------------------------------------------
-          # Add "|| true" so the script doesn't die immediately
-          # ---------------------------------------------------
+          
+          # Run Kyverno
           kyverno apply k8s/policies/cluster-policy.yaml \
             --resource k8s/deployment.yaml \
             --audit-warn=false > "$LOG_FILE" 2>&1 || true
           
-          # Now this will actually run and show you the error!
           cat "$LOG_FILE"
           
-          # ---------------------------------------------------
-          # Check logic handles the rest
-          # ---------------------------------------------------
-          
-          # 1. Check for the "Policies Skipped" (Variable Mismatch) error
+          # 🟢 Updated Logic
           if grep -q "Policies Skipped" "$LOG_FILE"; then
-            echo "::error::❌ CONFIG ERROR: Digest mismatch between Deployment and Values file."
+            echo "::error::❌ CONFIG ERROR: Kyverno could not load the Attestation."
+            echo "👉 Check the 'Debug - Verify Attestation Manually' step above to see the real reason."
             exit 1
           fi
 
-          # 2. Check for actual policy violations (fail count > 0)
           if ! grep -q "fail: 0" "$LOG_FILE"; then
-            echo "::error::❌ Policy Violation Detected."
-            exit 1
+             echo "::error::❌ Policy Violation Detected."
+             exit 1
           fi
-
-          echo "✅ Policy successfully applied and validated."      
+          
+          echo "✅ Policy successfully applied."      
 
       - name: Commit & Push GitOps Update
         run: |
