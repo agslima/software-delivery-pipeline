@@ -491,6 +491,7 @@ jobs:
             image_repo: software-delivery-pipeline  
     steps:
       - uses: actions/checkout@v4
+      
       - name: Download Digest Artifact
         uses: actions/download-artifact@v4
         with:
@@ -502,7 +503,13 @@ jobs:
           DIGEST=$(cat digests/digest-${{ matrix.name }})
           echo "DIGEST=$DIGEST" >> $GITHUB_ENV  
           echo "IMAGE=${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@$DIGEST" >> $GITHUB_ENV
-
+      
+      # Add Authentication so Kyverno can fetch signatures/attestations
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+          
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3.8.1
 
@@ -531,7 +538,7 @@ jobs:
           LOG_FILE=$(mktemp)
 
           # ---------------------------------------------------
-          # FIX 1: Add "|| true" so the script doesn't die immediately
+          # Add "|| true" so the script doesn't die immediately
           # ---------------------------------------------------
           kyverno apply k8s/policies/cluster-policy.yaml \
             --resource k8s/deployment.yaml \
@@ -541,7 +548,7 @@ jobs:
           cat "$LOG_FILE"
           
           # ---------------------------------------------------
-          # FIX 2: Check logic handles the rest
+          # Check logic handles the rest
           # ---------------------------------------------------
           
           # 1. Check for the "Policies Skipped" (Variable Mismatch) error
