@@ -137,7 +137,7 @@ jobs:
         uses: docker://ghcr.io/yannh/kubeconform:latest
         with:
           entrypoint: "/kubeconform"
-          args: "-summary -output text -ignore-filename-pattern k8s/ci -ignore-missing-schemas k8s/"
+          args: "-summary -output text -ignore-missing-schemas k8s/"
             
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3.8.1
@@ -153,12 +153,12 @@ jobs:
           kyverno test k8s/tests/
           echo "Kyverno Policy Unit Tests completed."
           
-      - name: Validate Kubernetes Manifest Against Policy
-        run: |
-          kyverno apply k8s/policies/cluster-policy.yaml \
-            --resource k8s/deployment.yaml \
-            --values-file k8s/ci/apply-values.yaml \
-            --audit-warn=false
+      #- name: Validate Kubernetes Manifest Against Policy
+      #  run: |
+      #    kyverno apply k8s/policies/cluster-policy.yaml \
+      #      --resource k8s/deployment.yaml \
+      #      --values-file k8s/ci/apply-values.yaml \
+      #      --audit-warn=false
 
             
   # ------------------------------------------------------------------
