@@ -153,12 +153,12 @@ jobs:
           kyverno test k8s/tests/
           echo "Kyverno Policy Unit Tests completed."
           
-      #- name: Validate Kubernetes Manifest Against Policy
-      #  run: |
-      #    kyverno apply k8s/policies/cluster-policy.yaml \
-      #      --resource k8s/deployment.yaml \
-      #      --values-file k8s/ci/apply-values.yaml \
-      #      --audit-warn=false
+      - name: Validate Kubernetes Manifest Against Policy
+        run: |
+          kyverno apply k8s/policies/cluster-policy.yaml \
+            --resource k8s/deployment.yaml \
+            --values-file k8s/ci/apply-values.yaml \
+            --audit-warn=false
 
             
   # ------------------------------------------------------------------
@@ -389,9 +389,8 @@ jobs:
 
       - name: Create & Push Trivy Attestation
         run: |
-          # HARDENING LOGIC:
-          # 1. Calculate counts into variables ($crit, $high, etc.)
-          # 2. Derive 'result': IF (crit > 0 OR high > 5) THEN 'fail' ELSE 'pass'
+          # 1. Calculate Logic
+          # 2. Output ONLY the inner predicate body (No "predicateType" wrapper here!)
           
           jq '
             ([.Results[].Vulnerabilities[]? | select(.Severity=="CRITICAL")] | length) as $crit |
@@ -399,75 +398,63 @@ jobs:
             ([.Results[].Vulnerabilities[]? | select(.Severity=="MEDIUM")] | length) as $med |
             ([.Results[].Vulnerabilities[]? | select(.Severity=="LOW")] | length) as $low |
             {
-              predicateType: "https://security.sigstore.dev/attestations/vuln/trivy/v1",
-              predicate: {
-                scanner: {
-                  name: "trivy",
-                  version: "0.58.1",
-                  uri: "https://github.com/aquasecurity/trivy"
-                },
-                summary: {
-                  critical: $crit,
-                  high: $high,
-                  medium: $med,
-                  low: $low
-                },
-                result: (if ($crit > 0 or $high > 5) then "fail" else "pass" end),
-                timestamp: (now | todate)
-              }
+              scanner: {
+                name: "trivy",
+                version: "0.58.1",
+                uri: "https://github.com/aquasecurity/trivy"
+              },
+              summary: {
+                critical: $crit,
+                high: $high,
+                medium: $med,
+                low: $low
+              },
+              result: (if ($crit > 0 or $high > 5) then "fail" else "pass" end),
+              timestamp: (now | todate)
             }
           ' trivy-results.json > trivy-attestation.json
 
-          echo "📝 Generated Trivy Predicate (Audit):"
-          cat trivy-attestation.json
-
+          # 3. Attest using the --type flag to define the URL
           cosign attest --yes \
             --predicate trivy-attestation.json \
             --type https://security.sigstore.dev/attestations/vuln/trivy/v1 \
             "$IMAGE"
 
 
+
       # 4. TRANSFORM ZAP JSON -> ATTESTATION PREDICATE
       - name: Create & Push ZAP Attestation
         run: |
-          # HARDENING LOGIC:
-          # 1. ZAP Risk Codes: 3=High, 2=Medium, 1=Low
-          # 2. Derive 'result': IF (high > 0) THEN 'fail' ELSE 'pass'
-          
+          # Output ONLY the inner predicate body
           jq '
             ([.site[].alerts[]? | select(.riskcode=="3")] | length) as $high |
             ([.site[].alerts[]? | select(.riskcode=="2")] | length) as $med |
             ([.site[].alerts[]? | select(.riskcode=="1")] | length) as $low |
             {
-              predicateType: "https://security.sigstore.dev/attestations/dast/zap/v1",
-              predicate: {
-                scanner: {
-                  name: "owasp-zap",
-                  version: "2.14.0",
-                  uri: "https://www.zaproxy.org/"
-                },
-                target: {
-                  type: "http-service",
-                  url: "http://localhost:3000"
-                },
-                summary: {
-                  high: $high,
-                  medium: $med,
-                  low: $low
-                },
-                result: (if ($high > 0) then "fail" else "pass" end),
-                timestamp: (now | todate)
-              }
+              scanner: {
+                name: "owasp-zap",
+                version: "2.14.0",
+                uri: "https://www.zaproxy.org/"
+              },
+              target: {
+                type: "http-service",
+                url: "http://localhost:3000"
+              },
+              summary: {
+                high: $high,
+                medium: $med,
+                low: $low
+              },
+              result: (if ($high > 0) then "fail" else "pass" end),
+              timestamp: (now | todate)
             }
           ' zap-results/zap-report.json > zap-attestation.json
-
-          echo "📝 Generated ZAP Predicate (Audit):"
-          cat zap-attestation.json
 
           cosign attest --yes \
             --predicate zap-attestation.json \
             --type https://security.sigstore.dev/attestations/dast/zap/v1 \
             "$IMAGE"
+
 
       - run: cosign sign --yes "$IMAGE"
 
