@@ -518,16 +518,16 @@ jobs:
           sed -i "s|docker.io/agslima/|docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/|g" k8s/policies/cluster-policy.yaml
           sed -i "s|github.com/agslima/|github.com/${{ github.repository_owner }}/|g" k8s/policies/cluster-policy.yaml
 
-      #- name: Create Kyverno Values File (Mocking Context)
-      #  run: |
-      #    cat <<EOF > kyverno-values.yaml
-      #    policies:
-      #      - name: enforce-governed-artifacts
-      #        resources:
-      #          - name: software-delivery-pipeline
-      #            values:
-      #              request.operation: UPDATE
-      #          EOF
+      - name: Create Kyverno Values File (Mocking Context)
+        run: |
+          cat <<EOF > kyverno-values.yaml
+          policies:
+            - name: enforce-governed-artifacts
+              resources:
+                - name: software-delivery-pipeline
+                  values:
+                    request.operation: UPDATE
+          EOF
 
       - name: GitOps - Update Manifest Version
         run: |
