@@ -535,7 +535,8 @@ jobs:
           
           echo "Updated Kubernetes Manifest:"
           cat k8s/deployment.yaml
-
+          cat k8s/ci/apply-values.yaml
+      
       - name: Validate Kubernetes Manifest Against Policy
         run: |
           # Create a temp file to store logs
