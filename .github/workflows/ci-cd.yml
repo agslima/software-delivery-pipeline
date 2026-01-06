@@ -151,18 +151,18 @@ jobs:
       # 3. SCHEMA VALIDATION (Kubeconform)
       - name: Validate K8s Manifests (Kubeconform)
         uses: docker://ghcr.io/yannh/kubeconform:latest # yannh/kubeconform-action@v1
-        #with:
-        #  entrypoint: "/kubeconform"
-        #  args: "-summary -output text -ignore-missing-schemas k8s/"
         with:
-          kubeconform_opts: >
-            -summary 
-            -output text 
-            -kubernetes-version 1.29.0 
-            -schema-location default 
-            -schema-location https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json
-          files: |
-            k8s/
+          entrypoint: "/kubeconform"
+          args: "-summary -output text -ignore-missing-schemas k8s/"
+        # with:
+        #  kubeconform_opts: >
+        #    -summary 
+        #    -output text 
+        #    -kubernetes-version 1.29.0 
+        #    -schema-location default 
+        #    -schema-location https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json
+        #  files: |
+        #    k8s/
             
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3.8.1
