@@ -142,7 +142,7 @@ jobs:
 
       # 2. DRIFT DETECTION (OPA / Conftest)
       - name: Policy Check - Dockerfile (OPA)
-        uses: instrumenta/conftest-action@v1.2.0 
+        uses: instrumenta/conftest-action/helm@master 
         with:
           files: app/Dockerfile
           policy: policies/dockerfile.rego
@@ -150,7 +150,7 @@ jobs:
 
       # 3. SCHEMA VALIDATION (Kubeconform)
       - name: Validate K8s Manifests (Kubeconform)
-        uses: yannh/kubeconform-action@v1
+        uses: docker://ghcr.io/yannh/kubeconform:latest # yannh/kubeconform-action@v1
         #with:
         #  entrypoint: "/kubeconform"
         #  args: "-summary -output text -ignore-missing-schemas k8s/"
