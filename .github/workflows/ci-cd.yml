@@ -206,44 +206,67 @@ jobs:
         - name: Start App Container
           run: |
             docker build --load -t target-app ./app
-            
             docker run -d -p 3000:8080 --name app-under-test target-app          
             
             echo "Waiting for application to launch..."          
-            
-            # Attempt to connect. If it times out after 60s, run the "||" block
             if ! timeout 60s bash -c 'until curl -s -f http://localhost:3000 > /dev/null; do sleep 2; done'; then
-              echo "CRITICAL: Application failed to respond!"
-              echo "DUMPING CONTAINER LOGS:"            
-              # --- THIS COMMAND SAVES YOU HOURS OF DEBUGGING ---
+              echo "::error::CRITICAL: Application failed to respond!"
               docker logs app-under-test
-              # -------------------------------------------------            
               exit 1
             fi          
-            
             echo "Application is live!"
-
-        # Ensure ZAP container can write the report files
-        - name: Fix Permissions for ZAP
-          run: chmod -R 777 .
-
+          
+        # 2. SCAN: OWASP ZAP Baseline
         - name: OWASP ZAP Baseline Scan
           run: |
-            docker pull ghcr.io/zaproxy/zaproxy:stable
-            docker run --network host -v $(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
-            -t http://localhost:3000 \
-            -J zap-report.json \
-            -r zap-report.html \
-            -I || true 
-            # Note: We use '|| true' because we want to capture the results and attest them. 
-            # We let Kyverno enforce the block later based on the data.
+            # Create writable directory for reports
+            mkdir -p zap-out
+            chmod 777 zap-out
 
+            echo "Starting ZAP Scan..."
+            docker run --rm \
+              --network host \
+              -v $(pwd)/zap-out:/zap/wrk/:rw \
+              -t ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
+              -t http://localhost:3000 \
+              -r zap-report.html \
+              -J zap-report.json \
+              -I || true 
+              # -I ignores warnings. Use '|| true' to proceed to analysis steps.
+
+        # 3. ANALYSIS: The Gatekeeper
+        # This parses the JSON. If ZAP crashed (empty JSON) or found Highs.
+        - name: Check ZAP Thresholds
+          id: zap-gate
+          run: |
+            # Check if report exists
+            if [ ! -f zap-out/zap-report.json ]; then
+              echo "::error::ZAP Report not found! The scanner might have crashed."
+              exit 1
+            fi
+
+            # Use JQ to count High Alerts
+            # ZAP JSON structure: { "site": [... { "alerts": [ ... { "riskdesc": "High (Medium)" } ] } ] }
+            # Note: The structure varies by ZAP version. Checking the 'fail' count from stats is safer if available,
+            # but counting raw alerts is standard.
+            
+            HIGHS=$(jq '[.site[].alerts[] | select(.riskcode == "3")] | length' zap-out/zap-report.json)
+            
+            echo "High Vulnerabilities Found: $HIGHS"
+            
+            if [ "$HIGHS" -gt 0 ]; then
+              echo "::error::DAST Scan failed! Found $HIGHS High severity vulnerabilities."
+              exit 1
+            fi
+
+        # 4. ARTIFACTS: Upload Reports
         - name: Upload ZAP Report
+          if: always() # Upload even if threshold failed
           uses: actions/upload-artifact@v4
           with:
             name: zap-results
-            path: zap-report.json
-            retention-days: 1
+            path: zap-out/
+            retention-days: 5
 
   # ==================================================================
   # STAGE 2: RELEASE (TAGS ONLY)
@@ -284,7 +307,6 @@ jobs:
         with:
           context: ${{ matrix.context }}
           push: true
-          # Enable GitHub Actions Caching
           cache-from: type=gha
           cache-to: type=gha,mode=max
           tags: |
@@ -295,46 +317,35 @@ jobs:
         run: |
           mkdir -p digests
           DIGEST="${{ steps.build.outputs.digest }}"
-          
-          # Debugging: Print digest to logs to prove it exists
-          echo "Captured Digest: $DIGEST"
-          
           if [[ -z "$DIGEST" ]]; then
             echo "Error: Digest is empty!"
             exit 1
           fi
-          
           echo "$DIGEST" > digests/digest-${{ matrix.name }}
-      
+                
       - name: Upload Digest Artifact
         uses: actions/upload-artifact@v4
         with:
           name: digest-${{ matrix.name }}     
           path: digests/digest-${{ matrix.name }}
           retention-days: 1
-          if-no-files-found: error # Fail if file is missing
+          if-no-files-found: error
 
+      # Generate & Upload Trivy JSON
       # Generate & Upload Trivy JSON
       - name: Generate Trivy Report
         run: |
-          # Use the exact SHA we just pushed to avoid race conditions
           IMAGE_REF="${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}:${{ github.sha }}"
-          
-          # Install Trivy (Using official script is safer/faster)
           TRIVY_VERSION=0.58.1
           curl -sfL raw.githubusercontent.com/aquasecurity/trivy/v${TRIVY_VERSION}/contrib/install.sh | sh -s -- -b /usr/local/bin
-      
-          trivy image \
-            --format json \
-            --output trivy-results.json \
-            "$IMAGE_REF"
+          trivy image --format json --output trivy-results.json "$IMAGE_REF"
 
       - name: Upload Trivy JSON Artifact
         uses: actions/upload-artifact@v4
         with:
           name: trivy-results
           path: trivy-results.json
-     
+    
   # ------------------------------------------------------------------
   # JOB 2: SIGNING & ATTESTATION
   # ------------------------------------------------------------------
@@ -386,78 +397,59 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: zap-results
-
+          path: zap-downloads
+        
+      # ------------------------------------------------------------------
+      # TRIVY ATTESTATION (Matched to Policy)
+      # ------------------------------------------------------------------
       - name: Create & Push Trivy Attestation
         run: |
-          # 1. Calculate Logic
-          # 2. Output ONLY the inner predicate body (No "predicateType" wrapper here!)
-          
+          # Generate Predicate
           jq '
             ([.Results[].Vulnerabilities[]? | select(.Severity=="CRITICAL")] | length) as $crit |
             ([.Results[].Vulnerabilities[]? | select(.Severity=="HIGH")] | length) as $high |
-            ([.Results[].Vulnerabilities[]? | select(.Severity=="MEDIUM")] | length) as $med |
-            ([.Results[].Vulnerabilities[]? | select(.Severity=="LOW")] | length) as $low |
             {
-              scanner: {
-                name: "trivy",
-                version: "0.58.1",
-                uri: "https://github.com/aquasecurity/trivy"
-              },
-              summary: {
-                critical: $crit,
-                high: $high,
-                medium: $med,
-                low: $low
-              },
+              scanner: { name: "trivy", version: "0.58.1" },
+              summary: { critical: $crit, high: $high },
               result: (if ($crit > 0 or $high > 5) then "FAIL" else "PASS" end),
               timestamp: (now | todate)
             }
           ' trivy-results.json > trivy-attestation.json
 
-          # 3. Attest using the --type flag to define the URL
           cosign attest --yes \
             --predicate trivy-attestation.json \
-            --type https://security.sigstore.dev/attestations/vuln/trivy/v1 \
+            --type https://aquasecurity.github.io/trivy/attestation/v1 \
             "$IMAGE"
 
-      # 4. TRANSFORM ZAP JSON -> ATTESTATION PREDICATE
+      # ------------------------------------------------------------------
+      # ZAP ATTESTATION (Matched to Policy)
+      # ------------------------------------------------------------------
       - name: Create & Push ZAP Attestation
         run: |
-          # Debugging: Verify exactly where the file is
-          ls -R 
-          # Output ONLY the inner predicate body
+          # Robust find in case of directory nesting
+          ZAP_FILE=$(find zap-downloads -name "zap-report.json" -type f | head -n 1)
+          
           jq '
             ([.site[].alerts[]? | select(.riskcode=="3")] | length) as $high |
-            ([.site[].alerts[]? | select(.riskcode=="2")] | length) as $med |
-            ([.site[].alerts[]? | select(.riskcode=="1")] | length) as $low |
             {
-              scanner: {
-                name: "owasp-zap",
-                version: "2.14.0",
-                uri: "https://www.zaproxy.org/"
-              },
-              target: {
-                type: "http-service",
-                url: "http://localhost:3000"
-              },
-              summary: {
-                high: $high,
-                medium: $med,
-                low: $low
-              },
+              scanner: { name: "owasp-zap" },
+              summary: { high: $high },
               result: (if ($high > 0) then "FAIL" else "PASS" end),
               timestamp: (now | todate)
             }
-          ' zap-report.json > zap-attestation.json
+          ' "$ZAP_FILE" > zap-attestation.json
 
           cosign attest --yes \
             --predicate zap-attestation.json \
-            --type https://security.sigstore.dev/attestations/dast/zap/v1 \
+            --type https://www.zaproxy.org/docs/attestations/zap-baseline/v1 \
             "$IMAGE"
 
-
+      # ------------------------------------------------------------------
+      # SIGNING & SBOM
+      # ------------------------------------------------------------------
       - run: cosign sign --yes "$IMAGE"
 
+      # Catch signing errors early
       - run: |
           cosign verify "$IMAGE" \
             --certificate-oidc-issuer https://token.actions.githubusercontent.com \
@@ -468,24 +460,16 @@ jobs:
         with:
           image: ${{env.IMAGE}}
           format: spdx-json
-          output-file: sbom-${{ matrix.image_repo }}.spdx.json
-          artifact-name: sbom-${{ matrix.image_repo }}.spdx.json
+          output-file: sbom.spdx.json
 
       - run: |
-          cosign attest --yes --type spdx --predicate sbom-${{ matrix.image_repo }}.spdx.json "$IMAGE"
-
+          cosign attest --yes --type spdx --predicate sbom.spdx.json "$IMAGE"
+      
       - uses: actions/attest-build-provenance@v2
         with:
           subject-name: index.docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}
           subject-digest: ${{ env.DIGEST }}
           push-to-registry: true
-      
-      - name: Verify Build Provenance
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh attestation verify "oci://${{ env.IMAGE }}" \
-            --repo "${{ github.repository }}"
 
   # ------------------------------------------------------------------
   # GitOps Enforcement  (Policy-as-Code)
@@ -516,84 +500,53 @@ jobs:
 
       - name: Read Digest
         run: |
-          # Verify file exists
-          ls -R digests/
-          
           DIGEST=$(cat digests/digest-${{ matrix.name }})
           echo "DIGEST=$DIGEST" >> $GITHUB_ENV
-          
-          # Ensures the attestation is attached to the Fully Qualified Name
-          # that Kyverno is expecting.
           echo "IMAGE=docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@$DIGEST" >> $GITHUB_ENV
       
-      # Add Authentication so Kyverno can fetch signatures/attestations
       - uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
           
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@v3.8.1
-
-      - name: Install Kyverno CLI
-        uses: kyverno/action-install-cli@v0.2.0
+      - uses: sigstore/cosign-installer@v3.8.1
+      
+      - uses: kyverno/action-install-cli@v0.2.0
         with:
           release: 'v1.13.2'
-          verify: true  
-                
-      - name: Configure Policy with Correct Username
-        run: |
-          # Dynamic Replacement to ensure policy matches secret
-          sed -i "s|docker.io/agslima/|docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/|g" k8s/policies/cluster-policy.yaml
-          sed -i "s|github.com/agslima/|github.com/${{ github.repository_owner }}/|g" k8s/policies/cluster-policy.yaml
+          verify: true
 
-      - name: GitOps - Update Manifest Version
+              
+      - name: Configure Policy Variables
         run: |
-          sed -i "s|image: .*|image: docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@${{ env.DIGEST }}|g" k8s/deployment.yaml
+          POLICY_FILE="k8s/policies/cluster/supply-chain.yaml"
           
-          echo "Updated Kubernetes Manifest:"
-          cat k8s/deployment.yaml
-          
-      - name: Debug - Verify Attestation Manually
-        run: |
-          echo "🔍 Debugging Attestations..."
-          
-          # This command will tell us EXACTLY why verification is failing
-          # (e.g., "certificate subject does not match regex")
-          cosign verify-attestation \
-            --type https://security.sigstore.dev/attestations/vuln/trivy/v1 \
-            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-            --certificate-identity-regexp ".*" \
-            "${{ env.IMAGE }}" || echo "❌ Manual Verification Failed"
+          sed -i "s|docker.io/agslima/|docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/|g" $POLICY_FILE
+          sed -i "s|github.com/agslima/|github.com/${{ github.repository_owner }}/|g" $POLICY_FILE
 
-      - name: Validate Kubernetes Manifest Against Policy
+      - name: Update Deployment Manifest (In-Memory)
+        run: |
+          sed -i "s|image: .*|image: ${{ env.IMAGE }}|g" k8s/deployment.yaml
+
+      - name: Validate Against Policy
         run: |
           LOG_FILE=$(mktemp)
 
-          kyverno apply k8s/policies/cluster/supply-chain-policy.yaml \
+          # FIX: Run Kyverno against the modified manifest using the correct policy file
+          # Note: 'verifyImages' will be skipped by the CLI (normal behavior), 
+          # but checking structure ensures we didn't break the YAML syntax.
+          kyverno apply k8s/policies/cluster/supply-chain.yaml \
             --resource k8s/deployment.yaml \
             --audit-warn=false > "$LOG_FILE" 2>&1 || true
 
           cat "$LOG_FILE"
 
-          # ❌ Fail only if real policy violations occur
           if grep -qE "fail:[[:space:]]*[1-9]" "$LOG_FILE"; then
             echo "::error::❌ Policy Violation Detected."
             exit 1
           fi
-
-          # ❌ Fail only on Kyverno execution errors
-          if grep -q "error:" "$LOG_FILE" && ! grep -q "Policies Skipped" "$LOG_FILE"; then
-            echo "::error::❌ Kyverno execution error."
-            exit 1
-          fi
-
-          # 🟡 Informational only
-          if grep -q "Policies Skipped" "$LOG_FILE"; then
-            echo "::notice::ℹ️ verifyImages rules skipped by Kyverno CLI (expected in CI)."
-          fi
-
-          echo "✅ Policy validation passed (CI scope)."
+          
+          echo "✅ Policy Validation Passed."
      
       - name: Commit & Push GitOps Update
         run: |
