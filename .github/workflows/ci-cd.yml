@@ -519,7 +519,7 @@ jobs:
               
       - name: Configure Policy Variables
         run: |
-          POLICY_FILE="k8s/policies/cluster/supply-chain.yaml"
+          POLICY_FILE="k8s/policies/cluster/supply-chain-policy.yaml"
           
           sed -i "s|docker.io/agslima/|docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/|g" $POLICY_FILE
           sed -i "s|github.com/agslima/|github.com/${{ github.repository_owner }}/|g" $POLICY_FILE
@@ -535,7 +535,7 @@ jobs:
           # FIX: Run Kyverno against the modified manifest using the correct policy file
           # Note: 'verifyImages' will be skipped by the CLI (normal behavior), 
           # but checking structure ensures we didn't break the YAML syntax.
-          kyverno apply k8s/policies/cluster/supply-chain.yaml \
+          kyverno apply k8s/policies/cluster/supply-chain-policy.yaml \
             --resource k8s/deployment.yaml \
             --audit-warn=false > "$LOG_FILE" 2>&1 || true
 
