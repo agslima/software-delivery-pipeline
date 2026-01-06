@@ -27,7 +27,7 @@ spec:
 
       containers: 
       - name: app 
-        image: docker.io/agslima/software-delivery-pipeline@sha256:d275b4a4b51a00f544315794beb10e4a2c95a9c4d615cfabec17fbf6bfbe35d9
+        image: docker.io/agslima/software-delivery-pipeline@sha256:ae30bffa306226e6d632fb76cdcf452defd1caf383c9a3da0b7557a663c4b80b
 
         imagePullPolicy: IfNotPresent
         
