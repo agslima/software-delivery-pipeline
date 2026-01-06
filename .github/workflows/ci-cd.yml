@@ -60,6 +60,8 @@ jobs:
 
       # 4. TRIVY SCAN: Filesystem (Dependencies & Code Secrets)
       - name: Trivy Scan - Root FS
+        id: scan-code
+        continue-on-error: true
         run: |
           # A. Generate JSON for Governance Script (Includes ALL severities)
           trivy fs app/server \
@@ -74,27 +76,32 @@ jobs:
             --severity HIGH,CRITICAL \
             --format sarif \
             --output trivy-results.sarif \
-            || true
+            --exit-code 1
 
       # 5. TRIVY SCAN: Kubernetes (IaC / Misconfigurations)
       - name: Trivy Scan - Infrastructure (K8s)
+        id: scan-infra
+        continue-on-error: true
         run: |
           echo "Scanning Kubernetes Manifests..."
           trivy config k8s/ \
             --severity HIGH,CRITICAL \
             --format sarif \
             --output trivy-k8s.sarif \
-            || true
+            --skip-dirs k8s/tests \
+            --exit-code 1 
 
       # 6. Upload BOTH SARIF files (Code + K8s)
-      - name: Upload Trivy SARIFs
+      - name: Upload Trivy SARIFs (Code)
         uses: github/codeql-action/upload-sarif@v4
+        if: steps.scan-code.outcome != 'skipped' 
         with:
           sarif_file: trivy-results.sarif
           category: trivy-code
       
       - name: Upload Trivy K8s Results
         uses: github/codeql-action/upload-sarif@v4
+        if: steps.scan-infra.outcome != 'skipped'
         with:
           sarif_file: trivy-k8s.sarif
           category: trivy-infra
@@ -105,7 +112,15 @@ jobs:
           chmod +x scripts/check-security-debt.sh 
           # Point to the new Trivy JSON file
           scripts/check-security-debt.sh trivy-results.json
-        
+
+      # 7. THE GATEKEEPER (Fail the build)
+      - name: Check for Security Failures
+        if: steps.scan-code.outcome == 'failure' || steps.scan-infra.outcome == 'failure'
+        run: |
+          echo "::error::Critical Security Vulnerabilities Detected!"
+          echo "Check the 'Security' tab or the artifacts for details."
+          exit 1
+   
   # ------------------------------------------------------------------
   # JOB 2: Infrastructure Linting (Docker, Kubernetes)
   # ------------------------------------------------------------------
@@ -127,7 +142,7 @@ jobs:
 
       # 2. DRIFT DETECTION (OPA / Conftest)
       - name: Policy Check - Dockerfile (OPA)
-        uses: instrumenta/conftest-action@master
+        uses: instrumenta/conftest-action@v1.2.0 
         with:
           files: app/Dockerfile
           policy: policies/dockerfile.rego
@@ -135,10 +150,19 @@ jobs:
 
       # 3. SCHEMA VALIDATION (Kubeconform)
       - name: Validate K8s Manifests (Kubeconform)
-        uses: docker://ghcr.io/yannh/kubeconform:latest
+        uses: yannh/kubeconform-action@v1
+        #with:
+        #  entrypoint: "/kubeconform"
+        #  args: "-summary -output text -ignore-missing-schemas k8s/"
         with:
-          entrypoint: "/kubeconform"
-          args: "-summary -output text -ignore-missing-schemas k8s/"
+          kubeconform_opts: >
+            -summary 
+            -output text 
+            -kubernetes-version 1.29.0 
+            -schema-location default 
+            -schema-location https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json
+          files: |
+            k8s/
             
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3.8.1
@@ -152,27 +176,13 @@ jobs:
       - name: Kyverno Policy Unit Tests
         run: |
           kyverno test k8s/tests/
-          echo "Kyverno Policy Unit Tests completed."
+          echo "✅ Kyverno Policy Logic Verified."
           
       - name: CI Policy Validation
         run: |
-          LOG_FILE=$(mktemp)
-          
           kyverno apply k8s/policies/ci/structural-policy.yaml \
-            --resource k8s/deployment.yaml \
-            --audit-warn=false > "$LOG_FILE" 2>&1 || true
-
-          cat "$LOG_FILE"
-
-          if grep -q "verifyImages rules skipped" "$LOG_FILE"; then
-            echo "ℹ️ Supply-chain verification deferred to cluster admission"
-          fi
-
-          if grep -q "fail:" "$LOG_FILE" && ! grep -q "fail: 0" "$LOG_FILE"; then
-            echo "::error::❌ CI structural policy violation"
-            exit 1
-          fi
-
+            --resource k8s/deployment.yaml
+  
   # ------------------------------------------------------------------
   # JOB 3: Layer 4: Dynamic Analysis (DAST)
   # DAST: Only runs on Main branch (post-merge) or Tags to save PR time
@@ -185,6 +195,7 @@ jobs:
       if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
       permissions:
         contents: read
+        security-events: write
       steps:
         - uses: actions/checkout@v4
         
