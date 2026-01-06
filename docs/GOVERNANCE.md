@@ -21,49 +21,6 @@ This Branch Protection Model ensures that:
 flowchart TB
     %% Actors
     Dev[Developer]
-    Maintainer[Maintainer]
-
-    %% GitHub Control Plane
-    subgraph GitHub["GitHub Control Plane"]
-        BR[Branch Protection Rules]
-        PR[Pull Request Workflow]
-        TAG_RULE[Tag Protection Rules]
-        
-        subgraph CI["Governed CI/CD (Actions)"]
-            Check["PR Checks<br/>(Tests/SAST/Lint)"]
-            Build["Release Pipeline<br/>(Build/Sign/Attest)"]
-        end
-    end
-
-    %% Flow
-    Dev -->|Push Code| PR
-    PR -->|Triggers| Check
-    Check -->|Status Pass| BR
-    BR -->|Merge| Main[Main Branch]
-    
-    Maintainer -->|Push Tag v1.0| TAG_RULE
-    TAG_RULE -->|Triggers| Build
-
-    %% Artifact Flow
-    Build -->|1. Sign & Attest| IMG["Signed Artifact"]
-    IMG -->|2. Push| REG[Container Registry]
-
-    %% Runtime
-    subgraph RUNTIME["Runtime (Kubernetes)"]
-        ADM["Admission Controller<br/>(Kyverno)"]
-        POD[Running Workload]
-    end
-
-    REG -->|GitOps Sync| ADM
-    ADM -->|3. Verify Signature| POD
-    ADM -.->|Fail Verification| BLOCK[Block Deployment]
-
-```
-
-```mermaid
-flowchart TB
-    %% Actors
-    Dev[Developer]
     Admin[Admin / Maintainer]
 
     %% GitHub Control Plane
