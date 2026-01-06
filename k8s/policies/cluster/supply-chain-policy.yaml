@@ -1,0 +1,78 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: enforce-governed-artifacts
+  annotations:
+    policies.kyverno.io/title: Enforce Governed Supply Chain
+    policies.kyverno.io.category: Supply Chain Security
+    policies.kyverno.io/severity: critical
+spec:
+  validationFailureAction: Enforce
+  background: false
+  webhookTimeoutSeconds: 30
+
+  rules:
+
+  # -------------------------------------------------------------------
+  # Rule 1: Require Signed Image
+  # -------------------------------------------------------------------
+  - name: require-image-signature
+    match:
+      resources:
+        kinds: ["Pod", "Deployment"]
+        namespaces: ["prod", "production"]
+
+    verifyImages:
+      - imageReferences:
+          - "docker.io/agslima/software-delivery-pipeline*"
+        attestors:
+          - entries:
+              - keyless:
+                  issuer: https://token.actions.githubusercontent.com
+                  subjectRegExp: "^https://github.com/agslima/software-delivery-pipeline/.github/workflows/.*"
+
+  # -------------------------------------------------------------------
+  # Rule 2: Require Trivy Attestation
+  # -------------------------------------------------------------------
+  - name: require-trivy-attestation
+    match:
+      resources:
+        kinds: ["Pod", "Deployment"]
+        namespaces: ["prod", "production"]
+
+    verifyImages:
+      - imageReferences:
+          - "docker.io/agslima/software-delivery-pipeline*"
+        attestations:
+          - predicateType: https://aquasecurity.github.io/trivy/attestation/v1 # https://security.sigstore.dev/attestations/vuln/trivy/v1
+            conditions:
+              - all:
+                  - key: "{{ predicate.result }}"
+                    operator: Equals
+                    value: PASS
+                  - key: "{{ predicate.scanner.name }}"
+                    operator: Equals
+                    value: trivy
+
+  # -------------------------------------------------------------------
+  # Rule 3: Require ZAP Attestation
+  # -------------------------------------------------------------------
+  - name: require-zap-attestation
+    match:
+      resources:
+        kinds: ["Pod", "Deployment"]
+        namespaces: ["prod", "production"]
+
+    verifyImages:
+      - imageReferences:
+          - "docker.io/agslima/software-delivery-pipeline*"
+        attestations:
+          - predicateType: https://www.zaproxy.org/docs/attestations/zap-baseline/v1 # https://security.sigstore.dev/attestations/dast/zap/v1
+            conditions:
+              - all:
+                  - key: "{{ predicate.result }}"
+                    operator: Equals
+                    value: PASS
+                  - key: "{{ predicate.scanner.name }}"
+                    operator: Equals
+                    value: owasp-zap
