@@ -1,0 +1,44 @@
+apiVersion: kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: governed-supply-chain-tests
+policies:
+  - ../policies/cluster-policy.yaml
+resources:
+  - resources/valid-deployment.yaml
+  - resources/invalid-unsigned.yaml
+  - resources/invalid-no-trivy.yaml
+  - resources/invalid-no-dast.yaml
+  - resources/break-glass-invalid.yaml
+results:
+  # ✅ PASS CASE
+  - policy: enforce-governed-artifacts
+    rule: require-signed-image
+    resource: governed-app
+    kind: Deployment
+    result: pass
+
+  # ❌ FAIL CASES
+  - policy: enforce-governed-artifacts
+    rule: require-signed-image
+    resource: unsigned-app
+    kind: Deployment
+    result: fail
+
+  - policy: enforce-governed-artifacts
+    rule: require-trivy-attestation
+    resource: no-trivy
+    kind: Deployment
+    result: fail
+
+  - policy: enforce-governed-artifacts
+    rule: require-dast-attestation
+    resource: no-dast
+    kind: Deployment
+    result: fail
+
+  - policy: enforce-governed-artifacts
+    rule: break-glass-guardrail
+    resource: break-glass-abuse
+    kind: Deployment
+    result: fail

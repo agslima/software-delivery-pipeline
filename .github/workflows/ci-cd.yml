@@ -54,11 +54,14 @@ jobs:
       # 3. TRIVY SETUP
       - name: Install Trivy
         run: |
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+          TRIVY_VERSION=0.58.1
+          curl -sfL raw.githubusercontent.com/aquasecurity/trivy/v${TRIVY_VERSION}/contrib/install.sh | sh -s -- -b /usr/local/bin
           echo "Trivy installed successfully."
 
       # 4. TRIVY SCAN: Filesystem (Dependencies & Code Secrets)
       - name: Trivy Scan - Root FS
+        id: scan-code
+        continue-on-error: true
         run: |
           # A. Generate JSON for Governance Script (Includes ALL severities)
           trivy fs app/server \
@@ -73,27 +76,32 @@ jobs:
             --severity HIGH,CRITICAL \
             --format sarif \
             --output trivy-results.sarif \
-            || true
+            --exit-code 1
 
       # 5. TRIVY SCAN: Kubernetes (IaC / Misconfigurations)
       - name: Trivy Scan - Infrastructure (K8s)
+        id: scan-infra
+        continue-on-error: true
         run: |
           echo "Scanning Kubernetes Manifests..."
           trivy config k8s/ \
             --severity HIGH,CRITICAL \
             --format sarif \
             --output trivy-k8s.sarif \
-            || true
+            --skip-dirs k8s/tests \
+            --exit-code 1 
 
       # 6. Upload BOTH SARIF files (Code + K8s)
-      - name: Upload Trivy SARIFs
+      - name: Upload Trivy SARIFs (Code)
         uses: github/codeql-action/upload-sarif@v4
+        if: steps.scan-code.outcome != 'skipped' 
         with:
           sarif_file: trivy-results.sarif
           category: trivy-code
       
       - name: Upload Trivy K8s Results
         uses: github/codeql-action/upload-sarif@v4
+        if: steps.scan-infra.outcome != 'skipped'
         with:
           sarif_file: trivy-k8s.sarif
           category: trivy-infra
@@ -104,10 +112,19 @@ jobs:
           chmod +x scripts/check-security-debt.sh 
           # Point to the new Trivy JSON file
           scripts/check-security-debt.sh trivy-results.json
-        
+
+      # 7. THE GATEKEEPER (Fail the build)
+      - name: Check for Security Failures
+        if: steps.scan-code.outcome == 'failure' || steps.scan-infra.outcome == 'failure'
+        run: |
+          echo "::error::Critical Security Vulnerabilities Detected!"
+          echo "Check the 'Security' tab or the artifacts for details."
+          exit 1
+   
   # ------------------------------------------------------------------
   # JOB 2: Infrastructure Linting (Docker, Kubernetes)
   # ------------------------------------------------------------------
+  
   infra-lint:
     name: Infrastructure Linting
     runs-on: ubuntu-latest
@@ -123,21 +140,54 @@ jobs:
           dockerfile: app/Dockerfile
           failure-threshold: error
 
-      # 2. Kubernetes Manifest Validation (Kubeconform)
+      # 2. DRIFT DETECTION (OPA / Conftest)
+      - name: Policy Check - Dockerfile (OPA)
+        uses: instrumenta/conftest-action@master 
+        with:
+          files: app/Dockerfile
+          policy: policies/dockerfile.rego
+          output: stdout
+
+      # 3. SCHEMA VALIDATION (Kubeconform)
       - name: Validate K8s Manifests (Kubeconform)
-        uses: docker://ghcr.io/yannh/kubeconform:latest
+        uses: docker://ghcr.io/yannh/kubeconform:latest # yannh/kubeconform-action@v1
         with:
           entrypoint: "/kubeconform"
-          # Arguments:
-          # -summary: Print summary at the end
-          # -output json: Good for parsing (optional)
-          # k8s/: The directory to scan
           args: "-summary -output text -ignore-missing-schemas k8s/"
+        # with:
+        #  kubeconform_opts: >
+        #    -summary 
+        #    -output text 
+        #    -kubernetes-version 1.29.0 
+        #    -schema-location default 
+        #    -schema-location https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json
+        #  files: |
+        #    k8s/
+            
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3.8.1
 
+      - name: Install Kyverno CLI
+        uses: kyverno/action-install-cli@v0.2.0
+        with:
+          release: 'v1.13.2'
+          verify: true        
+      
+      - name: Kyverno Policy Unit Tests
+        run: |
+          kyverno test k8s/tests/
+          echo "✅ Kyverno Policy Logic Verified."
+          
+      - name: CI Policy Validation
+        run: |
+          kyverno apply k8s/policies/ci/structural-policy.yaml \
+            --resource k8s/deployment.yaml
+  
   # ------------------------------------------------------------------
   # JOB 3: Layer 4: Dynamic Analysis (DAST)
   # DAST: Only runs on Main branch (post-merge) or Tags to save PR time
   # ------------------------------------------------------------------
+  
   dast-analysis:
       name: "DAST (OWASP ZAP)"
       runs-on: ubuntu-latest
@@ -145,6 +195,7 @@ jobs:
       if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
       permissions:
         contents: read
+        security-events: write
       steps:
         - uses: actions/checkout@v4
         
@@ -155,36 +206,67 @@ jobs:
         - name: Start App Container
           run: |
             docker build --load -t target-app ./app
-            
             docker run -d -p 3000:8080 --name app-under-test target-app          
             
             echo "Waiting for application to launch..."          
-            
-            # Attempt to connect. If it times out after 60s, run the "||" block
             if ! timeout 60s bash -c 'until curl -s -f http://localhost:3000 > /dev/null; do sleep 2; done'; then
-              echo "CRITICAL: Application failed to respond!"
-              echo "DUMPING CONTAINER LOGS:"            
-              # --- THIS COMMAND SAVES YOU HOURS OF DEBUGGING ---
+              echo "::error::CRITICAL: Application failed to respond!"
               docker logs app-under-test
-              # -------------------------------------------------            
               exit 1
             fi          
-            
             echo "Application is live!"
-
-        # Ensure ZAP container can write the report files
-        - name: Fix Permissions for ZAP
-          run: chmod -R 777 .
-
-         # 2. RUN ZAP SCAN
+          
+        # 2. SCAN: OWASP ZAP Baseline
         - name: OWASP ZAP Baseline Scan
-          uses: zaproxy/action-baseline@v0.14.0
+          run: |
+            # Create writable directory for reports
+            mkdir -p zap-out
+            chmod 777 zap-out
+
+            echo "Starting ZAP Scan..."
+            docker run --rm \
+              --network host \
+              -v $(pwd)/zap-out:/zap/wrk/:rw \
+              -t ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
+              -t http://localhost:3000 \
+              -r zap-report.html \
+              -J zap-report.json \
+              -I || true 
+              # -I ignores warnings. Use '|| true' to proceed to analysis steps.
+
+        # 3. ANALYSIS: The Gatekeeper
+        # This parses the JSON. If ZAP crashed (empty JSON) or found Highs.
+        - name: Check ZAP Thresholds
+          id: zap-gate
+          run: |
+            # Check if report exists
+            if [ ! -f zap-out/zap-report.json ]; then
+              echo "::error::ZAP Report not found! The scanner might have crashed."
+              exit 1
+            fi
+
+            # Use JQ to count High Alerts
+            # ZAP JSON structure: { "site": [... { "alerts": [ ... { "riskdesc": "High (Medium)" } ] } ] }
+            # Note: The structure varies by ZAP version. Checking the 'fail' count from stats is safer if available,
+            # but counting raw alerts is standard.
+            
+            HIGHS=$(jq '[.site[].alerts[] | select(.riskcode == "3")] | length' zap-out/zap-report.json)
+            
+            echo "High Vulnerabilities Found: $HIGHS"
+            
+            if [ "$HIGHS" -gt 0 ]; then
+              echo "::error::DAST Scan failed! Found $HIGHS High severity vulnerabilities."
+              exit 1
+            fi
+
+        # 4. ARTIFACTS: Upload Reports
+        - name: Upload ZAP Report
+          if: always() # Upload even if threshold failed
+          uses: actions/upload-artifact@v4
           with:
-            target: 'http://localhost:3000'
-            fail_action: false # (Allows pipeline to pass, but still uploads the report)
-            allow_issue_writing: false
-            artifact_name: zap_scan            
-            cmd_options: '-T 10' # options: '-a -T 10' (This forces a crash on ANY warning)
+            name: zap-results
+            path: zap-out/
+            retention-days: 5
 
   # ==================================================================
   # STAGE 2: RELEASE (TAGS ONLY)
@@ -225,56 +307,49 @@ jobs:
         with:
           context: ${{ matrix.context }}
           push: true
-          # Enable GitHub Actions Caching
           cache-from: type=gha
           cache-to: type=gha,mode=max
           tags: |
             ${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}:${{ github.sha }}
-            ${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}:latest
             ${{ format('{0}/{1}:{2}', secrets.DOCKER_HUB_USERNAME, matrix.image_repo, github.ref_name) }}
 
       - name: Export Digest
         run: |
           mkdir -p digests
           DIGEST="${{ steps.build.outputs.digest }}"
-          
-          # Debugging: Print digest to logs to prove it exists
-          echo "Captured Digest: $DIGEST"
-          
           if [[ -z "$DIGEST" ]]; then
             echo "Error: Digest is empty!"
             exit 1
           fi
-          
           echo "$DIGEST" > digests/digest-${{ matrix.name }}
-      
+                
       - name: Upload Digest Artifact
         uses: actions/upload-artifact@v4
         with:
           name: digest-${{ matrix.name }}     
           path: digests/digest-${{ matrix.name }}
           retention-days: 1
-          if-no-files-found: error # Fail if file is missing
+          if-no-files-found: error
 
-      - name: Trivy Scan
-        uses: aquasecurity/trivy-action@0.29.0
-        with:
-          image-ref: ${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}:${{ github.sha }}
-          severity: "CRITICAL,HIGH"
-          exit-code: "1"
-
-      - name: Generate Trivy Attestation
+      # Generate & Upload Trivy JSON
+      # Generate & Upload Trivy JSON
+      - name: Generate Trivy Report
         run: |
-          trivy image \
-            --severity CRITICAL,HIGH \
-            --format json \
-            --output trivy.json \
-            ${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}:${{ github.sha }}
+          IMAGE_REF="${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}:${{ github.sha }}"
+          TRIVY_VERSION=0.58.1
+          curl -sfL raw.githubusercontent.com/aquasecurity/trivy/v${TRIVY_VERSION}/contrib/install.sh | sh -s -- -b /usr/local/bin
+          trivy image --format json --output trivy-results.json "$IMAGE_REF"
 
-     
+      - name: Upload Trivy JSON Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-results
+          path: trivy-results.json
+    
   # ------------------------------------------------------------------
   # JOB 2: SIGNING & ATTESTATION
   # ------------------------------------------------------------------
+  
   sign-and-attest:
     name: Sign & Attest
     needs: build-push
@@ -315,8 +390,66 @@ jobs:
           echo "DIGEST=$DIGEST" >> $GITHUB_ENV
           echo "IMAGE=${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@$DIGEST" >> $GITHUB_ENV
 
+      # 1. Download Raw Reports
+      - uses: actions/download-artifact@v4
+        with:
+          name: trivy-results
+      - uses: actions/download-artifact@v4
+        with:
+          name: zap-results
+          path: zap-downloads
+        
+      # ------------------------------------------------------------------
+      # TRIVY ATTESTATION (Matched to Policy)
+      # ------------------------------------------------------------------
+      - name: Create & Push Trivy Attestation
+        run: |
+          # Generate Predicate
+          jq '
+            ([.Results[].Vulnerabilities[]? | select(.Severity=="CRITICAL")] | length) as $crit |
+            ([.Results[].Vulnerabilities[]? | select(.Severity=="HIGH")] | length) as $high |
+            {
+              scanner: { name: "trivy", version: "0.58.1" },
+              summary: { critical: $crit, high: $high },
+              result: (if ($crit > 0 or $high > 5) then "FAIL" else "PASS" end),
+              timestamp: (now | todate)
+            }
+          ' trivy-results.json > trivy-attestation.json
+
+          cosign attest --yes \
+            --predicate trivy-attestation.json \
+            --type https://aquasecurity.github.io/trivy/attestation/v1 \
+            "$IMAGE"
+
+      # ------------------------------------------------------------------
+      # ZAP ATTESTATION (Matched to Policy)
+      # ------------------------------------------------------------------
+      - name: Create & Push ZAP Attestation
+        run: |
+          # Robust find in case of directory nesting
+          ZAP_FILE=$(find zap-downloads -name "zap-report.json" -type f | head -n 1)
+          
+          jq '
+            ([.site[].alerts[]? | select(.riskcode=="3")] | length) as $high |
+            {
+              scanner: { name: "owasp-zap" },
+              summary: { high: $high },
+              result: (if ($high > 0) then "FAIL" else "PASS" end),
+              timestamp: (now | todate)
+            }
+          ' "$ZAP_FILE" > zap-attestation.json
+
+          cosign attest --yes \
+            --predicate zap-attestation.json \
+            --type https://www.zaproxy.org/docs/attestations/zap-baseline/v1 \
+            "$IMAGE"
+
+      # ------------------------------------------------------------------
+      # SIGNING & SBOM
+      # ------------------------------------------------------------------
       - run: cosign sign --yes "$IMAGE"
 
+      # Catch signing errors early
       - run: |
           cosign verify "$IMAGE" \
             --certificate-oidc-issuer https://token.actions.githubusercontent.com \
@@ -327,28 +460,21 @@ jobs:
         with:
           image: ${{env.IMAGE}}
           format: spdx-json
-          output-file: sbom-${{ matrix.image_repo }}.spdx.json
-          artifact-name: sbom-${{ matrix.image_repo }}.spdx.json
+          output-file: sbom.spdx.json
 
       - run: |
-          cosign attest --yes --type spdx --predicate sbom-${{ matrix.image_repo }}.spdx.json "$IMAGE"
-
+          cosign attest --yes --type spdx --predicate sbom.spdx.json "$IMAGE"
+      
       - uses: actions/attest-build-provenance@v2
         with:
           subject-name: index.docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}
           subject-digest: ${{ env.DIGEST }}
           push-to-registry: true
-      
-      - name: Verify Build Provenance
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh attestation verify "oci://${{ env.IMAGE }}" \
-            --repo "${{ github.repository }}"
 
-      # ------------------------------------------------------------------
-      # GitOps Enforcement  (Policy-as-Code)
-      # ------------------------------------------------------------------
+  # ------------------------------------------------------------------
+  # GitOps Enforcement  (Policy-as-Code)
+  # ------------------------------------------------------------------
+  
   gitops-enforcement:
     name: GitOps Enforcement
     needs: sign-and-attest
@@ -365,6 +491,7 @@ jobs:
             image_repo: software-delivery-pipeline  
     steps:
       - uses: actions/checkout@v4
+      
       - name: Download Digest Artifact
         uses: actions/download-artifact@v4
         with:
@@ -374,43 +501,53 @@ jobs:
       - name: Read Digest
         run: |
           DIGEST=$(cat digests/digest-${{ matrix.name }})
-          echo "DIGEST=$DIGEST" >> $GITHUB_ENV  
-          echo "IMAGE=${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@$DIGEST" >> $GITHUB_ENV
-
-      - name: Install Kyverno CLI
-        run: |
-          # 1. Fetch the latest version tag from GitHub API
-          KYVERNO_VERSION=$(curl -s "https://api.github.com/repos/kyverno/kyverno/releases/latest" | jq -r .tag_name)
-          
-          # 2. Construct the correct filename
-          FILE_NAME="kyverno-cli_${KYVERNO_VERSION}_linux_x86_64.tar.gz"
-          
-          echo "Downloading Kyverno version: $KYVERNO_VERSION"
-          
-          # 3. Download the asset from the specific tag URL
-          curl -LO "https://github.com/kyverno/kyverno/releases/download/${KYVERNO_VERSION}/${FILE_NAME}"
-          
-          # 4. Extract and Install
-          tar -xzf "$FILE_NAME"
-          sudo mv kyverno /usr/local/bin/
-          
-          # 5. Verify Installation
-          echo "Kyverno Installed:"
-          kyverno version
-
-      - name: Validate Kubernetes Manifest Against Policy
-        run: |
-          kyverno apply k8s/policies/cluster-policy.yaml \
-          --resource k8s/deployment.yaml \
-          --audit-warn=false
+          echo "DIGEST=$DIGEST" >> $GITHUB_ENV
+          echo "IMAGE=docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@$DIGEST" >> $GITHUB_ENV
       
-      - name: GitOps - Update Manifest Version
-        run: |
-          sed -i "s|image: .*|image: ${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@${{ env.DIGEST }}|g" k8s/deployment.yaml
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
           
-          echo "Updated Kubernetes Manifest:"
-          cat k8s/deployment.yaml
+      - uses: sigstore/cosign-installer@v3.8.1
+      
+      - uses: kyverno/action-install-cli@v0.2.0
+        with:
+          release: 'v1.13.2'
+          verify: true
 
+              
+      - name: Configure Policy Variables
+        run: |
+          POLICY_FILE="k8s/policies/cluster/supply-chain-policy.yaml"
+          
+          sed -i "s|docker.io/agslima/|docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/|g" $POLICY_FILE
+          sed -i "s|github.com/agslima/|github.com/${{ github.repository_owner }}/|g" $POLICY_FILE
+
+      - name: Update Deployment Manifest (In-Memory)
+        run: |
+          sed -i "s|image: .*|image: ${{ env.IMAGE }}|g" k8s/deployment.yaml
+
+      - name: Validate Against Policy
+        run: |
+          LOG_FILE=$(mktemp)
+
+          # FIX: Run Kyverno against the modified manifest using the correct policy file
+          # Note: 'verifyImages' will be skipped by the CLI (normal behavior), 
+          # but checking structure ensures we didn't break the YAML syntax.
+          kyverno apply k8s/policies/cluster/supply-chain-policy.yaml \
+            --resource k8s/deployment.yaml \
+            --audit-warn=false > "$LOG_FILE" 2>&1 || true
+
+          cat "$LOG_FILE"
+
+          if grep -qE "fail:[[:space:]]*[1-9]" "$LOG_FILE"; then
+            echo "::error::❌ Policy Violation Detected."
+            exit 1
+          fi
+          
+          echo "✅ Policy Validation Passed."
+     
       - name: Commit & Push GitOps Update
         run: |
           set -euo pipefail

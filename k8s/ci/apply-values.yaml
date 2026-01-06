@@ -1,0 +1,57 @@
+apiVersion: cli.kyverno.io/v1alpha3
+kind: Values
+
+policies:
+  - name: enforce-governed-artifacts
+    rules:
+      # -----------------------------------------------------------
+      # Rule 1 values
+      # -----------------------------------------------------------
+      - name: require-image-signature
+        values:
+          request:
+            operation: CREATE
+            userInfo:
+              username: "agnaldo"
+          serviceAccountName: "pipeline-sa"
+          images:
+            containers:
+              app:
+                registry: docker.io
+                path: agslima/software-delivery-pipeline
+                # The tag doesn't matter as much, but let's keep it consistent
+                tag: v0.0.0-test 
+                # MUST MATCH DEPLOYMENT.YAML EXACTLY:
+                digest: sha256:d275b4a4b51a00f544315794beb10e4a2c95a9c4d615cfabec17fbf6bfbe35d9
+
+      # -----------------------------------------------------------
+      # Rule 2 values
+      # -----------------------------------------------------------
+      - name: require-trivy-attestation
+        values:
+          request:
+            operation: UPDATE
+          images:
+            containers:
+              app:
+                registry: docker.io
+                path: agslima/software-delivery-pipeline
+                tag: v0.0.0-test
+                # MUST MATCH DEPLOYMENT.YAML EXACTLY:
+                digest: sha256:d275b4a4b51a00f544315794beb10e4a2c95a9c4d615cfabec17fbf6bfbe35d9
+
+      # -----------------------------------------------------------
+      # Rule 3 values
+      # -----------------------------------------------------------
+      - name: require-zap-attestation
+        values:
+          request:
+            operation: UPDATE
+          images:
+            containers:
+              app:
+                registry: docker.io
+                path: agslima/software-delivery-pipeline
+                tag: v0.0.0-test
+                # MUST MATCH DEPLOYMENT.YAML EXACTLY:
+                digest: sha256:d275b4a4b51a00f544315794beb10e4a2c95a9c4d615cfabec17fbf6bfbe35d9
