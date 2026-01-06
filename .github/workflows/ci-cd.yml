@@ -146,7 +146,7 @@ jobs:
         with:
           files: app/Dockerfile
           policy: policies/dockerfile.rego
-          # output: stdout
+          output: stdout
 
       # 3. SCHEMA VALIDATION (Kubeconform)
       - name: Validate K8s Manifests (Kubeconform)
