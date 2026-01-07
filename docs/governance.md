@@ -71,6 +71,61 @@ flowchart TB
     linkStyle 5 stroke:red,stroke-width:3px,stroke-dasharray: 5 5;
 ```
 
+```mermaid
+flowchart TB
+    %% Actors
+    Dev[Developer]
+    Admin[Admin / Release Manager]
+
+    %% GitHub Control Plane
+    subgraph GitHub["GitHub Control Plane (Governance Layer)"]
+        direction TB
+        BR[Branch Protection Rules]
+        PR[Pull Request Workflow]
+        TAG_RULE[Tag Protection Rules]
+        
+        subgraph CI["Governed CI/CD (Actions)"]
+            Check["PR Checks<br/>(Tests/SAST/Lint)"]
+            Build["Release Pipeline<br/>(Build/Sign/Attest)"]
+        end
+    end
+
+    %% Standard Flow (Happy Path)
+    Dev -->|Push Code| PR
+    PR -->|Triggers| Check
+    Check -->|Status: PASS| BR
+    BR -->|Squash Merge| Main[Main Branch]
+    
+    %% Release Flow
+    Admin -->|Push Tag v1.0| TAG_RULE
+    TAG_RULE -->|Triggers| Build
+
+    %% 🚨 BREAK-GLASS FLOW 🚨
+    Admin -.->|"EMERGENCY BYPASS<br/>(Audit Logged)"| Main
+
+    %% Artifact Flow
+    Build -->|1. Sign & Attest| IMG["Signed Artifact"]
+    IMG -->|2. Push w/ Provenance| REG[Container Registry]
+
+    %% Runtime
+    subgraph RUNTIME["Runtime (Kubernetes)"]
+        ADM["Admission Controller<br/>(Kyverno)"]
+        POD[Running Workload]
+    end
+
+    REG -->|GitOps Sync| ADM
+    ADM -->|3. Verify Signature & Repo| POD
+    ADM -.->|Fail Verification| BLOCK[Block Deployment]
+
+    %% Styles
+    style Admin fill:#f96,stroke:#333,stroke-width:2px
+    style ADM fill:#f9f,stroke:#333,stroke-width:2px
+    style BLOCK fill:#ff9999,stroke:#333,stroke-width:1px
+    
+    %% Highlight the Emergency Link in Red
+    linkStyle 5 stroke:red,stroke-width:3px,stroke-dasharray: 5 5;
+```
+
 
 > Key Principle:
 > Governance is enforced before code merges, during artifact creation, and at runtime admission, ensuring that CI pipelines cannot be weakened without detection or enforcement failure.
@@ -137,11 +192,10 @@ Tag protection ensures that release creation is not user-driven, but workflow-dr
 
 - Pattern: v*
 - Restrictions:
-  - Only GitHub Actions may create tags
+  - Tags initiate the immutable release pipeline. While Admins trigger the tag, the Artifact is only trusted if produced by the workflow triggered by that specific tag.
   - Optional: Repository Administrators (break-glass) 
 
 This guarantees:
-- Releases cannot be created manually
 - All releases originate from governed workflows
 - Provenance and attestations always map to trusted CI execution
 
@@ -196,3 +250,44 @@ This model explicitly defends against:
 - Drift between documented security posture and runtime reality
 - Even if a weakened pipeline produces a signed artifact:
 - Runtime admission policies enforce cryptographic proof that mandatory scans were executed.
+
+---
+
+## Verification (How to Audit)
+
+### Verify Image Signature
+
+```bash
+cosign verify \
+  --certificate-identity-regexp "https://github.com/agslima/secure-app-analysis/.*" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  docker.io/agslima/software-delivery-pipeline:latest
+  ```
+
+### Verify SLSA Provenance
+
+```bash
+gh attestation verify oci://docker.io/agslima/software-delivery-pipeline:latest \
+  --owner agslima \
+  --repo secure-app-analysis
+  ```
+
+### Verify active rules 
+
+To verify that these rules are active and working:
+
+1. **Attempt a Direct Push:**
+   ```bash
+   git checkout main
+   touch illegal_file.txt
+   git push origin main
+   # Expected: remote: error: GH006: Protected branch update failed
+   ```
+
+2. **Attempt Unsigned Deployment:**
+Deploy an image built locally (not by CI) to the cluster.
+
+```bash
+kubectl apply -f k8s/tests/resources/invalid-unsigned.yaml
+# Expected: Error from server: admission webhook "validate.kyverno.svc" denied the request
+```
