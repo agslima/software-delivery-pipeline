@@ -138,16 +138,16 @@ This avoids false skips like:
 ## Execution Flow 🔄
 
 ### CI Pipeline
-
+ 
 * 1. Render Kubernetes manifests
-  2. Apply CI policies
+* 2. Apply CI policies
 
 ```bash
 kyverno apply k8s/policies/ci \
   --resource k8s/resources/deployment.yaml
 ```
 
-- 3. Run Kyverno unit tests
+* 3. Run Kyverno unit tests
 
 ```bash
 kyverno test k8s/tests/
@@ -155,7 +155,7 @@ kyverno test k8s/tests/
 
 #### Kubernetes Cluster
 
-- 1. Workload submitted to cluster
+* 1. Workload submitted to cluster
 - 2. Admission webhook triggers Kyverno
 - 3. Cluster policies enforce
   - Image signatures
