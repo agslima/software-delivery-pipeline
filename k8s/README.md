@@ -33,7 +33,7 @@ k8s/
 
 ### `policies/` — Kyverno Policies  🔐
 
-`policies/ci/`
+#### `policies/ci/`
 
 Policies executed only in CI pipelines using `kyverno apply` or `kyverno test`.
 
@@ -57,9 +57,7 @@ Policies executed only in CI pipelines using `kyverno apply` or `kyverno test`.
 - Namespace restrictions
 - SecurityContext validation
 
----
-
-`policies/cluster/`
+#### `policies/cluster/`
 
 Policies enforced **at Kubernetes admission time**.
 
@@ -75,7 +73,6 @@ Policies enforced **at Kubernetes admission time**.
 - ✅ Cosign signature verification
 - ✅ Trivy & ZAP attestations
 - ✅ Enforced via admission webhook
-
 
 **Examples**
 
