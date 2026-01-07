@@ -87,7 +87,7 @@ GitHub Actions was chosen over traditional CI servers (e.g., Jenkins) to:
 graph TD
     subgraph "Phase 1: Code & Dependencies"
         A[Code Commit] -->|Gate 1: Secrets| B(Gitleaks)
-        B -->|Gate 2: SAST & SCA| C(Snyk)
+        B -->|Gate 2: SAST & SCA| C(Trivy)
         C -->|Gate 3: Unit Tests| D(Jest / TDD)
     end
     
