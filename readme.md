@@ -200,24 +200,6 @@ To validate the effectiveness of the delivery control plane, a legacy applicatio
 
 ---
 
-## Verification (How to Audit)
-
-### Verify Image Signature
-
-```bash
-cosign verify \
-  --certificate-identity-regexp "https://github.com/agslima/secure-app-analysis/.*" \
-  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
-  docker.io/agslima/software-delivery-pipeline:latest
-  ```
-
-### Verify SLSA Provenance
-
-```bash
-gh attestation verify oci://docker.io/agslima/software-delivery-pipeline:latest \
-  --owner agslima \
-  --repo secure-app-analysis
-  ```
 
 ## Local Development & Testing
 
