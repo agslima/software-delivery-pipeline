@@ -165,18 +165,6 @@ This enforces separation of duties:
 
 ---
 
-## CODEOWNERS
-
-```text
-# `.github/CODEOWNERS`
-# Governance ownership
-.github/workflows/*   @agslima
-k8s/**                @agslima
-policies/**           @agslima
-docs/security-debt.md @agslima
-```
-
-
 ## 🛡️ Change Management (`CODEOWNERS`)
 
 This project utilize GitHub's native `CODEOWNERS` feature to enforce a strict **"Separation of Duties" model**. 
@@ -217,7 +205,6 @@ Forces explicit review for:
 - CI/CD pipelines
 - Runtime policies
 - Risk acceptance documentation
-
 
 ## Threat Model Addressed
 
