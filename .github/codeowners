@@ -1,5 +1,16 @@
-# Governance ownership
+# ==================================
+# GOVERNANCE ENFORCEMENT ZONES
+# ==================================
 
-.github/workflows/*   @agslima
-k8s/**                @agslima
+# 1. Pipeline Integrity
+.github/workflows/    @agslima
+
+# 2. Policy Definitions
+k8s/policies/         @agslima
+policies/             @agslima
+
+# 3. Risk Acceptance
 docs/security-debt.md @agslima
+
+# 4. Infrastructure State
+k8s/resources/        @agslima

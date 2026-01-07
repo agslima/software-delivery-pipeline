@@ -21,10 +21,11 @@ This Branch Protection Model ensures that:
 flowchart TB
     %% Actors
     Dev[Developer]
-    Admin[Admin / Maintainer]
+    Admin[Admin / Release Manager]
 
     %% GitHub Control Plane
-    subgraph GitHub["GitHub Control Plane"]
+    subgraph GitHub["GitHub Control Plane (Governance Layer)"]
+        direction TB
         BR[Branch Protection Rules]
         PR[Pull Request Workflow]
         TAG_RULE[Tag Protection Rules]
@@ -38,8 +39,8 @@ flowchart TB
     %% Standard Flow (Happy Path)
     Dev -->|Push Code| PR
     PR -->|Triggers| Check
-    Check -->|Status Pass| BR
-    BR -->|Merge| Main[Main Branch]
+    Check -->|Status: PASS| BR
+    BR -->|Squash Merge| Main[Main Branch]
     
     %% Release Flow
     Admin -->|Push Tag v1.0| TAG_RULE
@@ -50,7 +51,7 @@ flowchart TB
 
     %% Artifact Flow
     Build -->|1. Sign & Attest| IMG["Signed Artifact"]
-    IMG -->|2. Push| REG[Container Registry]
+    IMG -->|2. Push w/ Provenance| REG[Container Registry]
 
     %% Runtime
     subgraph RUNTIME["Runtime (Kubernetes)"]
@@ -59,7 +60,7 @@ flowchart TB
     end
 
     REG -->|GitOps Sync| ADM
-    ADM -->|3. Verify Signature| POD
+    ADM -->|3. Verify Signature & Repo| POD
     ADM -.->|Fail Verification| BLOCK[Block Deployment]
 
     %% Styles
@@ -70,7 +71,6 @@ flowchart TB
     %% Highlight the Emergency Link in Red
     linkStyle 5 stroke:red,stroke-width:3px,stroke-dasharray: 5 5;
 ```
-
 
 > Key Principle:
 > Governance is enforced before code merges, during artifact creation, and at runtime admission, ensuring that CI pipelines cannot be weakened without detection or enforcement failure.
@@ -137,11 +137,10 @@ Tag protection ensures that release creation is not user-driven, but workflow-dr
 
 - Pattern: v*
 - Restrictions:
-  - Only GitHub Actions may create tags
+  - Tags initiate the immutable release pipeline. While Admins trigger the tag, the Artifact is only trusted if produced by the workflow triggered by that specific tag.
   - Optional: Repository Administrators (break-glass) 
 
 This guarantees:
-- Releases cannot be created manually
 - All releases originate from governed workflows
 - Provenance and attestations always map to trusted CI execution
 
@@ -166,15 +165,37 @@ This enforces separation of duties:
 
 ---
 
-## CODEOWNERS
+## 🛡️ Change Management (`CODEOWNERS`)
 
-```text
-# `.github/CODEOWNERS`
-# Governance ownership
-.github/workflows/*  @agslima
-k8s/**               @agslima
+This project utilize GitHub's native `CODEOWNERS` feature to enforce a strict **"Separation of Duties" model**. 
+
+### Implementation
+
+```bash
+# ==================================
+# GOVERNANCE ENFORCEMENT ZONES
+# ==================================
+
+# 1. Pipeline Integrity
+.github/workflows/    @agslima
+
+# 2. Policy Definitions
+k8s/policies/         @agslima
+policies/             @agslima
+
+# 3. Risk Acceptance
 docs/security-debt.md @agslima
+
+# 4. Infrastructure State
+k8s/resources/        @agslima
 ```
+
+The `.github/CODEOWNERS` file defines the following enforcement zones:
+ * **Anti-Tampering:** A developer cannot disable the trivy-scan job in the CI pipeline to force a bad build through. The PR modifying the .yml file will automatically block merging until the Code Owner approves.
+ * **Risk Accountability:** Adding an entry to security-debt.md (to ignore a vulnerability) is treated as a business decision, not a code change. It triggers a mandatory review from the Security Owner.
+ * **Infrastructure Stability:** Changes to Kubernetes manifests (k8s/resources) are gated to ensure they comply with cluster capacity and architectural standards.
+
+> Enforcement Note: This control is active only when the "Require review from Code Owners" setting is enabled in the Branch Protection Rules.
 
 #### Effect:
 
@@ -184,7 +205,6 @@ Forces explicit review for:
 - CI/CD pipelines
 - Runtime policies
 - Risk acceptance documentation
-
 
 ## Threat Model Addressed
 
@@ -196,3 +216,46 @@ This model explicitly defends against:
 - Drift between documented security posture and runtime reality
 - Even if a weakened pipeline produces a signed artifact:
 - Runtime admission policies enforce cryptographic proof that mandatory scans were executed.
+
+---
+
+## Verification (How to Audit)
+
+### Verify Image Signature
+
+```bash
+cosign verify \
+  --certificate-identity-regexp "https://github.com/agslima/secure-app-analysis/.*" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  docker.io/agslima/software-delivery-pipeline:latest
+  ```
+
+### Verify SLSA Provenance
+
+```bash
+gh attestation verify oci://docker.io/agslima/software-delivery-pipeline:latest \
+  --owner agslima \
+  --repo secure-app-analysis
+  ```
+
+### Verify active rules 
+
+To verify that these rules are active and working:
+
+**1. Attempt a Direct Push:**
+
+```bash
+   git checkout main
+   touch illegal_file.txt
+   git push origin main
+   # Expected: remote: error: GH006: Protected branch update failed
+```
+
+**2. Attempt Unsigned Deployment:**
+
+Deploy an image built locally (not by CI) to the cluster.
+
+```bash
+  kubectl apply -f k8s/tests/resources/invalid-unsigned.yaml
+  # Expected: Error from server: admission webhook "validate.kyverno.svc" denied the request
+```
