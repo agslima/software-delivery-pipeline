@@ -1,10 +1,10 @@
-# Threat Model & Security Controls
+# Security Controls
 
-## 1. Executive Summary
+## 1. Summary
 
-This document outlines the threat landscape for the **Governed Software Delivery Pipeline**. It identifies potential attack vectors against the software supply chain and details the specific engineering controls implemented to mitigate them.
+This document outlines the threat landscape for the **Governed Software Delivery Pipeline**. It identifies potential attack vectors against the **software supply chain** and details the specific engineering controls implemented to mitigate them.
 
-The security model assumes a **"Zero Trust"** approach to the build pipeline:
+The security model assumes a "Zero Trust" approach to the build pipeline:
 - We do not trust the Code (scanned for secrets/bugs).
 - We do not trust the Dependencies (scanned for CVEs).
 - We do not trust the Artifact (must be signed).
@@ -56,7 +56,7 @@ The security model assumes a **"Zero Trust"** approach to the build pipeline:
 
 ---
 
-## 4. Deep Dive: Defense Against Specific Attacks
+## 4. Defense Against Specific Attacks
 
 ### Scenario 1: The "Compromised Registry" Attack
 
@@ -80,7 +80,7 @@ The security model assumes a **"Zero Trust"** approach to the build pipeline:
 
 ## 5. Residual Risks (Accepted Debt)
 
-*While the pipeline is robust, the following risks are acknowledged and managed:*
+*The following risks are acknowledged and managed:*
 
 1.  **Zero-Day Vulnerabilities:** Scanners (Snyk/Trivy) can only detect *known* CVEs. A true Zero-Day exploits a vulnerability before it is public.
     * *Mitigation:* **Syft SBOM** allows for rapid identification of affected components when a Zero-Day is announced.
@@ -98,7 +98,7 @@ flowchart LR
     end
 
     subgraph "CI Pipeline (Trusted Builder)"
-        Commit -->|Snyk SAST| Build
+        Commit -->|Trivy SAST| Build
         Build -->|Hadolint| Docker[Docker Build]
         Docker -->|Trivy| Scan[Image Scan]
         Scan -->|OWASP ZAP| DAST
