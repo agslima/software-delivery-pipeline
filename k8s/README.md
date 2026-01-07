@@ -102,7 +102,7 @@ These manifests represent **production-like deployments**, including:
 
 ---
 
-## tests/ — Kyverno Policy Unit Tests 🧪
+## `tests/` — Kyverno Policy Unit Tests 🧪
 
 This directory enables **shift-left policy testing** using:
 
