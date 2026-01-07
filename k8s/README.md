@@ -139,8 +139,8 @@ This avoids false skips like:
 
 ### CI Pipeline
 
-- 1. Render Kubernetes manifests
-- 2. Apply CI policies
+* 1. Render Kubernetes manifests
+  2. Apply CI policies
 
 ```bash
 kyverno apply k8s/policies/ci \
