@@ -154,15 +154,6 @@ jobs:
         with:
           entrypoint: "/kubeconform"
           args: "-summary -output text -ignore-missing-schemas k8s/"
-        # with:
-        #  kubeconform_opts: >
-        #    -summary 
-        #    -output text 
-        #    -kubernetes-version 1.29.0 
-        #    -schema-location default 
-        #    -schema-location https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json
-        #  files: |
-        #    k8s/
             
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3.8.1
@@ -181,7 +172,7 @@ jobs:
       - name: CI Policy Validation
         run: |
           kyverno apply k8s/policies/ci/structural-policy.yaml \
-            --resource k8s/deployment.yaml
+            --resource k8s/resources/deployment.yaml
   
   # ------------------------------------------------------------------
   # JOB 3: Layer 4: Dynamic Analysis (DAST)
@@ -536,7 +527,7 @@ jobs:
           # Note: 'verifyImages' will be skipped by the CLI (normal behavior), 
           # but checking structure ensures we didn't break the YAML syntax.
           kyverno apply k8s/policies/cluster/supply-chain-policy.yaml \
-            --resource k8s/deployment.yaml \
+            --resource k8s/resources/deployment.yaml \
             --audit-warn=false > "$LOG_FILE" 2>&1 || true
 
           cat "$LOG_FILE"
@@ -558,7 +549,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add k8s/deployment.yaml
+          git add k8s/resources/deployment.yaml
 
           if git diff --staged --quiet; then
             echo "No changes detected, skipping commit."
