@@ -1,12 +1,11 @@
 # Governed Software Delivery Pipeline (Full-Stack Reference Implementation)
 
-![CD/CD Status](https://github.com/agslima/secure-app-analysis/actions/workflows/ci-cd.yml/badge.svg)
-![SLSA](https://img.shields.io/badge/SLSA-Level%203-blue?logo=linuxfoundation)
-[![Infrastructure: Kubernetes](https://img.shields.io/badge/Infra-Kubernetes-326CE5?logo=kubernetes&logoColor=white)](https://kubernetes.io/)
+[![CD/CD Status](https://github.com/agslima/secure-app-analysis/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/agslima/secure-app-analysis/actions/workflows/ci-cd.yml)
+[![SLSA](https://img.shields.io/badge/SLSA-Level%203-blue?logo=linuxfoundation)](https://github.com/agslima/software-delivery-pipeline/attestations)
+[![Infrastructure: Kubernetes](https://img.shields.io/badge/Infra-Kubernetes-326CE5?logo=kubernetes&logoColor=white)](https://github.com/agslima/software-delivery-pipeline/tree/main/k8s)
 [![Security: Snyk](https://img.shields.io/badge/Security-Snyk-4C4A73.svg?logo=snyk&logoColor=white)](https://snyk.io/)
 [![Security: Trivy](https://img.shields.io/badge/Container-Trivy-0077C2.svg?logo=aquasecurity&logoColor=white)](https://github.com/aquasecurity/trivy)
 [![Security: ZAP](https://img.shields.io/badge/DAST-OWASP%20ZAP-blue?logo=owasp&logoColor=white)](https://www.zaproxy.org/)
-[![Signed with Sigstore](https://img.shields.io/badge/Signed_with-Sigstore-purple?logo=sigstore&logoColor=white)](https://sigstore.dev)
 [![License](https://img.shields.io/badge/License-Apache%202.0-lightgrey.svg)](https://opensource.org/licenses/Apache-2.0)
 
 ### A Secure Software Supply Chain & DevOps Reference Implementation
