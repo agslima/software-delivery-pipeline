@@ -8,23 +8,34 @@
 [![Security: ZAP](https://img.shields.io/badge/DAST-OWASP%20ZAP-blue?logo=owasp&logoColor=white)](https://www.zaproxy.org/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-lightgrey.svg)](https://opensource.org/licenses/Apache-2.0)
 
-### A Secure Software Supply Chain & DevOps Reference Implementation
+### A Production-Grade CI/CD, Supply Chain & Governance Reference
 
 > Mission: Design and implement a secure software delivery pipeline that balances strong security guarantees with development velocity, using CI/CD as the primary governance control plane.
 
 ## TL;DR
 
-This repository demonstrates how to design and operate a governed CI/CD pipeline where:
+This repository demonstrates how to design a **governed software delivery system** where:
 
-- Quality and security gates are enforced automatically
-- Container artifacts are **signed, traceable, and SLSA Level 3–compliant**
-- Vulnerabilities are managed through explicit **risk policies**, not binary pass/fail rules
+- CI/CD acts as the **primary control plane**
+- Security checks produce **verifiable attestations**, not just logs
+- Container images are **signed, attested, and policy-enforced at runtime**
+- Governance **cannot be bypassed**, even by developers with write access
 
-> The application is intentionally simple. The focus is on **software delivery architecture, DevOps practices, and engineering governance**, not framework complexity.
+> The application is intentionally simple.
+>The value is in the delivery architecture, security controls, and governance model.
 
 ## Project Overview 🛡️
 
-This project demonstrates the design and operation of a governed software delivery pipeline, focusing on:
+While modern projects routinely use tools like Trivy, ZAP, and GitHub Actions, this repository try to answers a different question:
+
+> **How do you prevent those controls from being silently bypassed?**
+
+Instead of focusing on tools alone, this project demonstrates how to:
+- Enforce security and quality guarantees structurally
+- Treat CI/CD as part of the system architecture
+- Move from “we ran scans” → “we can prove policy compliance”
+
+This project also demonstrates the design and operation of a governed software delivery pipeline, focusing on:
 
 - DevOps and Platform Engineering principles
 - Risk-based security management
