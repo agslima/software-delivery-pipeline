@@ -26,14 +26,14 @@ This repository demonstrates how to design a **governed software delivery system
 
 ## Project Overview 🛡️
 
-While modern projects routinely use tools like Trivy, ZAP, and GitHub Actions, this repository try to answers a different question:
+While modern projects routinely use tools like Trivy, ZAP, and GitHub Actions, this repository tries to answer a different question:
 
 > **How do you prevent those controls from being silently bypassed?**
 
 Instead of focusing on tools alone, this project demonstrates how to:
 - Enforce security and quality guarantees structurally
 - Treat CI/CD as part of the system architecture
-- Move from “we ran scans” → “we can prove policy compliance”
+- Move from “we ran scans” → “we can prove policy compliance.”
 
 This project also demonstrates the design and operation of a governed software delivery pipeline, focusing on:
 
