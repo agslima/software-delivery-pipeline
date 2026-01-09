@@ -315,25 +315,16 @@ npm start
 
 ---
 
-## Policy, Governance & Verification
-
-- **Security by Design:** Controls embedded early in the SDLC
-- **Artifact Verification:** Container images can be verified using the public Cosign key in this repository
-- **Responsible Disclosure:** See SECURITY.md
-
----
-
 ## Technology Stack (Reference)
 
-- **Frontend/Backend:** React /Node.js
 - **CI/CD:** GitHub Actions
-- **Containers:** Docker
 - **Supply Chain:** Cosign, Syft, SLSA Generator
-- **Security Analysis:** Snyk, Trivy, OWASP ZAP, Gitleaks
+- **Security Analysis:** Trivy, OWASP ZAP, Gitleaks
 - **Governance:** Kyverno
+- **Containers:** Docker
+- **Frontend/Backend:** React /Node.js
 
 > The application stack is intentionally simple — the focus is on delivery architecture, not framework complexity.
-CI/CD: GitHub Actions
 
 ---
 
