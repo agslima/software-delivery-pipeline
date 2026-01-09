@@ -50,6 +50,22 @@ Rather than emphasizing a specific programming language or framework, the applic
 
 The result is a **production-oriented reference implementation** of how modern teams enforce engineering standards across the SDLC.
 
+---
+
+This is a full-stack reference implementation of a governed delivery pipeline, designed to showcase:
+
+DevOps & Platform Engineering practices
+
+Secure software supply-chain design
+
+Risk-based security decision-making
+
+Policy-as-Code enforced across CI and runtime
+
+The application exists only to exercise the pipeline.
+
+--- 
+
 ## Engineering Goals
 
 The architecture was designed to satisfy three core **non-functional requirements**:
@@ -73,6 +89,42 @@ Security is not binary. The system differentiates between:
 
 - **Blockers:** Critical / High vulnerabilities → pipeline fails
 - **Managed Debt:** Medium / Low vulnerabilities tracked in `docs/security-debt.md`
+
+---
+
+1. Reliability
+
+Builds are deterministic
+
+If validation fails, no artifact is published
+
+Release jobs are tag-gated and fail-fast
+
+2. Traceability
+
+Every container image is:
+
+Built from a specific Git commit
+
+Signed using keyless Sigstore (OIDC-bound identity)
+
+Attested with:
+
+Build provenance (SLSA Level 3)
+
+SBOM (SPDX)
+
+Vulnerability and DAST results
+
+3. Risk Management (Not Binary Security)
+
+Security is treated as policy-driven, not “pass/fail everywhere”:
+
+Blockers: Critical & High vulnerabilities
+
+Managed Debt: Medium & Low vulnerabilities tracked explicitly
+
+Risk acceptance is versioned and auditable (docs/security-debt.md)
 
 ---
 
@@ -127,47 +179,82 @@ For more details on how is enforce branch protection, code ownership, and releas
 
 ---
 
+```mermaid
+flowchart TD
+    A[Commit / PR] --> B[Quality & Security Gates]
+    B --> C[Build Artifact]
+    C --> D[DAST & Image Scanning]
+    D --> E[Attestations & Signing]
+    E --> F[GitOps Manifest Update]
+    F --> G[PR Review & Merge]
+    G --> H[Kubernetes Admission Control]
+```
+
 ## Quality & Risk Controls
 
-### Layer 1: Application Security (Pre-Build)
+### Layer 1: Pre-Build (Shift Left)
 
-- **Gitleaks:** Prevents hardcoded credentials
+- **Unit Tests (TDD)**
+- **Gitleaks:** Secret detection
 - **Snyk (SAST/SCA):** Analyzes source code and dependency trees
+- **Trivy (FS / IaC)**:
+  - Dependency vulnerabilities
+  - Kubernetes misconfigurations
 
-### Layer 2: Artifact Security (Post-Build)
+### Layer 2: Artifact Construction
 
-- **Trivy:** Detects OS-level vulnerabilities in the final image
-- **Hadolint:** Enforces Dockerfile best practices (non-root users, pinned versions)
-
-### Layer 3: Runtime Analysis (DAST)
-
+- **Docker Buildx** (reproducible builds)
+- **Hadolint + OPA (Conftest):** Dockerfile hardening (non-root users, pinned versions), and Policy drift detection
 - **OWASP ZAP**
   - Pipeline spins up an ephemeral application instance
   - Actively scans runtime behavior (headers, cookies, misconfigurations)
-  - Validates behavior, not just code
-
-### Layer 4: Supply Chain Guarantees (SLSA Level 3)
-
+  - Debug-friendly failure handling (container logs preserved)
+  - ZAP results are captured and attested, not used as raw CI output
+ 
+  ### Layer 3: Supply Chain Guarantees (SLSA Level 3)
+  
 - **Cosign (Keyless):** OIDC-bound image signing
 - **SLSA Provenance:** Verifiable build identity and process
 - **Syft:** SPDX-formatted SBOM for transparency and future incident response
+- **Typed Attestations:**
+  - Trivy vulnerability summary
+  - ZAP DAST results
+ 
+  ### Layer 4: Delivery (GitOps)
 
+- **Kyverno:** Policy Check
+  
 ---
 
-## Deployment Architecture & Enforcement
+## Governance & Policy Enforcement
 
-### Secret Management (12-Factor App)
+### GitOps Enforcement
 
-- Secrets stored in GitHub Actions Secrets
-- Injected as environment variables at runtime
-
-### GitOps & Admission Control
-
+Deployment requires a Pull Request
 - The pipeline does not deploy directly.
-- CI updates Kubernetes manifests with immutable image digests
+- CI updates Kubernetes manifests with **immutable image digests**
 - Kyverno policies enforce that only images signed by this workflow identity can run
+- Changes are pushed to a GitOps branch
 
-This demonstrates how build trust is enforced at runtime, not just at CI time.
+### Runtime Admission Control
+
+Kubernetes enforces:
+
+- Image signature verification
+- Required attestations (Trivy + ZAP)
+- Provenance identity checks
+- All enforced using Kyverno.
+
+> If a scan step is removed from CI, deployment still fails.
+
+<!--
+### Break-Glass (Emergency Access)
+
+- Explicit security.break-glass=true label
+- RBAC-restricted to on-call security role
+- Mandatory justification labels
+- Fully auditable
+-->
 
 ---
 
@@ -247,6 +334,21 @@ npm start
 
 > The application stack is intentionally simple — the focus is on delivery architecture, not framework complexity.
 CI/CD: GitHub Actions
+
+---
+
+## What This Repository Demonstrates
+
+- ✅ CI/CD as governance, not automation
+- ✅ Security controls that cannot be silently bypassed
+- ✅ Policy-driven risk management
+- ✅ Supply-chain guarantees enforced at runtime
+- ✅ Platform-grade GitOps flow
+
+## What This Repository Is Not
+
+- ❌ A framework comparison
+- ❌ A zero-vulnerability application
 
 ---
 
