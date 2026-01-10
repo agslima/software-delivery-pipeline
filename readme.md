@@ -12,7 +12,6 @@
 
 ## TL;DR
 
-
 This repository demonstrates how to design a **governed software delivery system** where:
 
 - CI/CD acts as the **primary control plane**
@@ -20,19 +19,17 @@ This repository demonstrates how to design a **governed software delivery system
 - Container images are **signed, attested, and policy-enforced at runtime**
 - Governance **cannot be bypassed**, even by developers with write access
 
-> The application is intentionally simple.
->The value is in the delivery architecture, security controls, and governance model.
+> **Note:** The application logic is intentionally simple. The value of this repository lies in the **delivery architecture, security controls, and governance model.**
 
 ## Project Overview 🛡️
 
-While modern projects routinely use tools like Trivy, ZAP, and GitHub Actions, this repository tries to answer a different question:**How we prevent those controls from being silently bypassed?**
+While modern projects routinely use tools like Trivy, ZAP, and GitHub Actions, this repository tries to answer a different question:**How do we prevent those controls from being silently bypassed?**
 
 Instead of focusing on tools alone or treating security as a checkbox,this project serves as a reference implementation for **Governance-as-Code**, demonstrating how to:
 
 - Enforce **security and quality guarantees structurally**
 - Treat CI/CD as **part of the system architecture**
 - Move from “we ran scans” → “**we can prove policy compliance**”
-
 
 This is a full-stack reference implementation of a governed delivery pipeline, designed to showcase:
 - DevOps & Platform Engineering practices
@@ -124,17 +121,6 @@ For more details on how is enforce branch protection, code ownership, and releas
 
 ---
 
-```mermaid
-flowchart TD
-    A[Commit / PR] --> B[Quality & Security Gates]
-    B --> C[Build Artifact]
-    C --> D[DAST & Image Scanning]
-    D --> E[Attestations & Signing]
-    E --> F[GitOps Manifest Update]
-    F --> G[PR Review & Merge]
-    G --> H[Kubernetes Admission Control]
-```
-
 ## Quality & Risk Controls
 
 ### Layer 1: Pre-Build (Shift Left)
@@ -161,13 +147,11 @@ flowchart TD
 - **Cosign (Keyless):** OIDC-bound image signing
 - **SLSA Provenance:** Verifiable build identity and process
 - **Syft:** SPDX-formatted SBOM for transparency and future incident response
-- **Typed Attestations:**
-  - Trivy vulnerability summary
-  - ZAP DAST results
+- **Typed Attestations:** Cryptographic proof that scans (Trivy/ZAP) actually occurred.
  
   ### Layer 4: Delivery (GitOps)
 
-- **Kyverno:** Policy Check
+- **Kyverno:** Validates the updated manifests against cluster policies before committing to the repo.
   
 ---
 
@@ -175,31 +159,27 @@ flowchart TD
 
 ### GitOps Enforcement
 
-Deployment requires a Pull Request
-- The pipeline does not deploy directly.
-- CI updates Kubernetes manifests with **immutable image digests**
-- Kyverno policies enforce that only images signed by this workflow identity can run
-- Changes are pushed to a GitOps branch
+- The pipeline utilizes a **Push-based GitOps** model.
+​- CI updates Kubernetes manifests with the **immutable image digest** of the newly signed artifact.
+- ​A Pull Request is automatically opened/merged to the GitOps branch.
+​- **Constraint:** CI cannot commit to main directly; it must pass the same policy checks as a human developer.
 
 ### Runtime Admission Control
 
-Kubernetes enforces:
+**Kubernetes** acts as the final gatekeeper using **Kyverno**. The cluster enforces:
 
-- Image signature verification
-- Required attestations (Trivy + ZAP)
-- Provenance identity checks
-- All enforced using Kyverno.
+- ​**Signature Verification:** Is this image signed by our repo?
+- **​Attestation Checks:** Does this image have a SLSA provenance?
+- **​Identity Validation:** Was this image built by the trusted CI workflow?
 
-> If a scan step is removed from CI, deployment still fails.
+**​Result:** If a developer tries to deploy an unsigned image (even manually), the cluster rejects it.
 
-<!--
 ### Break-Glass (Emergency Access)
 
 - Explicit security.break-glass=true label
 - RBAC-restricted to on-call security role
 - Mandatory justification labels
 - Fully auditable
--->
 
 ---
 
