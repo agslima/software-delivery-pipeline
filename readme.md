@@ -14,6 +14,15 @@
 
 ## TL;DR
 
+While modern projects routinely use tools like Trivy, ZAP, and GitHub Actions, this repository tries to answer a different question:**How we prevent those controls from being silently bypassed?**
+
+Instead of focusing on tools alone or treating security as a checkbox,this project serves as a reference implementation for **Governance-as-Code**, demonstrating how to:
+
+- Enforce **security and quality guarantees structurally**
+- Treat CI/CD as **part of the system architecture**
+- Move from “we ran scans” → “**we can prove policy compliance**”
+
+
 This repository demonstrates how to design a **governed software delivery system** where:
 
 - CI/CD acts as the **primary control plane**
@@ -26,20 +35,13 @@ This repository demonstrates how to design a **governed software delivery system
 
 ## Project Overview 🛡️
 
-While modern projects routinely use tools like Trivy, ZAP, and GitHub Actions, this repository tries to answer a different question:
-
-> **How do you prevent those controls from being silently bypassed?**
-
-Instead of focusing on tools alone, this project demonstrates how to:
-- Enforce security and quality guarantees structurally
-- Treat CI/CD as part of the system architecture
-- Move from “we ran scans” → “we can prove policy compliance.”
+This is a full-stack reference implementation of a governed delivery pipeline, designed to showcase:
+- DevOps & Platform Engineering practices
+- Software supply-chain design
+- Risk-based security decision-making
+- Policy-as-Code enforced across CI and runtime
 
 This project also demonstrates the design and operation of a governed software delivery pipeline, focusing on:
-
-- DevOps and Platform Engineering principles
-- Risk-based security management
-- Secure software supply-chain practices
 
 Rather than emphasizing a specific programming language or framework, the application serves as a delivery vehicle to showcase:
 
@@ -50,20 +52,6 @@ Rather than emphasizing a specific programming language or framework, the applic
 
 The result is a **production-oriented reference implementation** of how modern teams enforce engineering standards across the SDLC.
 
----
-
-This is a full-stack reference implementation of a governed delivery pipeline, designed to showcase:
-
-DevOps & Platform Engineering practices
-
-Secure software supply-chain design
-
-Risk-based security decision-making
-
-Policy-as-Code enforced across CI and runtime
-
-The application exists only to exercise the pipeline.
-
 --- 
 
 ## Engineering Goals
@@ -72,59 +60,27 @@ The architecture was designed to satisfy three core **non-functional requirement
 
 ### 1. Reliability
 
-- Builds must be deterministic
+- Builds are deterministic
 - If code, tests, or policies fail, **no artifact is created**
+- Release jobs are tag-gated and fail-fast
 
 ### 2. Traceability
 
 Every container image is:
+- Built from a specific Git commit
+- Signed using keyless Sigstore (OIDC-bound identity)
+- Attested with:
+  - Build provenance (SLSA Level 3)
+  - SBOM (SPDX)
+  - Vulnerability and DAST results
 
-- Cryptographically signed using Sigstore/Cosign
-- Attested with build provenance verifying the builder identity
-- Linked to a specific Git commit and SBOM
+### 3. Risk Management (Not Binary Security)
 
-### 3. Risk Management
+Security is treated as **policy-driven**, not “pass/fail everywhere”:
 
-Security is not binary. The system differentiates between:
-
-- **Blockers:** Critical / High vulnerabilities → pipeline fails
-- **Managed Debt:** Medium / Low vulnerabilities tracked in `docs/security-debt.md`
-
----
-
-1. Reliability
-
-Builds are deterministic
-
-If validation fails, no artifact is published
-
-Release jobs are tag-gated and fail-fast
-
-2. Traceability
-
-Every container image is:
-
-Built from a specific Git commit
-
-Signed using keyless Sigstore (OIDC-bound identity)
-
-Attested with:
-
-Build provenance (SLSA Level 3)
-
-SBOM (SPDX)
-
-Vulnerability and DAST results
-
-3. Risk Management (Not Binary Security)
-
-Security is treated as policy-driven, not “pass/fail everywhere”:
-
-Blockers: Critical & High vulnerabilities
-
-Managed Debt: Medium & Low vulnerabilities tracked explicitly
-
-Risk acceptance is versioned and auditable (docs/security-debt.md)
+- **Blockers:** Critical & High vulnerabilities
+- **Managed Debt:** Medium & Low vulnerabilities tracked explicitly
+- Risk acceptance is versioned and auditable (`docs/security-debt.md`)
 
 ---
 
@@ -132,17 +88,16 @@ Risk acceptance is versioned and auditable (docs/security-debt.md)
 
 ### CI/CD as a Control Plane
 
-GitHub Actions is used as the delivery control plane, following a **Pipeline-as-Code** model.
+GitHub Actions is used intentionally as the **delivery control plane**.
 
-#### Design Decision
+#### Why GitHub Actions?
 
-GitHub Actions was chosen over traditional CI servers (e.g., Jenkins) to:
+- Pipeline logic is versioned with the code
+- Branch protection and CODEOWNERS enforce governance before CI runs
+- No external CI trust boundary
+- Clear audit trail from commit → artifact → deployment
 
-- Minimize operational overhead
-- Keep pipeline logic versioned alongside the application
-- Treat CI/CD as part of the codebase, not external infrastructure
-
-### Governance Pipeline
+### Delivery Architecture
 
 ```mermaid
 
@@ -296,7 +251,6 @@ To validate the effectiveness of the delivery control plane, a legacy applicatio
 | ![image](https://github.com/agslima/secure-app-analysis/blob/main/docs/images/scan-snyk-01.png) | ![image](https://github.com/agslima/secure-app-analysis/blob/main/docs/images/scan-snyk-02.png) |
 
 ---
-
 
 ## Local Development & Testing
 
