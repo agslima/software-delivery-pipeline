@@ -1,5 +1,7 @@
 # Governed Software Delivery Pipeline (Full-Stack Reference Implementation)
 
+## A Production-Grade CI/CD, Supply Chain & Governance Reference
+
 [![CD/CD Status](https://github.com/agslima/secure-app-analysis/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/agslima/secure-app-analysis/actions/workflows/ci-cd.yml)
 [![SLSA](https://img.shields.io/badge/SLSA-Level%203-blue?logo=linuxfoundation)](https://github.com/agslima/software-delivery-pipeline/attestations)
 [![Infrastructure: Kubernetes](https://img.shields.io/badge/Infra-Kubernetes-326CE5?logo=kubernetes&logoColor=white)](https://github.com/agslima/software-delivery-pipeline/tree/main/k8s)
@@ -8,19 +10,7 @@
 [![Security: ZAP](https://img.shields.io/badge/DAST-OWASP%20ZAP-blue?logo=owasp&logoColor=white)](https://www.zaproxy.org/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-lightgrey.svg)](https://opensource.org/licenses/Apache-2.0)
 
-### A Production-Grade CI/CD, Supply Chain & Governance Reference
-
-> Mission: Design and implement a secure software delivery pipeline that balances strong security guarantees with development velocity, using CI/CD as the primary governance control plane.
-
 ## TL;DR
-
-While modern projects routinely use tools like Trivy, ZAP, and GitHub Actions, this repository tries to answer a different question:**How we prevent those controls from being silently bypassed?**
-
-Instead of focusing on tools alone or treating security as a checkbox,this project serves as a reference implementation for **Governance-as-Code**, demonstrating how to:
-
-- Enforce **security and quality guarantees structurally**
-- Treat CI/CD as **part of the system architecture**
-- Move from “we ran scans” → “**we can prove policy compliance**”
 
 
 This repository demonstrates how to design a **governed software delivery system** where:
@@ -35,22 +25,22 @@ This repository demonstrates how to design a **governed software delivery system
 
 ## Project Overview 🛡️
 
+While modern projects routinely use tools like Trivy, ZAP, and GitHub Actions, this repository tries to answer a different question:**How we prevent those controls from being silently bypassed?**
+
+Instead of focusing on tools alone or treating security as a checkbox,this project serves as a reference implementation for **Governance-as-Code**, demonstrating how to:
+
+- Enforce **security and quality guarantees structurally**
+- Treat CI/CD as **part of the system architecture**
+- Move from “we ran scans” → “**we can prove policy compliance**”
+
+
 This is a full-stack reference implementation of a governed delivery pipeline, designed to showcase:
 - DevOps & Platform Engineering practices
 - Software supply-chain design
 - Risk-based security decision-making
 - Policy-as-Code enforced across CI and runtime
 
-This project also demonstrates the design and operation of a governed software delivery pipeline, focusing on:
-
-Rather than emphasizing a specific programming language or framework, the application serves as a delivery vehicle to showcase:
-
-- Policy-driven CI/CD (GitHub Actions as the control plane)
-- Defense in Depth across build, artifact, and runtime phases
-- Zero Trust supply-chain controls using keyless signing
-- Managed security debt in a real-world delivery scenario
-
-The result is a **production-oriented reference implementation** of how modern teams enforce engineering standards across the SDLC.
+The application exists only to **exercise the pipeline**.
 
 --- 
 
