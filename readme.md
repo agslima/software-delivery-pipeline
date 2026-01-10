@@ -1,5 +1,7 @@
 # Governed Software Delivery Pipeline (Full-Stack Reference Implementation)
 
+## A Production-Grade CI/CD, Supply Chain & Governance Reference
+
 [![CD/CD Status](https://github.com/agslima/secure-app-analysis/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/agslima/secure-app-analysis/actions/workflows/ci-cd.yml)
 [![SLSA](https://img.shields.io/badge/SLSA-Level%203-blue?logo=linuxfoundation)](https://github.com/agslima/software-delivery-pipeline/attestations)
 [![Infrastructure: Kubernetes](https://img.shields.io/badge/Infra-Kubernetes-326CE5?logo=kubernetes&logoColor=white)](https://github.com/agslima/software-delivery-pipeline/tree/main/k8s)
@@ -7,10 +9,6 @@
 [![Security: Trivy](https://img.shields.io/badge/Container-Trivy-0077C2.svg?logo=aquasecurity&logoColor=white)](https://github.com/aquasecurity/trivy)
 [![Security: ZAP](https://img.shields.io/badge/DAST-OWASP%20ZAP-blue?logo=owasp&logoColor=white)](https://www.zaproxy.org/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-lightgrey.svg)](https://opensource.org/licenses/Apache-2.0)
-
-### A Production-Grade CI/CD, Supply Chain & Governance Reference
-
-> Mission: Design and implement a secure software delivery pipeline that balances strong security guarantees with development velocity, using CI/CD as the primary governance control plane.
 
 ## TL;DR
 
@@ -21,34 +19,27 @@ This repository demonstrates how to design a **governed software delivery system
 - Container images are **signed, attested, and policy-enforced at runtime**
 - Governance **cannot be bypassed**, even by developers with write access
 
-> The application is intentionally simple.
->The value is in the delivery architecture, security controls, and governance model.
+> **Note:** The application logic is intentionally simple. The value of this repository lies in the **delivery architecture, security controls, and governance model.**
 
 ## Project Overview 🛡️
 
-While modern projects routinely use tools like Trivy, ZAP, and GitHub Actions, this repository try to answers a different question:
+While modern projects routinely use tools like Trivy, ZAP, and GitHub Actions, this repository tries to answer a different question:**How do we prevent those controls from being silently bypassed?**
 
-> **How do you prevent those controls from being silently bypassed?**
+Instead of focusing on tools alone or treating security as a checkbox,this project serves as a reference implementation for **Governance-as-Code**, demonstrating how to:
 
-Instead of focusing on tools alone, this project demonstrates how to:
-- Enforce security and quality guarantees structurally
-- Treat CI/CD as part of the system architecture
-- Move from “we ran scans” → “we can prove policy compliance”
+- Enforce **security and quality guarantees structurally**
+- Treat CI/CD as **part of the system architecture**
+- Move from “we ran scans” → “**we can prove policy compliance**”
 
-This project also demonstrates the design and operation of a governed software delivery pipeline, focusing on:
+This is a full-stack reference implementation of a governed delivery pipeline, designed to showcase:
+- DevOps & Platform Engineering practices
+- Software supply-chain design
+- Risk-based security decision-making
+- Policy-as-Code enforced across CI and runtime
 
-- DevOps and Platform Engineering principles
-- Risk-based security management
-- Secure software supply-chain practices
+The application exists only to **exercise the pipeline**.
 
-Rather than emphasizing a specific programming language or framework, the application serves as a delivery vehicle to showcase:
-
-- Policy-driven CI/CD (GitHub Actions as the control plane)
-- Defense in Depth across build, artifact, and runtime phases
-- Zero Trust supply-chain controls using keyless signing
-- Managed security debt in a real-world delivery scenario
-
-The result is a **production-oriented reference implementation** of how modern teams enforce engineering standards across the SDLC.
+--- 
 
 ## Engineering Goals
 
@@ -56,23 +47,27 @@ The architecture was designed to satisfy three core **non-functional requirement
 
 ### 1. Reliability
 
-- Builds must be deterministic
+- Builds are deterministic
 - If code, tests, or policies fail, **no artifact is created**
+- Release jobs are tag-gated and fail-fast
 
 ### 2. Traceability
 
 Every container image is:
+- Built from a specific Git commit
+- Signed using keyless Sigstore (OIDC-bound identity)
+- Attested with:
+  - Build provenance (SLSA Level 3)
+  - SBOM (SPDX)
+  - Vulnerability and DAST results
 
-- Cryptographically signed using Sigstore/Cosign
-- Attested with build provenance verifying the builder identity
-- Linked to a specific Git commit and SBOM
+### 3. Risk Management (Not Binary Security)
 
-### 3. Risk Management
+Security is treated as **policy-driven**, not “pass/fail everywhere”:
 
-Security is not binary. The system differentiates between:
-
-- **Blockers:** Critical / High vulnerabilities → pipeline fails
-- **Managed Debt:** Medium / Low vulnerabilities tracked in `docs/security-debt.md`
+- **Blockers:** Critical & High vulnerabilities
+- **Managed Debt:** Medium & Low vulnerabilities tracked explicitly
+- Risk acceptance is versioned and auditable (`docs/security-debt.md`)
 
 ---
 
@@ -80,17 +75,16 @@ Security is not binary. The system differentiates between:
 
 ### CI/CD as a Control Plane
 
-GitHub Actions is used as the delivery control plane, following a **Pipeline-as-Code** model.
+GitHub Actions is used intentionally as the **delivery control plane**.
 
-#### Design Decision
+#### Why GitHub Actions?
 
-GitHub Actions was chosen over traditional CI servers (e.g., Jenkins) to:
+- Pipeline logic is versioned with the code
+- Branch protection and CODEOWNERS enforce governance before CI runs
+- No external CI trust boundary
+- Clear audit trail from commit → artifact → deployment
 
-- Minimize operational overhead
-- Keep pipeline logic versioned alongside the application
-- Treat CI/CD as part of the codebase, not external infrastructure
-
-### Governance Pipeline
+### Delivery Architecture
 
 ```mermaid
 
@@ -129,45 +123,63 @@ For more details on how is enforce branch protection, code ownership, and releas
 
 ## Quality & Risk Controls
 
-### Layer 1: Application Security (Pre-Build)
+### Layer 1: Pre-Build (Shift Left)
 
-- **Gitleaks:** Prevents hardcoded credentials
+- **Unit Tests (TDD)**
+- **Gitleaks:** Secret detection
 - **Snyk (SAST/SCA):** Analyzes source code and dependency trees
+- **Trivy (FS / IaC)**:
+  - Dependency vulnerabilities
+  - Kubernetes misconfigurations
 
-### Layer 2: Artifact Security (Post-Build)
+### Layer 2: Artifact Construction
 
-- **Trivy:** Detects OS-level vulnerabilities in the final image
-- **Hadolint:** Enforces Dockerfile best practices (non-root users, pinned versions)
-
-### Layer 3: Runtime Analysis (DAST)
-
+- **Docker Buildx** (reproducible builds)
+- **Hadolint + OPA (Conftest):** Dockerfile hardening (non-root users, pinned versions), and Policy drift detection
 - **OWASP ZAP**
   - Pipeline spins up an ephemeral application instance
   - Actively scans runtime behavior (headers, cookies, misconfigurations)
-  - Validates behavior, not just code
-
-### Layer 4: Supply Chain Guarantees (SLSA Level 3)
-
+  - Debug-friendly failure handling (container logs preserved)
+  - ZAP results are captured and attested, not used as raw CI output
+ 
+  ### Layer 3: Supply Chain Guarantees (SLSA Level 3)
+  
 - **Cosign (Keyless):** OIDC-bound image signing
 - **SLSA Provenance:** Verifiable build identity and process
 - **Syft:** SPDX-formatted SBOM for transparency and future incident response
+- **Typed Attestations:** Cryptographic proof that scans (Trivy/ZAP) actually occurred.
+ 
+  ### Layer 4: Delivery (GitOps)
 
+- **Kyverno:** Validates the updated manifests against cluster policies before committing to the repo.
+  
 ---
 
-## Deployment Architecture & Enforcement
+## Governance & Policy Enforcement
 
-### Secret Management (12-Factor App)
+### GitOps Enforcement
 
-- Secrets stored in GitHub Actions Secrets
-- Injected as environment variables at runtime
+- The pipeline utilizes a **Push-based GitOps** model.
+​- CI updates Kubernetes manifests with the **immutable image digest** of the newly signed artifact.
+- ​A Pull Request is automatically opened/merged to the GitOps branch.
+​- **Constraint:** CI cannot commit to main directly; it must pass the same policy checks as a human developer.
 
-### GitOps & Admission Control
+### Runtime Admission Control
 
-- The pipeline does not deploy directly.
-- CI updates Kubernetes manifests with immutable image digests
-- Kyverno policies enforce that only images signed by this workflow identity can run
+**Kubernetes** acts as the final gatekeeper using **Kyverno**. The cluster enforces:
 
-This demonstrates how build trust is enforced at runtime, not just at CI time.
+- ​**Signature Verification:** Is this image signed by our repo?
+- **​Attestation Checks:** Does this image have a SLSA provenance?
+- **​Identity Validation:** Was this image built by the trusted CI workflow?
+
+**​Result:** If a developer tries to deploy an unsigned image (even manually), the cluster rejects it.
+
+### Break-Glass (Emergency Access)
+
+- Explicit security.break-glass=true label
+- RBAC-restricted to on-call security role
+- Mandatory justification labels
+- Fully auditable
 
 ---
 
@@ -210,7 +222,6 @@ To validate the effectiveness of the delivery control plane, a legacy applicatio
 
 ---
 
-
 ## Local Development & Testing
 
 ### Prerequisites
@@ -228,25 +239,31 @@ npm start
 
 ---
 
-## Policy, Governance & Verification
+## Technology Stack (Reference)
 
-- **Security by Design:** Controls embedded early in the SDLC
-- **Artifact Verification:** Container images can be verified using the public Cosign key in this repository
-- **Responsible Disclosure:** See SECURITY.md
+- **CI/CD:** GitHub Actions
+- **Supply Chain:** Cosign, Syft, SLSA Generator
+- **Security Analysis:** Trivy, OWASP ZAP, Gitleaks
+- **Governance:** Kyverno
+- **Containers:** Docker
+- **Frontend/Backend:** React /Node.js
+
+> The application stack is intentionally simple — the focus is on delivery architecture, not framework complexity.
 
 ---
 
-## Technology Stack (Reference)
+## What This Repository Demonstrates
 
-- **Frontend/Backend:** React /Node.js
-- **CI/CD:** GitHub Actions
-- **Containers:** Docker
-- **Supply Chain:** Cosign, Syft, SLSA Generator
-- **Security Analysis:** Snyk, Trivy, OWASP ZAP, Gitleaks
-- **Governance:** Kyverno
+- ✅ CI/CD as governance, not automation
+- ✅ Security controls that cannot be silently bypassed
+- ✅ Policy-driven risk management
+- ✅ Supply-chain guarantees enforced at runtime
+- ✅ Platform-grade GitOps flow
 
-> The application stack is intentionally simple — the focus is on delivery architecture, not framework complexity.
-CI/CD: GitHub Actions
+## What This Repository Is Not
+
+- ❌ A framework comparison
+- ❌ A zero-vulnerability application
 
 ---
 
