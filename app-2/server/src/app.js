@@ -14,7 +14,7 @@ const path = require('path');
 const clientDist = path.join(__dirname, '../../client/dist');
 app.use(express.static(clientDist));
 
-app.get('*', (req, res) => {
+app.get('*', rateLimit, (req, res) => {
   res.sendFile(path.join(clientDist, 'index.html'));
 });
 
