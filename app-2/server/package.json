@@ -27,7 +27,7 @@
     "http-errors": "^2.0.1",
     "jsonwebtoken": "^9.0.2",
     "passport": "0.7.0",
-    "pino": "^9.14.0",
+    "pino": "^8.17.0",
     "pino-http": "^9.0.0",
     "uuid": "^8.3.2"
   },
