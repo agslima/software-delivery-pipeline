@@ -23,7 +23,7 @@ This repository demonstrates how to design a **governed software delivery system
 
 ## Project Overview 🛡️
 
-While modern projects routinely use tools like Trivy, ZAP, and GitHub Actions, this repository tries to answer a different question:**How do we prevent those controls from being silently bypassed?**
+While modern projects routinely use tools like Trivy, ZAP, and GitHub Actions, this repository tries to answer a different question: **How do we prevent those controls from being silently bypassed?**
 
 Instead of focusing on tools alone or treating security as a checkbox,this project serves as a reference implementation for **Governance-as-Code**, demonstrating how to:
 
@@ -249,9 +249,7 @@ npm start
 - **Governance:** Kyverno
 - **Containers:** Docker
 - **Frontend/Backend:** React /Node.js
-
-> The application stack is intentionally simple — the focus is on delivery architecture, not framework complexity.
-
+  
 ---
 
 ## What This Repository Demonstrates
