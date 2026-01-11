@@ -2,10 +2,9 @@
 
 ## A Production-Grade CI/CD, Supply Chain & Governance Reference
 
-[![CD/CD Status](https://github.com/agslima/secure-app-analysis/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/agslima/secure-app-analysis/actions/workflows/ci-cd.yml)
+[![CI/CD Status](https://github.com/agslima/secure-app-analysis/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/agslima/secure-app-analysis/actions/workflows/ci-cd.yml)
 [![SLSA](https://img.shields.io/badge/SLSA-Level%203-blue?logo=linuxfoundation)](https://github.com/agslima/software-delivery-pipeline/attestations)
 [![Infrastructure: Kubernetes](https://img.shields.io/badge/Infra-Kubernetes-326CE5?logo=kubernetes&logoColor=white)](https://github.com/agslima/software-delivery-pipeline/tree/main/k8s)
-[![Security: Snyk](https://img.shields.io/badge/Security-Snyk-4C4A73.svg?logo=snyk&logoColor=white)](https://snyk.io/)
 [![Security: Trivy](https://img.shields.io/badge/Container-Trivy-0077C2.svg?logo=aquasecurity&logoColor=white)](https://github.com/aquasecurity/trivy)
 [![Security: ZAP](https://img.shields.io/badge/DAST-OWASP%20ZAP-blue?logo=owasp&logoColor=white)](https://www.zaproxy.org/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-lightgrey.svg)](https://opensource.org/licenses/Apache-2.0)
@@ -25,7 +24,7 @@ This repository demonstrates how to design a **governed software delivery system
 
 While modern projects routinely use tools like Trivy, ZAP, and GitHub Actions, this repository tries to answer a different question: **How do we prevent those controls from being silently bypassed?**
 
-Instead of focusing on tools alone or treating security as a checkbox,this project serves as a reference implementation for **Governance-as-Code**, demonstrating how to:
+Instead of focusing on tools alone or treating security as a checkbox, this project serves as a reference implementation for **Governance-as-Code**, demonstrating how to:
 
 - Enforce **security and quality guarantees structurally**
 - Treat CI/CD as **part of the system architecture**
@@ -163,7 +162,7 @@ For more details on how is enforce branch protection, code ownership, and releas
 
 - The pipeline utilizes a **Push-based GitOps** model.
 ​- CI updates Kubernetes manifests with the **immutable image digest** of the newly signed artifact.
-- ​A Pull Request is automatically opened/merged to the GitOps branch.
+- ​A Pull Request is automatically opened to the GitOps branch.
 ​- **Constraint:** CI cannot commit to main directly; it must pass the same policy checks as a human developer.
 
 ### Runtime Admission Control
@@ -174,7 +173,7 @@ For more details on how is enforce branch protection, code ownership, and releas
 - **​Attestation Checks:** Does this image have a SLSA provenance?
 - **​Identity Validation:** Was this image built by the trusted CI workflow?
 
-**​Result:** If a developer tries to deploy an unsigned image (even manually), the cluster rejects it.
+Kyverno is the ultimate authority, even a successfully built, signed, and attested image is rejected if it violates cluster policy. **Result:** If a developer tries to deploy an unsigned image (even manually), the cluster rejects it.
 
 ### Break-Glass (Emergency Access)
 
@@ -264,6 +263,13 @@ npm start
 
 - ❌ A framework comparison
 - ❌ A zero-vulnerability application
+
+---
+
+## Role Alignment
+
+- **DevOps Engineers:** CI/CD design, GitOps workflows, release governance
+- **Platform Engineers:** Policy enforcement, admission control, supply-chain trust
 
 ---
 
