@@ -19,12 +19,17 @@ app.get('*', rateLimit, (req, res) => {
 });
 
 app.use(requestId);
-app.use(httpLogger);
+//app.use(httpLogger);
+if (process.env.NODE_ENV !== 'test') {
+  app.use(require('pino-http')());
+}
 app.use(express.json());
 app.use(helmet);
 
 app.use('/health', healthRoutes);
 app.use('/api', rateLimit, apiRoutes);
+app.use('/api/v1', routes);
+
 
 app.use(errorHandler);
 

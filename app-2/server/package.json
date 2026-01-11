@@ -1,0 +1,52 @@
+{
+  "name": "secure-prescription-api",
+  "version": "1.0.0",
+  "description": "Production-ready Node.js API with JWT auth, observability, and clean architecture",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node src/server.js",
+    "test": "NODE_ENV=test jest --runInBand",
+    "test:debug": "jest --detectOpenHandles"
+  },
+  "license": "MIT",
+  "packageManager": "npm@10",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.22.1",
+    "express-rate-limit": "^8.2.1",
+    "express-session": "^1.18.2",
+    "express-validator": "^6.14.2",
+    "helmet": "^7.2.0",
+    "http-errors": "^2.0.1",
+    "jsonwebtoken": "^9.0.2",
+    "passport": "0.7.0",
+    "pino": "^9.14.0",
+    "pino-http": "^9.0.0",
+    "uuid": "^8.3.2"
+  },
+  "devDependencies": {
+    "jest": "^30.2.0",
+    "supertest": "^7.1.4",
+    "vite": "^7.3.1"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ]
+  },
+  "overrides": {
+    "glob": "^10.5.0"
+  },
+  "collectCoverageFrom": [
+    "src/**/*.js",
+    "!src/server.js"
+  ]
+}

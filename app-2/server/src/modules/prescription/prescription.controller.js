@@ -1,9 +1,9 @@
 const PrescriptionService = require('./prescription.service');
 
-exports.getPrescription = (req, res, next) => {
+exports.getPrescription = async (req, res, next) => {
   try {
-    const prescription = PrescriptionService.getById(req.params.id);
-    res.status(200).json(prescription);
+    const data = await PrescriptionService.getById(req.params.id);
+    res.json(data);
   } catch (err) {
     next(err);
   }

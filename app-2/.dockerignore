@@ -1,0 +1,41 @@
+# --- Security: Secrets & Credentials ---
+# Critical: Never copy environment variable files into the image
+.env
+.env.local
+.env.*
+
+# Critical: Ignore git history (contains author info and potential old secrets)
+.git
+.gitignore
+
+# --- Dependencies & Build Artifacts ---
+# ignore local node_modules to force a clean install inside Docker (npm ci)
+# This prevents architecture mismatches (e.g., Mac vs Linux binaries)
+node_modules
+npm-debug.log
+build/
+dist/
+
+# --- CI/CD & Docker Metadata ---
+# The container doesn't need to contain its own build instructions
+Dockerfile
+.dockerignore
+docker-compose.yml
+.github
+.gitlab-ci.yml
+
+# --- Testing & Quality Reports ---
+# Production images do not need test suites or coverage reports
+tests
+__tests__
+coverage
+.eslintrc
+.prettierrc
+jest.config.js
+
+# --- Miscellaneous ---
+# Logs and Snyk reports
+*.log
+snyk_report.html
+README.md
+SECURITY.md

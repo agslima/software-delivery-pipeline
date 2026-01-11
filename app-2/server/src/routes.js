@@ -1,6 +1,12 @@
-const router = require('express').Router();
+const express = require('express');
 const prescriptionRoutes = require('./modules/prescription/prescription.routes');
+const authRoutes = require('./modules/auth/auth.routes');
+const healthRoutes = require('./modules/health/health.routes');
 
-router.use('/v1/prescriptions', prescriptionRoutes);
+const router = express.Router();
+
+router.use('/auth', authRoutes);
+router.use('/prescriptions', prescriptionRoutes);
+router.use('/health', healthRoutes);
 
 module.exports = router;
