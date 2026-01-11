@@ -224,18 +224,23 @@ This model explicitly defends against:
 ### Verify Image Signature
 
 ```bash
-cosign verify \
-  --certificate-identity-regexp "https://github.com/agslima/secure-app-analysis/.*" \
-  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
-  docker.io/agslima/software-delivery-pipeline:latest
+# 1. Export the "Golden Release" Image URL
+export IMAGE="docker.io/agslima/software-delivery-pipeline:v1.0.0"
+
+# 2. Verify the signature against the OpenID Connect (OIDC) identity
+cosign verify "$IMAGE" \
+  --certificate-identity-regexp "[https://github.com/agslima/software-delivery-pipeline/](https://github.com/agslima/software-delivery-pipeline/).*" \
+  --certificate-oidc-issuer "[https://token.actions.githubusercontent.com](https://token.actions.githubusercontent.com)" | jq .
   ```
 
 ### Verify SLSA Provenance
 
 ```bash
-gh attestation verify oci://docker.io/agslima/software-delivery-pipeline:latest \
-  --owner agslima \
-  --repo secure-app-analysis
+# Verify the attestation (SLSA Level 3)
+cosign verify-attestation "$IMAGE" \
+  --type slsaprovenance \
+  --certificate-identity-regexp "[https://github.com/agslima/software-delivery-pipeline/](https://github.com/agslima/software-delivery-pipeline/).*" \
+  --certificate-oidc-issuer "[https://token.actions.githubusercontent.com](https://token.actions.githubusercontent.com)" | jq .payload -r | base64 -d | jq .
   ```
 
 ### Verify active rules 

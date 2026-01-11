@@ -19,7 +19,7 @@ This repository demonstrates how to design a **governed software delivery system
 - Container images are **signed, attested, and policy-enforced at runtime**
 - Governance **cannot be bypassed**, even by developers with write access
 
-> **Note:** The application logic is intentionally simple. The value of this repository lies in the **delivery architecture, security controls, and governance model.**
+> **Note:** The application logic is intentionally simple. The value of this repository lies in the **delivery architecture, security controls, and governance model**.
 
 ## Project Overview 🛡️
 
@@ -32,6 +32,7 @@ Instead of focusing on tools alone or treating security as a checkbox,this proje
 - Move from “we ran scans” → “**we can prove policy compliance**”
 
 This is a full-stack reference implementation of a governed delivery pipeline, designed to showcase:
+
 - DevOps & Platform Engineering practices
 - Software supply-chain design
 - Risk-based security decision-making
@@ -39,7 +40,7 @@ This is a full-stack reference implementation of a governed delivery pipeline, d
 
 The application exists only to **exercise the pipeline**.
 
---- 
+---
 
 ## Engineering Goals
 
@@ -54,6 +55,7 @@ The architecture was designed to satisfy three core **non-functional requirement
 ### 2. Traceability
 
 Every container image is:
+
 - Built from a specific Git commit
 - Signed using keyless Sigstore (OIDC-bound identity)
 - Attested with:
@@ -141,14 +143,14 @@ For more details on how is enforce branch protection, code ownership, and releas
   - Actively scans runtime behavior (headers, cookies, misconfigurations)
   - Debug-friendly failure handling (container logs preserved)
   - ZAP results are captured and attested, not used as raw CI output
- 
+
   ### Layer 3: Supply Chain Guarantees (SLSA Level 3)
   
 - **Cosign (Keyless):** OIDC-bound image signing
 - **SLSA Provenance:** Verifiable build identity and process
 - **Syft:** SPDX-formatted SBOM for transparency and future incident response
 - **Typed Attestations:** Cryptographic proof that scans (Trivy/ZAP) actually occurred.
- 
+
   ### Layer 4: Delivery (GitOps)
 
 - **Kyverno:** Validates the updated manifests against cluster policies before committing to the repo.
