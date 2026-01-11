@@ -227,7 +227,7 @@ To validate the effectiveness of the delivery control plane, a legacy applicatio
 
 You don't have to trust this documentation. You can cryptographically verify the artifacts yourself.
 
-**Prerequisite:** Install ![Cosign](https://docs.sigstore.dev/system_config/installation/)
+**Prerequisite:** Install [Cosign](https://docs.sigstore.dev/system_config/installation/)
 
 ### 1. Verify the Signature
 
