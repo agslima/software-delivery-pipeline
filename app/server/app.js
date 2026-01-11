@@ -2,8 +2,7 @@
 const express = require("express");
 const path = require("path");
 const RateLimit = require("express-rate-limit");
-const helmet = require("helmet"); // Security addition
-
+const helmet = require("helmet"); 
 const app = express();
 
 
@@ -13,7 +12,7 @@ app.use(helmet({
     useDefaults: true,
     directives: {
       "default-src": ["'self'"],
-      "script-src": ["'self'"], // Removes wildcards
+      "script-src": ["'self'"],
       "object-src": ["'none'"],
       "upgrade-insecure-requests": [],
     },
@@ -81,7 +80,6 @@ app.get("/api/prescription", (req, res) => {
 });
 
 // 5. Static Files (React Frontend)
-// We use path.resolve to be safe with directory context
 const publicPath = path.resolve(__dirname, "../public");
 app.use(express.static(publicPath));
 
@@ -90,5 +88,5 @@ app.get("*", (req, res) => {
     res.sendFile(path.join(publicPath, "index.html"));
 });
 
-// Export the app (Do not listen here!)
+// Export the app
 module.exports = app;
