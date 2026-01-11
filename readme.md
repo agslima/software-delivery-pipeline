@@ -161,9 +161,9 @@ For more details on how is enforce branch protection, code ownership, and releas
 ### GitOps Enforcement
 
 - The pipeline utilizes a **Push-based GitOps** model.
-​- CI updates Kubernetes manifests with the **immutable image digest** of the newly signed artifact.
-- ​A Pull Request is automatically opened to the GitOps branch.
-​- **Constraint:** CI cannot commit to main directly; it must pass the same policy checks as a human developer.
+- CI updates Kubernetes manifests with the **immutable image digest** of the newly signed artifact.
+- A Pull Request is automatically opened to the GitOps branch.
+- **Constraint:** CI cannot commit to main directly; it must pass the same policy checks as a human developer.
 
 ### Runtime Admission Control
 
