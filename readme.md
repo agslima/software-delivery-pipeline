@@ -2,10 +2,10 @@
 
 ## A Production-Grade CI/CD, Supply Chain & Governance Reference
 
-[![CD/CD Status](https://github.com/agslima/secure-app-analysis/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/agslima/secure-app-analysis/actions/workflows/ci-cd.yml)
+[![CI/CD Status](https://github.com/agslima/secure-app-analysis/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/agslima/secure-app-analysis/actions/workflows/ci-cd.yml)
+[![Latest Release](https://img.shields.io/github/v/release/agslima/software-delivery-pipeline?label=Latest%20Verifiable%20Release&color=success)](https://github.com/agslima/software-delivery-pipeline/releases/latest)
 [![SLSA](https://img.shields.io/badge/SLSA-Level%203-blue?logo=linuxfoundation)](https://github.com/agslima/software-delivery-pipeline/attestations)
 [![Infrastructure: Kubernetes](https://img.shields.io/badge/Infra-Kubernetes-326CE5?logo=kubernetes&logoColor=white)](https://github.com/agslima/software-delivery-pipeline/tree/main/k8s)
-[![Security: Snyk](https://img.shields.io/badge/Security-Snyk-4C4A73.svg?logo=snyk&logoColor=white)](https://snyk.io/)
 [![Security: Trivy](https://img.shields.io/badge/Container-Trivy-0077C2.svg?logo=aquasecurity&logoColor=white)](https://github.com/aquasecurity/trivy)
 [![Security: ZAP](https://img.shields.io/badge/DAST-OWASP%20ZAP-blue?logo=owasp&logoColor=white)](https://www.zaproxy.org/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-lightgrey.svg)](https://opensource.org/licenses/Apache-2.0)
@@ -23,9 +23,9 @@ This repository demonstrates how to design a **governed software delivery system
 
 ## Project Overview 🛡️
 
-While modern projects routinely use tools like Trivy, ZAP, and GitHub Actions, this repository tries to answer a different question:**How do we prevent those controls from being silently bypassed?**
+While modern projects routinely use tools like Trivy, ZAP, and GitHub Actions, this repository tries to answer a different question: **How do we prevent those controls from being silently bypassed?**
 
-Instead of focusing on tools alone or treating security as a checkbox,this project serves as a reference implementation for **Governance-as-Code**, demonstrating how to:
+Instead of focusing on tools alone or treating security as a checkbox, this project serves as a reference implementation for **Governance-as-Code**, demonstrating how to:
 
 - Enforce **security and quality guarantees structurally**
 - Treat CI/CD as **part of the system architecture**
@@ -75,8 +75,6 @@ Security is treated as **policy-driven**, not “pass/fail everywhere”:
 
 ## Delivery Architecture (CI/CD as a Control Plane)
 
-### CI/CD as a Control Plane
-
 GitHub Actions is used intentionally as the **delivery control plane**.
 
 #### Why GitHub Actions?
@@ -86,7 +84,7 @@ GitHub Actions is used intentionally as the **delivery control plane**.
 - No external CI trust boundary
 - Clear audit trail from commit → artifact → deployment
 
-### Delivery Architecture
+### Pipeline Flow
 
 ```mermaid
 
@@ -129,7 +127,6 @@ For more details on how is enforce branch protection, code ownership, and releas
 
 - **Unit Tests (TDD)**
 - **Gitleaks:** Secret detection
-- **Snyk (SAST/SCA):** Analyzes source code and dependency trees
 - **Trivy (FS / IaC)**:
   - Dependency vulnerabilities
   - Kubernetes misconfigurations
@@ -144,14 +141,14 @@ For more details on how is enforce branch protection, code ownership, and releas
   - Debug-friendly failure handling (container logs preserved)
   - ZAP results are captured and attested, not used as raw CI output
 
-  ### Layer 3: Supply Chain Guarantees (SLSA Level 3)
+### Layer 3: Supply Chain Guarantees (SLSA Level 3)
   
 - **Cosign (Keyless):** OIDC-bound image signing
 - **SLSA Provenance:** Verifiable build identity and process
 - **Syft:** SPDX-formatted SBOM for transparency and future incident response
 - **Typed Attestations:** Cryptographic proof that scans (Trivy/ZAP) actually occurred.
 
-  ### Layer 4: Delivery (GitOps)
+### Layer 4: Delivery (GitOps)
 
 - **Kyverno:** Validates the updated manifests against cluster policies before committing to the repo.
   
@@ -162,9 +159,9 @@ For more details on how is enforce branch protection, code ownership, and releas
 ### GitOps Enforcement
 
 - The pipeline utilizes a **Push-based GitOps** model.
-​- CI updates Kubernetes manifests with the **immutable image digest** of the newly signed artifact.
-- ​A Pull Request is automatically opened/merged to the GitOps branch.
-​- **Constraint:** CI cannot commit to main directly; it must pass the same policy checks as a human developer.
+- CI updates Kubernetes manifests with the **immutable image digest** of the newly signed artifact.
+- A Pull Request is automatically opened to the GitOps branch.
+- **Constraint:** CI cannot commit to main directly; it must pass the same policy checks as a human developer.
 
 ### Runtime Admission Control
 
@@ -174,7 +171,7 @@ For more details on how is enforce branch protection, code ownership, and releas
 - **​Attestation Checks:** Does this image have a SLSA provenance?
 - **​Identity Validation:** Was this image built by the trusted CI workflow?
 
-**​Result:** If a developer tries to deploy an unsigned image (even manually), the cluster rejects it.
+**Result:** If a developer tries to deploy an unsigned image (even manually), the cluster rejects it.
 
 ### Break-Glass (Emergency Access)
 
@@ -210,7 +207,7 @@ To validate the effectiveness of the delivery control plane, a legacy applicatio
 | :--- | :---: | :---: | :--- |
 | **Critical** | 27 | 0 | ✅ Fixed |
 | **High** | 116 | 0 | ✅ Fixed |
-| **Medium** | 191 | 0 | ✅ Fixed (29/12/2025) |
+| **Medium** | 191 | 0 | ✅ Fixed |
 | **Low** | 345 | 2 | ℹ️ Managed Debt |
 
 > This demonstrates risk-based decision making, not absolute zero-tolerance — a more realistic production posture.
@@ -223,6 +220,26 @@ To validate the effectiveness of the delivery control plane, a legacy applicatio
 | ![image](https://github.com/agslima/secure-app-analysis/blob/main/docs/images/scan-snyk-01.png) | ![image](https://github.com/agslima/secure-app-analysis/blob/main/docs/images/scan-snyk-02.png) |
 
 ---
+
+## Verification (How to Audit)
+
+You don't have to trust this documentation. You can cryptographically verify the artifacts yourself.
+
+**Prerequisite:** Install [Cosign](https://docs.sigstore.dev/system_config/installation/)
+
+### 1. Verify the Signature
+
+Check that the image was signed by this specific GitHub Repository's CI pipeline using Keyless OIDC.
+
+```bash
+# 1. Export the Release Image URL (Replace tag with latest version)
+export IMAGE="docker.io/agslima/software-delivery-pipeline:v1.0.0"
+
+# 2. Verify the signature against the OpenID Connect (OIDC) identity
+cosign verify "$IMAGE" \
+  --certificate-identity-regexp "[https://github.com/agslima/software-delivery-pipeline](https://github.com/agslima/software-delivery-pipeline).*" \
+  --certificate-oidc-issuer "[https://token.actions.githubusercontent.com](https://token.actions.githubusercontent.com)" | jq .
+```
 
 ## Local Development & Testing
 
@@ -249,9 +266,7 @@ npm start
 - **Governance:** Kyverno
 - **Containers:** Docker
 - **Frontend/Backend:** React /Node.js
-
-> The application stack is intentionally simple — the focus is on delivery architecture, not framework complexity.
-
+  
 ---
 
 ## What This Repository Demonstrates
@@ -266,6 +281,13 @@ npm start
 
 - ❌ A framework comparison
 - ❌ A zero-vulnerability application
+
+---
+
+## Role Alignment
+
+- **DevOps Engineers:** CI/CD design, GitOps workflows, release governance
+- **Platform Engineers:** Policy enforcement, admission control, supply-chain trust
 
 ---
 
