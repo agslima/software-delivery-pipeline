@@ -1,6 +1,8 @@
 const express = require('express');
 const controller = require('./prescription.controller');
 const authMiddleware = require('../../middlewares/auth.middleware');
+const validate = require('../../middlewares/validate.middleware'); // Import Generic Validator
+const { getPrescriptionSchema } = require('./prescription.schema'); // Import Specific Schema
 const RateLimit = require('express-rate-limit');
 
 const router = express.Router();
@@ -14,6 +16,7 @@ router.get(
   '/:id',
   getPrescriptionLimiter,
   authMiddleware,
+  validate(getPrescriptionSchema, 'params'),
   controller.getPrescription
 );
 

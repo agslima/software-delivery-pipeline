@@ -1,5 +1,10 @@
 const Joi = require('joi');
 
+// Schema for validating URL parameters (e.g. /:id)
+exports.getPrescriptionSchema = Joi.object({
+  id: Joi.string().alphanum().min(3).max(30).required()
+});
+
 module.exports = Joi.object({
   id: Joi.string().required(),
   clinicName: Joi.string().required(),

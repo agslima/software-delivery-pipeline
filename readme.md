@@ -77,7 +77,7 @@ Security is treated as **policy-driven**, not “pass/fail everywhere”:
 
 GitHub Actions is used intentionally as the **delivery control plane**.
 
-#### Why GitHub Actions?
+### Why GitHub Actions?
 
 - Pipeline logic is versioned with the code
 - Branch protection and CODEOWNERS enforce governance before CI runs
