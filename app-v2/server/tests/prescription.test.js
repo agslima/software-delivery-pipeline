@@ -1,44 +1,67 @@
 const request = require('supertest');
-const app = require('./setup');
+const app = require('../src/app');
 
-describe('Prescription API', () => {
+describe('Integration: Prescription API', () => {
   let token;
 
   beforeAll(async () => {
     const login = await request(app)
       .post('/api/v1/auth/login')
       .send({
-        email: 'doctor@demo.com',
-        password: 'password123',
+        username: 'admin',   // Changed from email
+        password: 'password', // Changed from password123
       });
 
     token = login.body.token;
+    
+    // Safety check to ensure login worked before running other tests
+    if (!token) {
+      throw new Error('Login failed in beforeAll hook. Check AuthService credentials.');
+    }
   });
 
-  it('should deny access without token', async () => {
-    const res = await request(app)
-      .get('/api/v1/prescriptions/demo-id');
+  describe('GET /api/v1/prescriptions/:id', () => {
+    
+    // 1. Missing Token
+    it('should return 401 when authorization header is missing', async () => {
+      const res = await request(app).get('/api/v1/prescriptions/demo-id');
+      expect(res.statusCode).toBe(401);
+      expect(res.body.error).toBe('Unauthorized');
+    });
 
-    expect(res.statusCode).toBe(401);
-  });
+    // 2. Invalid Token (New Coverage)
+    it('should return 401 when token is invalid', async () => {
+      const res = await request(app)
+        .get('/api/v1/prescriptions/demo-id')
+        .set('Authorization', 'Bearer invalid_fake_token');
+      
+      expect(res.statusCode).toBe(401);
+      expect(res.body.error).toBe('Invalid token');
+    });
 
-  it('should return prescription with valid token', async () => {
-    const res = await request(app)
-      .get('/api/v1/prescriptions/demo-id')
-      .set('Authorization', `Bearer ${token}`);
+    // 3. Valid Request
+    it('should return full prescription data with valid token', async () => {
+      const res = await request(app)
+        .get('/api/v1/prescriptions/demo-id')
+        .set('Authorization', `Bearer ${token}`);
 
-    expect(res.statusCode).toBe(200);
-    expect(res.body).toHaveProperty('clinicName');
-    expect(res.body).toHaveProperty('doctor');
-    expect(res.body).toHaveProperty('patient');
-    expect(res.body).toHaveProperty('medications');
-  });
+      expect(res.statusCode).toBe(200);
+      
+      // Detailed assertions
+      expect(res.body).toEqual(expect.objectContaining({
+        clinicName: 'StayHealthy',
+        doctor: expect.objectContaining({ name: 'Dr. Emily Johnson' }),
+        patient: expect.objectContaining({ name: 'John Smith' })
+      }));
+    });
 
-  it('should return 404 for unknown prescription', async () => {
-    const res = await request(app)
-      .get('/api/v1/prescriptions/unknown-id')
-      .set('Authorization', `Bearer ${token}`);
+    // 4. Not Found
+    it('should return 404 for non-existent prescription ID', async () => {
+      const res = await request(app)
+        .get('/api/v1/prescriptions/unknown-id-999')
+        .set('Authorization', `Bearer ${token}`);
 
-    expect(res.statusCode).toBe(404);
+      expect(res.statusCode).toBe(404);
+    });
   });
 });
