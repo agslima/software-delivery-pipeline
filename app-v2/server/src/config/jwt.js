@@ -1,4 +1,7 @@
+const env = require('./env'); // Import validated config
+
 module.exports = {
-  secret: process.env.JWT_SECRET || 'test-secret',
-  expiresIn: '1h'
+  // We can safely access env.JWT_SECRET because envalid guarantees it exists
+  secret: env.JWT_SECRET,
+  expiresIn: '1h',
 };

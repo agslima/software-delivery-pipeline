@@ -1,8 +1,9 @@
 const pino = require('pino');
+const env = require('../config/env');
 
 const logger = pino({
-  level: process.env.LOG_LEVEL || 'info',
-  base: undefined, // removes pid, hostname if desired
+  level: env.LOG_LEVEL, 
+  base: undefined,
 });
 
 module.exports = logger;

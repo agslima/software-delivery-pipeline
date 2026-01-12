@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   frontend:
     build:
@@ -18,6 +16,8 @@ services:
       NODE_ENV: production
       PORT: 8080
       LOG_LEVEL: info
+      JWT_SECRET: ${JWT_SECRET:-super_secure_docker_secret_123} 
+      CLIENT_DIST_PATH: ../client/dist
     volumes:
       - client-dist:/app/client/dist
     depends_on:

@@ -14,7 +14,7 @@
 node_modules
 npm-debug.log
 build/
-dist/
+#dist/
 
 # --- CI/CD & Docker Metadata ---
 # The container doesn't need to contain its own build instructions
