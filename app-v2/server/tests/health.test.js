@@ -1,12 +1,14 @@
 const request = require('supertest');
-const app = require('./setup');
+const app = require('../src/app');
 
-describe('GET /health', () => {
-  it('should return system health', async () => {
+describe('Health Check', () => {
+  it('should return 200 OK at /health', async () => {
     const res = await request(app).get('/health');
-
+    
     expect(res.statusCode).toBe(200);
-    expect(res.body).toHaveProperty('status', 'ok');
-    expect(res.body).toHaveProperty('uptime');
+    expect(res.body).toEqual({
+      status: 'ok',
+      uptime: expect.any(Number)
+    });
   });
 });
