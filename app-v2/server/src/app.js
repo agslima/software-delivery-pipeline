@@ -13,6 +13,7 @@ const errorHandler = require('./middlewares/error-handler.middleware');
 
 // Health Check
 const healthRoutes = require('./modules/health/health.routes');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 
