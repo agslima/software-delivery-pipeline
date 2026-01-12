@@ -1,30 +1,20 @@
-//const data = require('./prescription.mock.json');
-
-//class PrescriptionService {
-//  static getById(id) {
-//    const prescription = data.find(p => p.id === id);
-
-//    if (!prescription) {
-//      const error = new Error('Prescription not found');
-//      error.statusCode = 404;
-//      throw error;
-//    }
-
-//    return prescription;
-// }
-//}
-
+// Mock Database
 const prescriptions = {
   'demo-id': {
     clinicName: 'StayHealthy',
     doctor: { name: 'Dr. Emily Johnson' },
     patient: { name: 'John Smith' },
-    medications: []
+    medications: [
+      { name: 'Amoxicillin', dosage: '500mg' }
+    ]
   }
 };
 
 class PrescriptionService {
-  static async getById(id) {
+
+  constructor() {}
+
+  async getById(id) {
     const prescription = prescriptions[id];
 
     if (!prescription) {
@@ -38,4 +28,3 @@ class PrescriptionService {
 }
 
 module.exports = PrescriptionService;
-
