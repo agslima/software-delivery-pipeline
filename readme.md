@@ -75,8 +75,6 @@ Security is treated as **policy-driven**, not “pass/fail everywhere”:
 
 ## Delivery Architecture (CI/CD as a Control Plane)
 
-### CI/CD as a Control Plane
-
 GitHub Actions is used intentionally as the **delivery control plane**.
 
 #### Why GitHub Actions?
@@ -86,7 +84,7 @@ GitHub Actions is used intentionally as the **delivery control plane**.
 - No external CI trust boundary
 - Clear audit trail from commit → artifact → deployment
 
-### Delivery Architecture
+### Pipeline Flow
 
 ```mermaid
 
