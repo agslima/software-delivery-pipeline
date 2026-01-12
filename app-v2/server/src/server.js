@@ -1,6 +1,6 @@
 const app = require('./app');
-const { port } = require('./config/env');
+const env = require('./config/env'); // Import validated config
 
-app.listen(port, '0.0.0.0', () => {
-  console.log(`Server running on port ${port}`);
+app.listen(env.PORT, '0.0.0.0', () => {
+  console.log(`Server running on port ${env.PORT} in ${env.NODE_ENV} mode`);
 });

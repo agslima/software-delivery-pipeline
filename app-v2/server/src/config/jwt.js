@@ -1,4 +1,6 @@
+const env = require('./env'); // Import validated config
+
 module.exports = {
-  secret: process.env.JWT_SECRET || 'test-secret',
-  expiresIn: '1h'
+  secret: env.JWT_SECRET,
+  expiresIn: '1h',
 };
