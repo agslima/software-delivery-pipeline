@@ -1,10 +1,40 @@
 const express = require('express');
-const prescriptionRoutes = require('./modules/prescription/prescription.routes');
-const authRoutes = require('./modules/auth/auth.routes');
+const path = require('path');
+const cors = require('cors');
+const routes = require('./routes');
 
-const router = express.Router();
+const requestId = require('./middlewares/request-id.middleware');
+const httpLogger = require('./middlewares/http-logger.middleware');
+const errorHandler = require('./middlewares/error-handler.middleware');
 
-router.use('/auth', authRoutes);
-router.use('/prescriptions', prescriptionRoutes);
+const healthRoutes = require('./modules/health/health.routes');
 
-module.exports = router;
+const app = express();
+
+// --- 1. Global Middleware ---
+app.use(cors()); 
+app.use(express.json());
+app.use(requestId);
+
+if (process.env.NODE_ENV !== 'test') {
+  app.use(httpLogger);
+}
+
+// --- 2. Static Files (Frontend Integration) ---
+// Serve the React build output
+app.use(express.static(path.join(__dirname, '../../client/dist')));
+
+// --- 3. Routes ---
+app.use('/health', healthRoutes);
+
+app.use('/api/v1', routes);
+
+// --- 4. Catch-All (SPA Support) ---
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../../client/dist/index.html'));
+});
+
+// --- 5. Error Handling ---
+app.use(errorHandler);
+
+module.exports = app;
