@@ -17,7 +17,6 @@ const rateLimit = require('express-rate-limit');
 
 const app = express();
 
-// ✅ FIX: Define this variable at the top level so it can be used in multiple places
 const clientDistPath = path.join(__dirname, env.CLIENT_DIST_PATH);
 
 // 1. Global Middleware
@@ -41,7 +40,6 @@ app.use('/health', healthRoutes);
 app.use('/api/v1', routes);
 
 // 5. Catch-All (SPA Support)
-// Now 'clientDistPath' is visible here!
 app.get('*', (req, res) => {
   res.sendFile(path.join(clientDistPath, 'index.html'));
 });
