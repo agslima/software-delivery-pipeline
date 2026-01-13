@@ -16,14 +16,20 @@ const env = cleanEnv(process.env, {
     default: 'info'
   }),
 
-  // 2. Security Config (No defaults = Required)
-  // If this is missing, the app will CRASH with a clear error message.
+  // 2. Security Config (Required)
   JWT_SECRET: str({ 
     desc: 'Critical secret for signing JWT tokens' 
   }),
+
+  ADMIN_USER: str({
+    desc: 'Username for the admin account',
+    example: 'admin'
+  }),
+  ADMIN_PASS: str({
+    desc: 'Secure password for the admin account'
+  }),
   
-  // DB integration:
-  // DB_URL: url({ desc: 'PostgreSQL Connection String' }),
+  // 3. Paths
   CLIENT_DIST_PATH: str({ default: '../../client/dist' }),
 });
 
