@@ -6,13 +6,15 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node src/server.js",
+    "db:migrate": "knex migrate:latest --knexfile src/config/knexfile.js",
+    "db:seed": "knex seed:run --knexfile src/config/knexfile.js",
     "test": "jest --runInBand",
     "test:unit": "jest tests/unit",
     "test:int": "jest tests/integration --runInBand",
     "test:watch": "jest tests/unit --watch",
     "test:coverage": "jest --coverage"
   },
- "jest": {
+  "jest": {
     "testEnvironment": "node",
     "testMatch": [
       "**/tests/**/*.test.js"
@@ -35,6 +37,8 @@
     "helmet": "^7.2.0",
     "joi": "^18.0.2",
     "jsonwebtoken": "^9.0.2",
+    "knex": "^3.1.0",
+    "pg": "^8.16.3",
     "pino": "^8.17.0",
     "pino-http": "^9.0.0",
     "swagger-jsdoc": "^6.2.8",
