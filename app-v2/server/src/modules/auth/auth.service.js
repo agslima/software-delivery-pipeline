@@ -1,4 +1,4 @@
-const { adminUser, adminPass } = require('../../config/env');
+const { ADMIN_USER, ADMIN_PASS } = require('../../config/env');
 
 class AuthService {
   constructor(tokenService) {
@@ -6,11 +6,12 @@ class AuthService {
   }
 
   login({ username, password }) {
-    if (!adminUser || !adminPass) {
-      throw new Error('Server misconfiguration: Missing admin credentials');
+    // Check for missing configuration (Fail Fast)
+    if (!ADMIN_USER || !ADMIN_PASS) {
+      throw new Error('Server misconfiguration: Admin credentials not set.');
     }
 
-    if (username !== adminUser || password !== adminPass) {
+    if (username !== ADMIN_USER || password !== ADMIN_PASS) {
       throw new Error('INVALID_CREDENTIALS');
     }
 
