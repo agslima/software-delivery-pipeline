@@ -33,7 +33,6 @@ const options = {
       },
     ],
   },
-  // Look for docs in these files
   apis: ['./src/modules/**/*.routes.js', './src/modules/**/*.schema.js'], 
 };
 

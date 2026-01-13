@@ -1,6 +1,6 @@
 const PrescriptionService = require('./prescription.service');
 
-// ✅ Instantiate the service (Dependency Injection Lite)
+// Instantiate the service (Dependency Injection Lite)
 const prescriptionService = new PrescriptionService();
 
 exports.getPrescription = async (req, res, next) => {

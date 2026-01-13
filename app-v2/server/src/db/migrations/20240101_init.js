@@ -1,6 +1,6 @@
 exports.up = function(knex) {
   return knex.schema.createTable('prescriptions', (table) => {
-    table.string('id').primary(); // 'demo-id'
+    table.string('id').primary(); 
     table.string('clinic_name').notNullable();
     table.string('date').notNullable();
     

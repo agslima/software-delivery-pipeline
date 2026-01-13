@@ -1,7 +1,7 @@
 require('dotenv').config();
-const { cleanEnv, str, port, url } = require('envalid');
+const { cleanEnv, str, port } = require('envalid');
 
-// Check if we are in a test environment (CI/CD or local testing)
+// Check test environment (CI/CD or local testing)
 const isTest = process.env.NODE_ENV === 'test';
 
 const env = cleanEnv(process.env, {

@@ -9,7 +9,7 @@ const db = knex({
     password: DB_PASS,
     database: DB_NAME,
   },
-  pool: { min: 2, max: 10 }, // Manage connections efficiently
+  pool: { min: 2, max: 10 }, // Manage connections
 });
 
 module.exports = db;
