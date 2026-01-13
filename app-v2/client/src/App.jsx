@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getPrescription, login } from './api/prescriptionApi';
-import Login from './components/Login';
+import Login from './components/Login'; 
 import './styles/global.css';
 import './styles/Prescription.css';
 
@@ -12,12 +12,11 @@ export default function App() {
   // Handle user login action
   const handleLogin = async (username, password) => {
     const fetchedToken = await login(username, password);
-    setToken(fetchedToken); // Store token in state (memory)
+    setToken(fetchedToken); // Store token in state
   };
 
-  // Fetch data only when we have a token
   useEffect(() => {
-    if (!token) return;
+    if (!token) return; 
 
     getPrescription('demo-id', token)
       .then(setData)
@@ -55,7 +54,7 @@ export default function App() {
           <strong>Date:</strong> {data.date}
         </div>
       </header>
-
+      
        <section className="info-grid">
         <div>
           <div className="section-title">Patient Details</div>

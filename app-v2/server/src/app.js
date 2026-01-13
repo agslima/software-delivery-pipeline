@@ -29,23 +29,16 @@ app.set('trust proxy', 1);
 app.use(helmet()); 
 app.disable('x-powered-by');
 
-// Strict CORS Policy (Updated for Local Docker Testing)
 const corsOptions = {
   origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, curl, etc.)
     if (!origin) return callback(null, true);
-    
-    // Define allowed origins
-    const allowedOrigins = [
-      'https://stayhealthy.com',        // Actual Production Domain
-      'http://localhost:5173',          // Vite Dev Server
-      'http://localhost:4173',          // Vite Preview (Docker Frontend)
-      'http://localhost:8080'           // Backend / Self
-    ];
+
+    const allowedOrigins = env.CORS_ORIGIN.split(',');
 
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
+      console.error(`Blocked by CORS: ${origin}`); 
       callback(new Error('Not allowed by CORS'));
     }
   },
@@ -53,8 +46,7 @@ const corsOptions = {
   allowedHeaders: ['Content-Type', 'Authorization'],
 };
 
-// Apply the strict configuration
-app.use(cors(corsOptions)); 
+app.use(cors(corsOptions));
 
 app.use(express.json());
 app.use(requestId);

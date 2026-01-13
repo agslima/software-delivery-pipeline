@@ -19,21 +19,15 @@ const env = cleanEnv(process.env, {
     default: isTest ? 'silent' : 'info' // Silence logs during tests
   }),
 
-  // 2. Security Config
-  // TRICK: validation will fail in Prod if missing, but pass in Test with a default.
-  JWT_SECRET: str({ 
-    desc: 'Critical secret for signing JWT tokens',
-    default: isTest ? 'test-jwt-secret' : undefined 
+  CORS_ORIGIN: str({
+    desc: 'Comma-separated list of allowed CORS origins',
+    default: 'http://localhost:5173,http://localhost:4173,http://localhost:8080'
   }),
 
-  ADMIN_USER: str({
-    desc: 'Username for the admin account',
-    default: isTest ? 'admin' : undefined
-  }),
-  ADMIN_PASS: str({
-    desc: 'Secure password for the admin account',
-    default: isTest ? 'password' : undefined
-  }),
+  // 2. Security Config
+  JWT_SECRET: str({ desc: 'Secret for signing tokens' }),
+  ADMIN_USER: str({ desc: 'Admin username' }),
+  ADMIN_PASS: str({ desc: 'Admin password' }),
   
   // 3. Paths
   CLIENT_DIST_PATH: str({ default: '../../client/dist' }),

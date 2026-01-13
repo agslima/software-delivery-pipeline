@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import '../styles/Prescription.css'; 
+import '../styles/Prescription.css';
 
 export default function Login({ onLogin }) {
   const [username, setUsername] = useState('');
@@ -9,7 +9,6 @@ export default function Login({ onLogin }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    
     try {
       await onLogin(username, password);
     } catch (err) {
