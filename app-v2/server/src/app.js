@@ -19,6 +19,12 @@ const app = express();
 
 const clientDistPath = path.join(__dirname, env.CLIENT_DIST_PATH);
 
+// Rate limiter for SPA catch-all route
+const spaLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 1000, // limit each IP to 1000 requests per windowMs for SPA index
+});
+
 // 1. Global Middleware
 app.use(cors());
 app.use(express.json());
@@ -40,7 +46,7 @@ app.use('/health', healthRoutes);
 app.use('/api/v1', routes);
 
 // 5. Catch-All (SPA Support)
-app.get('*', (req, res) => {
+app.get('*', spaLimiter, (req, res) => {
   res.sendFile(path.join(clientDistPath, 'index.html'));
 });
 
