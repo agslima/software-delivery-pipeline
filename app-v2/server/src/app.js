@@ -5,14 +5,11 @@ const helmet = require('helmet');
 const routes = require('./routes');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./config/swagger');
-const env = require('./config/env'); // Import env config
+const env = require('./config/env');
 
-// Middlewares
 const requestId = require('./middlewares/request-id.middleware');
 const httpLogger = require('./middlewares/http-logger.middleware');
 const errorHandler = require('./middlewares/error-handler.middleware');
-
-// Health Check
 const healthRoutes = require('./modules/health/health.routes');
 const rateLimit = require('express-rate-limit');
 
@@ -20,17 +17,45 @@ const app = express();
 
 const clientDistPath = path.join(__dirname, env.CLIENT_DIST_PATH);
 
-// Rate limiter for SPA catch-all route
 const spaLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1000, // limit each IP to 1000 requests per windowMs for SPA index
+  windowMs: 15 * 60 * 1000, 
+  max: 1000, 
 });
 
+// Trust Proxy (Required for Docker/Rate Limiting)
+app.set('trust proxy', 1);
+
+// Helmet
 app.use(helmet()); 
 app.disable('x-powered-by');
 
-// Global Middleware
-app.use(cors()); 
+// Strict CORS Policy (Updated for Local Docker Testing)
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+    
+    // Define allowed origins
+    const allowedOrigins = [
+      'https://stayhealthy.com',        // Actual Production Domain
+      'http://localhost:5173',          // Vite Dev Server
+      'http://localhost:4173',          // Vite Preview (Docker Frontend)
+      'http://localhost:8080'           // Backend / Self
+    ];
+
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+};
+
+// Apply the strict configuration
+app.use(cors(corsOptions)); 
+
 app.use(express.json());
 app.use(requestId);
 
