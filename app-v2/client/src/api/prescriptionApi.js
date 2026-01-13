@@ -1,3 +1,4 @@
+// 1. Explicit Login Function (Called by the Login Form)
 export async function login(username, password) {
   const response = await fetch('/api/v1/auth/login', {
     method: 'POST',
@@ -12,10 +13,12 @@ export async function login(username, password) {
   const data = await response.json();
   return data.token;
 }
+
+// 2. Data Fetch Function (Expects token to be passed in)
 export async function getPrescription(id, token) {
   const response = await fetch(`/api/v1/prescriptions/${id}`, {
     headers: {
-      'Authorization': `Bearer ${token}` 
+      'Authorization': `Bearer ${token}` // Use the token from the user
     }
   });
 

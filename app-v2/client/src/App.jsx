@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getPrescription, login } from './api/prescriptionApi';
-import Login from './components/Login'; 
+import Login from './components/Login';
 import './styles/global.css';
 import './styles/Prescription.css';
 
@@ -15,8 +15,9 @@ export default function App() {
     setToken(fetchedToken); // Store token in state
   };
 
+  // Fetch data ONLY when we have a token
   useEffect(() => {
-    if (!token) return; 
+    if (!token) return;
 
     getPrescription('demo-id', token)
       .then(setData)
