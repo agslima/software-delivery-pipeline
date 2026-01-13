@@ -31,6 +31,12 @@ const env = cleanEnv(process.env, {
   
   // 3. Paths
   CLIENT_DIST_PATH: str({ default: '../../client/dist' }),
+
+  // 4. Database Config
+  DB_HOST: str({ default: 'localhost' }), // 'postgres' in Docker, 'localhost' in local dev
+  DB_USER: str({ desc: 'Database User' }),
+  DB_PASS: str({ desc: 'Database Password' }),
+  DB_NAME: str({ desc: 'Database Name' }),
 });
 
 module.exports = env;
