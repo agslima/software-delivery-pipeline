@@ -1,6 +1,7 @@
 const express = require('express');
 const path = require('path');
 const cors = require('cors');
+const helmet = require('helmet');
 const routes = require('./routes');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./config/swagger');
@@ -25,8 +26,11 @@ const spaLimiter = rateLimit({
   max: 1000, // limit each IP to 1000 requests per windowMs for SPA index
 });
 
-// 1. Global Middleware
-app.use(cors());
+app.use(helmet()); 
+app.disable('x-powered-by');
+
+// Global Middleware
+app.use(cors()); 
 app.use(express.json());
 app.use(requestId);
 
@@ -35,7 +39,6 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 // 2. Static Files (Frontend Integration)
-// Use the variable we defined above
 app.use(express.static(clientDistPath));
 
 // 3. Documentation & Health
