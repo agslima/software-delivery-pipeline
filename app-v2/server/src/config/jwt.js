@@ -1,4 +1,4 @@
-const env = require('./env'); // Import validated config
+const env = require('./env');
 
 module.exports = {
   secret: env.JWT_SECRET,

@@ -75,7 +75,7 @@
   margin-bottom: 20px;
 }
 
-/* --- Print Layout (The PDF Look) --- */
+/* --- Print Layout --- */
 @media print {
   body {
     background: white;
@@ -96,4 +96,51 @@
     background: none;
     padding-left: 0;
   }
+}
+
+/* --- Loading Spinner --- */
+.spinner {
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #3498db; /* Blue top */
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  animation: spin 1s linear infinite;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 8px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* --- Improved Error Message --- */
+.error-banner {
+  background-color: #fee2e2;
+  border: 1px solid #ef4444;
+  color: #b91c1c;
+  padding: 12px;
+  border-radius: 6px;
+  margin-bottom: 20px;
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+/* --- Centered Loading Container --- */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  color: #555;
+  font-family: sans-serif;
+}
+.loading-container .spinner {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 15px;
+  border-width: 4px;
 }

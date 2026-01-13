@@ -1,8 +1,7 @@
 exports.seed = async function(knex) {
-  // 1. Clear existing entries
   await knex('prescriptions').del();
 
-  // 2. Insert demo data matching your PDF
+  // 2. Insert demo data
   await knex('prescriptions').insert([
     {
       id: 'demo-id',

@@ -9,36 +9,60 @@ export default function App() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
 
-  // Handle user login action
   const handleLogin = async (username, password) => {
+    // Pass the raw error up to the Login component to handle visuals
     const fetchedToken = await login(username, password);
-    setToken(fetchedToken); // Store token in state
+    setToken(fetchedToken);
   };
 
-  // Fetch data ONLY when we have a token
   useEffect(() => {
     if (!token) return;
 
+    // Reset data when token changes (handle re-login)
+    setData(null);
+    setError(null);
+
     getPrescription('demo-id', token)
       .then(setData)
-      .catch(err => setError(err.message));
+      .catch(err => {
+        if (err.message === 'SESSION_EXPIRED') {
+            setToken(null); // Auto-logout
+        } else {
+            setError('Could not load patient record. ' + err.message);
+        }
+      });
   }, [token]);
 
-  // 1. Not Logged In? Show Login Screen
+  // 1. Show Login
   if (!token) {
     return <Login onLogin={handleLogin} />;
   }
 
-  // 2. Logged In but Error?
-  if (error) return <div className="error">Error: {error}</div>;
+  // 2. Show Main Loading Spinner (Fetching Data)
+  if (!data && !error) {
+    return (
+      <div className="loading-container">
+        <div className="spinner"></div>
+        <p>Decrypting patient record...</p>
+      </div>
+    );
+  }
 
-  // 3. Logged In and Loading?
-  if (!data) return <div className="loading">Decrypting patient record...</div>;
+  // 3. Show Critical Error (if fetching failed)
+  if (error) {
+     return (
+        <div className="container" style={{textAlign: 'center', marginTop: '50px'}}>
+            <div className="error-banner">{error}</div>
+            <button onClick={() => setToken(null)} className="print-btn">Back to Login</button>
+        </div>
+     );
+  }
 
-  // 4. Success - Show Prescription
+  // 4. Success UI (The Prescription)
   return (
     <div className="container">
-      <button onClick={() => window.print()} className="print-btn">
+      {/* ... (Keep your existing Prescription UI exactly as is) ... */}
+       <button onClick={() => window.print()} className="print-btn">
         🖨️ Print Official Prescription
       </button>
 
