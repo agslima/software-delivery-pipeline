@@ -1,30 +1,47 @@
 import { useEffect, useState } from 'react';
-import { getPrescription } from './api/prescriptionApi';
+import { getPrescription, login } from './api/prescriptionApi';
+import Login from './components/Login';
 import './styles/global.css';
-import './styles/Prescription.css'; // Import the new styles
+import './styles/Prescription.css';
 
 export default function App() {
+  const [token, setToken] = useState(null);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
 
+  // Handle user login action
+  const handleLogin = async (username, password) => {
+    const fetchedToken = await login(username, password);
+    setToken(fetchedToken); // Store token in state (memory)
+  };
+
+  // Fetch data only when we have a token
   useEffect(() => {
-    // Fetches securely using the 'demo-id'
-    getPrescription('demo-id')
+    if (!token) return;
+
+    getPrescription('demo-id', token)
       .then(setData)
       .catch(err => setError(err.message));
-  }, []);
+  }, [token]);
 
-  if (error) return <div className="error">Authentication Error: {error}</div>;
-  if (!data) return <div className="loading">Securely loading patient record...</div>;
+  // 1. Not Logged In? Show Login Screen
+  if (!token) {
+    return <Login onLogin={handleLogin} />;
+  }
 
+  // 2. Logged In but Error?
+  if (error) return <div className="error">Error: {error}</div>;
+
+  // 3. Logged In and Loading?
+  if (!data) return <div className="loading">Decrypting patient record...</div>;
+
+  // 4. Success - Show Prescription
   return (
     <div className="container">
-      {/* Print Button (Visible only on screen) */}
       <button onClick={() => window.print()} className="print-btn">
         🖨️ Print Official Prescription
       </button>
 
-      {/* Header matching PDF Source [1] */}
       <header className="header">
         <div>
           <div className="brand">{data.clinicName}</div>
@@ -39,8 +56,7 @@ export default function App() {
         </div>
       </header>
 
-      {/* Patient Info matching PDF Source [4] */}
-      <section className="info-grid">
+       <section className="info-grid">
         <div>
           <div className="section-title">Patient Details</div>
           <p>
@@ -58,7 +74,6 @@ export default function App() {
         </div>
       </section>
 
-      {/* Medications matching PDF Sources [1,2,3,5] */}
       <section>
         <div className="section-title">Prescribed Medications</div>
         {data.medications.map((med, index) => (
@@ -73,7 +88,6 @@ export default function App() {
         ))}
       </section>
 
-      {/* Footer matching PDF Source [7] */}
       <footer className="footer">
         <p>If there are any concerns, please contact {data.doctor.name}.</p>
         <p>{data.clinicName} - Official Medical Record</p>
