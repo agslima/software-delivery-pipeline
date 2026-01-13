@@ -12,10 +12,10 @@ export default function App() {
   // Handle user login action
   const handleLogin = async (username, password) => {
     const fetchedToken = await login(username, password);
-    setToken(fetchedToken); // Store token in state (memory)
+    setToken(fetchedToken); // Store token in state
   };
 
-  // Fetch data only when we have a token
+  // Fetch data ONLY when we have a token
   useEffect(() => {
     if (!token) return;
 
@@ -55,7 +55,7 @@ export default function App() {
           <strong>Date:</strong> {data.date}
         </div>
       </header>
-
+      
        <section className="info-grid">
         <div>
           <div className="section-title">Patient Details</div>

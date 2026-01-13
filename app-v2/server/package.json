@@ -12,19 +12,17 @@
     "test:watch": "jest tests/unit --watch",
     "test:coverage": "jest --coverage"
   },
-  "jest": {
+ "jest": {
     "testEnvironment": "node",
-    "verbose": true,
-    "setupFiles": [
-      "<rootDir>/tests/setup-env.js"
-    ],
     "testMatch": [
-      "**/*.test.js"
+      "**/tests/**/*.test.js"
+    ],
+    "setupFiles": [
+      "<rootDir>/tests/jest.setup.js"
     ],
     "collectCoverageFrom": [
       "src/**/*.js",
-      "!src/server.js",
-      "!src/routes.js"
+      "!src/server.js"
     ]
   },
   "dependencies": {

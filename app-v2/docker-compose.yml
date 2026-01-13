@@ -16,7 +16,10 @@ services:
       NODE_ENV: production
       PORT: 8080
       LOG_LEVEL: info
-      JWT_SECRET: ${JWT_SECRET:-super_secure_docker_secret_123} 
+      CORS_ORIGIN: ${CORS_ORIGIN}
+      JWT_SECRET: ${JWT_SECRET}
+      ADMIN_USER: ${ADMIN_USER}
+      ADMIN_PASS: ${ADMIN_PASS}
       CLIENT_DIST_PATH: ../client/dist
     volumes:
       - client-dist:/app/client/dist
