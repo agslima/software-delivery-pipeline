@@ -140,18 +140,16 @@ jobs:
           dockerfile: app/docker/Dockerfile.server
           failure-threshold: error
 
-      
-      - name: Setup Conftest
-        uses: princespaghetti/setup-conftest@v1 # Or @latest
-        with:
-          version: 'latest'
           
       # 2. DRIFT DETECTION (OPA / Conftest)
       - name: Policy Check - Dockerfile (OPA)
-        run: |
-          conftest test app/docker/Dockerfile.server \
-            --policy policies/dockerfile.rego \
-            --input dockerfile
+        uses: open-policy-agent/conftest-action@latest
+        with:
+          files: app/docker/Dockerfile.server
+          policy: policies/dockerfile.reg
+          output: stdout
+          args: --input dockerfile
+
           
       # 3. SCHEMA VALIDATION (Kubeconform)
       - name: Validate K8s Manifests (Kubeconform)
