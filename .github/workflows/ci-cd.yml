@@ -142,7 +142,7 @@ jobs:
 
       # 2. DRIFT DETECTION (OPA / Conftest)
       - name: Policy Check - Dockerfile (OPA)
-        uses: instrumenta/conftest-action@master 
+        uses: open-policy-agent/conftest-action@v1 #instrumenta/conftest-action@master 
         with:
           files: app/docker/Dockerfile.server
           policy: policies/dockerfile.rego
