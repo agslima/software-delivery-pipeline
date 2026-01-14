@@ -140,14 +140,18 @@ jobs:
           dockerfile: app/docker/Dockerfile.server
           failure-threshold: error
 
+      
+      - name: Setup Conftest
+        uses: artis3n/setup-conftest@v0.4.1 # Or @latest
+        with:
+          version: 'latest'
+          
       # 2. DRIFT DETECTION (OPA / Conftest)
       - name: Policy Check - Dockerfile (OPA)
-        uses: open-policy-agent/setup-opa@v1 #instrumenta/conftest-action@master 
-        with:
-          files: app/docker/Dockerfile.server
-          policy: policies/dockerfile.rego
-          output: stdout
-          args: "--input dockerfile"
+        run: |
+          conftest test app/docker/Dockerfile.server \
+            --policy policies/dockerfile.rego \
+            --input dockerfile
           
       # 3. SCHEMA VALIDATION (Kubeconform)
       - name: Validate K8s Manifests (Kubeconform)
