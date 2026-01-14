@@ -142,7 +142,7 @@ jobs:
 
       
       - name: Setup Conftest
-        uses: artis3n/setup-conftest@v0.4.1 # Or @latest
+        uses: princespaghetti/setup-conftest@v1 # Or @latest
         with:
           version: 'latest'
           
