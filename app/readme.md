@@ -1,9 +1,17 @@
 # StayHealthy Prescription Portal
 
-### Internal Engineering Documentation
+## Internal Engineering Documentation
 
+![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?logo=node.js&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Enabled-2496ED?logo=docker&logoColor=white)
+![OpenAPI](https://img.shields.io/badge/OpenAPI-3.0-6BA539?logo=openapiinitiative&logoColor=white)
+![JWT](https://img.shields.io/badge/Auth-JWT-blue?logo=jsonwebtokens)
+![PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL%2015-4169E1?logo=postgresql&logoColor=white)
+![Tests](https://img.shields.io/badge/Tests-Jest-C21325?logo=jest)
+![License](https://img.shields.io/badge/License-Apache%202.0-blue)
+![Internal Reference](https://img.shields.io/badge/Usage-Internal%20Reference-lightgrey)
 
-## 1. Purpose & Scope
+## 1. Purpose & Scope ​📋
 
 The **StayHealthy Prescription Portal** is an internal full-stack system designed to demonstrate and validate **enterprise-grade application patterns** for digital prescription workflows.
 
@@ -31,7 +39,7 @@ Primary goals:
 
 ---
 
-## 3. High-Level Architecture
+## 3. High-Level Architecture 🏗
 
 The system is composed of three primary components:
 
@@ -75,7 +83,7 @@ graph LR
 
 ---
 
-## 4. Technology Stack
+## 4. Technology Stack 🛠
 
 ### Frontend
 
@@ -108,7 +116,7 @@ graph LR
 
 ---
 
-## 5. Security Model (Application-Level)
+## 5. Security Model (Application-Level) 
 
 The application implements **baseline security controls** appropriate for internal systems and reference architectures.
 
@@ -140,7 +148,7 @@ The application implements **baseline security controls** appropriate for intern
 
 ---
 
-## 6. Configuration & Environment
+## 6. Configuration & Environment 💻
 
 All runtime configuration is environment-driven.
 
@@ -166,15 +174,15 @@ CORS_ORIGIN=http://localhost:4173
 
 ---
 
-## 7. API Documentation
+## 7. API Documentation 📡 
 
 The backend exposes a documented REST API.
 
--OpenAPI 3.0 specification
+- OpenAPI 3.0 specification
 - Swagger UI available at:
-```text
-/api/v1/api-docs
-```
+  ```text
+  /api/v1/api-docs
+  ```
 
 The API contract is intended to be:
 
@@ -184,7 +192,7 @@ The API contract is intended to be:
 
 ---
 
-## 8. Deployment Model
+## 8. Deployment Model 🚀 
 
 The system is deployed using **Docker Compose**, enabling reproducible local and CI environments.
 
@@ -197,9 +205,10 @@ docker-compose up --build
 ### Exposed Services
 
 | Service |	Address |
-|Web UI	| http://localhost:4173 |
-|API	| http://localhost:4173/api/v1 |
-|API Docs	| http://localhost:4173/api/v1/api-docs |
+| --- | --- |
+| Web UI | http://localhost:4173 |
+| API	| http://localhost:4173/api/v1 |
+| API Docs	| http://localhost:4173/api/v1/api-docs |
 
 ---
 
