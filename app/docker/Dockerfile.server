@@ -2,6 +2,10 @@
 FROM node:20-slim AS base
 WORKDIR /app
 
+RUN apt-get update && apt-get upgrade -y --no-install-recommends \
+ && apt-get install -y --no-install-recommends dumb-init \
+ && rm -rf /var/lib/apt/lists/*
+
 # ---------- Dependencies ----------
 FROM base AS deps
 COPY server/package*.json ./
@@ -13,17 +17,20 @@ COPY server .
 COPY --from=deps /app/node_modules ./node_modules
 
 # ---------- Runtime ----------
-FROM node:20-slim AS runtime
-WORKDIR /app
+FROM base AS runtime
 
+# Create non-root user
 RUN addgroup --system appgroup \
  && adduser --system appuser --ingroup appgroup
 
-USER appuser
+WORKDIR /app
 
-COPY --from=build /app /app
+COPY --chown=appuser:appgroup --from=build /app /app
+
+USER appuser
 
 ENV NODE_ENV=production
 EXPOSE 8080
 
+ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 CMD ["node", "src/server.js"]
