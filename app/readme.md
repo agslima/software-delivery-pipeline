@@ -27,7 +27,7 @@ The system provides:
 
 ---
 
-## 2. System Overview
+## 2. System Overview 🧩
 
 The platform replaces paper-based prescriptions with a **digitally verifiable representation** accessible through a Single Page Application (SPA) backed by a stateless API.
 
@@ -116,7 +116,7 @@ graph LR
 
 ---
 
-## 5. Security Model (Application-Level) 
+## 5. Security Model (Application-Level) 🛡️
 
 The application implements **baseline security controls** appropriate for internal systems and reference architectures.
 
@@ -212,7 +212,7 @@ docker-compose up --build
 
 ---
 
-## 9. Database Management
+## 9. Database Management 📦
 
 Schema management is handled via **Knex migrations**.
 
@@ -234,7 +234,7 @@ Migrations are:
 
 ---
 
-## 10. Development & Quality Standards
+## 10. Development & Quality Standards ⚙
 
 ### Linting
 ```bash
@@ -253,7 +253,7 @@ cd client && npm run lint
 
 ---
 
-## 11. Non-Goals
+## 11. Non-Goals 🚧
 
 This system does not aim to:
 
@@ -264,7 +264,7 @@ This system does not aim to:
 
 ---
 
-## 12. License
+## 12. License ⚖️
 
 Licensed under the Apache 2.0 License. See the `LICENSE` file for details.
 
