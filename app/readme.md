@@ -253,7 +253,34 @@ cd client && npm run lint
 
 ---
 
-## 11. Non-Goals 🚧
+## 11. Project Structure 📂
+
+```text
+app/
+├── client/                 # React Frontend
+│   ├── src/
+│   │   ├── api/            # API Integration
+│   │   ├── components/     # UI Components (Login, etc.)
+│   │   └── styles/         # Custom CSS
+│   └── docker/             # Dockerfile.client
+│
+├── server/                 # Node.js Backend
+│   ├── src/
+│   │   ├── config/         # Env, Database, Swagger Config
+│   │   ├── db/             # Migrations & Seeds
+│   │   ├── docs/           # OpenAPI.yaml
+│   │   ├── middlewares/    # Auth, Error Handling, Logger
+│   │   ├── modules/        # Feature Modules (Auth, Prescription)
+│   │   └── utils/          # Logger, Helpers
+│   └── docker/             # Dockerfile.server
+│
+└── docker-compose.yml      # Orchestration
+
+```
+
+---
+
+## 12. Non-Goals 🚧
 
 This system does not aim to:
 
@@ -264,7 +291,7 @@ This system does not aim to:
 
 ---
 
-## 12. License ⚖️
+## 13. License ⚖️
 
 Licensed under the Apache 2.0 License. See the `LICENSE` file for details.
 
