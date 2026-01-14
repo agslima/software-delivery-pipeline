@@ -1,86 +1,59 @@
+# StayHealthy Prescription Portal
+
+### Internal Engineering Documentation
 
 
-StayHealthy Prescription Portal
+## 1. Purpose & Scope
 
-Internal Engineering Documentation
-
-
----
-
-1. Purpose & Scope
-
-The StayHealthy Prescription Portal is an internal full-stack system designed to demonstrate and validate enterprise-grade application patterns for digital prescription workflows.
+The **StayHealthy Prescription Portal** is an internal full-stack system designed to demonstrate and validate **enterprise-grade application patterns** for digital prescription workflows.
 
 The system provides:
 
-Read-only access to prescription records
+- Read-only access to prescription records
+- Secure authentication and authorization
+- A web-based user interface for viewing and printing prescriptions
+- A RESTful API suitable for integration with downstream systems
 
-Secure authentication and authorization
-
-A web-based user interface for viewing and printing prescriptions
-
-A RESTful API suitable for integration with downstream systems
-
-
-> Important:
-This application is not intended for real clinical use, does not handle live patient data, and does not claim regulatory compliance (e.g., HIPAA, GDPR). It serves as a reference implementation for architecture, security, and operational patterns.
-
-
-
+> [!NOTE]
+> This application is not intended for real clinical use. It serves as a **reference implementation** for architecture, security, and operational patterns.
 
 ---
 
-2. System Overview
+## 2. System Overview
 
-The platform replaces paper-based prescriptions with a digitally verifiable representation accessible through a Single Page Application (SPA) backed by a stateless API.
+The platform replaces paper-based prescriptions with a **digitally verifiable representation** accessible through a Single Page Application (SPA) backed by a stateless API.
 
 Primary goals:
 
-Demonstrate clean separation between presentation, API, and persistence layers
-
-Enforce authentication and request-level security controls
-
-Provide a deployable, containerized environment suitable for internal evaluation and iteration
-
-
+- Demonstrate clean separation between presentation, API, and persistence layers
+- Enforce authentication and request-level security controls
+- Provide a deployable, containerized environment suitable for internal evaluation and iteration
 
 ---
 
-3. High-Level Architecture
+## 3. High-Level Architecture
 
 The system is composed of three primary components:
 
-1. Frontend (Client)
+### 1. Frontend (Client)
 
-React-based Single Page Application
+- React-based Single Page Application
+- Served as static assets via Nginx
+- Proxies API requests to the backend
 
-Served as static assets via Nginx
+### 2. Backend (Server)
 
-Proxies API requests to the backend
+- Stateless Node.js / Express API
+- Handles authentication, request validation, and business logic
+- Exposes REST endpoints under /api/v1
 
+### 3. Database
 
+- PostgreSQL instance
+- Persistent storage for prescription and user data
+- Managed via Knex.js migrations
 
-2. Backend (Server)
-
-Stateless Node.js / Express API
-
-Handles authentication, request validation, and business logic
-
-Exposes REST endpoints under /api/v1
-
-
-
-3. Database
-
-PostgreSQL instance
-
-Persistent storage for prescription and user data
-
-Managed via Knex.js migrations
-
-
-
-
+```mermaid
 graph LR
     User -->|HTTPS :4173| Nginx
 
@@ -98,114 +71,82 @@ graph LR
 
     Nginx -->|/api/*| API
     API --> DB
-
-
----
-
-4. Technology Stack
-
-Frontend
-
-React 18
-
-Vite
-
-Nginx (static hosting + reverse proxy)
-
-
-Backend
-
-Node.js (>= 18)
-
-Express
-
-Knex.js (SQL query builder & migrations)
-
-
-Database
-
-PostgreSQL 15
-
-
-Infrastructure
-
-Docker
-
-Docker Compose
-
-Multi-stage builds
-
-
-Quality & Tooling
-
-ESLint v9
-
-Prettier
-
-Jest (unit & integration tests)
-
-OpenAPI 3.0 (Swagger)
-
-
+```
 
 ---
 
-5. Security Model (Application-Level)
+## 4. Technology Stack
 
-The application implements baseline security controls appropriate for internal systems and reference architectures.
+### Frontend
 
-Authentication
+- React 18
+- Vite
+- Nginx (static hosting + reverse proxy)
 
-Username/password authentication
+### Backend
 
-Credentials validated server-side
+### Node.js (>= 18)
+- Express
+- Knex.js (SQL query builder & migrations)
 
-JWT issued upon successful authentication
+### Database
 
+- PostgreSQL 15
 
-Authorization
+### Infrastructure
 
-Protected routes enforced via middleware
+- Docker
+- Docker Compose
+- Multi-stage builds
 
-Bearer token required for prescription access
+### Quality & Tooling
 
-
-Transport & Headers
-
-Content Security Policy (CSP) enforced
-
-Security headers applied at the application layer
-
-Reverse proxy reduces CORS complexity
-
-
-Abuse Protection
-
-Rate limiting applied to API endpoints
-
-
-> Out of Scope:
-
-Role-based access control (RBAC)
-
-Token rotation / refresh flows
-
-Fine-grained audit logging
-
-Compliance certifications
-
-
-
-
+- ESLint v9
+- Prettier
+- Jest (unit & integration tests)
+- OpenAPI 3.0 (Swagger)
 
 ---
 
-6. Configuration & Environment
+## 5. Security Model (Application-Level)
+
+The application implements **baseline security controls** appropriate for internal systems and reference architectures.
+
+### Authentication
+
+- Username/password authentication
+- Credentials validated server-side
+- JWT issued upon successful authentication
+
+### Authorization
+
+- Protected routes enforced via middleware
+- Bearer token required for prescription access
+
+### Transport & Headers
+
+- Content Security Policy (CSP) enforced
+- Security headers applied at the application layer
+- Reverse proxy reduces CORS complexity
+
+### Abuse Protection
+
+- Rate limiting applied to API endpoints
+- **Out of Scope:**
+  - Role-based access control (RBAC)
+  - Token rotation / refresh flows
+  - Fine-grained audit logging
+  - Compliance certifications
+
+---
+
+## 6. Configuration & Environment
 
 All runtime configuration is environment-driven.
 
-Example .env (non-production):
+Example `.env` (non-production):
 
+```ini
 NODE_ENV=production
 PORT=8080
 LOG_LEVEL=info
@@ -218,132 +159,111 @@ JWT_SECRET=change_this_value
 ADMIN_USER=admin
 ADMIN_PASS=SuperSecurePassword123!
 CORS_ORIGIN=http://localhost:4173
+```
 
 > Note:
-Default credentials are provided for demonstration purposes only and must not be used in real environments.
-
-
-
+> Default credentials are provided for demonstration purposes only.
 
 ---
 
-7. API Documentation
+## 7. API Documentation
 
 The backend exposes a documented REST API.
 
-OpenAPI 3.0 specification
-
-Swagger UI available at:
-
-
+-OpenAPI 3.0 specification
+- Swagger UI available at:
+```text
 /api/v1/api-docs
+```
 
 The API contract is intended to be:
 
-Predictable
-
-Versioned
-
-Suitable for internal consumers and automated testing
-
-
+- Predictable
+- Versioned
+- Suitable for internal consumers and automated testing
 
 ---
 
-8. Deployment Model
+## 8. Deployment Model
 
-The system is deployed using Docker Compose, enabling reproducible local and CI environments.
+The system is deployed using **Docker Compose**, enabling reproducible local and CI environments.
 
-Start All Services
+### Start All Services
 
+```bash
 docker-compose up --build
+```
 
-Exposed Services
+### Exposed Services
 
-Service	Address
-
-Web UI	http://localhost:4173
-API	http://localhost:4173/api/v1
-API Docs	http://localhost:4173/api/v1/api-docs
-
-
+| Service |	Address |
+|Web UI	| http://localhost:4173 |
+|API	| http://localhost:4173/api/v1 |
+|API Docs	| http://localhost:4173/api/v1/api-docs |
 
 ---
 
-9. Database Management
+## 9. Database Management
 
-Schema management is handled via Knex migrations.
+Schema management is handled via **Knex migrations**.
 
 Typical workflows:
 
+```bash
 # Apply migrations
 npm run db:migrate
 
 # Seed demo data
 npm run db:seed
+```
 
 Migrations are:
 
-Version-controlled
-
-Deterministic
-
-Executed automatically in containerized environments
-
-
+- Version-controlled
+- Deterministic
+- Executed automatically in containerized environments
 
 ---
 
-10. Development & Quality Standards
+## 10. Development & Quality Standards
 
-Linting
-
+### Linting
+```bash
 # Backend
 cd server && npm run lint
 
 # Frontend
 cd client && npm run lint
+```
 
-Testing
+### Testing
 
-Jest used for unit and integration tests
-
-API endpoints validated via Supertest
-
-Authentication and middleware tested in isolation
-
-
+- Jest used for unit and integration tests
+- API endpoints validated via Supertest
+- Authentication and middleware tested in isolation
 
 ---
 
-11. Non-Goals
+## 11. Non-Goals
 
 This system does not aim to:
 
-Serve as a certified medical record system
-
-Handle real patient data
-
-Provide regulatory compliance guarantees
-
-Replace enterprise IAM or audit platforms
-
-
+- Serve as a certified medical record system
+- Handle real patient data
+- Provide regulatory compliance guarantees
+- Replace enterprise IAM or audit platforms
 
 ---
 
-12. License
+## 12. License
 
-Licensed under the Apache 2.0 License.
-See the LICENSE file for details.
-
+Licensed under the Apache 2.0 License. See the `LICENSE` file for details.
 
 ---
 
-Final Note
+## Final Note
 
 This repository should be treated as:
-
 > An internal reference implementation showcasing production-oriented patterns, not a clinical product.
 
 
