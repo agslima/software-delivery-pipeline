@@ -142,13 +142,15 @@ jobs:
 
       - name: Setup Conftest
         uses: princespaghetti/setup-conftest@v1 
+
+      - name: Prepare Dockerfile
+        run: cp app/docker/Dockerfile.server Dockerfile
         
       # 2. DRIFT DETECTION (OPA / Conftest)
       - name: Policy Check - Dockerfile (OPA)
         run: |
-          conftest test app/docker/Dockerfile.server \
-            --policy policies/dockerfile.rego \
-            --input dockerfile
+          conftest test Dockerfile \
+            --policy policies/dockerfile.rego
           
       # 3. SCHEMA VALIDATION (Kubeconform)
       - name: Validate K8s Manifests (Kubeconform)
