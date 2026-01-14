@@ -43,9 +43,9 @@
     "pg": "^8.16.3",
     "pino": "^8.17.0",
     "pino-http": "^9.0.0",
-    "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
-    "uuid": "^8.3.2"
+    "uuid": "^8.3.2",
+    "yamljs": "^0.3.0"
   },
   "devDependencies": {
     "eslint": "^9.39.2",

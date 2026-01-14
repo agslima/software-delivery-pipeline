@@ -2,11 +2,11 @@
  * TokenService interface
  */
 class TokenService {
-  sign(payload) {
+  sign(_payload) {
     throw new Error('Not implemented');
   }
 
-  verify(token) {
+  verify(_token) {
     throw new Error('Not implemented');
   }
 }

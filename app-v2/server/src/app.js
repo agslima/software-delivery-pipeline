@@ -6,6 +6,7 @@ const routes = require('./routes');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./config/swagger');
 const env = require('./config/env');
+const logger = require('./utils/logger');
 
 const requestId = require('./middlewares/request-id.middleware');
 const httpLogger = require('./middlewares/http-logger.middleware');
@@ -38,7 +39,7 @@ const corsOptions = {
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
-      console.error(`Blocked by CORS: ${origin}`); 
+      logger.warn(`Blocked by CORS: ${origin}`); 
       callback(new Error('Not allowed by CORS'));
     }
   },
