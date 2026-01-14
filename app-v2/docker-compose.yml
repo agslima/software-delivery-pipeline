@@ -1,14 +1,18 @@
+version: "3.9"
+
 services:
   frontend:
     build:
-      context: .
+      context: ./client             
       dockerfile: docker/Dockerfile.client
-    volumes:
-      - client-dist:/app/dist
+    ports:
+      - "4173:80"                   
+    depends_on:
+      - backend                     
 
   backend:
     build:
-      context: .
+      context: ./server             
       dockerfile: docker/Dockerfile.server
     ports:
       - "8080:8080"
@@ -16,20 +20,22 @@ services:
       NODE_ENV: production
       PORT: 8080
       LOG_LEVEL: info
+      
+      # Security & Config
       CORS_ORIGIN: ${CORS_ORIGIN}
       JWT_SECRET: ${JWT_SECRET}
       ADMIN_USER: ${ADMIN_USER}
       ADMIN_PASS: ${ADMIN_PASS}
-      CLIENT_DIST_PATH: ../client/dist
+      
+      # Database Connection
       DB_HOST: postgres
       DB_USER: ${DB_USER}
       DB_PASS: ${DB_PASS}
       DB_NAME: ${DB_NAME}
-    volumes:
-      - client-dist:/app/client/dist
+          
     depends_on:
-      - frontend
       - postgres
+
   postgres:
     image: postgres:15-alpine
     ports:
@@ -42,6 +48,4 @@ services:
       - pgdata:/var/lib/postgresql/data
 
 volumes:
-  client-dist:
   pgdata:
-
