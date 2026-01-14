@@ -1,10 +1,26 @@
-FROM node:20-slim AS build
-
+# Stage 1: Build the React App
+FROM node:20-alpine as builder
 WORKDIR /app
-COPY client/package*.json ./
+COPY package*.json ./
 RUN npm ci
-
-COPY client .
+COPY . .
 RUN npm run build
 
-CMD ["npm", "run", "preview", "--", "--host"]
+# Stage 2: Serve with Nginx
+FROM nginx:alpine
+
+# 1. Remove default Nginx config
+RUN rm /etc/nginx/conf.d/default.conf
+
+# 2. Copy custom strict config
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# 3. Copy built static files from Stage 1
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# 4. Expose Port 80
+EXPOSE 80
+
+# 5. Start Nginx
+CMD ["nginx", "-g", "daemon off;"]
+
