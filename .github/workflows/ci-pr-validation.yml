@@ -22,10 +22,7 @@ jobs:
         component: ['server', 'client']
 
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ github.sha }}  
+      - uses: actions/checkout@v4        
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
@@ -104,6 +101,8 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # 1. Secret Scanning
       - name: Secret Scanning (Gitleaks)
