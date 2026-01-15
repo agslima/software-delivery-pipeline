@@ -17,7 +17,8 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: gitleaks/gitleaks-action@v2
-        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - run: |
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
