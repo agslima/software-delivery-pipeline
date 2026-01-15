@@ -3,27 +3,27 @@
 # ==========================================
 FROM node:20-alpine AS builder
 WORKDIR /app
-COPY package*.json ./
+
+COPY client/package*.json ./
 RUN npm ci
-COPY . .
+
+COPY client/ .
 RUN npm run build
 
 # ==========================================
-# STAGE 2: Serve with Nginx (Hybrid)
+# STAGE 2: Serve with Nginx
 # ==========================================
 FROM node:20-alpine
-
 
 RUN apk update && \
     apk upgrade --no-cache && \
     apk add --no-cache nginx
 
-# 2. Setup Directories & Permissions
 RUN mkdir -p /var/cache/nginx \
              /var/log/nginx \
              /var/lib/nginx \
              /tmp/nginx \
-             /etc/nginx/conf.d \
+             /etc/nginx \
     && touch /var/run/nginx.pid \
     && chown -R nginx:nginx /var/cache/nginx \
                             /var/log/nginx \
@@ -32,14 +32,11 @@ RUN mkdir -p /var/cache/nginx \
                             /etc/nginx \
                             /var/run/nginx.pid
 
-# Configure Nginx
-COPY nginx.conf /etc/nginx/nginx.conf
+COPY client/nginx.conf /etc/nginx/nginx.conf
 
 COPY --chown=nginx:nginx --from=builder /app/dist /usr/share/nginx/html
 
 USER nginx
-
 EXPOSE 8080
 
-# Start Nginx
-CMD ["nginx", "-c", "/etc/nginx/nginx.conf", "-g", "daemon off;"]
+CMD ["nginx", "-g", "daemon off;"]

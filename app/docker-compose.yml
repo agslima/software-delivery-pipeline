@@ -1,10 +1,9 @@
 services:
   frontend:
     build:
-      context: ./client             
+      context: .            
       dockerfile: docker/Dockerfile.client
     ports:
-      # Set port to 8080 (Non-root requirement)
       - "4173:8080"                   
     depends_on:
       - backend
@@ -13,12 +12,10 @@ services:
       - ALL
     # Restart if it crashes
     restart: unless-stopped
-    # Run as read-only (Nginx config for tmp paths)
-    # read_only: true 
 
   backend:
     build:
-      context: ./server             
+      context: .            
       dockerfile: docker/Dockerfile.server
     ports:
       - "8080:8080"
@@ -28,7 +25,7 @@ services:
       LOG_LEVEL: info
       
       # Security Note: Ideally, use Docker Secrets for these variables
-      CORS_ORIGIN: ${CORS_ORIGIN}
+      CORS_ORIGIN: http://localhost:4173,https://localhost:4173,http://localhost:8080
       JWT_SECRET: ${JWT_SECRET}
       ADMIN_USER: ${ADMIN_USER}
       ADMIN_PASS: ${ADMIN_PASS}
