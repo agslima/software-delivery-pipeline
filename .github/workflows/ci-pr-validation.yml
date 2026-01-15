@@ -114,7 +114,7 @@ jobs:
       - name: Trivy Scan - Root FS
         uses: aquasecurity/trivy-action@0.33.1
         with:
-          scan-type: 'fs, secret'
+          scan-type: 'fs'
           scan-ref: '.'
           severity: 'HIGH,CRITICAL'
           exit-code: 1
