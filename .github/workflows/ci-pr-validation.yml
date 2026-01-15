@@ -1,0 +1,273 @@
+name: "CI: PR Validation"
+on:
+  pull_request:
+    branches: [ "main" ]
+  push:
+    branches: [ "main" ]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ==================================================================
+  # JOB 1: TEST & CODE QUALITY
+  # ==================================================================
+  code-quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # --- 1. BACKEND (Node.js) + Codecov ---
+      - name: Setup Node.js (Backend)
+        uses: actions/setup-node@v3
+        with:
+          node-version-file: 'app/server/package.json'
+          cache: 'npm'
+          cache-dependency-path: app/server/package-lock.json
+
+      - name: Install Backend Deps
+        working-directory: app/server
+        run: npm ci
+
+      - name: Unit Tests (TDD)
+        working-directory: app/server
+        run: npm test
+
+      - name: Lint Backend
+        working-directory: app/server
+        run: npm run lint
+
+      - name: Test Backend & Generate Coverage
+        working-directory: app/server
+        run: |
+          npm test -- \
+            --coverage \
+            --coverageReporters=xml \
+            --coverageDirectory=coverage 
+
+      - name: Upload Backend Coverage
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./app/server/coverage/coverage.xml
+          flags: backend
+          fail_ci_if_error: true
+
+      # --- 2. FRONTEND (React) ---
+      - name: Install Frontend Deps
+        working-directory: app/client
+        run: npm ci
+
+      - name: Lint Frontend
+        working-directory: app/client
+        run: npm run lint
+
+      - name: Test Frontend
+        working-directory: app/client
+        run: npm test -- --passWithNoTests # Prevents fail if tests are empty
+
+  # ==================================================================
+  # JOB 2: INFRASTRUCTURE LINTING (Docker, Kubernetes)
+  # ==================================================================
+  infra-lint:
+    name: Infra Policy Check
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [backend, frontend]
+        include:
+          - service: backend
+            path: app/docker/Dockerfile.server
+          - service: frontend
+            path: app/docker/Dockerfile.client
+    steps:
+      - uses: actions/checkout@v4
+
+      # 1. Hadolint (Lints the syntax)
+      - name: Lint Dockerfile (${{ matrix.service }})
+        uses: hadolint/hadolint-action@v3.3.0
+        with:
+          dockerfile: ${{ matrix.path }}
+          failure-threshold: error
+
+      # 2. Conftest (OPA Policy)
+      - name: Setup Conftest
+        uses: princespaghetti/setup-conftest@v1 
+
+      - name: Run OPA Policy (${{ matrix.service }})
+        run: |
+          # Copy the specific file to a generic name for the policy check
+          cp ${{ matrix.path }} Dockerfile
+          
+          conftest test Dockerfile \
+            --policy policies/dockerfile.rego
+            
+      # 3. Kubeconform (Kubernetes Manifests)
+      - name: Validate K8s Manifests
+        if: matrix.service == 'backend'
+        uses: docker://ghcr.io/yannh/kubeconform:latest
+        with:
+          entrypoint: "/kubeconform"
+          args: "-summary -output text -ignore-missing-schemas k8s/resources/"
+
+  # ==================================================================
+  # JOB 3: Security Scan (Code + IaC)
+  # ==================================================================
+  security-scan:
+    name: Security Quality Check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+
+      # 1. Secret Scanning
+      - name: Secret Scanning (Gitleaks)
+        uses: gitleaks/gitleaks-action@f65c4cd93c2004495537552554e7c75d5069b2d8
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 2. TRIVY SETUP
+      - name: Install Trivy
+        run: |
+          curl -sfL raw.githubusercontent.com/aquasecurity/trivy/v${{vars.TRIVY_VERSION}}/contrib/install.sh | sh -s -- -b /usr/local/bin
+          echo "Trivy installed successfully."
+
+      # 3. TRIVY SCAN: Filesystem (Dependencies & Code Secrets)
+      - name: Trivy Scan - Root FS
+        id: scan-code
+        continue-on-error: true
+        run: |
+          # A. Generate JSON for Governance Script (Includes ALL severities)
+          trivy fs . \
+            --scanners vuln,secret \
+            --format json \
+            --output trivy-results.json \
+            || true
+          
+          # B. Generate SARIF for GitHub Security Tab (High/Critical Only)
+          trivy fs . \
+            --scanners vuln,secret \
+            --severity HIGH,CRITICAL \
+            --format sarif \
+            --output trivy-results.sarif \
+            --exit-code 1
+
+      # 4. TRIVY SCAN: Kubernetes (IaC / Misconfigurations)
+      - name: Trivy Scan - Infrastructure (K8s)
+        id: scan-infra
+        continue-on-error: true
+        run: |
+          echo "Scanning Kubernetes Manifests..."
+          trivy config k8s/ \
+            --severity HIGH,CRITICAL \
+            --format sarif \
+            --output trivy-k8s.sarif \
+            --skip-dirs k8s/tests \
+            --exit-code 1 
+
+      # 5. Upload BOTH SARIF files (Code + K8s)
+      - name: Upload Trivy SARIFs (Code)
+        uses: github/codeql-action/upload-sarif@v4
+        if: steps.scan-code.outcome != 'skipped' 
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy-code
+      
+      - name: Upload Trivy K8s Results
+        uses: github/codeql-action/upload-sarif@v4
+        if: steps.scan-infra.outcome != 'skipped'
+        with:
+          sarif_file: trivy-k8s.sarif
+          category: trivy-infra
+
+      # 6. Enforce Governance
+      - name: Enforce Risk Acceptance Policy
+        run: | 
+          chmod +x scripts/check-security-debt.sh 
+          # Point to the new Trivy JSON file
+          scripts/check-security-debt.sh trivy-results.json
+
+      # 7. THE GATEKEEPER (Fail the build)
+      - name: Check for Security Failures
+        if: steps.scan-code.outcome == 'failure' || steps.scan-infra.outcome == 'failure'
+        run: |
+          echo "::error::Critical Security Vulnerabilities Detected!"
+          echo "Check the 'Security' tab or the artifacts for details."
+          exit 1
+
+  # ==================================================================
+  # JOB 3: DAST (Dynamic Application Security Testing)
+  # ==================================================================
+  dast-scan:
+    name: DAST (Lightweight)
+    runs-on: ubuntu-latest
+    needs: [code-quality, infra-lint, security-scan]
+    steps:
+      - uses: actions/checkout@v4
+
+      # 1. Spin up the Ephemeral Environment
+      - name: Start Ephemeral Environment
+        run: |
+          # Build and start services in the background
+          docker compose up -d --build
+
+          echo "⏳ Waiting for Backend (Healthcheck)..."
+          # Loop until backend responds (timeout after 60s)
+          timeout 60s bash -c 'until curl -s http://localhost:8080/health > /dev/null; do sleep 5; done'
+          
+          echo "⏳ Waiting for Frontend..."
+          timeout 60s bash -c 'until curl -s http://localhost:4173 > /dev/null; do sleep 5; done'
+          
+          echo "✅ Application is live!"
+
+      # 2. Run OWASP ZAP (Baseline Scan)
+      - name: OWASP ZAP Baseline Scan
+        run: |
+          mkdir -p zap-out
+          chmod 777 zap-out
+
+          echo "🚀 Starting ZAP Scan against Frontend..."
+          docker run --rm \
+            --network host \
+            -v $(pwd)/zap-out:/zap/wrk/:rw \
+            ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
+            -t http://localhost:4173 \
+            -r zap-report.html \
+            -J zap-report.json \
+            -I || true 
+            # -I ignores warnings. We handle failure logic manually below.
+
+      # 3. The Gatekeeper (Blocking Logic)
+      # Fails the PR if High/Critical vulnerabilities are found
+      - name: Check Vulnerability Thresholds
+        run: |
+          if [ ! -f zap-out/zap-report.json ]; then
+            echo "::error::❌ ZAP Report not found! Scanner might have crashed."
+            exit 1
+          fi
+
+          # Count High Severity Alerts using jq
+          HIGHS=$(jq '[.site[].alerts[] | select(.riskcode == "3")] | length' zap-out/zap-report.json)
+          
+          echo "📊 Scan Results: Found $HIGHS High Severity Vulnerabilities."
+
+          if [ "$HIGHS" -gt 0 ]; then
+            echo "::error::⛔ DAST Failed! Blocked $HIGHS High severity vulnerabilities."
+            exit 1
+          fi
+          
+          echo "✅ DAST Scan Passed."
+
+      # 4. Dump Logs on Failure (Debugging)
+      # If ZAP fails or App crashes, show us why
+      - name: Debug - Container Logs
+        if: failure()
+        run: docker compose logs
