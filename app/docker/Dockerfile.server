@@ -1,36 +1,47 @@
-# ---------- Base ----------
-FROM node:20-slim AS builder
+# ==========================================
+# STAGE 1: Dependencies
+# ==========================================
+# FIX: Use fully pinned Alpine version to satisfy DL3006 and Policy
+FROM node:24.11.1-alpine3.21 AS deps
+
+# FIX: Set WORKDIR explicitly to satisfy DL3045
 WORKDIR /app
 
-RUN apt-get update && apt-get upgrade -y --no-install-recommends \
- && apt-get install -y --no-install-recommends dumb-init \
- && rm -rf /var/lib/apt/lists/*
-
-# ---------- Dependencies ----------
-FROM base AS deps
+# Copy package files (Assumes build context is Project Root)
 COPY server/package*.json ./
+
+# Install prod dependencies
 RUN npm ci --omit=dev
 
-# ---------- Build ----------
-FROM base AS build
-COPY server .
-COPY --from=deps /app/node_modules ./node_modules
+# ==========================================
+# STAGE 2: Runtime
+# ==========================================
+# FIX: Repeat the specific image to avoid Conftest "Drift detected" on 'FROM base'
+FROM node:24.11.1-alpine3.21 AS runtime
 
-# ---------- Runtime ----------
-FROM base AS runtime
-
-# Create non-root user
-RUN addgroup --system appgroup \
- && adduser --system appuser --ingroup appgroup
-
+# FIX: Set WORKDIR explicitly again
 WORKDIR /app
 
-COPY --chown=appuser:appgroup --from=build /app /app
+# FIX: Use Tini for Alpine and Ignore version pinning warning (DL3018)
+# hadolint ignore=DL3018
+RUN apk add --no-cache tini
 
-USER appuser
-
+# Setup Environment
 ENV NODE_ENV=production
+
+# 1. Copy dependencies from deps stage
+# FIX: Use built-in 'node' user instead of creating 'appuser'
+COPY --from=deps --chown=node:node /app/node_modules ./node_modules
+
+# 2. Copy source code
+COPY --chown=node:node server ./
+
+# 3. Security: Drop to non-root user
+USER node
+
+# 4. Expose Port
 EXPOSE 8080
 
-ENTRYPOINT ["/usr/bin/dumb-init", "--"]
+# 5. Entrypoint
+ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["node", "src/server.js"]
