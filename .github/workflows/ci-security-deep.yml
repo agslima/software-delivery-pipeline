@@ -1,0 +1,43 @@
+name: CI – Security Deep Scan
+
+on:
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 2 * * *"
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: gitleaks/gitleaks-action@v2
+        continue-on-error: true
+
+      - run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+
+      # Full Trivy (JSON)
+      - run: |
+          trivy fs . --format json --output trivy-full.json || true
+
+      # SARIF for GitHub Security Tab
+      - run: |
+          trivy fs . \
+            --severity HIGH,CRITICAL \
+            --format sarif \
+            --output trivy.sarif || true
+
+      - uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy.sarif
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: security-artifacts
+          path: |
+            trivy-full.json
