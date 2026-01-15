@@ -1,15 +1,12 @@
 # ==========================================
 # STAGE 1: Dependencies
 # ==========================================
-# FIX: Use 'node:20-alpine' directly. Do NOT use 'FROM base' to avoid Drift Detection.
 FROM node:20-alpine AS deps
 
 WORKDIR /app
 
-# FIX: Explicitly ignore version pinning warning if Hadolint complains (optional but recommended)
 # hadolint ignore=DL3018
 
-# Copy package.json (Assumes build context is the Project Root)
 COPY server/package*.json ./
 
 # Install only production dependencies
@@ -18,19 +15,17 @@ RUN npm ci --omit=dev
 # ==========================================
 # STAGE 2: Runtime
 # ==========================================
-# FIX: Repeat the exact image tag. Docker caches this, so it adds no build time penalty.
 FROM node:20-alpine AS runtime
 
 WORKDIR /app
 
-# FIX: Install Tini (Alpine's standard init system) instead of dumb-init (Debian)
+# hadolint ignore=DL3018
 RUN apk add --no-cache tini
 
 # Setup Environment
 ENV NODE_ENV=production
 
 # 1. Copy Dependencies from Stage 1
-# FIX: Use the built-in 'node' user (UID 1000) instead of creating 'appuser'
 COPY --from=deps --chown=node:node /app/node_modules ./node_modules
 
 # 2. Copy Source Code
@@ -44,7 +39,6 @@ USER node
 EXPOSE 8080
 
 # 5. Entrypoint
-# Tini ensures signals (SIGTERM) are handled correctly for graceful shutdown
 ENTRYPOINT ["/sbin/tini", "--"]
 
 CMD ["node", "src/server.js"]
