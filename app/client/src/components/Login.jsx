@@ -6,29 +6,29 @@ export default function Login({ onLogin }) {
   const [password, setPassword] = useState('');
   
   const [isLoading, setIsLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState(null); 
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setErrorMsg('');
-    setIsLoading(true); // Start Spinner
+    setErrorMsg(null);
+    setIsLoading(true);
 
-    try {
-      // Simulate a tiny delay so the user sees the interaction 
-      await new Promise(r => setTimeout(r, 500)); 
-      
+    try {      
       await onLogin(username, password);
     } catch (err) {
-      // Map Error Codes to User-Friendly Messages
       if (err.message === 'INCORRECT_CREDENTIALS') {
         setErrorMsg('Incorrect username or password. Please try again.');
-      } else if (err.message === 'NETWORK_ERROR') {
+      } 
+      // Handle network or other errors
+      else if (err.message === 'NETWORK_ERROR') {
         setErrorMsg('Cannot reach the server. Is the backend running?');
-      } else {
-        setErrorMsg('Something went wrong. Please contact support.');
+      } 
+      // Fallback
+      else {
+        setErrorMsg('Something went wrong. Please try again.');
       }
     } finally {
-      setIsLoading(false); // Stop Spinner
+      setIsLoading(false);
     }
   };
 
@@ -69,16 +69,19 @@ export default function Login({ onLogin }) {
           />
         </div>
 
-        {/* Error Banner */}
-        {errorMsg && <div className="error-banner">{errorMsg}</div>}
+        {/* Error Banner: Only renders if errorMsg exists */}
+        {errorMsg && (
+            <div className="error-banner" style={{marginBottom: '15px', color: 'red', fontWeight: 'bold'}}>
+                {errorMsg}
+            </div>
+        )}
 
         <button 
           type="submit" 
           className="print-btn" 
           style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
-          disabled={isLoading} // Prevent double-click
+          disabled={isLoading}
         >
-          {/* Show Spinner inside Button */}
           {isLoading ? <span className="spinner"></span> : 'Secure Login'}
         </button>
       </form>

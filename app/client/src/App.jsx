@@ -11,18 +11,19 @@ export default function App() {
 
   const handleLogin = async (username, password) => {
     setData(null);
-    setError(null);
-    
+    setError(null);    
     const fetchedToken = await login(username, password);
     setToken(fetchedToken);
   };
 
   useEffect(() => {
-    if (!token) return;
-   
+    if (!token) return;  
+ 
     getPrescription('demo-id', token)
-      .then(setData)
-      .catch(err => {
+      .then((prescriptionData) => {
+        setData(prescriptionData);
+      })
+      .catch((err) => {
         if (err.message === 'SESSION_EXPIRED') {
             setToken(null); 
         } else {
@@ -36,7 +37,7 @@ export default function App() {
     return <Login onLogin={handleLogin} />;
   }
 
-  // 2. Show Main Loading Spinner (Fetching Data)
+  // 2. Show Main Loading Spinner
   if (!data && !error) {
     return (
       <div className="loading-container">
@@ -46,7 +47,7 @@ export default function App() {
     );
   }
 
-  // 3. Show Critical Error (if fetching failed)
+  // 3. Show Critical Error
   if (error) {
      return (
         <div className="container" style={{textAlign: 'center', marginTop: '50px'}}>
@@ -56,10 +57,9 @@ export default function App() {
      );
   }
 
-  // 4. Success UI (The Prescription)
+  // 4. Success UI
   return (
     <div className="container">
-      {/* ... (Keep your existing Prescription UI exactly as is) ... */}
        <button onClick={() => window.print()} className="print-btn">
         🖨️ Print Official Prescription
       </button>

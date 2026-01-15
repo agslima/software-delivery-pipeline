@@ -104,7 +104,7 @@ jobs:
 
       # 1. Secret Scanning
       - name: Secret Scanning (Gitleaks)
-        uses: gitleaks/gitleaks-action@f65c4cd93c2004495537552554e7c75d5069b2d8
+        uses: gitleaks/gitleaks-action@v2
 
       # 2. TRIVY SCAN: Filesystem (Dependencies & Code Secrets)
       - name: Trivy Scan - Root FS

@@ -12,6 +12,12 @@ export default defineConfig({
       },
     },
   },
+  test: {
+    globals: true,             // Enables describe, it, expect without imports
+    environment: 'jsdom',      // Simulates browser (window, document)
+    setupFiles: './src/setupTests.js', // Global test setup
+    css: false,                // Disable CSS parsing (speeds up tests)
+  },
   build: {
     outDir: 'dist',
     emptyOutDir: true
