@@ -12,47 +12,37 @@ jobs:
   # JOB 1: TEST & CODE QUALITY
   # ==================================================================
   code-quality:
-    name: Code Quality
+    name: Code Quality (${{ matrix.component }})
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        component: ['server', 'client']
+
     steps:
       - uses: actions/checkout@v4
 
-      # --- 1. BACKEND (Node.js) ---
-      - name: Setup Node.js (Backend)
+      - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version-file: 'app/server/package.json'
+          node-version-file: 'app/${{ matrix.component }}/package.json'
           cache: 'npm'
-          cache-dependency-path: app/server/package-lock.json
+          cache-dependency-path: 'app/${{ matrix.component }}/package-lock.json'
 
-      - name: Install Backend Deps
-        working-directory: app/server
+      - name: Install Dependencies
+        working-directory: app/${{ matrix.component }}
         run: npm ci
+
+      - name: Lint
+        working-directory: app/${{ matrix.component }}
+        run: npm run lint
 
       - name: Unit Tests (TDD)
-        working-directory: app/server
+        working-directory: app/${{ matrix.component }}
         run: npm test
-
-      - name: Lint Backend
-        working-directory: app/server
-        run: npm run lint
-
-
-      # --- 2. FRONTEND (React) ---
-      - name: Install Frontend Deps
-        working-directory: app/client
-        run: npm ci
-
-      - name: Lint Frontend
-        working-directory: app/client
-        run: npm run lint
-
-      - name: Test Frontend
-        working-directory: app/client
-        run: npm test -- --passWithNoTests
-  
+        
   # ==================================================================
   # JOB 2: INFRASTRUCTURE LINTING
   # ==================================================================   
