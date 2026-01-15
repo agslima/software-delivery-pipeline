@@ -40,26 +40,32 @@ export default function Login({ onLogin }) {
       
       <form onSubmit={handleSubmit}>
         <div style={{ marginBottom: '15px' }}>
-          <label style={{ display: 'block', marginBottom: '5px' }}>Username</label>
+          <label htmlFor="username" style={{ display: 'block', marginBottom: '5px' }}>
+            Username
+          </label>
           <input 
+            id="username"
             type="text" 
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
             required
-            disabled={isLoading} // Lock input while loading
+            disabled={isLoading} 
           />
         </div>
 
-        <div style={{ marginBottom: '20px' }}>
-          <label style={{ display: 'block', marginBottom: '5px' }}>Password</label>
+        <div style={{ marginBottom: '20px' }}>          
+          <label htmlFor="password" style={{ display: 'block', marginBottom: '5px' }}>
+            Password
+          </label>
           <input 
+            id="password"
             type="password" 
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
             required
-            disabled={isLoading} // Lock input while loading
+            disabled={isLoading} 
           />
         </div>
 

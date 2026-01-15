@@ -8,7 +8,7 @@ exports.login = (req, res) => {
   try {
     const token = authService.login(req.body);
     return res.status(200).json({ token });
-  } catch (err) {
+  } catch {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
 };

@@ -10,23 +10,21 @@ export default function App() {
   const [error, setError] = useState(null);
 
   const handleLogin = async (username, password) => {
-    // Pass the raw error up to the Login component to handle visuals
+    setData(null);
+    setError(null);
+    
     const fetchedToken = await login(username, password);
     setToken(fetchedToken);
   };
 
   useEffect(() => {
     if (!token) return;
-
-    // Reset data when token changes (handle re-login)
-    setData(null);
-    setError(null);
-
+   
     getPrescription('demo-id', token)
       .then(setData)
       .catch(err => {
         if (err.message === 'SESSION_EXPIRED') {
-            setToken(null); // Auto-logout
+            setToken(null); 
         } else {
             setError('Could not load patient record. ' + err.message);
         }
