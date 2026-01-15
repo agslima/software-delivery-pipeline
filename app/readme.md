@@ -94,6 +94,7 @@ graph LR
 ### Backend
 
 ### Node.js (>= 18)
+
 - Express
 - Knex.js (SQL query builder & migrations)
 
@@ -174,15 +175,16 @@ CORS_ORIGIN=http://localhost:4173
 
 ---
 
-## 7. API Documentation 📡 
+## 7. API Documentation 📡
 
 The backend exposes a documented REST API.
 
 - OpenAPI 3.0 specification
 - Swagger UI available at:
-  ```text
+
+```text
   /api/v1/api-docs
-  ```
+```
 
 The API contract is intended to be:
 
@@ -192,7 +194,7 @@ The API contract is intended to be:
 
 ---
 
-## 8. Deployment Model 🚀 
+## 8. Deployment Model 🚀
 
 The system is deployed using **Docker Compose**, enabling reproducible local and CI environments.
 
@@ -204,11 +206,11 @@ docker-compose up --build
 
 ### Exposed Services
 
-| Service |	Address |
+| Service | Address |
 | --- | --- |
 | Web UI | http://localhost:4173 |
-| API	| http://localhost:4173/api/v1 |
-| API Docs	| http://localhost:4173/api/v1/api-docs |
+| API | http://localhost:4173/api/v1 |
+| API Docs | http://localhost:4173/api/v1/api-docs |
 
 ---
 
@@ -237,6 +239,7 @@ Migrations are:
 ## 10. Development & Quality Standards ⚙
 
 ### Linting
+
 ```bash
 # Backend
 cd server && npm run lint
@@ -301,5 +304,3 @@ Licensed under the Apache 2.0 License. See the `LICENSE` file for details.
 
 This repository should be treated as:
 > An internal reference implementation showcasing production-oriented patterns, not a clinical product.
-
-

@@ -22,7 +22,7 @@ jobs:
         component: ['server', 'client']
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4        
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
@@ -89,3 +89,33 @@ jobs:
         with:
           entrypoint: "/kubeconform"
           args: "-summary -output text -ignore-missing-schemas k8s/"
+
+  # ==================================================================
+  # JOB 3: Security Scan (Code + IaC)
+  # ==================================================================
+  security-scan:
+    name: Security Quality Check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 1. Secret Scanning
+      - name: Secret Scanning (Gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 2. TRIVY SCAN: Filesystem (Dependencies & Code Secrets)
+      - name: Trivy Scan - Root FS
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          severity: 'HIGH,CRITICAL'
+          exit-code: 1
+            
