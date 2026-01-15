@@ -59,6 +59,8 @@ jobs:
   infra-lint:
     name: Infra Hygiene
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
