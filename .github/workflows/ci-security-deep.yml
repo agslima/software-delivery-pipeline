@@ -1,17 +1,19 @@
 name: CI – Security Deep Scan
 
 on:
-  pull_request:
-    branches: [main]
-    types: [opened, synchronize, reopened, labeled]
   schedule:
     - cron: "0 2 * * *"
+  workflow_dispatch: {}  # allow manual runs for testing
+  pull_request:  # add itself for testing changes to this workflow
+    paths:
+      - '.github/workflows/ci-security-deep.yml'
 
 jobs:
   security:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      actions: read
       security-events: write
     steps:
       - uses: actions/checkout@v4
