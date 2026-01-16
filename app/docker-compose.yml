@@ -1,0 +1,60 @@
+services:
+  frontend:
+    build:
+      context: .            
+      dockerfile: docker/Dockerfile.client
+    ports:
+      - "4173:8080"                   
+    depends_on:
+      - backend
+    # Drop all Linux capabilities
+    cap_drop:
+      - ALL
+    # Restart if it crashes
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .            
+      dockerfile: docker/Dockerfile.server
+    ports:
+      - "8080:8080"
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+      LOG_LEVEL: info
+      
+      # Security Note: Ideally, use Docker Secrets for these variables
+      CORS_ORIGIN: http://localhost:4173,https://localhost:4173,http://localhost:8080
+      JWT_SECRET: ${JWT_SECRET}
+      ADMIN_USER: ${ADMIN_USER}
+      ADMIN_PASS: ${ADMIN_PASS}
+      
+      DB_HOST: postgres
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+      DB_NAME: ${DB_NAME}
+          
+    depends_on:
+      - postgres
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+    # Set root filesystem is read-only
+    read_only: true
+    # Set temporary file writes if needed
+    tmpfs:
+      - /tmp
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  pgdata:

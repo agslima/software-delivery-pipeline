@@ -1,0 +1,100 @@
+openapi: 3.0.0
+info:
+  title: Prescription API
+  version: 1.0.0
+  description: Secure API for retrieving medical prescriptions
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Local Development
+  - url: https://api.stayhealthy.com/api/v1
+    description: Production
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    LoginRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          example: admin
+        password:
+          type: string
+          example: SuperSecurePassword@157!
+    
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+
+    Prescription:
+      type: object
+      properties:
+        id:
+          type: string
+        clinicName:
+          type: string
+        doctor:
+          type: object
+        patient:
+          type: object
+        medications:
+          type: array
+          items:
+            type: object
+
+# API Routes
+paths:
+  /auth/login:
+    post:
+      summary: Login to get access token
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        200:
+          description: Successful login
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        401:
+          description: Invalid credentials
+
+  /prescriptions/{id}:
+    get:
+      summary: Get prescription details
+      tags: [Prescriptions]
+      security:
+        - bearerAuth: []  
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+          required: true
+          description: Prescription ID (e.g., demo-id)
+      responses:
+        200:
+          description: Prescription data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prescription'
+        401:
+          description: Unauthorized (Missing/Invalid Token)
+        404:
+          description: Prescription not found
