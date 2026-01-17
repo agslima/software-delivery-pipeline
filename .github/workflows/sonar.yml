@@ -29,7 +29,7 @@ jobs:
 
       - name: Install Dependencies
         working-directory: app/${{ matrix.component }}
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       # 1. Run Tests with Coverage
       - name: Run Tests (Generate LCOV)
