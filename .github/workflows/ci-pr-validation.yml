@@ -107,7 +107,7 @@ jobs:
 
       # 1. Secret Scanning
       - name: Secret Scanning (Gitleaks)
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@07d6e4ed91b2707b5542bba5a709e33b3ffede60 #v2.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
