@@ -15,7 +15,7 @@
     "test:unit": "jest tests/unit",
     "test:int": "jest tests/integration --runInBand",
     "test:watch": "jest tests/unit --watch",
-    "test:coverage": "jest --coverage --coverageReporters=lcov",
+    "coverage": "jest --coverage --coverageReporters=lcov",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
   },
