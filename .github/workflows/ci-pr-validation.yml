@@ -1,7 +1,10 @@
 name: CI – PR Validation
 on:
+  push:
+    branches:
+      - main
   pull_request:
-    branches: [main]
+    types: [opened, synchronize, reopened]
 
 concurrency:
   group: pr-${{ github.ref }}
