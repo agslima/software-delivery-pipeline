@@ -1,0 +1,44 @@
+# ==========================================
+# STAGE 1: Dependencies
+# ==========================================
+FROM node:25-alpine AS deps
+
+WORKDIR /app
+
+# hadolint ignore=DL3018
+
+COPY server/package*.json ./
+
+# Install only production dependencies
+RUN npm ci --omit=dev --ignore-scripts
+
+# ==========================================
+# STAGE 2: Runtime
+# ==========================================
+FROM node:25-alpine AS runtime
+
+WORKDIR /app
+
+# hadolint ignore=DL3018
+RUN apk add --no-cache tini
+
+# Setup Environment
+ENV NODE_ENV=production
+
+# 1. Copy Dependencies from Stage 1
+COPY --from=deps --chown=node:node /app/node_modules ./node_modules
+
+# 2. Copy Source Code
+# Copies the CONTENTS of the 'server' folder into '/app'
+COPY --chown=node:node server ./
+
+# 3. Security: Drop to non-root user
+USER node
+
+# 4. Expose Port
+EXPOSE 8080
+
+# 5. Entrypoint
+ENTRYPOINT ["/sbin/tini", "--"]
+
+CMD ["node", "src/server.js"]

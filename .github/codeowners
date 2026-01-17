@@ -14,3 +14,6 @@ docs/security-debt.md @agslima
 
 # 4. Infrastructure State
 k8s/resources/        @agslima
+
+# 5. Trivy allowlist
+.trivyignore          @agslima

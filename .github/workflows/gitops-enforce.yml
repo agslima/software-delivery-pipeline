@@ -1,0 +1,34 @@
+name: GitOps Enforcement
+
+on:
+  push:
+    tags:
+      - v*
+
+jobs:
+  gitops:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
+
+      - name: Update Manifest Digest
+        run: |
+          sed -i "s|image: .*|image: ${{ env.IMAGE }}|g" k8s/deployment.yaml
+
+      - name: Install Kyverno
+        uses: kyverno/action-install-cli@v0.2.0
+
+      - name: Validate Manifests (CI Scope)
+        run: |
+          kyverno apply k8s/policies/ci \
+            --resource k8s/deployment.yaml \
+            --audit-warn=false
+
+      - name: Commit GitOps Change
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git commit -am "gitops: deploy ${{ github.ref_name }}"
+          git push

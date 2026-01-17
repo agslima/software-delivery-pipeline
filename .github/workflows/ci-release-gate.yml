@@ -1,0 +1,47 @@
+name: Release Gate
+
+on:
+  push:
+    tags:
+      - v*
+
+jobs:
+  release-security:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
+
+      - uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef #v3.6.0
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+
+      - name: Build Image
+        run: |
+          docker build -t app:${{ github.ref_name }} app/
+          docker push app:${{ github.ref_name }}
+
+      - name: Install Trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Trivy Gate
+        run: |
+          trivy image app:${{ github.ref_name }} \
+            --severity HIGH,CRITICAL \
+            --exit-code 1
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad #v4.0.0
+
+      - name: Sign Image
+        run: cosign sign app:${{ github.ref_name }}
+
+      - name: Attest Vulnerabilities
+        run: cosign attest \
+          --predicate trivy-results.json \
+          --type vuln \
+          app:${{ github.ref_name }}

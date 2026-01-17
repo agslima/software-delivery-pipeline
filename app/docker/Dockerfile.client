@@ -1,0 +1,43 @@
+# ==========================================
+# STAGE 1: Build the React App
+# ==========================================
+FROM node:25-alpine AS builder
+WORKDIR /app
+
+COPY client/package*.json ./
+RUN npm ci --ignore-scripts
+
+COPY client/ .
+RUN npm run build
+
+# ==========================================
+# STAGE 2: Serve with Nginx
+# ==========================================
+FROM node:25-alpine
+
+# hadolint ignore=DL3018
+RUN apk update && \
+    apk upgrade --no-cache && \
+    apk add --no-cache nginx
+
+RUN mkdir -p /var/cache/nginx \
+             /var/log/nginx \
+             /var/lib/nginx \
+             /tmp/nginx \
+             /etc/nginx \
+    && touch /var/run/nginx.pid \
+    && chown -R nginx:nginx /var/cache/nginx \
+                            /var/log/nginx \
+                            /var/lib/nginx \
+                            /tmp/nginx \
+                            /etc/nginx \
+                            /var/run/nginx.pid
+
+COPY nginx/nginx.conf /etc/nginx/nginx.conf
+
+COPY --chown=nginx:nginx --from=builder /app/dist /usr/share/nginx/html
+
+USER nginx
+EXPOSE 8080
+
+CMD ["nginx", "-g", "daemon off;"]

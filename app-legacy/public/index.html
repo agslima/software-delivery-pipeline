@@ -12,23 +12,20 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 
     <style>
-        /* CSS para imitar a imagem enviada */
         body { font-family: 'Poppins', sans-serif; background-color: #fff; color: #333; margin: 0; padding: 40px; }
         .header { display: flex; align-items: center; border-bottom: 2px solid #a0c4ff; padding-bottom: 20px; margin-bottom: 40px; }
         .logo { font-size: 32px; font-weight: 700; color: #333; }
-        .logo i { color: #4dabf7; margin-left: 5px; } /* Ícone azul */
+        .logo i { color: #4dabf7; margin-left: 5px; } 
         
         .container { display: flex; flex-wrap: wrap; justify-content: space-between; }
         
-        /* Coluna da Esquerda (Médico) e Direita (Paciente) */
         .info-section { width: 45%; margin-bottom: 30px; }
-        .info-right { text-align: right; } /* Alinha dados do paciente à direita como na imagem */
+        .info-right { text-align: right; } 
         
         h3 { font-size: 16px; font-weight: 600; margin-bottom: 10px; color: #000; }
         p { margin: 5px 0; font-size: 14px; }
         .label { font-weight: 600; }
 
-        /* Lista de Medicamentos */
         .med-list { width: 100%; margin-top: 20px; }
         .med-item { margin-bottom: 20px; padding-left: 20px; border-left: 3px solid #eee; }
         .med-name { font-weight: 700; font-size: 16px; display: list-item; list-style-type: disc; }
@@ -42,7 +39,6 @@
         function App() {
             const [data, setData] = React.useState(null);
 
-            // Ao carregar a página, busca os dados no Node.js
             React.useEffect(() => {
                 fetch('/api/prescription')
                     .then(response => response.json())
@@ -54,7 +50,7 @@
 
             return (
                 <div>
-                    {/* Header com Logo */}
+                    {/* Header */}
                     <div className="header">
                         <div className="logo">
                             {data.clinicName} <i className="fa-solid fa-user-doctor"></i>
