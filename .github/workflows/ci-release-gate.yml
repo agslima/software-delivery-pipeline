@@ -1,8 +1,19 @@
-name: Release
+name: "Build & Delivery"
 
 on:
   push:
-    tags: [ "v*.*.*" ]
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag (e.g., v1.2.3)'
+        required: true
+        type: string
+        
+concurrency:
+  group: delivery-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   release-security:
