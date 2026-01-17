@@ -10,6 +10,7 @@
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=agslima_software-delivery-pipeline&metric=security_rating&token=fc36aa04e8597e3ef994141f2c98064a72019cd0)](https://sonarcloud.io/summary/new_code?id=agslima_software-delivery-pipeline)
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=agslima_software-delivery-pipeline&metric=reliability_rating&token=fc36aa04e8597e3ef994141f2c98064a72019cd0)](https://sonarcloud.io/summary/new_code?id=agslima_software-delivery-pipeline)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=agslima_software-delivery-pipeline&metric=coverage&token=fc36aa04e8597e3ef994141f2c98064a72019cd0)](https://sonarcloud.io/summary/new_code?id=agslima_software-delivery-pipeline)
+
 [![SLSA](https://img.shields.io/badge/SLSA-Level%203-blue?logo=linuxfoundation)](https://github.com/agslima/software-delivery-pipeline/attestations)
 [![Infrastructure: Kubernetes](https://img.shields.io/badge/Infra-Kubernetes-326CE5?logo=kubernetes&logoColor=white)](https://github.com/agslima/software-delivery-pipeline/tree/main/k8s)
 [![Security: Trivy](https://img.shields.io/badge/Container-Trivy-0077C2.svg?logo=aquasecurity&logoColor=white)](https://github.com/aquasecurity/trivy)
