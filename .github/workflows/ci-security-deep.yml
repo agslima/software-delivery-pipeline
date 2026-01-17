@@ -36,56 +36,51 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # --------------------------------------------------------------
-      # TRIVY: Install once
+      # TRIVY
       # --------------------------------------------------------------
-      - name: Install Trivy
-        run: |
-          set -euo pipefail
-          TRIVY_VERSION="${{ vars.TRIVY_VERSION }}"
-          curl -sfL "https://raw.githubusercontent.com/aquasecurity/trivy/v${TRIVY_VERSION}/contrib/install.sh" \
-            | sh -s -- -b /usr/local/bin
-          trivy --version
+      - name: Trivy Scan - Infrastructure
+        uses: aquasecurity/trivy-action@18f2510ee396bbf400402947b394f2dd8c87dbb0 # v0.29.0
+        with:
+          scan-type: 'config'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-infra.sarif'
+          severity: 'HIGH,CRITICAL'
+          hide-progress: true
+        continue-on-error: true # Don't fail yet, we want to run code scan too
 
-      # --------------------------------------------------------------
-      # TRIVY: Single scan in JSON (authoritative governance output)
-      # Then convert to SARIF for "Code" and "Infra" categories.
-      # --------------------------------------------------------------
-      - name: Run Trivy Deep Scan (Single JSON Output)
-        run: |
-          set -euo pipefail
-
-          trivy fs . \
-            --scanners vuln,secret,config \
-            --severity MEDIUM,HIGH,CRITICAL \
-            --skip-dirs "node_modules,**/dist,**/build" \
-            --format json \
-            --output trivy-governance.json
-
-      # --------------------------------------------------------------
-      # Convert JSON -> SARIF (2 views: code + infra)
-      # --------------------------------------------------------------
-      - name: Convert Trivy JSON to SARIF (Code)
-        run: |
-          set -euo pipefail
-
-          if trivy --help | grep -q "convert"; then
-            trivy convert \
-              --format sarif \
-              --output trivy-code.sarif \
-              trivy-governance.json
-          else
-            echo "::error::Trivy 'convert' not available in this version. Upgrade TRIVY_VERSION."
-            exit 1
-          fi
-
-      - name: Convert Trivy JSON to SARIF (Infra)
-        run: |
-          set -euo pipefail
-
-          cp trivy-code.sarif trivy-infra.sarif
+      # ---------------------------------------------------------
+      # 2. CODE SCAN (Vulns & Secrets only)
+      # ----------------------------------------------------------
+      - name: Trivy Scan - Code
+        uses: aquasecurity/trivy-action@18f2510ee396bbf400402947b394f2dd8c87dbb0 # v0.29.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          scanners: 'vuln,secret'
+          format: 'sarif'
+          output: 'trivy-code.sarif'
+          severity: 'MEDIUM,HIGH,CRITICAL'
+          skip-dirs: "node_modules,dist,build"
+          hide-progress: true
+        continue-on-error: true
 
       # --------------------------------------------------------------
-      # Explicit output checks (fail fast if scanner output missing)
+      # 3. GOVERNANCE DATA (Everything)
+      # --------------------------------------------------------------
+      - name: Generate Governance JSON
+        uses: aquasecurity/trivy-action@18f2510ee396bbf400402947b394f2dd8c87dbb0 # v0.29.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          scanners: 'vuln,secret,config'
+          format: 'json'
+          output: 'trivy-governance.json'
+          severity: 'MEDIUM,HIGH,CRITICAL'
+          skip-dirs: "node_modules,dist,build"
+
+            # --------------------------------------------------------------
+      # Explicit output checks (The Gatekeeper)
       # --------------------------------------------------------------
       - name: Validate Scanner Outputs
         run: |
@@ -93,31 +88,29 @@ jobs:
           test -s trivy-governance.json || (echo "::error::Missing/empty trivy-governance.json"; exit 1)
           test -s trivy-code.sarif || (echo "::error::Missing/empty trivy-code.sarif"; exit 1)
           test -s trivy-infra.sarif || (echo "::error::Missing/empty trivy-infra.sarif"; exit 1)
-          echo "✅ Trivy outputs present."
+          echo "✅ Trivy outputs verified."
 
       # --------------------------------------------------------------
-      # Reporting
+      # Reporting (Only runs if Validation passed)
       # --------------------------------------------------------------
       - name: Upload Trivy SARIF (Code)
         uses: github/codeql-action/upload-sarif@v4
-        if: always()
         with:
           sarif_file: trivy-code.sarif
           category: code
 
       - name: Upload Trivy SARIF (Infra)
         uses: github/codeql-action/upload-sarif@v4
-        if: always()
         with:
           sarif_file: trivy-infra.sarif
           category: infrastructure
 
       # --------------------------------------------------------------
-      # Upload artifacts for root-cause debugging
+      # Upload artifacts (Runs even if previous steps fail)
       # --------------------------------------------------------------
       - name: Upload Trivy Artifacts
         uses: actions/upload-artifact@v4
-        if: always()
+        if: always() 
         with:
           name: trivy-deep-scan
           path: |
