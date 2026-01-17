@@ -1,4 +1,4 @@
-name: CI – PR Validation
+name: Build
 on:
   push:
     branches:
