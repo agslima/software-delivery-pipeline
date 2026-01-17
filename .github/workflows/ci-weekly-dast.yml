@@ -1,0 +1,97 @@
+name: Weekly Deep DAST Scan
+
+on:
+  schedule:
+    - cron: '0 4 * * 0' # Runs at 04:00, only on Sunday 
+  # Manual Trigger: Allow running on-demand via UI
+  workflow_dispatch:
+
+jobs:
+  dast-full-scan:
+    name: OWASP ZAP Full Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 120 
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      # ==================================================================
+      # 1. Start Ephemeral Environment
+      # ==================================================================
+      - name: Start Ephemeral Environment
+        working-directory: app
+        run: |
+          # Build and start services
+          docker compose up -d --build
+
+          echo "⏳ Waiting for Backend..."
+          timeout 120s bash -c 'until curl -s http://127.0.0.1:8080/health > /dev/null; do sleep 5; done'
+          
+          echo "⏳ Waiting for Frontend..."
+          timeout 120s bash -c 'until curl -s http://127.0.0.1:4173 > /dev/null; do sleep 5; done'
+          
+          echo "✅ Application is live!"
+
+      # ==================================================================
+      # 2. Run ZAP Full Scan (Active Attack)
+      # ==================================================================
+      - name: OWASP ZAP Full Scan
+        run: |
+          mkdir -p zap-out
+          chmod 777 zap-out
+
+          echo "🚀 Starting ZAP FULL Scan..."
+          echo "⚠️ This mimics an active attacker and may flood the logs."
+
+          docker run --rm \
+            --network host \
+            -v $(pwd)/zap-out:/zap/wrk/:rw \
+            ghcr.io/zaproxy/zaproxy:stable zap-full-scan.py \
+            -t http://127.0.0.1:4173 \
+            -r zap-report.html \
+            -J zap-report.json \
+            -I || true 
+            # -I: Ignore warnings (we check JSON manually)
+            # -a: (Optional) Include alpha rules if you want to be extra paranoid
+
+      # ==================================================================
+      # 3. The Gatekeeper
+      # ==================================================================
+      - name: Analyze Results
+        id: analyze
+        run: |
+          FILE="zap-out/zap-report.json"
+          if [ ! -f "$FILE" ]; then
+            echo "::error::❌ ZAP Report not found!"
+            exit 1
+          fi
+
+          # Safe JQ Query
+          HIGHS=$(jq '[.site[]? | .alerts[]? | select(.riskcode == "3")] | length' "$FILE")
+          MEDIUMS=$(jq '[.site[]? | .alerts[]? | select(.riskcode == "2")] | length' "$FILE")
+
+          echo "📊 Scan Results: Highs=$HIGHS, Mediums=$MEDIUMS"
+
+          # Fail if Highs > 0
+          if [ "$HIGHS" -gt 0 ]; then
+            echo "::error::⛔ DAST Failed! Found $HIGHS High severity vulnerabilities."
+            exit 1
+          fi
+
+          echo "✅ Full Scan Passed."
+
+      # ==================================================================
+      # 4. Reporting (Crucial for Weekly jobs)
+      # ==================================================================
+      - name: Upload ZAP Report
+        if: always() 
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-full-scan-report
+          path: zap-out/zap-report.html
+          retention-days: 30
+
+      - name: Debug - Container Logs
+        if: failure()
+        working-directory: app
+        run: docker compose logs
