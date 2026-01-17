@@ -22,10 +22,10 @@ jobs:
         component: ['server', 'client']
 
     steps:
-      - uses: actions/checkout@v4        
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 #v6.0.0     
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 #v5.0.0
         with:
           node-version-file: 'app/${{ matrix.component }}/package.json'
           cache: 'npm'
@@ -61,18 +61,18 @@ jobs:
           - service: frontend
             path: app/docker/Dockerfile.client
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 #v6.0.0
 
       # 1. Hadolint (Lints the syntax)
       - name: Lint Dockerfile (${{ matrix.service }})
-        uses: hadolint/hadolint-action@v3.3.0
+        uses: hadolint/hadolint-action@54c9adbab1582c2ef04b2016b760714a4bfde3cf #v3.3.0
         with:
           dockerfile: ${{ matrix.path }}
           failure-threshold: error
 
       # 2. Conftest (OPA Policy)
       - name: Setup Conftest
-        uses: princespaghetti/setup-conftest@v1 
+        uses: princespaghetti/setup-conftest@427bf563268433011fd432d23ae41e567cc24272 #v1.0.0
 
       - name: Run OPA Policy (${{ matrix.service }})
         run: |
@@ -85,7 +85,7 @@ jobs:
       # 3. Kubeconform (Kubernetes Manifests)
       - name: Validate K8s Manifests
         if: matrix.service == 'backend'
-        uses: docker://ghcr.io/yannh/kubeconform:latest
+        uses: docker://ghcr.io/yannh/kubeconform@sha256:0474f7372c0089c41890101f0e293db5798e05942c98bbcf8359f206731115ea # v0.7.0
         with:
           entrypoint: "/kubeconform"
           args: "-summary -output text -ignore-missing-schemas k8s/"
@@ -98,10 +98,10 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: read
+      pull-requests: write
       security-events: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 #v6.0.0
         with:
           fetch-depth: 0
 
@@ -113,7 +113,7 @@ jobs:
 
       # 2. TRIVY SCAN: Filesystem (Dependencies & Code Secrets)
       - name: Trivy Scan - Root FS
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@18f2510ee396bbf400402947b394f2dd8c87dbb0
         with:
           scan-type: 'fs'
           scan-ref: '.'
