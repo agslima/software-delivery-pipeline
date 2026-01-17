@@ -26,13 +26,14 @@ jobs:
           fetch-depth: 0
 
       - name: Secret Scanning (Gitleaks)
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@07d6e4ed91b2707b5542bba5a709e33b3ffede60 #v2.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # 1. INFRASTRUCTURE SCAN (Misconfigs only)
       - name: Scan Infrastructure (K8s)
-        uses: aquasecurity/trivy-action@0.29.0
+        uses: aquasecurity/trivy-action@18f2510ee396bbf400402947b394f2dd8c87dbb0 # v0.29.0
+
         with:
           scan-type: 'config'
           scan-ref: 'k8s/'
@@ -44,7 +45,7 @@ jobs:
 
       # 2. CODE SCAN (Vulnerabilities & Secrets)
       - name: Scan Code Dependencies
-        uses: aquasecurity/trivy-action@0.29.0
+        uses: aquasecurity/trivy-action@18f2510ee396bbf400402947b394f2dd8c87dbb0 # v0.29.0
         with:
           scan-type: 'fs'
           scan-ref: '.'
@@ -59,7 +60,7 @@ jobs:
       # 3. GOVERNANCE DATA GENERATION
       # Run a fast JSON scan specifically for the policy script
       - name: Generate Governance JSON
-        uses: aquasecurity/trivy-action@0.29.0
+        uses: aquasecurity/trivy-action@18f2510ee396bbf400402947b394f2dd8c87dbb0 # v0.29.0
         with:
           scan-type: 'fs'
           scan-ref: '.'
