@@ -26,7 +26,7 @@ jobs:
       security-events: write
       issues: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
         with:
           fetch-depth: 0
 
@@ -100,7 +100,7 @@ jobs:
           category: code
 
       - name: Upload Trivy SARIF (Infra)
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@9e91f7484c5b161271ee47d7f1d4400e26084627 # v4.0.0
         with:
           sarif_file: trivy-infra.sarif
           category: infrastructure
@@ -109,7 +109,7 @@ jobs:
       # Upload artifacts (Runs even if previous steps fail)
       # --------------------------------------------------------------
       - name: Upload Trivy Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 #v5.0.0
         if: always() 
         with:
           name: trivy-deep-scan
@@ -170,7 +170,7 @@ jobs:
       contents: read
       issues: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
 
       - name: Start Ephemeral Environment
         working-directory: app
@@ -219,7 +219,7 @@ jobs:
           echo "✅ DAST Scan Passed."
 
       - name: Upload ZAP Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 #v5.0.0
         if: always()
         with:
           name: zap-results
