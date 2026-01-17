@@ -29,7 +29,7 @@ spec:
       - name: app 
         image: docker.io/agslima/software-delivery-pipeline@sha256:ffb9ea7520e9419a82af9aac9e4bed874387a7e149b582e30e27e9ec812c3db2
 
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         
         ports:
         - containerPort: 3000
@@ -45,11 +45,20 @@ spec:
           requests:
             memory: "64Mi"
             cpu: "250m"
+            ephemeral-storage: "500Mi"
           limits:
             memory: "128Mi"
             cpu: "500m"
-
-        readinessProbe:
+            ephemeral-storage: "1Gi"
+        
+       livenessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 3000
+          initialDelaySeconds: 15 
+          periodSeconds: 20
+          
+        readinessProbe::
           httpGet:
             path: /api/v1/health
             port: 3000
