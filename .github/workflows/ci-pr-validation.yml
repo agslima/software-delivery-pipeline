@@ -36,7 +36,7 @@ jobs:
 
       - name: Install Dependencies
         working-directory: app/${{ matrix.component }}
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Lint
         working-directory: app/${{ matrix.component }}
