@@ -34,7 +34,7 @@ jobs:
       # 1. Run Tests with Coverage
       - name: Run Tests (Generate LCOV)
         working-directory: app/${{ matrix.component }}
-        run: npm run test:cov
+        run: npm run coverage
 
       - name: Fix LCOV Paths
         working-directory: app/${{ matrix.component }}
