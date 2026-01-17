@@ -20,7 +20,7 @@
 
 | CVE | Severity | Component | Current Version | Fixed Version | Exploitability | Justification | Decision | Owner | Expires (YYYY-MM-DD) | Ticket/Link | Notes |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| CVE-YYYY-NNNN | MEDIUM | npm:package-name | 1.2.3 | 1.2.4 | Low/Med/High | Why we accept temporarily | Accept | @owner | 2026-02-15 | #123 | Add constraints / mitigation |
+| CVE-YYYY-NNNN | MEDIUM | npm:yamljs | 0.3.0 | - | Low| There is no fix for this issue | Accept | @agslima | 2026-02-25 | #236 | Dependent packages have eliminated the use of this library. |
 
 ---
 
