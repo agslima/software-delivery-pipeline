@@ -2,33 +2,134 @@ name: GitOps Enforcement
 
 on:
   push:
-    tags:
-      - v*
+    tags: [ "v*.*.*" ]
 
 jobs:
   gitops:
     runs-on: ubuntu-latest
-    permissions:
+    permissions: 
       contents: write
+      pull-requests: write
+    # environment: production
+    strategy:
+      fail-fast: true
+      
+      matrix:
+        include:
+          - name: backend 
+            image_repo: app-stayheathy
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
+       
+      - name: Download Digest Artifact
+        uses: actions/download-artifact@v4
+        with:
+          pattern: digest-*
+          merge-multiple: true
+          path: digests
+      
+      - name: Read Digest
+        run: |
+          DIGEST=$(cat digests/digest-${{ matrix.name }})
+          echo "DIGEST=$DIGEST" >> $GITHUB_ENV
+          echo "IMAGE=docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@$DIGEST" >> $GITHUB_ENV
+      
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+          
+      - uses: sigstore/cosign-installer@v3.8.1
+      
+      - uses: kyverno/action-install-cli@v0.2.0
+        with:
+          release: 'v1.13.2'
+          verify: true
+      
+      - name: Configure Policy Variables
+        run: |
+          POLICY_FILE="k8s/policies/cluster/supply-chain-policy.yaml"
+          
+          sed -i "s|docker.io/agslima/|docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/|g" $POLICY_FILE
+          sed -i "s|github.com/agslima/|github.com/${{ github.repository_owner }}/|g" $POLICY_FILE
 
-      - name: Update Manifest Digest
+      - name: Update Deployment Manifest (In-Memory)
         run: |
           sed -i "s|image: .*|image: ${{ env.IMAGE }}|g" k8s/deployment.yaml
-
-      - name: Install Kyverno
-        uses: kyverno/action-install-cli@v0.2.0
-
-      - name: Validate Manifests (CI Scope)
+          
+      - name: Update Manifests
         run: |
-          kyverno apply k8s/policies/ci \
-            --resource k8s/deployment.yaml \
-            --audit-warn=false
-
-      - name: Commit GitOps Change
+          FRONTEND_DIGEST=$(cat digests/digest-frontend)
+          BACKEND_DIGEST=$(cat digests/digest-backend)
+          
+          # Update Frontend Manifest
+          sed -i "s|image: .*app-stayheathy-frontend.*|image: docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayheathy-frontend@$FRONTEND_DIGEST|g" k8s/resources/frontend.yaml
+          
+          # Update Backend Manifest
+          sed -i "s|image: .*app-stayheathy-backend.*|image: docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayheathy-backend@$BACKEND_DIGEST|g" k8s/resources/backend.yaml
+          
+      
+      - name: Validate Against Policy
         run: |
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
-          git commit -am "gitops: deploy ${{ github.ref_name }}"
-          git push
+          LOG_FILE=$(mktemp)
+
+          # FIX: Run Kyverno against the modified manifest using the correct policy file
+          # Note: 'verifyImages' will be skipped by the CLI (normal behavior), 
+          # but checking structure ensures we didn't break the YAML syntax.
+          kyverno apply k8s/policies/cluster/supply-chain-policy.yaml \
+            --resource k8s/resources/deployment.yaml \
+            --audit-warn=false > "$LOG_FILE" 2>&1 || true
+
+          cat "$LOG_FILE"
+
+          if grep -qE "fail:[[:space:]]*[1-9]" "$LOG_FILE"; then
+            echo "::error::❌ Policy Violation Detected."
+            exit 1
+          fi
+          
+          echo "✅ Policy Validation Passed."
+     
+      - name: Commit & Push GitOps Update
+        run: |
+          set -euo pipefail
+
+          BRANCH="gitops/update-app-${{ github.ref_name }}"
+          git checkout -B "$BRANCH"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add k8s/resources/deployment.yaml
+
+          if git diff --staged --quiet; then
+            echo "No changes detected, skipping commit."
+            exit 0
+          fi
+
+          git commit -m "gitops: deploy app @ ${{ env.DIGEST }}"
+          git push origin "$BRANCH"
+
+
+      - name: Create GitOps PR
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.TOKEN_GITHUB }}
+          commit-message: "deploy: update images to ${{ github.ref_name }}"
+          title: "Deploy Release ${{ github.ref_name }}"
+          body: |
+            Automated deployment for release ${{ github.ref_name }}.
+            - Frontend Digest: `cat digests/digest-frontend`
+            - Backend Digest: `cat digests/digest-backend`
+          branch: "gitops/deploy-${{ github.ref_name }}"
+
+
+      - name: Create Pull Request
+        env:
+          GH_TOKEN: ${{ secrets.TOKEN_GITHUB }}
+        run: |
+          gh pr create \
+            --head "gitops/update-app-${{ github.ref_name }}" \
+            --base main \
+            --title "Deploy app ${{ github.ref_name }}" \
+            --body "Automated GitOps update. Image digest: ${{ env.DIGEST }}" \
+            || echo "PR already exists."

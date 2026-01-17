@@ -1,3 +1,4 @@
+// app/server/tests/unit/prescription.service.test.js
 const PrescriptionService = require('../../src/modules/prescription/prescription.service');
 
 describe('Unit: PrescriptionService', () => {
