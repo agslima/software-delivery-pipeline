@@ -63,13 +63,13 @@ jobs:
 
       # 4. Download ALL coverage artifacts
       - name: Download Backend Coverage
-        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4.1.7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v4.1.7
         with:
           name: coverage-server
           path: app/server/coverage
 
       - name: Download Frontend Coverage
-        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4.1.7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v4.1.7
         with:
           name: coverage-client
           path: app/client/coverage
