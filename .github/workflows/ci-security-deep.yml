@@ -1,17 +1,24 @@
 name: CI – Security Deep Scan
 
 on:
-  pull_request:
-    branches: [main]
-    types: [opened, synchronize, reopened, labeled]
   schedule:
     - cron: "0 2 * * *"
+  workflow_dispatch: {}  # allow manual runs for testing
+  pull_request:  # add itself for testing changes to this workflow
+    paths:
+      - '.github/workflows/ci-security-deep.yml'
 
 jobs:
-  security:
+  # ==================================================================
+  # JOB 1 Security Scan (Code + IaC)
+  # ==================================================================
+  security-governance:
+    name: Security Governance
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      actions: read
+      pull-requests: read
       security-events: write
     steps:
       - uses: actions/checkout@v4
@@ -19,30 +26,140 @@ jobs:
           fetch-depth: 0
 
       - name: Secret Scanning (Gitleaks)
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@07d6e4ed91b2707b5542bba5a709e33b3ffede60 #v2.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - run: |
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+      # 1. INFRASTRUCTURE SCAN (Misconfigs only)
+      - name: Scan Infrastructure (K8s)
+        uses: aquasecurity/trivy-action@18f2510ee396bbf400402947b394f2dd8c87dbb0 # v0.29.0
 
-      # Full Trivy (JSON)
-      - run: |
-          trivy fs . --format json --output trivy-full.json || true
-
-      # SARIF for GitHub Security Tab
-      - run: |
-          trivy fs . \
-            --severity HIGH,CRITICAL \
-            --format sarif \
-            --output trivy.sarif || true
-
-      - uses: github/codeql-action/upload-sarif@v4
         with:
-          sarif_file: trivy.sarif
+          scan-type: 'config'
+          scan-ref: 'k8s/'
+          format: 'sarif'
+          output: 'trivy-infra.sarif'
+          severity: 'MEDIUM,HIGH,CRITICAL'
+          hide-progress: true
+        continue-on-error: true 
 
-      - uses: actions/upload-artifact@v4
+      # 2. CODE SCAN (Vulnerabilities & Secrets)
+      - name: Scan Code Dependencies
+        uses: aquasecurity/trivy-action@18f2510ee396bbf400402947b394f2dd8c87dbb0 # v0.29.0
         with:
-          name: security-artifacts
-          path: |
-            trivy-full.json
+          scan-type: 'fs'
+          scan-ref: '.'
+          scanners: 'vuln,secret'
+          format: 'sarif'
+          output: 'trivy-code.sarif'
+          severity: 'MEDIUM,HIGH,CRITICAL'
+          skip-dirs: 'node_modules,tests'
+          hide-progress: true
+        continue-on-error: true
+
+      # 3. GOVERNANCE DATA GENERATION
+      # Run a fast JSON scan specifically for the policy script
+      - name: Generate Governance JSON
+        uses: aquasecurity/trivy-action@18f2510ee396bbf400402947b394f2dd8c87dbb0 # v0.29.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          scanners: 'vuln,secret'
+          format: 'json'
+          output: 'trivy-governance.json'
+          severity: 'MEDIUM,HIGH,CRITICAL'
+
+      # 4. REPORTING (Upload to GitHub UI)
+      - name: Upload Infra Results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-infra.sarif'
+          category: 'infrastructure'
+
+      - name: Upload Code Results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-code.sarif'
+          category: 'code'
+
+      # 5. THE GATEKEEPER (Policy Enforcement)
+      - name: Enforce Risk Acceptance Policy
+        run: |
+          chmod +x scripts/check-security-debt.sh
+          ./scripts/check-security-debt.sh trivy-governance.json
+
+  # ==================================================================
+  # JOB 2: DAST (Dynamic Application Security Testing)
+  # ==================================================================
+  dast-scan:
+    name: DAST (Lightweight)
+    runs-on: ubuntu-latest
+    needs: [security-governance]
+    steps:
+      - uses: actions/checkout@v4
+
+      # 1. Spin up the Ephemeral Environment
+      - name: Start Ephemeral Environment
+        working-directory: app 
+        run: |
+          # Build and start services
+          docker compose up -d --build
+
+          echo "⏳ Waiting for Backend..."
+          # Note: We use 127.0.0.1 instead of localhost to avoid IPv6 confusion
+          timeout 60s bash -c 'until curl -s http://127.0.0.1:8080/health > /dev/null; do sleep 5; done'
+          
+          echo "⏳ Waiting for Frontend..."
+          timeout 60s bash -c 'until curl -s http://127.0.0.1:4173 > /dev/null; do sleep 5; done'
+          
+          echo "✅ Application is live!"
+
+
+      # 2. Run OWASP ZAP (Baseline Scan)
+      - name: OWASP ZAP Baseline Scan
+        run: |
+          mkdir -p zap-out
+          chmod 777 zap-out
+
+          echo "🚀 Starting ZAP Scan..."
+          # Note: We do NOT change working-directory here because we want zap-out in the root
+          docker run --rm \
+            --network host \
+            -v $(pwd)/zap-out:/zap/wrk/:rw \
+            ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
+            -t http://127.0.0.1:4173 \
+            -r zap-report.html \
+            -J zap-report.json \
+            -I || true 
+            
+      # 3. The Gatekeeper (Blocking Logic)
+      - name: Check Vulnerability Thresholds
+        run: |
+          FILE="zap-out/zap-report.json"
+          if [ ! -f "$FILE" ]; then
+            echo "::error::❌ ZAP Report not found!"
+            exit 1
+          fi
+
+          # 🟢 FIX: Safer JQ query.
+          # The "?" handles cases where .site is null.
+          # The "// []" ensures we iterate over an empty list if no alerts exist.
+          HIGHS=$(jq '[.site[]? | .alerts[]? | select(.riskcode == "3")] | length' "$FILE")
+          
+          echo "📊 Scan Results: Found $HIGHS High Severity Vulnerabilities."
+
+          if [ "$HIGHS" -gt 0 ]; then
+            echo "::error::⛔ DAST Failed! Blocked $HIGHS High severity vulnerabilities."
+            exit 1
+          fi
+          
+          echo "✅ DAST Scan Passed."
+
+      # 4. Dump Logs on Failure (Debugging)
+      # If ZAP fails or App crashes, show why
+      - name: Debug - Container Logs
+        if: failure()
+        working-directory: app
+        run: docker compose logs

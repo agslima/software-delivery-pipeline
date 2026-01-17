@@ -7,10 +7,8 @@ services:
       - "4173:8080"                   
     depends_on:
       - backend
-    # Drop all Linux capabilities
     cap_drop:
       - ALL
-    # Restart if it crashes
     restart: unless-stopped
 
   backend:
@@ -24,7 +22,6 @@ services:
       PORT: 8080
       LOG_LEVEL: info
       
-      # Security Note: Ideally, use Docker Secrets for these variables
       CORS_ORIGIN: http://localhost:4173,https://localhost:4173,http://localhost:8080
       JWT_SECRET: ${JWT_SECRET}
       ADMIN_USER: ${ADMIN_USER}
@@ -40,9 +37,7 @@ services:
     cap_drop:
       - ALL
     restart: unless-stopped
-    # Set root filesystem is read-only
     read_only: true
-    # Set temporary file writes if needed
     tmpfs:
       - /tmp
 
