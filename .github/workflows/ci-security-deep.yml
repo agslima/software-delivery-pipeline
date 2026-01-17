@@ -8,9 +8,13 @@ on:
     paths:
       - '.github/workflows/ci-security-deep.yml'
 
+concurrency:
+  group: ci-security-deep-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   # ==================================================================
-  # JOB 1 Security Scan (Code + IaC)
+  # JOB 1: Security Governance (Single Trivy Scan)
   # ==================================================================
   security-governance:
     name: Security Governance
@@ -18,34 +22,38 @@ jobs:
     permissions:
       contents: read
       actions: read
-      pull-requests: read
+      pull-requests: write 
       security-events: write
+      issues: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
         with:
           fetch-depth: 0
 
       - name: Secret Scanning (Gitleaks)
-        uses: gitleaks/gitleaks-action@07d6e4ed91b2707b5542bba5a709e33b3ffede60 #v2.0.0
+        uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 1. INFRASTRUCTURE SCAN (Misconfigs only)
-      - name: Scan Infrastructure (K8s)
-        uses: aquasecurity/trivy-action@18f2510ee396bbf400402947b394f2dd8c87dbb0 # v0.29.0
-
+      # --------------------------------------------------------------
+      # TRIVY
+      # --------------------------------------------------------------
+      - name: Trivy Scan - Infrastructure
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.33.1
         with:
           scan-type: 'config'
-          scan-ref: 'k8s/'
+          scan-ref: '.'
           format: 'sarif'
           output: 'trivy-infra.sarif'
-          severity: 'MEDIUM,HIGH,CRITICAL'
+          severity: 'HIGH,CRITICAL'
           hide-progress: true
-        continue-on-error: true 
+        continue-on-error: true # Don't fail yet, we want to run code scan too
 
-      # 2. CODE SCAN (Vulnerabilities & Secrets)
-      - name: Scan Code Dependencies
-        uses: aquasecurity/trivy-action@18f2510ee396bbf400402947b394f2dd8c87dbb0 # v0.29.0
+      # ---------------------------------------------------------
+      # 2. CODE SCAN (Vulns & Secrets only)
+      # ----------------------------------------------------------
+      - name: Trivy Scan - Code
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.33.1
         with:
           scan-type: 'fs'
           scan-ref: '.'
@@ -53,113 +61,204 @@ jobs:
           format: 'sarif'
           output: 'trivy-code.sarif'
           severity: 'MEDIUM,HIGH,CRITICAL'
-          skip-dirs: 'node_modules,tests'
+          skip-dirs: "node_modules,dist,build"
           hide-progress: true
         continue-on-error: true
 
-      # 3. GOVERNANCE DATA GENERATION
-      # Run a fast JSON scan specifically for the policy script
+      # --------------------------------------------------------------
+      # 3. GOVERNANCE DATA (Everything)
+      # --------------------------------------------------------------
       - name: Generate Governance JSON
-        uses: aquasecurity/trivy-action@18f2510ee396bbf400402947b394f2dd8c87dbb0 # v0.29.0
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.33.1
         with:
           scan-type: 'fs'
           scan-ref: '.'
-          scanners: 'vuln,secret'
+          scanners: 'vuln,secret,config'
           format: 'json'
           output: 'trivy-governance.json'
           severity: 'MEDIUM,HIGH,CRITICAL'
+          skip-dirs: "node_modules,dist,build"
 
-      # 4. REPORTING (Upload to GitHub UI)
-      - name: Upload Infra Results
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
+            # --------------------------------------------------------------
+      # Explicit output checks (The Gatekeeper)
+      # --------------------------------------------------------------
+      - name: Validate Scanner Outputs
+        run: |
+          set -euo pipefail
+          test -s trivy-governance.json || (echo "::error::Missing/empty trivy-governance.json"; exit 1)
+          test -s trivy-code.sarif || (echo "::error::Missing/empty trivy-code.sarif"; exit 1)
+          test -s trivy-infra.sarif || (echo "::error::Missing/empty trivy-infra.sarif"; exit 1)
+          echo "✅ Trivy outputs verified."
+
+      # --------------------------------------------------------------
+      # Reporting (Only runs if Validation passed)
+      # --------------------------------------------------------------
+      - name: Upload Trivy SARIF (Code)
+        uses: github/codeql-action/upload-sarif@v4
         with:
-          sarif_file: 'trivy-infra.sarif'
-          category: 'infrastructure'
+          sarif_file: trivy-code.sarif
+          category: code
 
-      - name: Upload Code Results
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
+      - name: Upload Trivy SARIF (Infra)
+        uses: github/codeql-action/upload-sarif@9e91f7484c5b161271ee47d7f1d4400e26084627 # v4.0.0
         with:
-          sarif_file: 'trivy-code.sarif'
-          category: 'code'
+          sarif_file: trivy-infra.sarif
+          category: infrastructure
 
-      # 5. THE GATEKEEPER (Policy Enforcement)
+      # --------------------------------------------------------------
+      # Upload artifacts (Runs even if previous steps fail)
+      # --------------------------------------------------------------
+      - name: Upload Trivy Artifacts
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f #v6.0.0
+        if: always() 
+        with:
+          name: trivy-deep-scan
+          path: |
+            trivy-governance.json
+            trivy-code.sarif
+            trivy-infra.sarif
+          retention-days: 2
+
+      # --------------------------------------------------------------
+      # Governance gate
+      # --------------------------------------------------------------
       - name: Enforce Risk Acceptance Policy
         run: |
+          set -euo pipefail
           chmod +x scripts/check-security-debt.sh
           ./scripts/check-security-debt.sh trivy-governance.json
 
+      # --------------------------------------------------------------
+      # Alerting: auto-create issue on failure (idempotent per day)
+      # --------------------------------------------------------------
+      - name: Create Issue on Failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TODAY="$(date -u +%Y-%m-%d)"
+          TITLE="🚨 Security Deep Scan Failed (${TODAY})"
+          BODY=$(cat <<EOF
+          **Workflow:** CI – Security Deep Scan  
+          **Date (UTC):** ${TODAY}  
+          **Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          **What to check**
+          - Download artifact: \`trivy-deep-scan\`
+          - Review Security tab SARIF alerts
+          - Validate Trivy DB/network health if outputs are missing
+          EOF
+          )
+
+          # Create only if not already created today
+          if gh issue list --limit 50 --search "$TITLE" --json title | grep -q "$TITLE"; then
+            echo "Issue already exists for today."
+            exit 0
+          fi
+
+          gh issue create --title "$TITLE" --body "$BODY" --label "security" --label "governance"
+
   # ==================================================================
-  # JOB 2: DAST (Dynamic Application Security Testing)
+  # JOB 2: DAST
   # ==================================================================
   dast-scan:
     name: DAST (Lightweight)
     runs-on: ubuntu-latest
     needs: [security-governance]
+    permissions:
+      contents: read
+      issues: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
 
-      # 1. Spin up the Ephemeral Environment
       - name: Start Ephemeral Environment
-        working-directory: app 
+        working-directory: app
         run: |
-          # Build and start services
+          set -euo pipefail
           docker compose up -d --build
 
           echo "⏳ Waiting for Backend..."
-          # Note: We use 127.0.0.1 instead of localhost to avoid IPv6 confusion
-          timeout 60s bash -c 'until curl -s http://127.0.0.1:8080/health > /dev/null; do sleep 5; done'
-          
+          timeout 90s bash -c 'until curl -s http://127.0.0.1:8080/health > /dev/null; do sleep 5; done'
+
           echo "⏳ Waiting for Frontend..."
-          timeout 60s bash -c 'until curl -s http://127.0.0.1:4173 > /dev/null; do sleep 5; done'
-          
+          timeout 90s bash -c 'until curl -s http://127.0.0.1:4173 > /dev/null; do sleep 5; done'
+
+          docker compose ps
           echo "✅ Application is live!"
 
-
-      # 2. Run OWASP ZAP (Baseline Scan)
       - name: OWASP ZAP Baseline Scan
         run: |
+          set -euo pipefail
           mkdir -p zap-out
           chmod 777 zap-out
 
-          echo "🚀 Starting ZAP Scan..."
-          # Note: We do NOT change working-directory here because we want zap-out in the root
           docker run --rm \
             --network host \
-            -v $(pwd)/zap-out:/zap/wrk/:rw \
+            -v "$(pwd)/zap-out:/zap/wrk/:rw" \
             ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
             -t http://127.0.0.1:4173 \
             -r zap-report.html \
             -J zap-report.json \
-            -I || true 
-            
-      # 3. The Gatekeeper (Blocking Logic)
+            -I || true
+
       - name: Check Vulnerability Thresholds
         run: |
+          set -euo pipefail
           FILE="zap-out/zap-report.json"
-          if [ ! -f "$FILE" ]; then
-            echo "::error::❌ ZAP Report not found!"
-            exit 1
-          fi
+          test -s "$FILE" || (echo "::error::❌ ZAP Report not found or empty!"; exit 1)
 
-          # 🟢 FIX: Safer JQ query.
-          # The "?" handles cases where .site is null.
-          # The "// []" ensures we iterate over an empty list if no alerts exist.
           HIGHS=$(jq '[.site[]? | .alerts[]? | select(.riskcode == "3")] | length' "$FILE")
-          
           echo "📊 Scan Results: Found $HIGHS High Severity Vulnerabilities."
 
           if [ "$HIGHS" -gt 0 ]; then
             echo "::error::⛔ DAST Failed! Blocked $HIGHS High severity vulnerabilities."
             exit 1
           fi
-          
+
           echo "✅ DAST Scan Passed."
 
-      # 4. Dump Logs on Failure (Debugging)
-      # If ZAP fails or App crashes, show why
+      - name: Upload ZAP Artifacts
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f #v6.0.0
+        if: always()
+        with:
+          name: zap-results
+          path: zap-out/
+          retention-days: 3
+
       - name: Debug - Container Logs
         if: failure()
         working-directory: app
-        run: docker compose logs
+        run: |
+          docker compose ps || true
+          docker compose logs || true
+
+      - name: Create Issue on Failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TODAY="$(date -u +%Y-%m-%d)"
+          TITLE="🚨 DAST Failed (${TODAY})"
+          BODY=$(cat <<EOF
+          **Workflow:** CI – Security Deep Scan (DAST)  
+          **Date (UTC):** ${TODAY}  
+          **Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          **Artifacts**
+          - \`zap-results\` (HTML + JSON)
+
+          **Next steps**
+          - Inspect \`zap-report.html\`
+          - Confirm app headers (CSP/Helmet), auth flows, redirects
+          - Review container logs in job output
+          EOF
+          )
+
+          if gh issue list --limit 50 --search "$TITLE" --json title | grep -q "$TITLE"; then
+            echo "Issue already exists for today."
+            exit 0
+          fi
+
+          gh issue create --title "$TITLE" --body "$BODY" --label "security" --label "dast"

@@ -15,7 +15,7 @@
     "test:unit": "jest tests/unit",
     "test:int": "jest tests/integration --runInBand",
     "test:watch": "jest tests/unit --watch",
-    "test:coverage": "jest --coverage",
+    "coverage": "jest --coverage --coverageReporters=lcov",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
   },
@@ -33,9 +33,9 @@
     ]
   },
   "dependencies": {
-    "bcryptjs": "^2.4.3",
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
+    "dotenv": "^17.2.3",
     "envalid": "^8.1.1",
     "express": "^4.22.1",
     "express-rate-limit": "^8.2.1",
@@ -44,10 +44,10 @@
     "jsonwebtoken": "^9.0.2",
     "knex": "^3.1.0",
     "pg": "^8.16.3",
-    "pino": "^8.17.0",
-    "pino-http": "^9.0.0",
+    "pino": "^10.2.0",
+    "pino-http": "^11.0.0",
     "swagger-ui-express": "^5.0.1",
-    "uuid": "^8.3.2",
+    "uuid": "^13.0.0",
     "yamljs": "^0.3.0"
   },
   "devDependencies": {

@@ -1,7 +1,7 @@
 # ==========================================
 # STAGE 1: Build the React App
 # ==========================================
-FROM node:20-alpine AS builder
+FROM node:25-alpine AS builder
 WORKDIR /app
 
 COPY client/package*.json ./
@@ -13,7 +13,7 @@ RUN npm run build
 # ==========================================
 # STAGE 2: Serve with Nginx
 # ==========================================
-FROM node:20-alpine
+FROM node:25-alpine
 
 # hadolint ignore=DL3018
 RUN apk update && \
