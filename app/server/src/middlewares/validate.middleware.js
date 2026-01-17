@@ -1,3 +1,4 @@
+// app/server/src/middlewares/validate.middleware.js
 const logger = require('../utils/logger');
 
 const validate = (schema, property = 'body') => {

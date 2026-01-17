@@ -1,3 +1,4 @@
+// app/server/tests/integration/prescription.test.js
 const request = require('supertest');
 const app = require('../../src/app');
 const { ADMIN_USER, ADMIN_PASS } = require('../../src/config/env');
