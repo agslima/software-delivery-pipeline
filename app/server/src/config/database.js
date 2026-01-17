@@ -1,3 +1,4 @@
+// app/server/src/config/database.js
 const knex = require('knex');
 const { DB_HOST, DB_USER, DB_PASS, DB_NAME } = require('./env');
 

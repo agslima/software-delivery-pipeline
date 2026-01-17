@@ -28,6 +28,7 @@ spec:
       containers: 
       - name: app 
         image: docker.io/agslima/software-delivery-pipeline@sha256:ffb9ea7520e9419a82af9aac9e4bed874387a7e149b582e30e27e9ec812c3db2
+        automountServiceAccountToken: false
 
         imagePullPolicy: Always
         

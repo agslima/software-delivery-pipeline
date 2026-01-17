@@ -1,3 +1,4 @@
+// app/server/src/server.js
 const app = require('./app');
 const env = require('./config/env');
 const logger = require('./utils/logger');
