@@ -10,7 +10,7 @@ WORKDIR /app
 COPY server/package*.json ./
 
 # Install only production dependencies
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev --ignore-scripts
 
 # ==========================================
 # STAGE 2: Runtime
