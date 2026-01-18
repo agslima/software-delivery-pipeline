@@ -32,7 +32,7 @@ spec:
         runAsGroup: 101
       containers:
         - name: frontend
-          image: docker.io/agslima/app-stayheathy-frontend:latest
+          image: docker.io/agslima/app-stayheathy-frontend@sha256:ffb9ea7520e9419a82af9aac9e4bed874387a7e149b582e30e27e9ec812c3db2
           ports:
             - containerPort: 8080
           securityContext:
