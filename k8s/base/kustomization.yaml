@@ -1,7 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
 resources:
   - backend.yaml
   - frontend.yaml
-  - database.yaml
   - pdb.yaml
   - secrets.example.yaml
 

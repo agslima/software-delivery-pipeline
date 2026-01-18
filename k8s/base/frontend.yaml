@@ -2,7 +2,6 @@ apiVersion: v1
 kind: Service
 metadata:
   name: frontend
-  namespace: default
 spec:
   type: LoadBalancer
   selector:
@@ -29,7 +28,7 @@ spec:
         app: frontend
     spec:
       securityContext:
-        runAsUser: 101 # Nginx user
+        runAsUser: 101
         runAsGroup: 101
       containers:
         - name: frontend
@@ -55,6 +54,7 @@ spec:
               name: nginx-run
             - mountPath: /tmp
               name: nginx-tmp
+      automountServiceAccountToken: false
       volumes:
         - name: nginx-cache
           emptyDir: {}

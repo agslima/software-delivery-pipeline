@@ -150,66 +150,42 @@ jobs:
           sudo chmod +x /usr/local/bin/yq
           yq --version
 
-      - name: Update Manifests (yq, digest pin)
+      - name: Update prod digests (kustomize overlay)
         run: |
           set -euo pipefail
-
-          # Guardrails: ensure files exist
-          test -f k8s/resources/frontend.yaml || (echo "::error::Missing k8s/resources/frontend.yaml"; exit 1)
-          test -f k8s/resources/backend.yaml  || (echo "::error::Missing k8s/resources/backend.yaml"; exit 1)
-
-          # Update images precisely (first container in the Deployment)
-          yq -i '
-            select(.kind == "Deployment" and .metadata.name == "frontend")
-            .spec.template.spec.containers[0].image = strenv(FRONTEND_IMAGE)
-          ' k8s/resources/frontend.yaml
+          FILE="k8s/overlays/prod/kustomization.yaml"
+          test -f "$FILE" || (echo "::error::Missing $FILE"; exit 1)
 
           yq -i '
-            select(.kind == "Deployment" and .metadata.name == "backend")
-            .spec.template.spec.containers[0].image = strenv(BACKEND_IMAGE)
-          ' k8s/resources/backend.yaml
+            (.images[] | select(.name == "docker.io/agslima/app-stayheathy-backend") | .digest) = strenv(BACKEND_DIGEST)
+          ' "$FILE"
 
-          echo "🔎 Updated images:"
-          yq -r '
-            select(.kind=="Deployment") |
-            .metadata.name + ": " + .spec.template.spec.containers[0].image
-          ' k8s/resources/frontend.yaml k8s/resources/backend.yaml
+          yq -i '
+            (.images[] | select(.name == "docker.io/agslima/app-stayheathy-frontend") | .digest) = strenv(FRONTEND_DIGEST)
+          ' "$FILE"
 
-          # Fail closed if digest pin did not apply
-          yq -r '
-            select(.kind=="Deployment") |
-            .spec.template.spec.containers[0].image
-          ' k8s/resources/frontend.yaml k8s/resources/backend.yaml | grep -q '@sha256:' || (
-            echo "::error::Images are not pinned to digest after update."
+          echo "✅ Updated prod overlay:"
+          yq -r '.images[] | .name + " => " + .digest' "$FILE"
+
+          # Fail closed
+          yq -r '.images[].digest' "$FILE" | grep -q '^sha256:' || (
+            echo "::error::Prod overlay digests not set correctly"
             exit 1
           )
-          echo "✅ Manifests updated with pinned digests."
+
           
-      - name: Validate Structural Policies (CI-scope)
+      - name: Validate rendered prod manifests against cluster policy
         run: |
           set -euo pipefail
-          LOG_FILE="kyverno-gitops.log"
 
-          POLICY_FILE="k8s/policies/cluster/supply-chain-policy.yaml"
-          sed -i "s|docker.io/agslima/|docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/|g" "$POLICY_FILE"
+          POLICY="k8s/policies/cluster/supply-chain-policy.yaml"
 
-          kyverno apply "$POLICY_FILE" \
-            --resource k8s/resources/ \
-            --audit-warn=false > "$LOG_FILE" 2>&1 || true
+          kustomize build k8s/overlays/prod > /tmp/prod.yaml
+          test -s /tmp/prod.yaml || (echo "::error::Rendered prod.yaml is empty"; exit 1)
 
-          cat "$LOG_FILE"
-
-          # Fail on any kyverno error OR fail count > 0
-          if grep -qE "^error:" "$LOG_FILE"; then
-            echo "::error::Kyverno execution error."
-            exit 1
-          fi
-          if grep -qE "fail:[[:space:]]*[1-9]" "$LOG_FILE"; then
-            echo "::error::Policy violations found."
-            exit 1
-          fi
-
-          echo "✅ Structural policy validation passed."
+          kyverno apply "$POLICY" \
+            --resource /tmp/prod.yaml \
+            --audit-warn=false
 
       - name: Upload Kyverno Log
         if: always()
