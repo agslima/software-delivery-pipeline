@@ -82,7 +82,7 @@ jobs:
           # Copy the specific file to a generic name for the policy check
           cp ${{ matrix.path }} Dockerfile
           
-          contest test Dockerfile \
+          conftest test Dockerfile \
             --policy policies/dockerfile.rego
 
       # 3. Kubeconform (Kubernetes Manifests)
