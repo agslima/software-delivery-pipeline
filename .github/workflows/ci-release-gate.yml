@@ -51,7 +51,7 @@ jobs:
     name: Build & Push (Digest)
     runs-on: ubuntu-latest
     needs: [resolve]
-    environment: production
+    #environment: production
     permissions:
       contents: read
       packages: write
@@ -302,7 +302,7 @@ jobs:
     name: Sign & Attest (Governed)
     runs-on: ubuntu-latest
     needs: [dast-analysis, build-push, trivy-scan, resolve]
-    environment: production
+    #environment: production
     permissions:
       contents: read
       id-token: write
