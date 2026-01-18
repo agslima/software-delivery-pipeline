@@ -1,0 +1,12 @@
+resources:
+  - backend.yaml
+  - frontend.yaml
+  - database.yaml
+  - pdb.yaml
+  - secrets.example.yaml
+
+images:
+  - name: docker.io/agslima/app-stayheathy-backend
+    newTag: latest
+  - name: docker.io/agslima/app-stayheathy-frontend
+    newTag: latest

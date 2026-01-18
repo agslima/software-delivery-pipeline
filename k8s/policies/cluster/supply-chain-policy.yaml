@@ -14,58 +14,75 @@ spec:
   rules:
 
   # ============================================================
-  # Break-glass: controlled exception mechanism
+  # Break-glass: only allowed with metadata + not expired
   # ============================================================
-  - name: break-glass-guardrails
+  - name: break-glass-requires-metadata
     match:
-      resources:
-        kinds: ["Deployment", "Pod"]
+      any:
+        - resources:
+            kinds: ["Deployment", "Pod"]
+            namespaces: ["prod", "production"]
+    preconditions:
+      all:
+        - key: "{{ request.object.metadata.labels.\"security.break-glass\" || '' }}"
+          operator: Equals
+          value: "true"
     validate:
       message: >
-        Break-glass requires label security.break-glass=true AND annotations
-        security.break-glass/ticket + security.break-glass/approved-by + security.break-glass/expires-at.
+        Break-glass requires annotations:
+        security.break-glass/ticket, security.break-glass/approved-by,
+        security.break-glass/expires-at (RFC3339).
       deny:
         conditions:
           any:
-            # If break-glass label is set, require the 3 annotations
-            - key: "{{ request.object.metadata.labels.\"security.break-glass\" || '' }}"
-              operator: Equals
-              value: "true"
-              # Missing ticket
-            - key: "{{ request.object.metadata.labels.\"security.break-glass\" || '' }}"
-              operator: Equals
-              value: "true"
-              # Require ticket
             - key: "{{ request.object.metadata.annotations.\"security.break-glass/ticket\" || '' }}"
               operator: Equals
               value: ""
-            - key: "{{ request.object.metadata.labels.\"security.break-glass\" || '' }}"
-              operator: Equals
-              value: "true"
             - key: "{{ request.object.metadata.annotations.\"security.break-glass/approved-by\" || '' }}"
               operator: Equals
               value: ""
-            - key: "{{ request.object.metadata.labels.\"security.break-glass\" || '' }}"
-              operator: Equals
-              value: "true"
             - key: "{{ request.object.metadata.annotations.\"security.break-glass/expires-at\" || '' }}"
               operator: Equals
               value: ""
 
+  - name: break-glass-must-not-be-expired
+    match:
+      any:
+        - resources:
+            kinds: ["Deployment", "Pod"]
+            namespaces: ["prod", "production"]
+    preconditions:
+      all:
+        - key: "{{ request.object.metadata.labels.\"security.break-glass\" || '' }}"
+          operator: Equals
+          value: "true"
+        - key: "{{ request.object.metadata.annotations.\"security.break-glass/expires-at\" || '' }}"
+          operator: NotEquals
+          value: ""
+    validate:
+      message: "Break-glass expires-at must be in the future (RFC3339)."
+      deny:
+        conditions:
+          any:
+            - key: "{{ time_after(time_now_utc(), request.object.metadata.annotations.\"security.break-glass/expires-at\") }}"
+              operator: Equals
+              value: false
+
   # ============================================================
-  # Rule 1: Require Signed Image (keyless, workflow identity)
+  # Rule 1: Require keyless signature (workflow identity)
   # ============================================================
   - name: require-image-signature
     match:
-      resources:
-        kinds: ["Pod", "Deployment"]
-        namespaces: ["prod", "production"]
+      any:
+        - resources:
+            kinds: ["Pod", "Deployment"]
+            namespaces: ["prod", "production"]
     exclude:
-      resources:
-        selector:
-          matchLabels:
-            security.break-glass: "true"
-
+      any:
+        - resources:
+            selector:
+              matchLabels:
+                security.break-glass: "true"
     verifyImages:
       - imageReferences:
           - "docker.io/agslima/app-stayheathy-*"
@@ -77,30 +94,31 @@ spec:
                     ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*
 
   # ============================================================
-  # Rule 2: Require Trivy Attestation
+  # Rule 2: Require Trivy attestation (and who issued it)
   # ============================================================
   - name: require-trivy-attestation
     match:
-      resources:
-        kinds: ["Pod", "Deployment"]
-        namespaces: ["prod", "production"]
+      any:
+        - resources:
+            kinds: ["Pod", "Deployment"]
+            namespaces: ["prod", "production"]
     exclude:
-      resources:
-        selector:
-          matchLabels:
-            security.break-glass: "true"
-
+      any:
+        - resources:
+            selector:
+              matchLabels:
+                security.break-glass: "true"
     verifyImages:
       - imageReferences:
           - "docker.io/agslima/app-stayheathy-*"
-        attestors:
-          - entries:
-              - keyless:
-                  issuer: https://token.actions.githubusercontent.com
-                  subjectRegExp: >
-                    ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*
         attestations:
           - predicateType: "https://security.sigstore.dev/attestations/vuln/trivy/v1"
+            attestors:
+              - entries:
+                  - keyless:
+                      issuer: https://token.actions.githubusercontent.com
+                      subjectRegExp: >
+                        ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*
             conditions:
               - all:
                   - key: "{{ predicate.result }}"
@@ -111,30 +129,31 @@ spec:
                     value: "trivy"
 
   # ============================================================
-  # Rule 3: Require ZAP Attestation
+  # Rule 3: Require ZAP attestation
   # ============================================================
   - name: require-zap-attestation
     match:
-      resources:
-        kinds: ["Pod", "Deployment"]
-        namespaces: ["prod", "production"]
+      any:
+        - resources:
+            kinds: ["Pod", "Deployment"]
+            namespaces: ["prod", "production"]
     exclude:
-      resources:
-        selector:
-          matchLabels:
-            security.break-glass: "true"
-
+      any:
+        - resources:
+            selector:
+              matchLabels:
+                security.break-glass: "true"
     verifyImages:
       - imageReferences:
           - "docker.io/agslima/app-stayheathy-*"
-        attestors:
-          - entries:
-              - keyless:
-                  issuer: https://token.actions.githubusercontent.com
-                  subjectRegExp: >
-                    ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*
         attestations:
           - predicateType: "https://security.sigstore.dev/attestations/dast/zap/v1"
+            attestors:
+              - entries:
+                  - keyless:
+                      issuer: https://token.actions.githubusercontent.com
+                      subjectRegExp: >
+                        ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*
             conditions:
               - all:
                   - key: "{{ predicate.result }}"
@@ -145,52 +164,58 @@ spec:
                     value: "owasp-zap"
 
   # ============================================================
-  # Rule 4: Require SBOM Attestation (SPDX)
+  # Rule 4: Require SBOM (SPDX Document)
   # ============================================================
   - name: require-sbom-spdx
     match:
-      resources:
-        kinds: ["Pod", "Deployment"]
-        namespaces: ["prod", "production"]
+      any:
+        - resources:
+            kinds: ["Pod", "Deployment"]
+            namespaces: ["prod", "production"]
     exclude:
-      resources:
-        selector:
-          matchLabels:
-            security.break-glass: "true"
-
+      any:
+        - resources:
+            selector:
+              matchLabels:
+                security.break-glass: "true"
     verifyImages:
       - imageReferences:
           - "docker.io/agslima/app-stayheathy-*"
-        attestors:
-          - entries:
-              - keyless:
-                  issuer: https://token.actions.githubusercontent.com
-                  subjectRegExp: >
-                    ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*
         attestations:
           - predicateType: "https://spdx.dev/Document"
+            attestors:
+              - entries:
+                  - keyless:
+                      issuer: https://token.actions.githubusercontent.com
+                      subjectRegExp: >
+                        ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*
 
   # ============================================================
-  # Rule 5: Require SLSA Provenance (GitHub Attestations)
+  # Rule 5: Require SLSA provenance (GitHub attest-build-provenance)
   # ============================================================
   - name: require-slsa-provenance
     match:
-      resources:
-        kinds: ["Pod", "Deployment"]
-        namespaces: ["prod", "production"]
+      any:
+        - resources:
+            kinds: ["Pod", "Deployment"]
+            namespaces: ["prod", "production"]
     exclude:
-      resources:
-        selector:
-          matchLabels:
-            security.break-glass: "true"
-
+      any:
+        - resources:
+            selector:
+              matchLabels:
+                security.break-glass: "true"
     verifyImages:
       - imageReferences:
           - "docker.io/agslima/app-stayheathy-*"
         attestations:
-          # GitHub Artifact Attestations are Sigstore bundles
-          - type: SigstoreBundle
-            predicateType: https://slsa.dev/provenance/v1
+          - predicateType: "https://slsa.dev/provenance/v1"
+            attestors:
+              - entries:
+                  - keyless:
+                      issuer: https://token.actions.githubusercontent.com
+                      subjectRegExp: >
+                        ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*
             conditions:
               - all:
                   - key: "{{ predicate.buildDefinition.buildType || '' }}"

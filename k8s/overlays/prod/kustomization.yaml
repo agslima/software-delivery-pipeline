@@ -1,0 +1,12 @@
+namespace: production
+resources:
+  - ../../base
+
+# Force immutable images in prod overlay
+images:
+  - name: docker.io/agslima/app-stayheathy-backend
+    newName: docker.io/agslima/app-stayheathy-backend
+    digest: sha256:REPLACED_BY_CI
+  - name: docker.io/agslima/app-stayheathy-frontend
+    newName: docker.io/agslima/app-stayheathy-frontend
+    digest: sha256:REPLACED_BY_CI
