@@ -4,13 +4,13 @@ metadata:
   name: frontend
   namespace: default
 spec:
-  type: LoadBalancer # Exposes it to the internet
+  type: LoadBalancer
   selector:
     app: frontend
   ports:
     - protocol: TCP
-      port: 80     # External users hit port 80
-      targetPort: 8080 # Container listens on 8080 (Nginx non-root)
+      port: 80
+      targetPort: 8080
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -33,13 +33,12 @@ spec:
         runAsGroup: 101
       containers:
         - name: frontend
-          # CI/CD Pipeline will replace this specific line
           image: docker.io/agslima/secure-pipeline-frontend:latest
           ports:
             - containerPort: 8080
           securityContext:
             allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true # Nginx needs explicit tmp mounts for this
+            readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
           resources:
