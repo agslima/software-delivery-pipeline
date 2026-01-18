@@ -1,0 +1,5 @@
+services:
+  backend:
+    image: ${BACKEND_IMAGE}
+  frontend:
+    image: ${FRONTEND_IMAGE}
