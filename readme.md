@@ -25,7 +25,8 @@ This repository demonstrates how to design a **governed software delivery system
 - Container images are **signed, attested, and policy-enforced at runtime**
 - Governance **cannot be bypassed**, even by developers with write access
 
-> **Note:** The application logic is intentionally simple. The value of this repository lies in the **delivery architecture, security controls, and governance model**.
+> [!NOTE]
+> The application logic is intentionally simple. The value of this repository lies in the **delivery architecture, security controls, and governance model**. For more details about the application, please see the **[`app/README.md`](https://github.com/agslima/software-delivery-pipeline/tree/main/app)**.
 
 ## Project Overview 🛡️
 
