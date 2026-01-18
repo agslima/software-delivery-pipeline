@@ -1,0 +1,5 @@
+services:
+  backend:
+    image: ${BACKEND_IMAGE:?BACKEND_IMAGE is required (must be digest-pinned)}
+  frontend:
+    image: ${FRONTEND_IMAGE:?FRONTEND_IMAGE is required (must be digest-pinned)}
