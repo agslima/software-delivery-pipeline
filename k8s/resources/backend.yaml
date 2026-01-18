@@ -28,12 +28,12 @@ spec:
         app: backend
     spec:
       securityContext:
-        runAsUser: 1000 # reated in Dockerfile
+        runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
       containers:
         - name: backend
-          image: docker.io/agslima/secure-pipeline-backend:latest
+          image: docker.io/agslima/app-stayheathy-backend:latest
           ports:
             - containerPort: 8080
           securityContext:
