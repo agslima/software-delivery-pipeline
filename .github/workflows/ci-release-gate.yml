@@ -12,137 +12,82 @@ on:
         type: string
         
 concurrency:
-  group: delivery-${{ github.ref }}
+  group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  release-security:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
 
-      - uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef #v3.6.0
-        with:
-          username: ${{ secrets.DOCKER_HUB_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
-
-      - name: Build Image
-        run: |
-          docker build -t app:${{ github.ref_name }} app/
-          docker push app:${{ github.ref_name }}
-
-      - name: Install Trivy
-        run: |
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
-
-      - name: Trivy Gate
-        run: |
-          trivy image app:${{ github.ref_name }} \
-            --severity HIGH,CRITICAL \
-            --exit-code 1
-
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad #v4.0.0
-
-      - name: Sign Image
-        run: cosign sign app:${{ github.ref_name }}
-
-      - name: Attest Vulnerabilities
-        run: cosign attest \
-          --predicate trivy-results.json \
-          --type vuln \
-          app:${{ github.ref_name }}
-
-
-   # ------------------------------------------------------------------
-  # JOB 3: Layer 4: Dynamic Analysis (DAST)
-  # DAST: Only runs on Main branch (post-merge) or Tags to save PR time
-  # ------------------------------------------------------------------
+  # ==================================================================
+  # STAGE 1: Dynamic Analysis (DAST) - Runs against the Full Stack
+  # ==================================================================
   
   dast-analysis:
       name: "DAST (OWASP ZAP)"
       runs-on: ubuntu-latest
-      #needs: [ code-quality, infra-lint ]
       permissions:
         contents: read
         security-events: write
       steps:
-        - uses: actions/checkout@v4
-        
-        # Use Buildx to use cache from previous runs
-        - name: Set up Docker Buildx
-          uses: docker/setup-buildx-action@v3
-
-        - name: Start App Container
+        - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
+              
+        - name: Start Ephemeral Environment
+          working-directory: app
           run: |
-            docker build --load -t target-app ./app
-            docker run -d -p 3000:8080 --name app-under-test target-app          
-            
-            echo "Waiting for application to launch..."          
-            if ! timeout 60s bash -c 'until curl -s -f http://localhost:3000 > /dev/null; do sleep 2; done'; then
-              echo "::error::CRITICAL: Application failed to respond!"
-              docker logs app-under-test
-              exit 1
-            fi          
-            echo "Application is live!"
-          
-        # 2. SCAN: OWASP ZAP Baseline
+            set -euo pipefail
+            # Ensure we build fresh images for the test
+            docker compose up -d --build
+
+            echo "⏳ Waiting for Backend..."
+            timeout 90s bash -c 'until curl -s http://127.0.0.1:8080/health > /dev/null; do sleep 5; done'
+
+            echo "⏳ Waiting for Frontend..."
+            timeout 90s bash -c 'until curl -s http://127.0.0.1:4173 > /dev/null; do sleep 5; done'
+
+            docker compose ps
+            echo "✅ Application is live!"
+
         - name: OWASP ZAP Baseline Scan
           run: |
-            # Create writable directory for reports
+            set -euo pipefail
             mkdir -p zap-out
             chmod 777 zap-out
 
-            echo "Starting ZAP Scan..."
+            # Network host allows ZAP to see localhost:4173
             docker run --rm \
               --network host \
-              -v $(pwd)/zap-out:/zap/wrk/:rw \
-              -t ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
-              -t http://localhost:3000 \
+              -v "$(pwd)/zap-out:/zap/wrk/:rw" \
+              ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
+              -t http://127.0.0.1:4173 \
               -r zap-report.html \
               -J zap-report.json \
-              -I || true 
-              # -I ignores warnings. Use '|| true' to proceed to analysis steps.
-
-        # 3. ANALYSIS: The Gatekeeper
-        # This parses the JSON. If ZAP crashed (empty JSON) or found Highs.
-        - name: Check ZAP Thresholds
-          id: zap-gate
+              -I || true
+          
+        - name: Check Vulnerability Thresholds
           run: |
-            # Check if report exists
-            if [ ! -f zap-out/zap-report.json ]; then
-              echo "::error::ZAP Report not found! The scanner might have crashed."
-              exit 1
-            fi
+            set -euo pipefail
+            FILE="zap-out/zap-report.json"
+            test -s "$FILE" || (echo "::error::❌ ZAP Report not found or empty!"; exit 1)
 
-            # Use JQ to count High Alerts
-            # ZAP JSON structure: { "site": [... { "alerts": [ ... { "riskdesc": "High (Medium)" } ] } ] }
-            # Note: The structure varies by ZAP version. Checking the 'fail' count from stats is safer if available,
-            # but counting raw alerts is standard.
-            
-            HIGHS=$(jq '[.site[].alerts[] | select(.riskcode == "3")] | length' zap-out/zap-report.json)
-            
-            echo "High Vulnerabilities Found: $HIGHS"
-            
+            HIGHS=$(jq '[.site[]? | .alerts[]? | select(.riskcode == "3")] | length' "$FILE")
+            echo "📊 Scan Results: Found $HIGHS High Severity Vulnerabilities."
+
             if [ "$HIGHS" -gt 0 ]; then
-              echo "::error::DAST Scan failed! Found $HIGHS High severity vulnerabilities."
+              echo "::error::⛔ DAST Failed! Blocked $HIGHS High severity vulnerabilities."
               exit 1
             fi
 
-        # 4. ARTIFACTS: Upload Reports
+            echo "✅ DAST Scan Passed."
+
         - name: Upload ZAP Report
-          if: always() # Upload even if threshold failed
-          uses: actions/upload-artifact@v4
+          if: always() 
+          uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f #v6.0.0
           with:
             name: zap-results
             path: zap-out/
             retention-days: 5
 
   # ==================================================================
-  # STAGE 2: RELEASE (TAGS ONLY)
+  # STAGE 2: RELEASE BUILD (Matrix)
   # ==================================================================
 
   build-push:
@@ -155,29 +100,34 @@ jobs:
       packages: write
 
     strategy:
-      fail-fast: true # Fail fast in production releases!
+      fail-fast: true 
       matrix:
         include:
-          - name: app
-            context: ./app
-            image_repo: software-delivery-pipeline
+          - name: backend
+            context: app/server
+            file: app/docker/Dockerfile.server
+            image_repo: app-stayheathy-backend
+          - name: frontend
+            context: app/client
+            file: app/docker/Dockerfile.client
+            image_repo: app-stayheathy-frontend
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f #v3.12.0
 
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
-      # Enable Caching
       - name: Build & Push
         id: build
         uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
         with:
           context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
           push: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -196,31 +146,32 @@ jobs:
           echo "$DIGEST" > digests/digest-${{ matrix.name }}
                 
       - name: Upload Digest Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f #v6.0.0
         with:
           name: digest-${{ matrix.name }}     
           path: digests/digest-${{ matrix.name }}
           retention-days: 1
-          if-no-files-found: error
 
       # Generate & Upload Trivy JSON
-      # Generate & Upload Trivy JSON
+      - name: Install Trivy
+        run: |
+          TRIVY_VERSION=0.58.1
+          curl -sfL raw.githubusercontent.com/aquasecurity/trivy/v${TRIVY_VERSION}/contrib/install.sh | sh -s -- -b /usr/local/bin
+
       - name: Generate Trivy Report
         run: |
           IMAGE_REF="${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}:${{ github.sha }}"
-          TRIVY_VERSION=0.58.1
-          curl -sfL raw.githubusercontent.com/aquasecurity/trivy/v${TRIVY_VERSION}/contrib/install.sh | sh -s -- -b /usr/local/bin
           trivy image --format json --output trivy-results.json "$IMAGE_REF"
 
       - name: Upload Trivy JSON Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f #v6.0.0
         with:
-          name: trivy-results
+          name: trivy-results-${{ matrix.name }}
           path: trivy-results.json
-    
-  # ------------------------------------------------------------------
-  # JOB 2: SIGNING & ATTESTATION
-  # ------------------------------------------------------------------
+
+  # ==================================================================
+  # STAGE 3: SIGNING & ATTESTATION
+  # ==================================================================  
   
   sign-and-attest:
     name: Sign & Attest
@@ -235,47 +186,47 @@ jobs:
     strategy:
       matrix:
         include:
-          - name: app
-            image_repo: software-delivery-pipeline
+          - name: backend
+            image_repo: app-stayheathy-backend
+          - name: frontend
+            image_repo: app-stayheathy-frontend
 
     steps:
-      - uses: sigstore/cosign-installer@v3.7.0
+      - uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad #v4.0.0
       
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
+      # 1. Get Digest
       - name: Download Digest Artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v4.1.7
         with:
           name: digest-${{ matrix.name }}
           path: digests
 
       - name: Read Digest
         run: |
-          # Verify file exists
-          ls -R digests/
-          
           DIGEST=$(cat digests/digest-${{ matrix.name }})
           echo "DIGEST=$DIGEST" >> $GITHUB_ENV
           echo "IMAGE=${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@$DIGEST" >> $GITHUB_ENV
 
-      # 1. Download Raw Reports
-      - uses: actions/download-artifact@v4
+      # 2. Get Reports
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v4.1.7
         with:
-          name: trivy-results
-      - uses: actions/download-artifact@v4
+          name: trivy-results-${{ matrix.name }}
+      
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v4.1.7
         with:
           name: zap-results
           path: zap-downloads
         
       # ------------------------------------------------------------------
-      # TRIVY ATTESTATION (Matched to Policy)
+      # TRIVY ATTESTATION (Specific to this image)
       # ------------------------------------------------------------------
       - name: Create & Push Trivy Attestation
         run: |
-          # Generate Predicate
           jq '
             ([.Results[].Vulnerabilities[]? | select(.Severity=="CRITICAL")] | length) as $crit |
             ([.Results[].Vulnerabilities[]? | select(.Severity=="HIGH")] | length) as $high |
@@ -293,11 +244,10 @@ jobs:
             "$IMAGE"
 
       # ------------------------------------------------------------------
-      # ZAP ATTESTATION (Matched to Policy)
+      # ZAP ATTESTATION (Shared Report)
       # ------------------------------------------------------------------
       - name: Create & Push ZAP Attestation
         run: |
-          # Robust find in case of directory nesting
           ZAP_FILE=$(find zap-downloads -name "zap-report.json" -type f | head -n 1)
           
           jq '
@@ -327,7 +277,7 @@ jobs:
             --certificate-identity-regexp \
             "https://github.com/${{ github.repository }}/.github/workflows/.*"
       
-      - uses: anchore/sbom-action@v0
+      - uses: anchore/sbom-action@0b82b0b1a22399a1c542d4d656f70cd903571b5c #v0.21.1
         with:
           image: ${{env.IMAGE}}
           format: spdx-json
@@ -336,7 +286,7 @@ jobs:
       - run: |
           cosign attest --yes --type spdx --predicate sbom.spdx.json "$IMAGE"
       
-      - uses: actions/attest-build-provenance@v2
+      - uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a #v3.0.0
         with:
           subject-name: index.docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}
           subject-digest: ${{ env.DIGEST }}
