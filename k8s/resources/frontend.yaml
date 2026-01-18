@@ -1,0 +1,65 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: default
+spec:
+  type: LoadBalancer # Exposes it to the internet
+  selector:
+    app: frontend
+  ports:
+    - protocol: TCP
+      port: 80     # External users hit port 80
+      targetPort: 8080 # Container listens on 8080 (Nginx non-root)
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  labels:
+    app: frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      securityContext:
+        runAsUser: 101 # Nginx user
+        runAsGroup: 101
+      containers:
+        - name: frontend
+          # CI/CD Pipeline will replace this specific line
+          image: docker.io/agslima/secure-pipeline-frontend:latest
+          ports:
+            - containerPort: 8080
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true # Nginx needs explicit tmp mounts for this
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "200m"
+          volumeMounts:
+            - mountPath: /var/cache/nginx
+              name: nginx-cache
+            - mountPath: /var/run
+              name: nginx-run
+            - mountPath: /tmp
+              name: nginx-tmp
+      volumes:
+        - name: nginx-cache
+          emptyDir: {}
+        - name: nginx-run
+          emptyDir: {}
+        - name: nginx-tmp
+          emptyDir: {}
