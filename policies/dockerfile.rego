@@ -1,81 +1,77 @@
 package main
-import rego.v1
 
-default deny := []
-default warn := []
+import rego.v1
 
 # ----------------------------
 # Helpers
 # ----------------------------
 
-from_instructions := [x | some i; x := input[i]; lower(x.Cmd) == "from"]
+from_instructions := [x |
+  some i
+  x := input[i]
+  lower(x.Cmd) == "from"
+]
 
-# Extract the base image reference ("node:25-alpine", "nginxinc/nginx-unprivileged:1.27", etc.)
-base_image(x) := img {
-  v := x.Value
-  img := v[0]
+base_image(x) := img if {
+  img := x.Value[0]
 }
 
-is_latest(img) { endswith(img, ":latest") }
+is_latest(img) if { endswith(img, ":latest") }
+has_digest(img) if { contains(img, "@sha256:") }
+is_alpine(img) if { contains(img, "alpine") }
 
-has_digest(img) { contains(img, "@sha256:") }
-
-is_node(img) {
-  startswith(img, "node:")
-} or {
-  startswith(img, "docker.io/node:")
-} or {
-  startswith(img, "library/node:")
-} or {
-  startswith(img, "docker.io/library/node:")
-}
-
-is_alpine(img) { contains(img, "alpine") }
-
-# Frontend runtime (recommended)
-is_nginx_unprivileged(img) {
-  startswith(img, "nginxinc/nginx-unprivileged:")
-} or {
-  startswith(img, "docker.io/nginxinc/nginx-unprivileged:")
-}
+# Allowed stage aliases (optional governance)
+builder_stage_names := {"builder", "build", "deps"}
+runtime_stage_names := {"runtime", "final", "prod"}
 
 # Determine stage name if present: FROM <img> AS <name>
-stage_name(x) := name {
+stage_name(x) := name if {
   v := x.Value
   count(v) >= 3
   lower(v[1]) == "as"
   name := lower(v[2])
 }
 
-# Treat some stages as "builder-like"
-is_builder_stage(x) {
+is_builder_stage(x) if {
   n := stage_name(x)
-  n == "builder" or n == "build" or n == "deps"
+  builder_stage_names[n]
 }
 
-# Treat some stages as "runtime-like"
-is_runtime_stage(x) {
+is_runtime_stage(x) if {
   n := stage_name(x)
-  n == "runtime" or n == "final" or n == "prod"
+  runtime_stage_names[n]
 }
 
-# If no AS name, consider it builder unless it's the last stage (hard to know reliably).
-# We'll apply base rules to all stages; runtime-specific hardening is separate.
-allowed_base_for_any_stage(img) {
-  is_node(img)
-} or {
-  is_nginx_unprivileged(img)
+# ---- Base image allowlist
+
+is_node(img) if { startswith(img, "node:") }
+is_node(img) if { startswith(img, "docker.io/node:") }
+is_node(img) if { startswith(img, "library/node:") }
+is_node(img) if { startswith(img, "docker.io/library/node:") }
+
+is_nginx_unprivileged(img) if { startswith(img, "nginxinc/nginx-unprivileged:") }
+is_nginx_unprivileged(img) if { startswith(img, "docker.io/nginxinc/nginx-unprivileged:") }
+
+allowed_base_for_any_stage(img) if { is_node(img) }
+allowed_base_for_any_stage(img) if { is_nginx_unprivileged(img) }
+
+# Release mode toggle:
+# IMPORTANT: you cannot set input.release because input is the Dockerfile AST.
+# Use data params instead (see notes below).
+release_mode_enabled if {
+  data.params.release == true
 }
 
 # ----------------------------
 # DENY rules (hard failures)
 # ----------------------------
 
-# 1) Only approved base images (node, nginx-unprivileged)
+# 1) Only approved base images (node or nginx-unprivileged)
 deny contains msg if {
   x := from_instructions[_]
   img := base_image(x)
   not allowed_base_for_any_stage(img)
+
   msg := sprintf("Base image '%v' is not allowed. Use node:* (builder/backend runtime) or nginxinc/nginx-unprivileged:* (frontend runtime).", [img])
 }
 
@@ -84,42 +80,40 @@ deny contains msg if {
   x := from_instructions[_]
   img := base_image(x)
   is_latest(img)
+
   msg := sprintf("Mutable tag ':latest' is not allowed for base images (%v). Pin to a version or digest.", [img])
 }
 
-# 3) Optional: require digest pinning in release mode
-# Enable by passing: conftest test --input release=true
+# 3) Require digest pinning in release mode (optional)
 deny contains msg if {
   release_mode_enabled
   x := from_instructions[_]
   img := base_image(x)
   not has_digest(img)
-  msg := sprintf("Release mode: base image '%v' must be digest-pinned (@sha256:...).", [img])
-}
 
-release_mode_enabled if {
-  # default false if not provided
-  input.release == true
+  msg := sprintf("Release mode: base image '%v' must be digest-pinned (@sha256:...).", [img])
 }
 
 # ----------------------------
 # WARN rules (advisory)
 # ----------------------------
 
-# Prefer alpine for node images (size and CVE footprint)
+# Prefer alpine for node images
 warn contains msg if {
   x := from_instructions[_]
   img := base_image(x)
   is_node(img)
   not is_alpine(img)
+
   msg := sprintf("Prefer Alpine-based Node images for smaller surface area: '%v'.", [img])
 }
 
-# Strong recommendation: use nginx-unprivileged for frontend runtime stage
+# Runtime stage hint (if runtime stage uses node)
 warn contains msg if {
   x := from_instructions[_]
   img := base_image(x)
   is_runtime_stage(x)
   is_node(img)
-  msg := sprintf("Runtime stage '%v' uses Node base. Consider nginxinc/nginx-unprivileged:* for frontend serving.", [img])
+
+  msg := sprintf("Runtime stage base is Node ('%v'). For frontend serving, consider nginxinc/nginx-unprivileged:*.", [img])
 }
