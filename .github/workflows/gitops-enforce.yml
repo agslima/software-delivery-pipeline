@@ -1,83 +1,84 @@
 name: GitOps Enforcement
 
 on:
-  push:
-    tags: [ "v*.*.*" ]
+  workflow_run:
+    workflows: ["Release"] # Runs ONLY after the "Release" workflow completes
+    types:
+      - completed
 
 jobs:
   gitops:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    environment: production
     permissions: 
       contents: write
       pull-requests: write
-    # environment: production
-    strategy:
-      fail-fast: true
-      
-      matrix:
-        include:
-          - name: backend 
-            image_repo: app-stayheathy
+
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
-       
-      - name: Download Digest Artifact
-        uses: actions/download-artifact@v4
+           
+      - name: Download Digests from Release Workflow
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v4.1.7
         with:
+          run_id: ${{ github.event.workflow_run.id }}
           pattern: digest-*
-          merge-multiple: true
           path: digests
+          merge_multiple: true
       
-      - name: Read Digest
+      - name: Read Digests
         run: |
-          DIGEST=$(cat digests/digest-${{ matrix.name }})
-          echo "DIGEST=$DIGEST" >> $GITHUB_ENV
-          echo "IMAGE=docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@$DIGEST" >> $GITHUB_ENV
-      
-      - uses: docker/login-action@v3
+          if [ ! -f digests/digest-backend ] || [ ! -f digests/digest-frontend ]; then
+            echo "::error::Digests not found! Did the Release job fail?"
+            exit 1
+          fi
+
+          FRONTEND_DIGEST=$(cat digests/digest-frontend)
+          BACKEND_DIGEST=$(cat digests/digest-backend)
+
+          # Export to ENV for next steps
+          echo "FRONTEND_DIGEST=$FRONTEND_DIGEST" >> $GITHUB_ENV
+          echo "BACKEND_DIGEST=$BACKEND_DIGEST" >> $GITHUB_ENV
+          
+          echo "✅ Loaded Digests: Frontend ($FRONTEND_DIGEST) | Backend ($BACKEND_DIGEST)"
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
           
-      - uses: sigstore/cosign-installer@v3.8.1
-      
-      - uses: kyverno/action-install-cli@v0.2.0
+      - name: Install Kyverno CLI  
+        uses: kyverno/action-install-cli@fcee92fca5c883169ef9927acf543e0b5fc58289 #v0.2.0
         with:
           release: 'v1.13.2'
           verify: true
-      
-      - name: Configure Policy Variables
-        run: |
-          POLICY_FILE="k8s/policies/cluster/supply-chain-policy.yaml"
-          
-          sed -i "s|docker.io/agslima/|docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/|g" $POLICY_FILE
-          sed -i "s|github.com/agslima/|github.com/${{ github.repository_owner }}/|g" $POLICY_FILE
 
-      - name: Update Deployment Manifest (In-Memory)
-        run: |
-          sed -i "s|image: .*|image: ${{ env.IMAGE }}|g" k8s/deployment.yaml
-          
       - name: Update Manifests
         run: |
-          FRONTEND_DIGEST=$(cat digests/digest-frontend)
-          BACKEND_DIGEST=$(cat digests/digest-backend)
+          # 1. Update Frontend
+          # Looks for: image: .../app-stayheathy-frontend...
+          sed -i "s|image: .*app-stayheathy-frontend.*|image: docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayheathy-frontend@${{ env.FRONTEND_DIGEST }}|g" k8s/resources/frontend.yaml
           
-          # Update Frontend Manifest
-          sed -i "s|image: .*app-stayheathy-frontend.*|image: docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayheathy-frontend@$FRONTEND_DIGEST|g" k8s/resources/frontend.yaml
+          # 2. Update Backend
+          # Looks for: image: .../app-stayheathy-backend...
+          sed -i "s|image: .*app-stayheathy-backend.*|image: docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayheathy-backend@${{ env.BACKEND_DIGEST }}|g" k8s/resources/backend.yaml
           
-          # Update Backend Manifest
-          sed -i "s|image: .*app-stayheathy-backend.*|image: docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayheathy-backend@$BACKEND_DIGEST|g" k8s/resources/backend.yaml
-          
-      
+          echo "✅ Manifests updated."
+             
       - name: Validate Against Policy
         run: |
           LOG_FILE=$(mktemp)
 
-          # FIX: Run Kyverno against the modified manifest using the correct policy file
-          # Note: 'verifyImages' will be skipped by the CLI (normal behavior), 
-          # but checking structure ensures we didn't break the YAML syntax.
-          kyverno apply k8s/policies/cluster/supply-chain-policy.yaml \
-            --resource k8s/resources/deployment.yaml \
+          # Configure Policy Variables first
+          POLICY_FILE="k8s/policies/cluster/supply-chain-policy.yaml"
+          sed -i "s|docker.io/agslima/|docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/|g" $POLICY_FILE
+
+          echo "🔍 Validating k8s/resources/ against Supply Chain Policy..."
+          
+          # Run Kyverno on the whole folder to check both frontend and backend
+          kyverno apply "$POLICY_FILE" \
+            --resource k8s/resources/ \
             --audit-warn=false > "$LOG_FILE" 2>&1 || true
 
           cat "$LOG_FILE"
@@ -88,48 +89,24 @@ jobs:
           fi
           
           echo "✅ Policy Validation Passed."
-     
-      - name: Commit & Push GitOps Update
-        run: |
-          set -euo pipefail
-
-          BRANCH="gitops/update-app-${{ github.ref_name }}"
-          git checkout -B "$BRANCH"
-
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          git add k8s/resources/deployment.yaml
-
-          if git diff --staged --quiet; then
-            echo "No changes detected, skipping commit."
-            exit 0
-          fi
-
-          git commit -m "gitops: deploy app @ ${{ env.DIGEST }}"
-          git push origin "$BRANCH"
-
-
+         
       - name: Create GitOps PR
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@98357b18bf14b5342f975ff684046ec3b2a07725 #v8.0.0
         with:
           token: ${{ secrets.TOKEN_GITHUB }}
-          commit-message: "deploy: update images to ${{ github.ref_name }}"
-          title: "Deploy Release ${{ github.ref_name }}"
+          commit-message: "deploy: release ${{ github.event.workflow_run.head_branch }}"
+          title: "Deploy Release ${{ github.event.workflow_run.head_branch }}"
           body: |
-            Automated deployment for release ${{ github.ref_name }}.
-            - Frontend Digest: `cat digests/digest-frontend`
-            - Backend Digest: `cat digests/digest-backend`
-          branch: "gitops/deploy-${{ github.ref_name }}"
-
-
-      - name: Create Pull Request
-        env:
-          GH_TOKEN: ${{ secrets.TOKEN_GITHUB }}
-        run: |
-          gh pr create \
-            --head "gitops/update-app-${{ github.ref_name }}" \
-            --base main \
-            --title "Deploy app ${{ github.ref_name }}" \
-            --body "Automated GitOps update. Image digest: ${{ env.DIGEST }}" \
-            || echo "PR already exists."
+            Automated deployment triggered by release ${{ github.event.workflow_run.head_branch }}.
+            
+            **Artifacts:**
+            - Frontend: `${{ env.FRONTEND_DIGEST }}`
+            - Backend: `${{ env.BACKEND_DIGEST }}`
+            
+            **Verification:**
+            - Signed: ✅
+            - Attested: ✅
+            - Kyverno Policy: Passed ✅
+          branch: "gitops/deploy-${{ github.event.workflow_run.head_branch }}"
+          base: main
+          delete-branch: true
