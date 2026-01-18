@@ -82,7 +82,6 @@ jobs:
           # Copy the specific file to a generic name for the policy check
           cp ${{ matrix.path }} Dockerfile
           
-          conftest --version 
           contest test Dockerfile \
             --policy policies/dockerfile.rego
 
