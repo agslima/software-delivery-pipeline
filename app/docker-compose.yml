@@ -37,14 +37,14 @@ services:
 
       CORS_ORIGIN: "http://frontend:8080,http://127.0.0.1:4173,http://127.0.0.1:8080"
 
-      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
-      ADMIN_USER: ${ADMIN_USER:?ADMIN_USER is required}
-      ADMIN_PASS: ${ADMIN_PASS:?ADMIN_PASS is required}
+      JWT_SECRET: ${JWT_SECRET}
+      ADMIN_USER: ${ADMIN_USER}
+      ADMIN_PASS: ${ADMIN_PASS}
 
       DB_HOST: postgres
-      DB_USER: ${DB_USER:?DB_USER is required}
-      DB_PASS: ${DB_PASS:?DB_PASS is required}
-      DB_NAME: ${DB_NAME:?DB_NAME is required}
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+      DB_NAME: ${DB_NAME}
 
     depends_on:
       postgres:
@@ -65,9 +65,9 @@ services:
   postgres:
     image: postgres:15-alpine
     environment:
-      POSTGRES_USER: ${DB_USER:?DB_USER is required}
-      POSTGRES_PASSWORD: ${DB_PASS:?DB_PASS is required}
-      POSTGRES_DB: ${DB_NAME:?DB_NAME is required}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+      POSTGRES_DB: ${DB_NAME}
     volumes:
       - pgdata:/var/lib/postgresql/data
     restart: unless-stopped
