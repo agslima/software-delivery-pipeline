@@ -288,6 +288,7 @@ jobs:
           echo "✅ Application is live!"
 
       - name: OWASP ZAP Baseline (Frontend)
+        working-directory: app
         run: |
           set -euo pipefail
           mkdir -p zap-out
@@ -306,9 +307,17 @@ jobs:
             -J zap-frontend.json \
             -I || true
 
+          test -s "zap-out/zap-frontend.json" || (echo "::error::ZAP frontend JSON missing/empty (scanner crash?)"; exit 1)
+          jq -e 'type=="object"' "zap-out/zap-frontend.json" >/dev/null
+          
+
       - name: OWASP ZAP Baseline (Backend)
+        working-directory: app
         run: |
           set -euo pipefail
+
+          VOL_PATH="$(pwd)/zap-out"
+          
           docker run --rm \
             --network host \
             -v "$VOL_PATH:/zap/wrk/:rw" \
@@ -318,7 +327,12 @@ jobs:
             -J zap-backend.json \
             -I || true
 
+          test -s "zap-out/zap-backend.json" || (echo "::error::ZAP backend JSON missing/empty (scanner crash?)"; exit 1)
+          jq -e 'type=="object"' "zap-out/zap-backend.json" >/dev/null
+          
+
       - name: Gate ZAP (High > 0)
+        working-directory: app
         run: |
           set -euo pipefail
 
@@ -341,7 +355,7 @@ jobs:
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f #v6.0.0
         with:
           name: zap-results
-          path: zap-out/
+          path: app/zap-out/
           retention-days: 30
 
       - name: Cleanup Secrets + Env
