@@ -5,9 +5,6 @@ on:
     - cron: '30 15 * * SAT' # Runs at 15:30, only on Saturday
   workflow_dispatch:
 
-permissions:
-  contents: read
-
 jobs:
   # ==================================================================
   # JOB 1: TEST & GENERATE COVERAGE (Matrix)
@@ -15,6 +12,8 @@ jobs:
   code-quality:
     name: Test & Coverage (${{ matrix.component }})
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
