@@ -178,18 +178,17 @@ jobs:
           rm -rf "$SECRETS_DIR"
           mkdir -p "$SECRETS_DIR"
 
-          # Non-secret env vars (Compose reads app/.env because we run in app/)
-          {
+          # Non-secret env vars
+           {
             echo "ADMIN_USER=${{ vars.ADMIN_USER }}"
             echo "DB_USER=${{ vars.DB_USER }}"
             echo "DB_NAME=${{ vars.DB_NAME }}"
             echo "COMPOSE_PROJECT_NAME=${{ env.COMPOSE_PROJECT_NAME }}"
-            echo "COMPOSE_SECRETS_DIR=${SECRETS_DIR}"
+            echo "SECRETS_PATH=${SECRETS_DIR}" 
           } >> "$ENV_FILE"
-          chmod 600 "$ENV_FILE"
+          chmod 644 "$ENV_FILE"
 
           # Compose secrets files
-          # NOTE: these file names must match docker-compose.yml secrets definitions
           printf "%s" "${{ secrets.JWT_SECRET }}" > "${SECRETS_DIR}/jwt_secret.txt"
           printf "%s" "${{ secrets.ADMIN_PASS }}" > "${SECRETS_DIR}/admin_pass.txt"
           printf "%s" "${{ secrets.DB_PASS }}" > "${SECRETS_DIR}/db_pass.txt"
