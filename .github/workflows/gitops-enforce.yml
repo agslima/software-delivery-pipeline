@@ -16,10 +16,10 @@ env:
   OIDC_ISSUER: "https://token.actions.githubusercontent.com"
 
 jobs:
-
   verify-context:
     runs-on: ubuntu-latest
-    permissions: {}
+    permissions:
+      contents: read
     outputs:
       release_tag: ${{ steps.validate.outputs.release_tag }}
     steps:
