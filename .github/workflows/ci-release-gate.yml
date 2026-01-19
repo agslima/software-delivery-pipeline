@@ -475,15 +475,41 @@ jobs:
             --type "${{ env.ZAP_PREDICATE_TYPE }}" \
             "$IMAGE"
 
-      - name: Sign Image
-        run: cosign sign --yes "$IMAGE"
+      #- name: Sign Image
+      #  run: cosign sign --yes "$IMAGE"
 
+      - name: Sign Image
+        env:
+          COSIGN_LOG_LEVEL: debug
+        run: |
+          set -euo pipefail
+          cosign version
+          echo "IMAGE=$IMAGE"
+          cosign sign --yes "$IMAGE"
+
+      - name: Debug signature presence (registry)
+        env:
+          COSIGN_LOG_LEVEL: debug
+        run: |
+          set -euo pipefail
+          echo "IMAGE=$IMAGE"
+
+          echo "== triangulate =="
+          cosign triangulate "$IMAGE" || true
+
+          echo "== download signature (raw) =="
+          cosign download signature "$IMAGE" > cosign-signature.json
+
+          echo "== show downloaded signature size =="
+          ls -lah cosign-signature.json
+          jq -e 'type=="array" and length>0' cosign-signature.json >/dev/null      
+ 
       - name: Verify Signature (OIDC identity)
         run: |
           cosign verify "$IMAGE" \
             --certificate-oidc-issuer https://token.actions.githubusercontent.com \
             --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/.*"
-
+        
       - name: Generate SBOM
         uses: anchore/sbom-action@0b82b0b1a22399a1c542d4d656f70cd903571b5c #v0.21.1
         with:
