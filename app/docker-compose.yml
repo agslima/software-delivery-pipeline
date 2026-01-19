@@ -1,7 +1,7 @@
 # Docker Compose Configuration
 #
 # Quick Start:
-#   docker-compose up -d                      # Start all services
+#   docker-compose up --build                 # Start all services
 #   docker-compose logs -f                    # View logs
 #   docker-compose down                       # Stop all services
 #   docker-compose down -v --remove-orphans   # Remove the old volume and orphans
@@ -60,7 +60,7 @@ services:
       PORT: "8080"
       LOG_LEVEL: info
 
-      CORS_ORIGIN: "http://localhost:4173,http://127.0.0.1:4173"
+      CORS_ORIGIN: "http://localhost:4173,https://localhost:4173,http://localhost:8080"
       ADMIN_USER: ${ADMIN_USER}
 
       DB_HOST: postgres

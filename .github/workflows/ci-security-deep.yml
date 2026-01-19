@@ -226,7 +226,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p zap-out
-          chmod 700 zap-out
+          chmod 777 zap-out
 
           VOL_PATH="$(pwd)/zap-out"
           echo "ZAP volume: $VOL_PATH"

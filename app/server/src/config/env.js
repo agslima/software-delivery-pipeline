@@ -1,3 +1,5 @@
+// app/server/src/config/env.js
+// Load environment variables from .env file
 require('dotenv').config();
 const fs = require('fs');
 const { cleanEnv, str, port } = require('envalid');
@@ -14,10 +16,12 @@ const getSecret = (secretName, envVarName) => {
   try {
     // 1. Try to read from Docker Secret File (Standard Location)
     const secretPath = `/run/secrets/${secretName}`;
+    // eslint-disable-next-line security/detect-non-literal-fs-filename
     if (fs.existsSync(secretPath)) {
+      // eslint-disable-next-line security/detect-non-literal-fs-filename
       return fs.readFileSync(secretPath, 'utf8').trim();
     }
-  } catch (err) {
+  } catch {
     // Ignore errors (permission issues, etc) and proceed to fallback
   }
 
