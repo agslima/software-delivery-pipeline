@@ -32,6 +32,8 @@ jobs:
   resolve:
     name: Resolve Release Tag
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       release_tag: ${{ steps.tag.outputs.release_tag }}
     steps:
