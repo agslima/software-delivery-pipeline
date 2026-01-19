@@ -37,13 +37,22 @@ jobs:
     outputs:
       release_tag: ${{ steps.tag.outputs.release_tag }}
     steps:
-      - id: tag
+    
+      - name: Set Release Tag
+        id: tag
+        env:
+          # 1. Map contexts to Environment Variables
+          EVENT_NAME: ${{ github.event_name }}
+          TAG_INPUT: ${{ inputs.tag }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "release_tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+
+          # 2. Reference the Environment Variables using shell syntax ($VAR)
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "release_tag=$TAG_INPUT" >> "$GITHUB_OUTPUT"
           else
-            echo "release_tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+            echo "release_tag=$REF_NAME" >> "$GITHUB_OUTPUT"
           fi
 
   # ==================================================================
