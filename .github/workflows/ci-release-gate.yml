@@ -137,7 +137,7 @@ jobs:
           - name: backend
             image_repo: app-stayheathy-backend
           - name: frontend
-            image_repo: app-stayheathy-frontend
+            image_repo: app-stayheathy-frontend    
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
         with:
@@ -205,7 +205,15 @@ jobs:
     runs-on: ubuntu-latest
     needs: [trivy-scan, build-push, resolve]
     permissions:
-      contents: read
+      contents: read    
+      
+    env:
+      ZAP_IMG: ghcr.io/zaproxy/zaproxy@sha256:8e79e827afb9e8bdba390c829eb3062062cdb407570559e2ddebd49130c00a59
+      ZAP_FRONTEND_URL: http://127.0.0.1:4173
+      ZAP_BACKEND_URL: http://127.0.0.1:8080
+      HEALTH_TIMEOUT: "120" # seconds
+      COMPOSE_PROJECT_NAME: dast-${{ github.run_id }}-${{ github.run_attempt }} 
+      
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
         with:
@@ -225,11 +233,43 @@ jobs:
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+   
+      - name: Set Variables + Compose Secrets (file-based)
+        working-directory: app
+        run: |
+          set -euo pipefail
 
+          # Keep secrets OUT of workspace: use RUNNER_TEMP
+          SECRETS_DIR="${RUNNER_TEMP}/compose-secrets"
+          ENV_FILE=".env"
+
+          rm -f "$ENV_FILE"
+          rm -rf "$SECRETS_DIR"
+          mkdir -p "$SECRETS_DIR"
+
+          # Non-secret env vars
+          {
+            echo "ADMIN_USER=${{ vars.ADMIN_USER }}"
+            echo "DB_USER=${{ vars.DB_USER }}"
+            echo "DB_NAME=${{ vars.DB_NAME }}"
+            echo "COMPOSE_PROJECT_NAME=${{ env.COMPOSE_PROJECT_NAME }}"
+            echo "SECRETS_PATH=${SECRETS_DIR}" 
+          } >> "$ENV_FILE"
+          chmod 600 "$ENV_FILE"
+
+          # Compose secrets files
+          printf "%s" "${{ secrets.JWT_SECRET }}" > "${SECRETS_DIR}/jwt_secret.txt"
+          printf "%s" "${{ secrets.ADMIN_PASS }}" > "${SECRETS_DIR}/admin_pass.txt"
+          printf "%s" "${{ secrets.DB_PASS }}" > "${SECRETS_DIR}/db_pass.txt"
+          chmod 600 "${SECRETS_DIR}"/*.txt
+
+          echo "Secrets dir: ${SECRETS_DIR}"
+          
       - name: Start Ephemeral Environment (Pinned Digests)
         working-directory: app
         run: |
           set -euo pipefail
+          
           BACKEND_DIGEST="$(cat ../digests/digest-backend)"
           FRONTEND_DIGEST="$(cat ../digests/digest-frontend)"
 
@@ -254,10 +294,15 @@ jobs:
           set -euo pipefail
           mkdir -p zap-out
           chmod 777 zap-out
+
+          VOL_PATH="$(pwd)/zap-out"
+          echo "ZAP volume: $VOL_PATH"
+          echo "ZAP image: ${{ env.ZAP_IMG }}"
+          
           docker run --rm \
             --network host \
-            -v "$(pwd)/zap-out:/zap/wrk/:rw" \
-            ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
+            -v "$VOL_PATH:/zap/wrk/:rw" \
+            "${{ env.ZAP_IMG }}" zap-baseline.py \
             -t "${{ env.ZAP_TARGET_FRONTEND }}" \
             -r zap-frontend.html \
             -J zap-frontend.json \
@@ -268,8 +313,8 @@ jobs:
           set -euo pipefail
           docker run --rm \
             --network host \
-            -v "$(pwd)/zap-out:/zap/wrk/:rw" \
-            ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
+            -v "$VOL_PATH:/zap/wrk/:rw" \
+            "${{ env.ZAP_IMG }}" zap-baseline.py \
             -t "${{ env.ZAP_TARGET_BACKEND }}" \
             -r zap-backend.html \
             -J zap-backend.json \
@@ -301,6 +346,16 @@ jobs:
           path: zap-out/
           retention-days: 30
 
+      - name: Cleanup Secrets + Env
+        if: always()
+        working-directory: app
+        run: |
+          set -euo pipefail
+          rm -f .env
+          if [ -n "${COMPOSE_SECRETS_DIR:-}" ] && [ -d "${COMPOSE_SECRETS_DIR:-}" ]; then
+            rm -rf "${COMPOSE_SECRETS_DIR}"
+          fi
+          
       - name: Teardown
         if: always()
         working-directory: app
