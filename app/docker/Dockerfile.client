@@ -21,9 +21,18 @@ RUN npm run build
 
 FROM nginxinc/nginx-unprivileged:1.27-alpine@sha256:65e3e85dbaed8ba248841d9d58a899b6197106c23cb0ff1a132b7bfe0547e4c0
 
-Patch the Runtime OS too
+# Patch the Runtime OS
 USER root
-RUN apk update && apk upgrade --no-cache
+
+RUN apk update && apk upgrade --no-cache \
+    && mkdir -p /tmp/client_body_temp \
+                /tmp/proxy_temp \
+                /tmp/fastcgi_temp \
+                /tmp/uwsgi_temp \
+                /tmp/scgi_temp \
+    && chown -R nginx:nginx /tmp \
+    && chmod -R 700 /tmp/*
+
 USER nginx
 
 # Copy config
