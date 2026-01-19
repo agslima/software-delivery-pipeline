@@ -1,5 +1,8 @@
 name: DAST Scan
 
+permissions:
+  contents: read
+
 on:
   schedule:
     - cron: '0 4 * * 0' # Runs at 04:00, only on Sunday 
