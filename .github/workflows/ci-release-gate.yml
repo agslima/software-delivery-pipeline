@@ -64,7 +64,7 @@ jobs:
             file: app/docker/Dockerfile.server
             image_repo: app-stayheathy-backend
           - name: frontend
-            context: app/client
+            context: app
             file: app/docker/Dockerfile.client
             image_repo: app-stayheathy-frontend
     steps:
