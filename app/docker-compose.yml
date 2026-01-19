@@ -1,25 +1,53 @@
+# Docker Compose Configuration
+#
+# Quick Start:
+#   docker-compose up -d                      # Start all services
+#   docker-compose logs -f                    # View logs
+#   docker-compose down                       # Stop all services
+#   docker-compose down -v --remove-orphans   # Remove the old volume and orphans
+#
+# version: '3.8'
+
 services:
   frontend:
     build:
       context: .
       dockerfile: docker/Dockerfile.client
-    
     ports:
       - "4173:8080"
     depends_on:
       backend:
         condition: service_healthy
+    
+    # -----------------------------------------------------------
+    # Least Privilege
+    # -----------------------------------------------------------
     cap_drop: ["ALL"]
     security_opt:
       - no-new-privileges:true
     restart: unless-stopped
     read_only: true
+    
+    # Matching Nginx Alpine UID (101)
     tmpfs:
       - /tmp:uid=101,gid=101,mode=1777
       - /var/run:uid=101,gid=101,mode=0755
       - /var/cache/nginx:uid=101,gid=101,mode=0755
+    
+    # -----------------------------------------------------------
+    # Availability
+    # -----------------------------------------------------------
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 256M
+        reservations:
+          cpus: '0.10'
+          memory: 64M
+
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080 >/dev/null || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health >/dev/null || exit 1"]
       interval: 10s
       timeout: 3s
       retries: 12
@@ -30,32 +58,53 @@ services:
       dockerfile: docker/Dockerfile.server
     ports:
       - "8080:8080"
+    
     environment:
       NODE_ENV: production
       PORT: "8080"
       LOG_LEVEL: info
 
-      CORS_ORIGIN: "http://frontend:8080,http://127.0.0.1:4173,http://127.0.0.1:8080"
+      # Browser-accessible origins only
+      CORS_ORIGIN: "http://localhost:4173,http://127.0.0.1:4173"
 
-      JWT_SECRET: ${JWT_SECRET}
+      # -----------------------------------------------------------
+      # Point to Secret Files
+      # -----------------------------------------------------------
+      JWT_SECRET_FILE: /run/secrets/jwt_secret
+      ADMIN_PASS_FILE: /run/secrets/admin_pass
       ADMIN_USER: ${ADMIN_USER}
-      ADMIN_PASS: ${ADMIN_PASS}
-
+      
       DB_HOST: postgres
       DB_USER: ${DB_USER}
-      DB_PASS: ${DB_PASS}
+      DB_PASS_FILE: /run/secrets/db_pass
       DB_NAME: ${DB_NAME}
+
+    # Mount the secrets into this container
+    secrets:
+      - jwt_secret
+      - admin_pass
+      - db_pass
 
     depends_on:
       postgres:
         condition: service_healthy
+    
     cap_drop: ["ALL"]
     security_opt:
       - no-new-privileges:true
     restart: unless-stopped
     read_only: true
+    
+    # Matching Node Alpine UID (1000)
     tmpfs:
       - /tmp:uid=1000,gid=1000,mode=1777
+      
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health >/dev/null || exit 1"]
       interval: 10s
@@ -66,10 +115,25 @@ services:
     image: postgres:15-alpine
     environment:
       POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASS}
       POSTGRES_DB: ${DB_NAME}
+      # Postgres Native Support for Secrets
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_pass
+    
+    secrets:
+      - db_pass
+
     volumes:
       - pgdata:/var/lib/postgresql/data
+    
+    # -----------------------------------------------------------
+    # Resource Limits
+    # -----------------------------------------------------------
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+    
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB || exit 1"]
@@ -79,3 +143,14 @@ services:
 
 volumes:
   pgdata:
+
+# -----------------------------------------------------------
+# Define Secrets Source (Host Paths)
+# -----------------------------------------------------------
+secrets:
+  db_pass:
+    file: ./secrets/db_pass.txt
+  admin_pass:
+    file: ./secrets/admin_pass.txt
+  jwt_secret:
+    file: ./secrets/jwt_secret.txt
