@@ -5,6 +5,9 @@ on:
     - cron: '30 15 * * SAT' # Runs at 15:30, only on Saturday
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   # ==================================================================
   # JOB 1: TEST & GENERATE COVERAGE (Matrix)
