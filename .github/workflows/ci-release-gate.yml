@@ -209,8 +209,6 @@ jobs:
       
     env:
       ZAP_IMG: ghcr.io/zaproxy/zaproxy@sha256:8e79e827afb9e8bdba390c829eb3062062cdb407570559e2ddebd49130c00a59
-      ZAP_FRONTEND_URL: http://127.0.0.1:4173
-      ZAP_BACKEND_URL: http://127.0.0.1:8080
       HEALTH_TIMEOUT: "120" # seconds
       COMPOSE_PROJECT_NAME: dast-${{ github.run_id }}-${{ github.run_attempt }} 
       
