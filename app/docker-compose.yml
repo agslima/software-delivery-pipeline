@@ -19,24 +19,20 @@ services:
       backend:
         condition: service_healthy
     
-    # -----------------------------------------------------------
     # Least Privilege
-    # -----------------------------------------------------------
     cap_drop: ["ALL"]
     security_opt:
       - no-new-privileges:true
     restart: unless-stopped
     read_only: true
     
-    # Matching Nginx Alpine UID (101)
+    # Nginx Alpine UID (101)
     tmpfs:
       - /tmp:uid=101,gid=101,mode=1777
       - /var/run:uid=101,gid=101,mode=0755
       - /var/cache/nginx:uid=101,gid=101,mode=0755
     
-    # -----------------------------------------------------------
     # Availability
-    # -----------------------------------------------------------
     deploy:
       resources:
         limits:
@@ -64,12 +60,9 @@ services:
       PORT: "8080"
       LOG_LEVEL: info
 
-      # Browser-accessible origins only
       CORS_ORIGIN: "http://localhost:4173,http://127.0.0.1:4173"
 
-      # -----------------------------------------------------------
-      # Point to Secret Files
-      # -----------------------------------------------------------
+      # Secret Files
       JWT_SECRET_FILE: /run/secrets/jwt_secret
       ADMIN_PASS_FILE: /run/secrets/admin_pass
       ADMIN_USER: ${ADMIN_USER}
@@ -95,7 +88,7 @@ services:
     restart: unless-stopped
     read_only: true
     
-    # Matching Node Alpine UID (1000)
+    # Node Alpine UID (1000)
     tmpfs:
       - /tmp:uid=1000,gid=1000,mode=1777
       
@@ -125,9 +118,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     
-    # -----------------------------------------------------------
     # Resource Limits
-    # -----------------------------------------------------------
     deploy:
       resources:
         limits:
@@ -144,9 +135,7 @@ services:
 volumes:
   pgdata:
 
-# -----------------------------------------------------------
-# Define Secrets Source (Host Paths)
-# -----------------------------------------------------------
+# Secrets Source (Host Paths)
 secrets:
   db_pass:
     file: ./secrets/db_pass.txt
