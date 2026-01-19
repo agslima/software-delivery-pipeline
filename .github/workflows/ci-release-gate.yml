@@ -60,7 +60,7 @@ jobs:
       matrix:
         include:
           - name: backend
-            context: app/server
+            context: app
             file: app/docker/Dockerfile.server
             image_repo: app-stayheathy-backend
           - name: frontend
