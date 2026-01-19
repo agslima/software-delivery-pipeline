@@ -69,7 +69,7 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: DB_NAME
-                    resources:
+        resources:
             requests:
               memory: "128Mi"
               cpu: "100m"
@@ -79,12 +79,6 @@ spec:
               cpu: "500m"
               ephemeral-storage: "1Gi"
 
-            requests:
-              memory: "128Mi"
-              cpu: "100m"
-            limits:
-              memory: "256Mi"
-              cpu: "500m"
           volumeMounts:
             - mountPath: /tmp
               name: tmp-volume
