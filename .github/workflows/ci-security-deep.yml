@@ -172,10 +172,33 @@ jobs:
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
 
+      - name: Set Variables + Compose Secrets (file-based)
+        working-directory: app
+        run: |
+          set -euo pipefail
+
+          # Non-secret env vars (Compose reads app/.env because you run in working-directory: app)
+          ENV_FILE=".env"
+          rm -f "$ENV_FILE"
+          {
+            echo "ADMIN_USER=${{ vars.ADMIN_USER }}"
+            echo "DB_USER=${{ vars.DB_USER }}"
+            echo "DB_NAME=${{ vars.DB_NAME }}"
+          } >> "$ENV_FILE"
+          chmod 600 "$ENV_FILE"
+
+          # Compose secrets files (must match docker-compose.yml)
+          mkdir -p secrets
+          printf "%s" "${{ secrets.JWT_SECRET }}" > secrets/jwt_secret.txt
+          printf "%s" "${{ secrets.ADMIN_PASS }}" > secrets/admin_pass.txt
+          printf "%s" "${{ secrets.DB_PASS }}" > secrets/db_pass.txt
+          chmod 600 secrets/*.txt
+          
       - name: Start Ephemeral Environment
         working-directory: app
         run: |
           set -euo pipefail
+          
           docker compose up -d --build
 
           echo "⏳ Waiting for Backend..."
@@ -187,43 +210,66 @@ jobs:
           docker compose ps
           echo "✅ Application is live!"
 
-      - name: OWASP ZAP Baseline Scan
+      - name: OWASP ZAP Baseline Scan (Frontend)
+        working-directory: app
         run: |
           set -euo pipefail
           mkdir -p zap-out
-          chmod 777 zap-out
+          chmod 700 zap-out
+          
+          VOL_PATH="$(pwd)/zap-out"
+          ZAP_IMG="ghcr.io/zaproxy/zaproxy@sha256-52f9cd151bc87c4f2e98fd828890fea897798903ee420308ab216504dea30b29.att"
 
           docker run --rm \
             --network host \
-            -v "$(pwd)/zap-out:/zap/wrk/:rw" \
-            ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
+            -v "$VOL_PATH:/zap/wrk/:rw" \
+            $ZAP_IMG zap-baseline.py \
             -t http://127.0.0.1:4173 \
-            -r zap-report.html \
-            -J zap-report.json \
+            -r zap-frontend.html \
+            -J zap-frontend.json \
+            -I || true
+
+      - name: OWASP ZAP Baseline (Backend)
+        working-directory: app
+        run: |
+
+          VOL_PATH="$(pwd)/zap-out"
+          ZAP_IMG="ghcr.io/zaproxy/zaproxy@sha256-52f9cd151bc87c4f2e98fd828890fea897798903ee420308ab216504dea30b29.att"
+
+          set -euo pipefail
+          docker run --rm \
+            --network host \
+            -v "$VOL_PATH:/zap/wrk/:rw" \
+            $ZAP_IMG zap-baseline.py \
+            -t http://127.0.0.1:8080 \
+            -r zap-backend.html \
+            -J zap-backend.json \
             -I || true
 
       - name: Check Vulnerability Thresholds
         run: |
           set -euo pipefail
-          FILE="zap-out/zap-report.json"
-          test -s "$FILE" || (echo "::error::❌ ZAP Report not found or empty!"; exit 1)
 
-          HIGHS=$(jq '[.site[]? | .alerts[]? | select(.riskcode == "3")] | length' "$FILE")
-          echo "📊 Scan Results: Found $HIGHS High Severity Vulnerabilities."
+          for FILE in zap-out/zap-frontend.json zap-out/zap-backend.json; do
+            test -s "$FILE" || (echo "::error::ZAP report missing/empty: $FILE"; exit 1)
+            jq -e 'type=="object"' "$FILE" >/dev/null
 
-          if [ "$HIGHS" -gt 0 ]; then
-            echo "::error::⛔ DAST Failed! Blocked $HIGHS High severity vulnerabilities."
-            exit 1
-          fi
+            HIGHS=$(jq '[.site[]? | .alerts[]? | select(.riskcode=="3")] | length' "$FILE")
+            echo "$FILE => High=$HIGHS"
+            if [ "$HIGHS" -gt 0 ]; then
+              echo "::error::⛔ DAST Gate Failed ($FILE High=$HIGHS)"
+              exit 1
+            fi
+          done
 
-          echo "✅ DAST Scan Passed."
+          echo "✅ DAST Gate Passed"
 
       - name: Upload ZAP Artifacts
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f #v6.0.0
         if: always()
         with:
           name: zap-results
-          path: zap-out/
+          path: app/zap-out/
           retention-days: 3
 
       - name: Debug - Container Logs
@@ -234,7 +280,7 @@ jobs:
           docker compose logs || true
 
       - name: Create Issue on Failure
-        if: failure()
+        if: failure() && github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -262,3 +308,14 @@ jobs:
           fi
 
           gh issue create --title "$TITLE" --body "$BODY" --label "security" --label "dast"
+
+      - name: Cleanup Secrets
+        if: always() 
+        working-directory: app
+        run: rm -rf secrets/
+
+      - name: Teardown
+        if: always()
+        working-directory: app
+        run: docker compose down -v --remove-orphans
+      
