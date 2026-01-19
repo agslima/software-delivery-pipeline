@@ -12,9 +12,9 @@ jobs:
   dast-full-scan:
     name: OWASP ZAP Full Scan
     runs-on: ubuntu-latest
-    timeout-minutes: 120
     permissions:
       contents: read
+      issues: write
     
     env:
       ZAP_IMG: ghcr.io/zaproxy/zaproxy:stable

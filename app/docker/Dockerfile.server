@@ -17,7 +17,6 @@ RUN npm ci --omit=dev --ignore-scripts
 # ==========================================
 # STAGE 2: Runtime
 # ==========================================
-
 FROM node:25-alpine@sha256:e80397b81fa93888b5f855e8bef37d9b18d3c5eb38b8731fc23d6d878647340f AS runtime
 
 WORKDIR /app
@@ -32,12 +31,17 @@ RUN npm uninstall -g npm && \
 
 ENV NODE_ENV=production
 
-# SECURITY: Explicit ownership for non-root user
+# Ownership for non-root user
 COPY --from=deps --chown=node:node /app/node_modules ./node_modules
 COPY --chown=node:node server ./
 
 # Switch to non-root user (UID 1000)
 USER node
+
+
+# Add Healthcheck
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+  CMD wget -q --spider http://localhost:8080/health || exit 1
 
 EXPOSE 8080
 
