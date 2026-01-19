@@ -19,6 +19,7 @@ jobs:
 
   verify-context:
     runs-on: ubuntu-latest
+    permissions: {}
     outputs:
       release_tag: ${{ steps.validate.outputs.release_tag }}
     steps:
