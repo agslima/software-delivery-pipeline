@@ -2,6 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: frontend
+  namespace: prod
 spec:
   type: LoadBalancer
   selector:
@@ -15,6 +16,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: frontend
+  namespace: prod
   labels:
     app: frontend
 spec:
@@ -27,12 +29,18 @@ spec:
       labels:
         app: frontend
     spec:
+      # Pod Security Context (Hardened)
       securityContext:
-        runAsUser: 101
-        runAsGroup: 101
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        runAsNonRoot: true 
+        seccompProfile:
+          type: RuntimeDefault
+
       containers:
         - name: frontend
-          image: docker.io/agslima/app-stayheathy-frontend@sha256:ffb9ea7520e9419a82af9aac9e4bed874387a7e149b582e30e27e9ec812c3db2
+          image: docker.io/agslima/app-stayheathy-frontend:latest 
           ports:
             - containerPort: 8080
           securityContext:
