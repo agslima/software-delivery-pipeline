@@ -54,11 +54,6 @@ services:
       dockerfile: docker/Dockerfile.server
     ports:
       - "8080:8080"
-    
-    secrets:
-      - jwt_secret
-      - admin_pass
-      - db_pass
 
     environment:
       NODE_ENV: production
@@ -66,17 +61,18 @@ services:
       LOG_LEVEL: info
 
       CORS_ORIGIN: "http://localhost:4173,http://127.0.0.1:4173"
-
-      # Secret Files
-      JWT_SECRET_FILE: /run/secrets/jwt_secret
       ADMIN_USER: ${ADMIN_USER}
-      ADMIN_PASS_FILE: /run/secrets/admin_pass
 
       DB_HOST: postgres
       DB_USER: ${DB_USER}
       DB_NAME: ${DB_NAME}
       DB_PASS_FILE: /run/secrets/db_pass
 
+    secrets:
+      - jwt_secret
+      - admin_pass
+      - db_pass
+      
     depends_on:
       postgres:
         condition: service_healthy
@@ -135,9 +131,9 @@ volumes:
   pgdata:
 
 secrets:
-  jwt_secret:
-    file: ./secrets/jwt_secret.txt
-  admin_pass:
-    file: ./secrets/admin_pass.txt
   db_pass:
-    file: ./secrets/db_pass.tx
+    file: ${SECRETS_PATH:-./secrets}/db_pass.txt
+  admin_pass:
+    file: ${SECRETS_PATH:-./secrets}/admin_pass.txt
+  jwt_secret:
+    file: ${SECRETS_PATH:-./secrets}/jwt_secret.txt
