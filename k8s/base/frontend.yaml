@@ -52,9 +52,11 @@ spec:
             requests:
               memory: "64Mi"
               cpu: "50m"
+              ephemeral-storage: "128Mi"
             limits:
               memory: "128Mi"
               cpu: "200m"
+              ephemeral-storage: "512Mi"
           volumeMounts:
             - mountPath: /var/cache/nginx
               name: nginx-cache
