@@ -1,0 +1,3 @@
+[submodule "csv-schema-evolution"]
+	path = csv-schema-evolution
+	url = https://github.com/agslima/csv-schema-evolution.git
