@@ -62,7 +62,7 @@ jobs:
     name: Build & Push (Digest)
     runs-on: ubuntu-latest
     needs: [resolve]
-    # environment: production
+    environment: production
     permissions:
       contents: read
       packages: write
@@ -380,7 +380,7 @@ jobs:
     name: Sign & Attest (Governed)
     runs-on: ubuntu-latest
     needs: [dast-analysis, build-push, trivy-scan, resolve]
-    # environment: production
+    environment: production
     permissions:
       contents: read
       id-token: write
@@ -498,7 +498,7 @@ jobs:
             if cosign verify \
               "$IMAGE" \
               --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/.*"; then
+              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*"; then
               
               echo "✅ Signature Verified!"
               exit 0
