@@ -1,7 +1,11 @@
 name: GitOps Enforcement
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'Release Run ID to promote'
+        required: true
   # workflow_run:
   #  workflows: ["Release"]
   #  types: [completed]
@@ -73,7 +77,7 @@ jobs:
       - name: Download Digests from Release Workflow
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v4.1.7
         with:
-          run-id: ${{ github.event.workflow_run.id }}
+          run-id: ${{ inputs.run_id || github.event.workflow_run.id }} # ${{ github.event.workflow_run.id }}
           merge-multiple: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
           pattern: digest-*
