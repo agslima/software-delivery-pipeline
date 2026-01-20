@@ -415,23 +415,12 @@ jobs:
           name: digest-${{ matrix.name }}
           path: digests
 
-      #- name: Read Digest
-    #    run: |
-     #     set -euo pipefail
-     #     DIGEST="$(cat digests/digest-${{ matrix.name }})"
-    #      echo "DIGEST=$DIGEST" >> "$GITHUB_ENV"
-    #      echo "IMAGE=docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@$DIGEST" >> "$GITHUB_ENV"
-
-      - name: Read Digest & Fix Image Name
+      - name: Read Digest
         run: |
           set -euo pipefail
           DIGEST="$(cat digests/digest-${{ matrix.name }})"
-          
-          # 🟢 CRITICAL: Ensure 'docker.io' and lowercase
-          RAW_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@$DIGEST"
-          IMAGE_LOWER=$(echo "$RAW_IMAGE" | tr '[:upper:]' '[:lower:]')
-          
-          echo "IMAGE=$IMAGE_LOWER" >> "$GITHUB_ENV"
+          echo "DIGEST=$DIGEST" >> "$GITHUB_ENV"
+          echo "IMAGE=docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@$DIGEST" >> "$GITHUB_ENV"
 
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v4.1.7
         with:
@@ -490,6 +479,16 @@ jobs:
             --type "${{ env.ZAP_PREDICATE_TYPE }}" \
             "$IMAGE"
             
+      - name: Create & Push Trivy Attestation
+        run: |
+           set -euo pipefail
+            # ...
+            cosign attest --yes \
+              --registry-referrers-mode "${COSIGN_REGISTRY_REFERRERS_MODE}" \
+              --predicate trivy-attestation.json \
+              --type "${{ env.TRIVY_PREDICATE_TYPE }}" \
+            "$IMAGE" 
+      
       - name: Sign Image
         run: |
           set -euo pipefail
