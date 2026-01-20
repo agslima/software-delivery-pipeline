@@ -1,9 +1,10 @@
 name: GitOps Enforcement
 
 on:
-  workflow_run:
-    workflows: ["Release"]
-    types: [completed]
+  workflow_dispatch: {}
+  # workflow_run:
+  #  workflows: ["Release"]
+  #  types: [completed]
 
 concurrency:
   group: gitops-${{ github.event.workflow_run.id }}
