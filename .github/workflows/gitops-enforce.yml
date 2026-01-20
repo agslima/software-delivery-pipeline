@@ -210,25 +210,19 @@ jobs:
 
           kustomize build k8s/overlays/prod > /tmp/prod.yaml
           test -s /tmp/prod.yaml || (echo "::error::Rendered prod.yaml is empty"; exit 1)
-
-          cat > /tmp/kyverno-context.yaml <<'EOF'
-            request:
-              object:
-                metadata:
-                  labels: {}
-                    annotations: {}
-          EOF
-
-          # Debug
+          
           kyverno apply "$POLICY" \
             --resource /tmp/prod.yaml \
-            --context /tmp/kyverno-context.yaml \
-            --audit-warn=false
-         
-          # Original version 
-          # kyverno apply "$POLICY" \
-          #  --resource /tmp/prod.yaml \
-          #   --audit-warn=false
+            --audit-warn=false > "$LOG_FILE" 2>&1 || true
+
+          cat "$LOG_FILE"
+
+          if grep -qE "fail:[[:space:]]*[1-9]" "$LOG_FILE"; then
+            echo "::error::❌ Policy Violation Detected."
+            exit 1
+          fi
+          
+          echo "✅ Policy Validation Passed."
 
       - name: Upload Kyverno Log
         if: always()
