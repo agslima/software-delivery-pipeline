@@ -271,8 +271,8 @@ jobs:
           BACKEND_DIGEST="$(cat ../digests/digest-backend)"
           FRONTEND_DIGEST="$(cat ../digests/digest-frontend)"
 
-          export BACKEND_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayheathy-backend@$BACKEND_DIGEST"
-          export FRONTEND_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayheathy-frontend@$FRONTEND_DIGEST"
+          export BACKEND_IMAGE="index.docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayheathy-backend@$BACKEND_DIGEST"
+          export FRONTEND_IMAGE="index.docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayheathy-frontend@$FRONTEND_DIGEST"
 
           echo "BACKEND_IMAGE=$BACKEND_IMAGE"
           echo "FRONTEND_IMAGE=$FRONTEND_IMAGE"
@@ -416,7 +416,7 @@ jobs:
           set -euo pipefail
           DIGEST="$(cat digests/digest-${{ matrix.name }})"
           echo "DIGEST=$DIGEST" >> "$GITHUB_ENV"
-          echo "IMAGE=docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@$DIGEST" >> "$GITHUB_ENV"
+          echo "IMAGE=index.docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@$DIGEST" >> "$GITHUB_ENV"
 
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v4.1.7
         with:
@@ -481,15 +481,24 @@ jobs:
       - name: Sign Image
         env:
           COSIGN_LOG_LEVEL: debug
+          COSIGN_DOCKER_MEDIA_TYPES: "1"
         run: |
           set -euo pipefail
           cosign version
           echo "IMAGE=$IMAGE"
           cosign sign --yes "$IMAGE"
 
+      - name: Read Digest
+        run: |
+           set -euo pipefail
+           DIGEST="$(cat digests/digest-${{ matrix.name }})"
+           echo "DIGEST=$DIGEST" >> "$GITHUB_ENV"
+           echo "IMAGE=index.docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@${DIGEST}" >> "$GITHUB_ENV"         
+      
       - name: Debug signature presence (registry)
         env:
           COSIGN_LOG_LEVEL: debug
+          COSIGN_DOCKER_MEDIA_TYPES: "1"
         run: |
           set -euo pipefail
           echo "IMAGE=$IMAGE"
@@ -505,6 +514,9 @@ jobs:
           jq -e 'type=="array" and length>0' cosign-signature.json >/dev/null      
  
       - name: Verify Signature (OIDC identity)
+        env:
+          COSIGN_LOG_LEVEL: debug
+          COSIGN_DOCKER_MEDIA_TYPES: "1"
         run: |
           cosign verify "$IMAGE" \
             --certificate-oidc-issuer https://token.actions.githubusercontent.com \
@@ -519,6 +531,9 @@ jobs:
           artifact-name: sbom-${{ matrix.name }}.spdx.json
 
       - name: Attest SBOM
+        env:
+          COSIGN_LOG_LEVEL: debug
+          COSIGN_DOCKER_MEDIA_TYPES: "1"
         run: |
           cosign attest --yes \
             --predicate "sbom-${{ matrix.name }}.spdx.json" \
