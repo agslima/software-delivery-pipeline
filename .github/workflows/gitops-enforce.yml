@@ -73,10 +73,11 @@ jobs:
       - name: Download Digests from Release Workflow
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v4.1.7
         with:
-          run_id: ${{ github.event.workflow_run.id }}
+          run-id: ${{ github.event.workflow_run.id }}
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           pattern: digest-*
           path: digests
-          merge_multiple: true
 
       - name: Read & Validate Digests
         run: |
