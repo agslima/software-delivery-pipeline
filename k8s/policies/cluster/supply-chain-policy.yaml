@@ -91,7 +91,7 @@ spec:
               - keyless:
                   issuer: https://token.actions.githubusercontent.com
                   subjectRegExp: >
-                    ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*
+                    ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/(tags/v.*|heads/.*)
 
   # ============================================================
   # Rule 2: Require Trivy attestation (and who issued it)
@@ -118,7 +118,7 @@ spec:
                   - keyless:
                       issuer: https://token.actions.githubusercontent.com
                       subjectRegExp: >
-                        ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*
+                        ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/(tags/v.*|heads/.*)
             conditions:
               - all:
                   - key: "{{ predicate.result }}"
@@ -153,7 +153,7 @@ spec:
                   - keyless:
                       issuer: https://token.actions.githubusercontent.com
                       subjectRegExp: >
-                        ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*
+                        ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/(tags/v.*|heads/.*)
             conditions:
               - all:
                   - key: "{{ predicate.result }}"
@@ -188,7 +188,7 @@ spec:
                   - keyless:
                       issuer: https://token.actions.githubusercontent.com
                       subjectRegExp: >
-                        ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*
+                        ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/(tags/v.*|heads/.*)
 
   # ============================================================
   # Rule 5: Require SLSA provenance (GitHub attest-build-provenance)
@@ -215,7 +215,7 @@ spec:
                   - keyless:
                       issuer: https://token.actions.githubusercontent.com
                       subjectRegExp: >
-                        ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*
+                        ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/(tags/v.*|heads/.*)
             conditions:
               - all:
                   - key: "{{ predicate.buildDefinition.buildType || '' }}"

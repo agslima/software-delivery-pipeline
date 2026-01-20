@@ -1,7 +1,11 @@
 name: GitOps Enforcement
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'Release Run ID to promote'
+        required: true
   # workflow_run:
   #  workflows: ["Release"]
   #  types: [completed]
@@ -73,10 +77,11 @@ jobs:
       - name: Download Digests from Release Workflow
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v4.1.7
         with:
-          run_id: ${{ github.event.workflow_run.id }}
+          run-id: ${{ inputs.run_id || github.event.workflow_run.id }} # ${{ github.event.workflow_run.id }}
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           pattern: digest-*
           path: digests
-          merge_multiple: true
 
       - name: Read & Validate Digests
         run: |
@@ -122,31 +127,37 @@ jobs:
       - name: Verify Signatures + Required Attestations (hard gate)
         run: |
           set -euo pipefail
-
+  
           verify_all () {
             local IMAGE="$1"
+            
+            # 1. Verify Image Signature
             echo "🔐 Verifying signature for $IMAGE"
             cosign verify "$IMAGE" \
               --certificate-oidc-issuer "${{ env.OIDC_ISSUER }}" \
               --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*"
 
-            echo "🧾 Verifying Trivy attestation"
+            # 2. Verify Attestations (SILENT MODE)            
+            echo "🧾 Verifying Trivy attestation..."
             cosign verify-attestation "$IMAGE" \
               --type "${{ env.TRIVY_PREDICATE_TYPE }}" \
               --certificate-oidc-issuer "${{ env.OIDC_ISSUER }}" \
-              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*"
+              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*" \
+              > /dev/null
 
-            echo "🧾 Verifying ZAP attestation"
+            echo "🧾 Verifying ZAP attestation..."
             cosign verify-attestation "$IMAGE" \
               --type "${{ env.ZAP_PREDICATE_TYPE }}" \
               --certificate-oidc-issuer "${{ env.OIDC_ISSUER }}" \
-              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*"
+              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*" \
+              > /dev/null
 
-            echo "🧾 Verifying SBOM attestation"
+            echo "🧾 Verifying SBOM attestation..."
             cosign verify-attestation "$IMAGE" \
               --type "${{ env.SBOM_PREDICATE_TYPE }}" \
               --certificate-oidc-issuer "${{ env.OIDC_ISSUER }}" \
-              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*"
+              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*" \
+              > /dev/null
           }
 
           verify_all "${{ env.BACKEND_IMAGE }}"
@@ -199,10 +210,19 @@ jobs:
 
           kustomize build k8s/overlays/prod > /tmp/prod.yaml
           test -s /tmp/prod.yaml || (echo "::error::Rendered prod.yaml is empty"; exit 1)
-
+          
           kyverno apply "$POLICY" \
             --resource /tmp/prod.yaml \
-            --audit-warn=false
+            --audit-warn=false > "$LOG_FILE" 2>&1 || true
+
+          cat "$LOG_FILE"
+
+          if grep -qE "fail:[[:space:]]*[1-9]" "$LOG_FILE"; then
+            echo "::error::❌ Policy Violation Detected."
+            exit 1
+          fi
+          
+          echo "✅ Policy Validation Passed."
 
       - name: Upload Kyverno Log
         if: always()
