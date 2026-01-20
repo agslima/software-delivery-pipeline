@@ -40,7 +40,7 @@ spec:
 
       containers:
         - name: frontend
-          image: docker.io/agslima/app-stayheathy-frontend:latest 
+          image: index.docker.io/agslima/app-stayheathy-frontend:latest 
           ports:
             - containerPort: 8080
           securityContext:
