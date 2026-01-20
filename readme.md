@@ -4,8 +4,6 @@
 
 [![CI – PR Validation](https://github.com/agslima/software-delivery-pipeline/actions/workflows/ci-pr-validation.yml/badge.svg)](https://github.com/agslima/software-delivery-pipeline/actions/workflows/ci-pr-validation.yml)
 [![CI – Release Gate](https://github.com/agslima/software-delivery-pipeline/actions/workflows/ci-release-gate.yml/badge.svg)](https://github.com/agslima/software-delivery-pipeline/actions/workflows/ci-release-gate.yml)
-[![CodeQL](https://github.com/agslima/software-delivery-pipeline/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/agslima/software-delivery-pipeline/actions/workflows/github-code-scanning/codeql)
-[![release](https://img.shields.io/github/v/release/agslima/software-delivery-pipeline?label=Latest%20Verifiable%20Release&color=success)](https://github.com/agslima/software-delivery-pipeline/releases/latest)
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=agslima_software-delivery-pipeline&metric=security_rating&token=fc36aa04e8597e3ef994141f2c98064a72019cd0)](https://sonarcloud.io/summary/new_code?id=agslima_software-delivery-pipeline)
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=agslima_software-delivery-pipeline&metric=reliability_rating&token=fc36aa04e8597e3ef994141f2c98064a72019cd0)](https://sonarcloud.io/summary/new_code?id=agslima_software-delivery-pipeline)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=agslima_software-delivery-pipeline&metric=coverage&token=fc36aa04e8597e3ef994141f2c98064a72019cd0)](https://sonarcloud.io/summary/new_code?id=agslima_software-delivery-pipeline)
@@ -15,6 +13,8 @@
 [![Security: Trivy](https://img.shields.io/badge/Container-Trivy-0077C2.svg?logo=aquasecurity&logoColor=white)](https://github.com/aquasecurity/trivy)
 [![Security: ZAP](https://img.shields.io/badge/DAST-OWASP%20ZAP-blue?logo=owasp&logoColor=white)](https://www.zaproxy.org/)
 [![License](https://img.shields.io/badge/license-Apache%202-4EB1BA.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
+<!--[![CodeQL](https://github.com/agslima/software-delivery-pipeline/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/agslima/software-delivery-pipeline/actions/workflows/github-code-scanning/codeql)
+[![release](https://img.shields.io/github/v/release/agslima/software-delivery-pipeline?label=Latest%20Verifiable%20Release&color=success)](https://github.com/agslima/software-delivery-pipeline/releases/latest)--> 
 
 ## TL;DR
 
