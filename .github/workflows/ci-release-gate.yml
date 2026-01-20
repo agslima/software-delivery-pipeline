@@ -62,7 +62,7 @@ jobs:
     name: Build & Push (Digest)
     runs-on: ubuntu-latest
     needs: [resolve]
-    environment: production
+    # environment: production
     permissions:
       contents: read
       packages: write
@@ -271,8 +271,8 @@ jobs:
           BACKEND_DIGEST="$(cat ../digests/digest-backend)"
           FRONTEND_DIGEST="$(cat ../digests/digest-frontend)"
 
-          export BACKEND_IMAGE="index.docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayheathy-backend@$BACKEND_DIGEST"
-          export FRONTEND_IMAGE="index.docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayheathy-frontend@$FRONTEND_DIGEST"
+          export BACKEND_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayheathy-backend@$BACKEND_DIGEST"
+          export FRONTEND_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayheathy-frontend@$FRONTEND_DIGEST"
 
           echo "BACKEND_IMAGE=$BACKEND_IMAGE"
           echo "FRONTEND_IMAGE=$FRONTEND_IMAGE"
@@ -380,7 +380,7 @@ jobs:
     name: Sign & Attest (Governed)
     runs-on: ubuntu-latest
     needs: [dast-analysis, build-push, trivy-scan, resolve]
-    environment: production
+    # environment: production
     permissions:
       contents: read
       id-token: write
@@ -421,7 +421,7 @@ jobs:
           set -euo pipefail
           DIGEST="$(cat digests/digest-${{ matrix.name }})"
           echo "DIGEST=$DIGEST" >> "$GITHUB_ENV"
-          echo "IMAGE=index.docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@$DIGEST" >> "$GITHUB_ENV"
+          echo "IMAGE=docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@$DIGEST" >> "$GITHUB_ENV"
 
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v4.1.7
         with:
@@ -529,6 +529,6 @@ jobs:
       - name: Attest Build Provenance
         uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a #v3.0.0
         with:
-          subject-name: index.docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}
+          subject-name: docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}
           subject-digest: ${{ env.DIGEST }}
           push-to-registry: true
