@@ -479,15 +479,6 @@ jobs:
             --type "${{ env.ZAP_PREDICATE_TYPE }}" \
             "$IMAGE"
             
-      - name: Create & Push Trivy Attestation
-        run: |
-           set -euo pipefail
-            # ...
-            cosign attest --yes \
-              --registry-referrers-mode "${COSIGN_REGISTRY_REFERRERS_MODE}" \
-              --predicate trivy-attestation.json \
-              --type "${{ env.TRIVY_PREDICATE_TYPE }}" \
-            "$IMAGE" 
       
       - name: Sign Image
         run: |
@@ -512,7 +503,7 @@ jobs:
             echo "🔍 Verify attempt $i/5..."
             
             if cosign verify \
-              --registry-referrers-mode "${COSIGN_REGISTRY_REFERRERS_MODE}" \
+              "${COSIGN_REGISTRY_REFERRERS_MODE}" \
               "$IMAGE" \
               --certificate-oidc-issuer https://token.actions.githubusercontent.com \
               --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/.*"; then
