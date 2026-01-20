@@ -393,6 +393,8 @@ jobs:
             image_repo: app-stayheathy-backend
           - name: frontend
             image_repo: app-stayheathy-frontend
+    env:
+      COSIGN_REGISTRY_REFERRERS_MODE: "oci-1-1"
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
         with:
@@ -411,12 +413,23 @@ jobs:
           name: digest-${{ matrix.name }}
           path: digests
 
-      - name: Read Digest
+      #- name: Read Digest
+    #    run: |
+     #     set -euo pipefail
+     #     DIGEST="$(cat digests/digest-${{ matrix.name }})"
+    #      echo "DIGEST=$DIGEST" >> "$GITHUB_ENV"
+    #      echo "IMAGE=docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@$DIGEST" >> "$GITHUB_ENV"
+
+      - name: Read Digest & Fix Image Name
         run: |
           set -euo pipefail
           DIGEST="$(cat digests/digest-${{ matrix.name }})"
-          echo "DIGEST=$DIGEST" >> "$GITHUB_ENV"
-          echo "IMAGE=index.docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@$DIGEST" >> "$GITHUB_ENV"
+          
+          # 🟢 CRITICAL: Ensure 'docker.io' and lowercase
+          RAW_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@$DIGEST"
+          IMAGE_LOWER=$(echo "$RAW_IMAGE" | tr '[:upper:]' '[:lower:]')
+          
+          echo "IMAGE=$IMAGE_LOWER" >> "$GITHUB_ENV"
 
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v4.1.7
         with:
@@ -474,10 +487,7 @@ jobs:
             --predicate zap-attestation.json \
             --type "${{ env.ZAP_PREDICATE_TYPE }}" \
             "$IMAGE"
-
-      #- name: Sign Image
-      #  run: cosign sign --yes "$IMAGE"
-
+            
       - name: Sign Image
         env:
           COSIGN_LOG_LEVEL: debug
@@ -487,36 +497,40 @@ jobs:
           cosign version
           echo "IMAGE=$IMAGE"
           cosign sign --yes "$IMAGE"
-
-      - name: Read Digest
-        run: |
-           set -euo pipefail
-           DIGEST="$(cat digests/digest-${{ matrix.name }})"
-           echo "DIGEST=$DIGEST" >> "$GITHUB_ENV"
-           echo "IMAGE=index.docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@${DIGEST}" >> "$GITHUB_ENV"         
-      
-      - name: Debug signature presence (registry)
-        env:
-          COSIGN_LOG_LEVEL: debug
-          COSIGN_DOCKER_MEDIA_TYPES: "1"
+          
+      - name: Sign Image
         run: |
           set -euo pipefail
-          echo "IMAGE=$IMAGE"
+          cosign sign --yes \
+            --registry-referrers-mode "${COSIGN_REGISTRY_REFERRERS_MODE}" \
+            "$IMAGE"
 
-          echo "== triangulate =="
-          cosign triangulate "$IMAGE" || true
+      - name: Verify Signature (retry)
+        run: |
+          set -euo pipefail
+          
+          # 🟢 Retry up to 5 times with increasing backoff
+          for i in 1 2 3 4 5; do
+            echo "🔍 Verify attempt $i/5..."
+            
+            if cosign verify \
+              --registry-referrers-mode "${COSIGN_REGISTRY_REFERRERS_MODE}" \
+              "$IMAGE" \
+              --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/.*"; then
+              
+              echo "✅ Signature Verified!"
+              exit 0
+            fi
+            
+            echo "⚠️ Verification failed. Retrying in $((i*5)) seconds..."
+            sleep $((i*5))
+          done
 
-          echo "== download signature (raw) =="
-          cosign download signature "$IMAGE" > cosign-signature.json
-
-          echo "== show downloaded signature size =="
-          ls -lah cosign-signature.json
-          jq -e 'type=="array" and length>0' cosign-signature.json >/dev/null      
- 
-      - name: Verify Signature (OIDC identity)
-        env:
-          COSIGN_LOG_LEVEL: debug
-          COSIGN_DOCKER_MEDIA_TYPES: "1"
+          echo "::error::❌ Verify failed after 5 attempts. Check Registry consistency or Auth."
+          exit 1
+      
+      - name: Verify Signature (OIDC identity)  
         run: |
           cosign verify "$IMAGE" \
             --certificate-oidc-issuer https://token.actions.githubusercontent.com \
@@ -531,9 +545,6 @@ jobs:
           artifact-name: sbom-${{ matrix.name }}.spdx.json
 
       - name: Attest SBOM
-        env:
-          COSIGN_LOG_LEVEL: debug
-          COSIGN_DOCKER_MEDIA_TYPES: "1"
         run: |
           cosign attest --yes \
             --predicate "sbom-${{ matrix.name }}.spdx.json" \
@@ -544,6 +555,6 @@ jobs:
       - name: Attest Build Provenance
         uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a #v3.0.0
         with:
-          subject-name: index.docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}
+          subject-name: docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}
           subject-digest: ${{ env.DIGEST }}
           push-to-registry: true
