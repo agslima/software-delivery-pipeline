@@ -41,7 +41,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: backend
-          image: index.docker.io/agslima/app-stayheathy-backend:latest 
+          image: docker.io/agslima/app-stayheathy-backend:latest 
           ports:
             - containerPort: 8080
           securityContext:
