@@ -127,31 +127,37 @@ jobs:
       - name: Verify Signatures + Required Attestations (hard gate)
         run: |
           set -euo pipefail
-
+  
           verify_all () {
             local IMAGE="$1"
+            
+            # 1. Verify Image Signature
             echo "🔐 Verifying signature for $IMAGE"
             cosign verify "$IMAGE" \
               --certificate-oidc-issuer "${{ env.OIDC_ISSUER }}" \
               --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*"
 
-            echo "🧾 Verifying Trivy attestation"
+            # 2. Verify Attestations (SILENT MODE)            
+            echo "🧾 Verifying Trivy attestation..."
             cosign verify-attestation "$IMAGE" \
               --type "${{ env.TRIVY_PREDICATE_TYPE }}" \
               --certificate-oidc-issuer "${{ env.OIDC_ISSUER }}" \
-              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*"
+              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*" \
+              > /dev/null
 
-            echo "🧾 Verifying ZAP attestation"
+            echo "🧾 Verifying ZAP attestation..."
             cosign verify-attestation "$IMAGE" \
               --type "${{ env.ZAP_PREDICATE_TYPE }}" \
               --certificate-oidc-issuer "${{ env.OIDC_ISSUER }}" \
-              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*"
+              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*" \
+              > /dev/null
 
-            echo "🧾 Verifying SBOM attestation"
+            echo "🧾 Verifying SBOM attestation..."
             cosign verify-attestation "$IMAGE" \
               --type "${{ env.SBOM_PREDICATE_TYPE }}" \
               --certificate-oidc-issuer "${{ env.OIDC_ISSUER }}" \
-              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*"
+              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*" \
+              > /dev/null
           }
 
           verify_all "${{ env.BACKEND_IMAGE }}"
