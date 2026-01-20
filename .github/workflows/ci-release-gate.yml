@@ -394,7 +394,9 @@ jobs:
           - name: frontend
             image_repo: app-stayheathy-frontend
     env:
-      COSIGN_REGISTRY_REFERRERS_MODE: "oci-1-1"
+      COSIGN_LOG_LEVEL: debug
+      COSIGN_DOCKER_MEDIA_TYPES: "1"
+      COSIGN_REGISTRY_REFERRERS_MODE: legacy
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
         with:
@@ -489,9 +491,6 @@ jobs:
             "$IMAGE"
             
       - name: Sign Image
-        env:
-          COSIGN_LOG_LEVEL: debug
-          COSIGN_DOCKER_MEDIA_TYPES: "1"
         run: |
           set -euo pipefail
           cosign version
