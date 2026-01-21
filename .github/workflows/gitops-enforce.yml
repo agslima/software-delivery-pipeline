@@ -87,17 +87,6 @@ jobs:
       - name: Read & Validate Digests
         run: |
           set -euo pipefail
-          
-          # 🟢 DEBUG: Print the actual structuree
-          echo "📂 Directory Listing of digests/:"
-          ls -R digests/
-          
-          # 🟢 Handle potential nested directories (digests/digests/...)
-          # If the file is inside a subfolder, move it to the root of 'digests/'
-          # if [ -f "digests/digests/digest-backend" ]; then
-          #    mv digests/digests/* digests/
-          # fi
-          
           test -s digests/digest-backend || (echo "::error::digest-backend missing/empty"; exit 1)
           test -s digests/digest-frontend || (echo "::error::digest-frontend missing/empty"; exit 1)
 
@@ -108,15 +97,11 @@ jobs:
           echo "$BACKEND_DIGEST" | grep -Eq '^sha256:[a-f0-9]{64}$' || (echo "::error::Invalid backend digest"; exit 1)
           echo "$FRONTEND_DIGEST" | grep -Eq '^sha256:[a-f0-9]{64}$' || (echo "::error::Invalid frontend digest"; exit 1)
 
-          # Safely export validated digests to the GitHub Actions environment
-          printf 'BACKEND_DIGEST=%s\n' "$BACKEND_DIGEST" >> "$GITHUB_ENV"
-          printf 'FRONTEND_DIGEST=%s\n' "$FRONTEND_DIGEST" >> "$GITHUB_ENV"
+          echo "BACKEND_DIGEST=$BACKEND_DIGEST" >> $GITHUB_ENV
+          echo "FRONTEND_DIGEST=$FRONTEND_DIGEST" >> $GITHUB_ENV
 
-          BACKEND_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayheathy-backend@$BACKEND_DIGEST"
-          FRONTEND_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayheathy-frontend@$FRONTEND_DIGEST"
-
-          printf 'BACKEND_IMAGE=%s\n' "$BACKEND_IMAGE" >> "$GITHUB_ENV"
-          printf 'FRONTEND_IMAGE=%s\n' "$FRONTEND_IMAGE" >> "$GITHUB_ENV"
+          echo "BACKEND_IMAGE=docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayheathy-backend@$BACKEND_DIGEST" >> $GITHUB_ENV
+          echo "FRONTEND_IMAGE=docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayheathy-frontend@$FRONTEND_DIGEST" >> $GITHUB_ENV
 
           echo "✅ Loaded Digests."
 
@@ -208,7 +193,7 @@ jobs:
       - name: Validate rendered prod manifests against cluster policy
         run: |
           set -euo pipefail
-          LOG_FILE=$(mktemp)
+          LOG_FILE="kyverno-gitops.log"
 
           POLICY="k8s/policies/cluster/supply-chain-policy.yaml"
 
@@ -217,12 +202,19 @@ jobs:
           
           kyverno apply "$POLICY" \
             --resource /tmp/prod.yaml \
-            --audit-warn=false > "$LOG_FILE" 2>&1 || true
+            --audit-warn=false \
+            --registry \
+            --detailed-results > "$LOG_FILE" 2>&1 || true
 
           cat "$LOG_FILE"
 
-          if grep -qE "fail:[[:space:]]*[1-9]" "$LOG_FILE"; then
-            echo "::error::❌ Policy Violation Detected."
+          if grep -qE "fail:[[:space:]]*[1-9]|error:[[:space:]]*[1-9]" "$LOG_FILE"; then
+            echo "::error::❌ Kyverno policy evaluation failed (fail/error > 0)."
+            exit 1
+          fi
+
+          if grep -q "Policies Skipped" "$LOG_FILE"; then
+            echo "::error::❌ Kyverno skipped policies (treat as failure in CI)."
             exit 1
           fi
           
