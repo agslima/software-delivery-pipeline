@@ -211,12 +211,14 @@ jobs:
           ' /tmp/prod.yaml
 
           test -s /tmp/prod.yaml || (echo "::error::Rendered prod.yaml is empty"; exit 1)
-          
+
+          # remove --audit-warn=false \ to debug 
           kyverno apply "$POLICY" \
             --resource /tmp/prod.yaml \
-            --audit-warn=false \
+            
             --registry \
-            --detailed-results > "$LOG_FILE" 2>&1 || true
+            --detailed-results \
+            -v 6 > "$LOG_FILE" 2>&1 || true
 
           cat "$LOG_FILE"
 
