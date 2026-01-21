@@ -123,10 +123,10 @@ spec:
                         ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/(tags/v.*|heads/.*)
             conditions:
               - all:
-                  - key: "{{ predicate.result }}"
+                  - key: "{{ predicate.result || '' }}"
                     operator: Equals
                     value: "PASS"
-                  - key: "{{ predicate.scanner.name }}"
+                  - key: "{{ predicate.scanner.name || '' }}"
                     operator: Equals
                     value: "trivy"
 
@@ -159,10 +159,10 @@ spec:
                         ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/(tags/v.*|heads/.*)
             conditions:
               - all:
-                  - key: "{{ predicate.result }}"
+                  - key: "{{ predicate.result || '' }}"
                     operator: Equals
                     value: "PASS"
-                  - key: "{{ predicate.scanner.name }}"
+                  - key: "{{ predicate.scanner.name || '' }}"
                     operator: Equals
                     value: "owasp-zap"
 
