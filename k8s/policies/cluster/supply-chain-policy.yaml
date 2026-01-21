@@ -86,6 +86,7 @@ spec:
     verifyImages:
       - imageReferences:
           - "docker.io/agslima/app-stayheathy-*"
+          - "index.docker.io/agslima/app-stayheathy-*"
         attestors:
           - entries:
               - keyless:
@@ -111,6 +112,7 @@ spec:
     verifyImages:
       - imageReferences:
           - "docker.io/agslima/app-stayheathy-*"
+          - "index.docker.io/agslima/app-stayheathy-*"
         attestations:
           - predicateType: "https://security.sigstore.dev/attestations/vuln/trivy/v1"
             attestors:
@@ -146,6 +148,7 @@ spec:
     verifyImages:
       - imageReferences:
           - "docker.io/agslima/app-stayheathy-*"
+          - "index.docker.io/agslima/app-stayheathy-*"
         attestations:
           - predicateType: "https://security.sigstore.dev/attestations/dast/zap/v1"
             attestors:
@@ -181,6 +184,7 @@ spec:
     verifyImages:
       - imageReferences:
           - "docker.io/agslima/app-stayheathy-*"
+          - "index.docker.io/agslima/app-stayheathy-*"
         attestations:
           - predicateType: "https://spdx.dev/Document"
             attestors:
@@ -208,6 +212,7 @@ spec:
     verifyImages:
       - imageReferences:
           - "docker.io/agslima/app-stayheathy-*"
+          - "index.docker.io/agslima/app-stayheathy-*"
         attestations:
           - predicateType: "https://slsa.dev/provenance/v1"
             attestors:
