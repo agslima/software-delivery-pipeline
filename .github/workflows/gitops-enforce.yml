@@ -165,8 +165,8 @@ jobs:
               > /dev/null
           }
 
-          verify_all "${{ env.BACKEND_IMAGE }}"
-          verify_all "${{ env.FRONTEND_IMAGE }}"
+          verify_all "$BACKEND_IMAGE"
+          verify_all "$FRONTEND_IMAGE"
           echo "✅ All signatures & attestations verified."
 
       - name: Install Kyverno CLI
