@@ -2,7 +2,6 @@ apiVersion: v1
 kind: Service
 metadata:
   name: backend
-  namespace: prod
 spec:
   selector:
     app: backend
@@ -15,7 +14,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: backend
-  namespace: prod
   labels:
     app: backend
 spec:
@@ -42,6 +40,7 @@ spec:
       containers:
         - name: backend
           image: docker.io/agslima/app-stayheathy-backend:latest 
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
           securityContext:
@@ -69,6 +68,13 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: DB_NAME
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 15 # Wait 15s before first check
+            periodSeconds: 20       # Check every 20 seconds
+            failureThreshold: 3    
           resources:
             requests:
               memory: "128Mi"
