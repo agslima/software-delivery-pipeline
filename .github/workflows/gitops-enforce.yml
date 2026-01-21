@@ -108,11 +108,15 @@ jobs:
           echo "$BACKEND_DIGEST" | grep -Eq '^sha256:[a-f0-9]{64}$' || (echo "::error::Invalid backend digest"; exit 1)
           echo "$FRONTEND_DIGEST" | grep -Eq '^sha256:[a-f0-9]{64}$' || (echo "::error::Invalid frontend digest"; exit 1)
 
-          echo "BACKEND_DIGEST=$BACKEND_DIGEST" >> $GITHUB_ENV
-          echo "FRONTEND_DIGEST=$FRONTEND_DIGEST" >> $GITHUB_ENV
+          # Safely export validated digests to the GitHub Actions environment
+          printf 'BACKEND_DIGEST=%s\n' "$BACKEND_DIGEST" >> "$GITHUB_ENV"
+          printf 'FRONTEND_DIGEST=%s\n' "$FRONTEND_DIGEST" >> "$GITHUB_ENV"
 
-          echo "BACKEND_IMAGE=docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayheathy-backend@$BACKEND_DIGEST" >> $GITHUB_ENV
-          echo "FRONTEND_IMAGE=docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayheathy-frontend@$FRONTEND_DIGEST" >> $GITHUB_ENV
+          BACKEND_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayheathy-backend@$BACKEND_DIGEST"
+          FRONTEND_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayheathy-frontend@$FRONTEND_DIGEST"
+
+          printf 'BACKEND_IMAGE=%s\n' "$BACKEND_IMAGE" >> "$GITHUB_ENV"
+          printf 'FRONTEND_IMAGE=%s\n' "$FRONTEND_IMAGE" >> "$GITHUB_ENV"
 
           echo "✅ Loaded Digests."
 
