@@ -86,12 +86,13 @@ spec:
     verifyImages:
       - imageReferences:
           - "docker.io/agslima/app-stayheathy-*"
+          - "index.docker.io/agslima/app-stayheathy-*"
         attestors:
           - entries:
               - keyless:
                   issuer: https://token.actions.githubusercontent.com
                   subjectRegExp: >
-                    ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*
+                    ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/(tags/v.*|heads/.*)
 
   # ============================================================
   # Rule 2: Require Trivy attestation (and who issued it)
@@ -110,6 +111,7 @@ spec:
                 security.break-glass: "true"
     verifyImages:
       - imageReferences:
+          - "docker.io/agslima/app-stayheathy-*"
           - "index.docker.io/agslima/app-stayheathy-*"
         attestations:
           - predicateType: "https://security.sigstore.dev/attestations/vuln/trivy/v1"
@@ -118,7 +120,7 @@ spec:
                   - keyless:
                       issuer: https://token.actions.githubusercontent.com
                       subjectRegExp: >
-                        ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*
+                        ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/(tags/v.*|heads/.*)
             conditions:
               - all:
                   - key: "{{ predicate.result }}"
@@ -145,6 +147,7 @@ spec:
                 security.break-glass: "true"
     verifyImages:
       - imageReferences:
+          - "docker.io/agslima/app-stayheathy-*"
           - "index.docker.io/agslima/app-stayheathy-*"
         attestations:
           - predicateType: "https://security.sigstore.dev/attestations/dast/zap/v1"
@@ -153,7 +156,7 @@ spec:
                   - keyless:
                       issuer: https://token.actions.githubusercontent.com
                       subjectRegExp: >
-                        ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*
+                        ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/(tags/v.*|heads/.*)
             conditions:
               - all:
                   - key: "{{ predicate.result }}"
@@ -180,6 +183,7 @@ spec:
                 security.break-glass: "true"
     verifyImages:
       - imageReferences:
+          - "docker.io/agslima/app-stayheathy-*"
           - "index.docker.io/agslima/app-stayheathy-*"
         attestations:
           - predicateType: "https://spdx.dev/Document"
@@ -188,7 +192,7 @@ spec:
                   - keyless:
                       issuer: https://token.actions.githubusercontent.com
                       subjectRegExp: >
-                        ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*
+                        ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/(tags/v.*|heads/.*)
 
   # ============================================================
   # Rule 5: Require SLSA provenance (GitHub attest-build-provenance)
@@ -207,6 +211,7 @@ spec:
                 security.break-glass: "true"
     verifyImages:
       - imageReferences:
+          - "docker.io/agslima/app-stayheathy-*"
           - "index.docker.io/agslima/app-stayheathy-*"
         attestations:
           - predicateType: "https://slsa.dev/provenance/v1"
@@ -215,7 +220,7 @@ spec:
                   - keyless:
                       issuer: https://token.actions.githubusercontent.com
                       subjectRegExp: >
-                        ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*
+                        ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/(tags/v.*|heads/.*)
             conditions:
               - all:
                   - key: "{{ predicate.buildDefinition.buildType || '' }}"
