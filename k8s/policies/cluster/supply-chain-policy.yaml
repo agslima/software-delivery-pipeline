@@ -30,8 +30,8 @@ spec:
                   security.break-glass: "true"
       verifyImages:
         - imageReferences:
-            - "docker.io/agslima/app-stayheathy-*"
-            - "index.docker.io/agslima/app-stayheathy-*"
+            - "docker.io/agslima/app-stayheathy-backend*"
+            - "docker.io/agslima/app-stayheathy-frontend*"
           attestors:
             - entries:
                 - keyless:
@@ -56,8 +56,8 @@ spec:
                   security.break-glass: "true"
       verifyImages:
         - imageReferences:
-            - "docker.io/agslima/app-stayheathy-*"
-            - "index.docker.io/agslima/app-stayheathy-*"
+            - "docker.io/agslima/app-stayheathy-backend*"
+            - "docker.io/agslima/app-stayheathy-frontend*"
           attestations:
             - predicateType: "https://security.sigstore.dev/attestations/vuln/trivy/v1"
               attestors:
@@ -92,8 +92,8 @@ spec:
                   security.break-glass: "true"
       verifyImages:
         - imageReferences:
-            - "docker.io/agslima/app-stayheathy-*"
-            - "index.docker.io/agslima/app-stayheathy-*"
+            - "docker.io/agslima/app-stayheathy-backend*"
+            - "docker.io/agslima/app-stayheathy-frontend*"
           attestations:
             - predicateType: "https://security.sigstore.dev/attestations/dast/zap/v1"
               attestors:
@@ -128,8 +128,8 @@ spec:
                   security.break-glass: "true"
       verifyImages:
         - imageReferences:
-            - "docker.io/agslima/app-stayheathy-*"
-            - "index.docker.io/agslima/app-stayheathy-*"
+            - "docker.io/agslima/app-stayheathy-backend*"
+            - "docker.io/agslima/app-stayheathy-frontend*"
           attestations:
             - predicateType: "https://spdx.dev/Document"
               attestors:
@@ -156,8 +156,8 @@ spec:
                   security.break-glass: "true"
       verifyImages:
         - imageReferences:
-            - "docker.io/agslima/app-stayheathy-*"
-            - "index.docker.io/agslima/app-stayheathy-*"
+            - "docker.io/agslima/app-stayheathy-backend*"
+            - "docker.io/agslima/app-stayheathy-frontend*"
           attestations:
             - predicateType: "https://slsa.dev/provenance/v1"
               attestors:
