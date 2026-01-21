@@ -81,13 +81,13 @@ graph LR
     API --> DB
 ```
 
----
-
-## Demo
+### Demo
 
 | Login page| Main page |
 |---|---|
 | ![image](https://github.com/agslima/software-delivery-pipeline/blob/main/docs/images/frontend-login-01.png) | ![image](https://github.com/agslima/software-delivery-pipeline/blob/main/docs/images/frontend-pres-01.png) |
+
+---
 
 ## 4. Technology Stack 🛠
 
