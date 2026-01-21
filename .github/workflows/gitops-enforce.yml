@@ -198,13 +198,27 @@ jobs:
           POLICY="k8s/policies/cluster/supply-chain-policy.yaml"
 
           kustomize build k8s/overlays/prod > /tmp/prod.yaml
-          test -s /tmp/prod.yaml || (echo "::error::Rendered prod.yaml is empty"; exit 1)
           
+          echo "=== Namespaces in rendered YAML ==="
+          yq -r 'select(.metadata != null) | .kind + " " + (.metadata.namespace // "NONE") + " " + .metadata.name' /tmp/prod.yaml | sort | uniq -c
+
+          echo "=== Images in rendered YAML ==="
+          yq -r '
+            select(.kind=="Deployment") |
+            .metadata.name as $n |
+            .spec.template.spec.containers[].image |
+            $n + " => " + .
+          ' /tmp/prod.yaml
+
+          test -s /tmp/prod.yaml || (echo "::error::Rendered prod.yaml is empty"; exit 1)
+
+          # remove --audit-warn=false \ to debug 
           kyverno apply "$POLICY" \
             --resource /tmp/prod.yaml \
-            --audit-warn=false \
+            
             --registry \
-            --detailed-results > "$LOG_FILE" 2>&1 || true
+            --detailed-results \
+            -v 6 > "$LOG_FILE" 2>&1 || true
 
           cat "$LOG_FILE"
 
