@@ -4,10 +4,10 @@ metadata:
   name: frontend
 spec:
   type: LoadBalancer
-  selector:
-    app: frontend 
-    loadBalancerSourceRanges:
+  loadBalancerSourceRanges:
     - "10.0.0.0/8"      # Example: Internal Network    
+  selector:
+    app: frontend
   ports:
     - protocol: TCP
       port: 80
