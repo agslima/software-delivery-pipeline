@@ -10,6 +10,7 @@ spec:
   validationFailureAction: Enforce
   background: false
   webhookTimeoutSeconds: 30
+
   rules:
     - name: require-slsa-provenance
       match:
@@ -23,20 +24,17 @@ spec:
               selector:
                 matchLabels:
                   security.break-glass: "true"
+
       verifyImages:
         - imageReferences:
             - "docker.io/agslima/app-stayheathy-backend*"
             - "docker.io/agslima/app-stayheathy-frontend*"
+
           attestations:
             - predicateType: "https://slsa.dev/provenance/v1"
               attestors:
                 - entries:
                     - keyless:
-                        issuer: https://token.actions.githubusercontent.com
+                        issuer: "https://token.actions.githubusercontent.com"
                         subjectRegExp: >-
-                          ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/(tags/v.*|heads/.*)
-              conditions:
-                - all:
-                    - key: "{{ predicate.buildDefinition.buildType || '' }}"
-                      operator: NotEquals
-                      value: ""
+                          ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/(tags/v.*|heads/.*)$
