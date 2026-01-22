@@ -156,16 +156,6 @@ jobs:
               > /dev/null
 
             echo "🔍 Start DEBUG - Inspect Image Signatures"
-            cosign download attestation \
-              --predicate-type "https://security.sigstore.dev/attestations/dast/zap/v1" \
-              "$IMAGE" \
-              | jq -r '.[0].payload' | base64 -d | jq
-
-            cosign download attestation \
-              --predicate-type "https://spdx.dev/Document" \
-              "$IMAGE" \
-              | jq -r '.[0].payload' | base64 -d | jq '.predicate | {spdxVersion, name, documentNamespace}'
-
             cosign verify-attestation "$IMAGE" \
               --type "https://security.sigstore.dev/attestations/dast/zap/v1" \
               --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
