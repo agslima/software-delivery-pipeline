@@ -498,8 +498,9 @@ jobs:
             if cosign verify \
               "$IMAGE" \
               --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*"; then
+              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*"; 
               
+            then
               echo "✅ Signature Verified!"
               exit 0
             fi
