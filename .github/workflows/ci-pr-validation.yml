@@ -1,4 +1,4 @@
-name: Build
+name: PR Validation
 on:
   workflow_dispatch: {}
   pull_request:
