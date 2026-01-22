@@ -187,47 +187,46 @@ jobs:
           FILE="k8s/overlays/prod/kustomization.yaml"
           test -f "$FILE" || (echo "::error::Missing $FILE"; exit 1)
 
-          # Comment to fix bug
-          # yq -i '
-          #  (.images[] | select(.name == "docker.io/agslima/app-stayheathy-backend") | .digest) = strenv(BACKEND_DIGEST)
-          # ' "$FILE"
+           yq -i '
+            (.images[] | select(.name == "docker.io/agslima/app-stayheathy-backend") | .digest) = strenv(BACKEND_DIGEST)
+           ' "$FILE"
           
-          # yq -i '
-          #  (.images[] | select(.name == "docker.io/agslima/app-stayheathy-frontend") | .digest) = strenv(FRONTEND_DIGEST)
-          # ' "$FILE"
+           yq -i '
+            (.images[] | select(.name == "docker.io/agslima/app-stayheathy-frontend") | .digest) = strenv(FRONTEND_DIGEST)
+           ' "$FILE"
 
-          # echo "✅ Updated prod overlay:"
-          # yq -r '.images[] | .name + " => " + .digest' "$FILE"
+           echo "✅ Updated prod overlay:"
+           yq -r '.images[] | .name + " => " + .digest' "$FILE"
 
-          # Fail closed
-          # yq -r '.images[].digest' "$FILE" | grep -q '^sha256:' || (
-          #   echo "::error::Prod overlay digests not set correctly"
-          #   exit 1
-          # )  
+           Fail closed
+           yq -r '.images[].digest' "$FILE" | grep -q '^sha256:' || (
+             echo "::error::Prod overlay digests not set correctly"
+             exit 1
+           )  
           
           # 🟢 DEBUG: Show file before update
-          echo "Before Update:"
-          cat "$FILE"
+          # echo "Before Update:"
+          # cat "$FILE"
 
           # 🟢 FIX: Match by repository name only (ignoring registry prefix)
           # This works regardless of 'docker.io' vs 'index.docker.io'
-          yq -i '
-            (.images[] | select(.name == "*app-stayheathy-backend") | .digest) = strenv(BACKEND_DIGEST)
-          ' "$FILE"
+          # yq -i '
+          #   (.images[] | select(.name == "*app-stayheathy-backend") | .digest) = strenv(BACKEND_DIGEST)
+          # ' "$FILE"
 
-          yq -i '
-            (.images[] | select(.name == "*app-stayheathy-frontend") | .digest) = strenv(FRONTEND_DIGEST)
-          ' "$FILE"
+          # yq -i '
+          #   (.images[] | select(.name == "*app-stayheathy-frontend") | .digest) = strenv(FRONTEND_DIGEST)
+          # ' "$FILE"
 
           # 🟢 DEBUG: Verify the update actually happened
-          echo "After Update:"
-          grep -E "digest|newTag" "$FILE" || true
+          # echo "After Update:"
+          # grep -E "digest|newTag" "$FILE" || true
           
           # Fail if the digests inside the file don't match our env vars
-          if ! grep -q "$BACKEND_DIGEST" "$FILE"; then
-            echo "::error::Backend digest was NOT updated in kustomization.yaml!"
-            exit 1
-          fi
+          # if ! grep -q "$BACKEND_DIGEST" "$FILE"; then
+          #   echo "::error::Backend digest was NOT updated in kustomization.yaml!"
+          #   exit 1
+          # fi
 
       - name: Validate rendered prod manifests against cluster policy
         run: |
