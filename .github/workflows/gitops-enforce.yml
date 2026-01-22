@@ -184,6 +184,63 @@ jobs:
             exit 1
           )
 
+      - name: Validate rendered prod manifests against cluster policy (split policies)
+        run: |
+          set -euo pipefail
+          LOG_FILE="kyverno-gitops.log"
+
+          POLICY_DIR="k8s/policies/cluster"
+
+          kustomize build k8s/overlays/prod > /tmp/prod.yaml
+          test -s /tmp/prod.yaml || (echo "::error::Rendered prod.yaml is empty"; exit 1)
+
+          echo "=== Namespaces in rendered YAML ==="
+          yq -r 'select(.metadata != null) | .kind + " " + (.metadata.namespace // "NONE") + " " + .metadata.name' /tmp/prod.yaml | sort | uniq -c
+
+          echo "=== Images in rendered YAML ==="
+          yq -r '
+            select(.kind=="Deployment") |
+            .metadata.name as $n |
+            .spec.template.spec.containers[].image |
+            $n + " => " + .
+          ' /tmp/prod.yaml
+
+          echo "=== Kyverno policy evaluation (split policies) ==="
+
+          # If (and only if) your policies contain variables like {{ OIDC_ISSUER }} etc,
+          # pass them via --set. Otherwise REMOVE this block.
+          KYVERNO_SET_ARGS=(
+            "--set" "OIDC_ISSUER=https://token.actions.githubusercontent.com"
+            "--set" "TRIVY_PREDICATE_TYPE=https://security.sigstore.dev/attestations/vuln/trivy/v1"
+            "--set" "ZAP_PREDICATE_TYPE=https://security.sigstore.dev/attestations/dast/zap/v1"
+            "--set" "SBOM_PREDICATE_TYPE=https://spdx.dev/Document"
+            "--set" "SLSA_PREDICATE_TYPE=https://slsa.dev/provenance/v1"
+          )
+
+          # Apply all policies in the directory at once (cleaner output)
+          kyverno apply "$POLICY_DIR" \
+            --resource /tmp/prod.yaml \
+            --registry \
+            --detailed-results \
+            --audit-warn=false \
+           "${KYVERNO_SET_ARGS[@]}" \
+           > "$LOG_FILE" 2>&1 || true
+  
+          cat "$LOG_FILE"
+
+          # Treat skip as failure (you want hard-gates)
+          if grep -q "Policies Skipped" "$LOG_FILE"; then
+            echo "::error::❌ Kyverno skipped at least one policy (missing variables/context)."
+            exit 1
+          fi
+
+          if grep -qE "fail:[[:space:]]*[1-9]|error:[[:space:]]*[1-9]" "$LOG_FILE"; then
+            echo "::error::❌ Kyverno policy evaluation failed (fail/error > 0)."
+            exit 1
+          fi
+
+          echo "✅ Policy Validation Passed."
+      
       - name: Validate rendered prod manifests against cluster policy
         run: |
           set -euo pipefail
