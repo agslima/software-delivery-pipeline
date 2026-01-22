@@ -150,27 +150,45 @@ jobs:
           # Convert cookies into a single "Cookie:" header line for ZAP replacer
           COOKIE_HEADER_FILE="app/zap-out/auth-cookie-header.txt"
           python3 - <<'PY' "$COOKIE_JAR" "$COOKIE_HEADER_FILE"
-            import sys
-            jar, out = sys.argv[1], sys.argv[2]
-            cookies=[]
-            with open(jar,"r",encoding="utf-8") as f:
-              for line in f:
-                if line.startswith("#") or not line.strip(): 
-                  continue
-                  parts=line.strip().split("\t")
-                 if len(parts)>=7:
-                   name=parts[5]; value=parts[6]
-                   cookies.append(f"{name}={value}")
-                     if cookies:
-                       with open(out,"w",encoding="utf-8") as o:
-                       o.write("Cookie: " + "; ".join(cookies) + "\n")
- PY
+          import sys
 
+          # 1. Get arguments from shell
+          jar_path = sys.argv[1]
+          out_path = sys.argv[2]
+
+          cookies = []
+
+          # 2. Read the Cookie Jar file
+          with open(jar_path, "r", encoding="utf-8") as f:
+              for line in f:
+                  # Skip comments and empty lines
+                  if line.startswith("#") or not line.strip():
+                      continue
+                  
+                  # Parse tab-separated values
+                  parts = line.strip().split("\t")
+                  
+                  # Ensure the line has enough columns (Netscape format usually has 7)
+                  if len(parts) >= 7:
+                      name = parts[5]
+                      value = parts[6]
+                      cookies.append(f"{name}={value}")
+
+          # 3. Write the formatted header to the output file
+          if cookies:
+              with open(out_path, "w", encoding="utf-8") as o:
+                  # Join all cookies with "; "
+                  o.write("Cookie: " + "; ".join(cookies) + "\n")
+          PY
+
+          # 4. Check if file exists and is not empty (-s)
           if [ -s "$COOKIE_HEADER_FILE" ]; then
-            echo "AUTH_COOKIE_HEADER_FILE=$COOKIE_HEADER_FILE" >> "$GITHUB_ENV"
-            echo "✅ Auth cookie header prepared for ZAP request injection."
+              # Export to GitHub Actions Environment
+              echo "AUTH_COOKIE_HEADER_FILE=$COOKIE_HEADER_FILE" >> "$GITHUB_ENV"
+              echo "✅ Auth cookie header prepared for ZAP request injection."
           else
-            echo "::warning::Cookie header file empty; continuing unauthenticated."
+              # Log a warning in GitHub Actions UI
+              echo "::warning::Cookie header file empty; continuing unauthenticated."
           fi
             
       
