@@ -1,0 +1,239 @@
+name: DAST Scan
+
+
+
+on:
+  schedule:
+    - cron: '0 4 * * 0' # Runs at 04:00, only on Sunday 
+  # Manual Trigger: Allow running on-demand via UI
+  workflow_dispatch:
+
+jobs:
+  dast-full-scan:
+    name: OWASP ZAP Full Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    
+    env:
+      ZAP_IMG: ghcr.io/zaproxy/zaproxy:stable
+      ZAP_FRONTEND_URL: http://127.0.0.1:4173
+      ZAP_BACKEND_URL: http://127.0.0.1:8080
+      HEALTH_TIMEOUT: "120" # seconds
+      COMPOSE_PROJECT_NAME: dast-${{ github.run_id }}-${{ github.run_attempt }}
+
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
+
+      # Variables + real Compose secrets (file-based, outside repo)
+      - name: Set Variables + Compose Secrets (file-based)
+        working-directory: app
+        run: |
+          set -euo pipefail
+
+          # Keep secrets OUT of workspace: use RUNNER_TEMP
+          SECRETS_DIR="${RUNNER_TEMP}/compose-secrets"
+          ENV_FILE=".env"
+
+          rm -f "$ENV_FILE"
+          rm -rf "$SECRETS_DIR"
+          mkdir -p "$SECRETS_DIR"
+
+          # Non-secret env vars
+           {
+            echo "ADMIN_USER=${{ vars.ADMIN_USER }}"
+            echo "DB_USER=${{ vars.DB_USER }}"
+            echo "DB_NAME=${{ vars.DB_NAME }}"
+            echo "COMPOSE_PROJECT_NAME=${{ env.COMPOSE_PROJECT_NAME }}"
+            echo "SECRETS_PATH=${SECRETS_DIR}" 
+          } >> "$ENV_FILE"
+          chmod 644 "$ENV_FILE"
+
+          # Compose secrets files
+          printf "%s" "${{ secrets.JWT_SECRET }}" > "${SECRETS_DIR}/jwt_secret.txt"
+          printf "%s" "${{ secrets.ADMIN_PASS }}" > "${SECRETS_DIR}/admin_pass.txt"
+          printf "%s" "${{ secrets.DB_PASS }}" > "${SECRETS_DIR}/db_pass.txt"
+          chmod 600 "${SECRETS_DIR}"/*.txt
+
+          echo "Secrets dir: ${SECRETS_DIR}"
+
+      - name: Start Ephemeral Environment
+        working-directory: app
+        run: |
+          set -euo pipefail
+
+          echo "⏳ Waiting for Backend health..."
+          timeout "${{ env.HEALTH_TIMEOUT }}s" bash -c \
+            'until curl -fsS http://127.0.0.1:8080/health >/dev/null; do sleep 5; done'
+
+          echo "⏳ Waiting for Frontend..."
+          timeout "${{ env.HEALTH_TIMEOUT }}s" bash -c \
+            'until curl -fsS http://127.0.0.1:4173/health >/dev/null; do sleep 5; done'
+
+          # Optional: stronger frontend check (serves index)
+          echo "⏳ Verifying Frontend serves content..."
+          timeout "${{ env.HEALTH_TIMEOUT }}s" bash -c \
+            'until curl -fsS http://127.0.0.1:4173/ | head -n 1 | grep -qi "<!doctype"; do sleep 5; done' || true
+
+          docker compose ps
+          echo "✅ Application is live!"
+
+      # ==================================================================
+      # Run ZAP Full Scan - Frontend + Backend (Active Attack)
+      # ==================================================================
+      - name: OWASP ZAP Full Scan
+        working-directory: app
+        run: |
+          set -euo pipefail
+          mkdir -p zap-out
+          chmod 777 zap-out
+
+          VOL_PATH="$(pwd)/zap-out"
+          echo "ZAP volume: $VOL_PATH"
+          echo "ZAP image: ${{ env.ZAP_IMG }}"
+
+          echo "🚀 Starting ZAP FULL Scan..."
+          echo "⚠️ This mimics an active attacker and may flood the logs."
+
+          docker run --rm \
+            --network host \
+            -v "$VOL_PATH:/zap/wrk/:rw"  \
+            "${{ env.ZAP_IMG }}" zap-full-scan.py \
+            -t "${{ env.ZAP_FRONTEND_URL }}" \
+            -r zap-frontend.html \
+            -J zap-frontend.json \
+            -I || true
+            # -I: Ignore warnings
+            # -a: (Optional) Include alpha rules
+          
+          test -s "zap-out/zap-frontend.json" || (echo "::error::ZAP frontend JSON missing/empty (scanner crash?)"; exit 1)
+          jq -e 'type=="object"' "zap-out/zap-frontend.json" >/dev/null
+
+      - name: OWASP ZAP Full Scan (Backend)
+        working-directory: app
+        run: |
+          set -euo pipefail
+          VOL_PATH="$(pwd)/zap-out"
+          test -d "$VOL_PATH" || (echo "::error::zap-out missing (previous step failed?)"; exit 1)
+
+          docker run --rm \
+            --network host \
+            -v "$VOL_PATH:/zap/wrk/:rw" \
+            "${{ env.ZAP_IMG }}" zap-baseline.py \
+            -t "${{ env.ZAP_BACKEND_URL }}" \
+            -r zap-backend.html \
+            -J zap-backend.json \
+            -I || true
+
+          test -s "zap-out/zap-backend.json" || (echo "::error::ZAP backend JSON missing/empty (scanner crash?)"; exit 1)
+          jq -e 'type=="object"' "zap-out/zap-backend.json" >/dev/null
+      
+      # ==================================================================
+      # 3. The Gatekeeper
+      # ==================================================================
+      - name: Gate ZAP (High > 0)
+        working-directory: app
+        run: |
+          set -euo pipefail
+
+          FE="zap-out/zap-frontend.json"
+          BE="zap-out/zap-backend.json"
+
+          HIGH_FE=$(jq '[.site[]? | .alerts[]? | select(.riskcode=="3")] | length' "$FE")
+          HIGH_BE=$(jq '[.site[]? | .alerts[]? | select(.riskcode=="3")] | length' "$BE")
+
+          echo "Frontend High=$HIGH_FE"
+          echo "Backend  High=$HIGH_BE"
+
+          # Write summary for later steps
+          {
+            echo "HIGH_FE=$HIGH_FE"
+            echo "HIGH_BE=$HIGH_BE"
+          } >> "$GITHUB_ENV"
+
+          if [ "$HIGH_FE" -gt 0 ] || [ "$HIGH_BE" -gt 0 ]; then
+            echo "::error::⛔ DAST Gate Failed (FE High=$HIGH_FE, BE High=$HIGH_BE)"
+            exit 1
+          fi
+
+          echo "✅ DAST Gate Passed"
+
+      - name: Upload ZAP Report
+        if: always() 
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f #v6.0.0
+        with:
+          name: zap-full-scan-report
+          path: app/zap-out/zap-report.html
+          retention-days: 30
+
+      # Debug logs on failure      
+      - name: Debug - Container Logs
+        if: failure()
+        working-directory: app
+        run: |
+          docker compose ps || true
+          docker compose logs --no-color || true
+      
+      # Create issue on failure (idempotent per day+workflow)      
+      - name: Create Issue on Failure
+        if: failure() && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TODAY="$(date -u +%Y-%m-%d)"
+          KEY="DAST_FAIL_${TODAY}_${{ github.workflow }}"
+
+          TITLE="🚨 DAST Full Scan Failed (${TODAY})"
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          HIGH_FE="${HIGH_FE:-unknown}"
+          HIGH_BE="${HIGH_BE:-unknown}"
+
+          BODY=$(cat <<EOF
+          **Key:** ${KEY}  
+          **Workflow:** ${{ github.workflow }}  
+          **Date (UTC):** ${TODAY}  
+          **Run:** ${RUN_URL}
+
+          **Counts**
+          - Frontend High: ${HIGH_FE}
+          - Backend High: ${HIGH_BE}
+
+          **Artifacts**
+          - \`zap-results\` (HTML + JSON)
+
+          **Triage**
+          1) Open \`zap-frontend.html\` / \`zap-backend.html\`
+          2) Confirm auth flows, redirects, CSP/headers, CORS behavior
+          3) Review compose logs in the run output (step: Debug - Container Logs)
+          EOF
+          )
+
+          # Idempotency: if an issue with the same Key exists, don't spam.
+          if gh issue list --limit 100 --search "${KEY}" --json title,body | jq -e --arg k "${KEY}" '.[] | select(.body | contains($k))' >/dev/null; then
+            echo "Issue already exists for ${KEY}."
+            exit 0
+          fi
+
+          gh issue create \
+            --title "$TITLE" \
+            --body "$BODY" \
+            --label "security" \
+            --label "dast"
+      
+      - name: Cleanup Secrets + Env
+        if: always()
+        working-directory: app
+        run: |
+          set -euo pipefail
+          rm -f .env
+          if [ -n "${COMPOSE_SECRETS_DIR:-}" ] && [ -d "${COMPOSE_SECRETS_DIR:-}" ]; then
+            rm -rf "${COMPOSE_SECRETS_DIR}"
+          fi
+
+      - name: Teardown
+        if: always()
+        working-directory: app
+        run: docker compose down -v --remove-orphans
