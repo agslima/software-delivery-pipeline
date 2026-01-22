@@ -1,138 +1,293 @@
-name: DAST Scan
-
-
+name: DAST Scan (Weekly, Authenticated)
 
 on:
   schedule:
-    - cron: '0 4 * * 0' # Runs at 04:00, only on Sunday 
-  # Manual Trigger: Allow running on-demand via UI
-  workflow_dispatch:
+    - cron: '0 4 * * 0' # Sundays 04:00 UTC
+  workflow_dispatch: {}
+
+concurrency:
+  group: dast-weekly-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   dast-full-scan:
-    name: OWASP ZAP Full Scan
+    name: OWASP ZAP Full Scan (FE+BE, Auth)
     runs-on: ubuntu-latest
     permissions:
       contents: read
       issues: write
-    
+
     env:
-      ZAP_IMG: ghcr.io/zaproxy/zaproxy:stable
+      ZAP_IMG: ghcr.io/zaproxy/zaproxy@sha256:8e79e827afb9e8bdba390c829eb3062062cdb407570559e2ddebd49130c00a59
+
       ZAP_FRONTEND_URL: http://127.0.0.1:4173
       ZAP_BACKEND_URL: http://127.0.0.1:8080
-      HEALTH_TIMEOUT: "120" # seconds
+      HEALTH_TIMEOUT: "120"
+
+      # Compose isolation
       COMPOSE_PROJECT_NAME: dast-${{ github.run_id }}-${{ github.run_attempt }}
 
-    steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
+      # ZAP context settings (files committed in repo)
+      ZAP_CONTEXT_FILE: .zap/context.context
+      ZAP_RULES_FILE: .zap/rules.tsv
 
-      # Variables + real Compose secrets (file-based, outside repo)
+      # Scope: include only app/, exclude noisy static assets
+      ZAP_SCOPE_INCLUDE: '^http://127\.0\.0\.1:(4173|8080)/.*'
+      ZAP_SCOPE_EXCLUDE: '.*\.(css|js|map|png|jpg|jpeg|gif|svg|ico|woff|woff2)$'
+
+      # Governance thresholds
+      BLOCK_HIGH: "1" # any High blocks
+      BLOCK_MEDIUM_CATEGORIES: "1" # medium category blocking enabled
+      MEDIUM_BLOCK_PATTERNS: '(SQL Injection|SQLI|Server Side Request Forgery|SSRF|Authentication|Session|JWT|Insecure|Deserialization|Path Traversal|RCE|Command Injection|XXE)'
+
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      # ------------------------------------------------------------
+      # 1) Variables + file-based Compose secrets (outside repo)
+      # ------------------------------------------------------------
       - name: Set Variables + Compose Secrets (file-based)
         working-directory: app
         run: |
           set -euo pipefail
 
-          # Keep secrets OUT of workspace: use RUNNER_TEMP
-          SECRETS_DIR="${RUNNER_TEMP}/compose-secrets"
-          ENV_FILE=".env"
+          COMPOSE_SECRETS_DIR="${RUNNER_TEMP}/compose-secrets"
+          echo "COMPOSE_SECRETS_DIR=${COMPOSE_SECRETS_DIR}" >> "$GITHUB_ENV"
 
+          # .env is used by docker compose (since we're in app/)
+          ENV_FILE=".env"
           rm -f "$ENV_FILE"
-          rm -rf "$SECRETS_DIR"
-          mkdir -p "$SECRETS_DIR"
+          rm -rf "$COMPOSE_SECRETS_DIR"
+          mkdir -p "$COMPOSE_SECRETS_DIR"
 
           # Non-secret env vars
-           {
+          {
             echo "ADMIN_USER=${{ vars.ADMIN_USER }}"
             echo "DB_USER=${{ vars.DB_USER }}"
             echo "DB_NAME=${{ vars.DB_NAME }}"
             echo "COMPOSE_PROJECT_NAME=${{ env.COMPOSE_PROJECT_NAME }}"
-            echo "SECRETS_PATH=${SECRETS_DIR}" 
+            echo "COMPOSE_SECRETS_DIR=${COMPOSE_SECRETS_DIR}"
           } >> "$ENV_FILE"
-          chmod 644 "$ENV_FILE"
+          chmod 600 "$ENV_FILE"
 
-          # Compose secrets files
-          printf "%s" "${{ secrets.JWT_SECRET }}" > "${SECRETS_DIR}/jwt_secret.txt"
-          printf "%s" "${{ secrets.ADMIN_PASS }}" > "${SECRETS_DIR}/admin_pass.txt"
-          printf "%s" "${{ secrets.DB_PASS }}" > "${SECRETS_DIR}/db_pass.txt"
-          chmod 600 "${SECRETS_DIR}"/*.txt
+          # Secrets (files)
+          printf "%s" "${{ secrets.JWT_SECRET }}"  > "${COMPOSE_SECRETS_DIR}/jwt_secret.txt"
+          printf "%s" "${{ secrets.ADMIN_PASS }}"  > "${COMPOSE_SECRETS_DIR}/admin_pass.txt"
+          printf "%s" "${{ secrets.DB_PASS }}"     > "${COMPOSE_SECRETS_DIR}/db_pass.txt"
+          chmod 600 "${COMPOSE_SECRETS_DIR}"/*.txt
 
-          echo "Secrets dir: ${SECRETS_DIR}"
+          echo "Secrets dir: ${COMPOSE_SECRETS_DIR}"
 
+      # ------------------------------------------------------------
+      # 2) Start compose BEFORE checks
+      # ------------------------------------------------------------
       - name: Start Ephemeral Environment
         working-directory: app
         run: |
           set -euo pipefail
+          docker compose up -d --build
 
           echo "⏳ Waiting for Backend health..."
           timeout "${{ env.HEALTH_TIMEOUT }}s" bash -c \
             'until curl -fsS http://127.0.0.1:8080/health >/dev/null; do sleep 5; done'
 
-          echo "⏳ Waiting for Frontend..."
+          echo "⏳ Waiting for Frontend health..."
           timeout "${{ env.HEALTH_TIMEOUT }}s" bash -c \
             'until curl -fsS http://127.0.0.1:4173/health >/dev/null; do sleep 5; done'
 
-          # Optional: stronger frontend check (serves index)
-          echo "⏳ Verifying Frontend serves content..."
+          echo "⏳ Verifying Frontend serves HTML..."
           timeout "${{ env.HEALTH_TIMEOUT }}s" bash -c \
-            'until curl -fsS http://127.0.0.1:4173/ | head -n 1 | grep -qi "<!doctype"; do sleep 5; done' || true
+            'until curl -fsS http://127.0.0.1:4173/ | head -n 3 | grep -qi "<!doctype"; do sleep 5; done' || true
 
           docker compose ps
           echo "✅ Application is live!"
 
-      # ==================================================================
-      # Run ZAP Full Scan - Frontend + Backend (Active Attack)
-      # ==================================================================
-      - name: OWASP ZAP Full Scan
+      # ------------------------------------------------------------
+      # 3) Prepare ZAP output folder + show pinned image
+      # ------------------------------------------------------------
+      - name: Prepare ZAP Output
         working-directory: app
         run: |
           set -euo pipefail
           mkdir -p zap-out
-          chmod 777 zap-out
+          chmod 700 zap-out
+          echo "ZAP image (pinned): ${{ env.ZAP_IMG }}"
+          echo "Scope include: ${{ env.ZAP_SCOPE_INCLUDE }}"
+          echo "Scope exclude: ${{ env.ZAP_SCOPE_EXCLUDE }}"
 
-          VOL_PATH="$(pwd)/zap-out"
-          echo "ZAP volume: $VOL_PATH"
-          echo "ZAP image: ${{ env.ZAP_IMG }}"
+      # ------------------------------------------------------------
+      # 4) Auth bootstrap (form login)
+      #    Produces a session cookie and writes it to a header file
+      # ------------------------------------------------------------
+      - name: Auth Bootstrap (Form Login -> Cookie)
+        id: auth
+        run: |
+          set -euo pipefail
 
-          echo "🚀 Starting ZAP FULL Scan..."
-          echo "⚠️ This mimics an active attacker and may flood the logs."
+          # Adjust to match app login endpoint + params.
+          # Example assumes: POST /api/auth/login with JSON body
+          LOGIN_URL="http://127.0.0.1:8080/api/auth/login"
 
-          docker run --rm \
-            --network host \
-            -v "$VOL_PATH:/zap/wrk/:rw"  \
-            "${{ env.ZAP_IMG }}" zap-full-scan.py \
-            -t "${{ env.ZAP_FRONTEND_URL }}" \
-            -r zap-frontend.html \
-            -J zap-frontend.json \
-            -I || true
-            # -I: Ignore warnings
-            # -a: (Optional) Include alpha rules
-          
-          test -s "zap-out/zap-frontend.json" || (echo "::error::ZAP frontend JSON missing/empty (scanner crash?)"; exit 1)
-          jq -e 'type=="object"' "zap-out/zap-frontend.json" >/dev/null
+          ADMIN_USER="${{ vars.ADMIN_USER }}"
+          ADMIN_PASS="${{ secrets.ADMIN_PASS }}"
 
-      - name: OWASP ZAP Full Scan (Backend)
+          echo "Attempting login at: $LOGIN_URL"
+
+          # Save cookies to file
+          COOKIE_JAR="$(mktemp)"
+          echo "COOKIE_JAR=$COOKIE_JAR" >> "$GITHUB_ENV"
+
+          # Try login; adjust payload to match your app
+          curl -fsS -c "$COOKIE_JAR" -X POST \
+            -H "Content-Type: application/json" \
+            --data "{\"username\":\"${ADMIN_USER}\",\"password\":\"${ADMIN_PASS}\"}" \
+            "$LOGIN_URL" >/dev/null || {
+              echo "::warning::Login failed. Auth coverage may be limited. Adjust LOGIN_URL/payload."
+              # still continue; ZAP will run unauthenticated
+              exit 0
+            }
+
+          # Convert cookies into a single "Cookie:" header line for ZAP replacer
+          COOKIE_HEADER_FILE="app/zap-out/auth-cookie-header.txt"
+          python3 - <<'PY' "$COOKIE_JAR" "$COOKIE_HEADER_FILE"
+            import sys
+            jar, out = sys.argv[1], sys.argv[2]
+            cookies=[]
+            with open(jar,"r",encoding="utf-8") as f:
+              for line in f:
+                if line.startswith("#") or not line.strip(): 
+                  continue
+                  parts=line.strip().split("\t")
+                 if len(parts)>=7:
+                   name=parts[5]; value=parts[6]
+                   cookies.append(f"{name}={value}")
+                     if cookies:
+                       with open(out,"w",encoding="utf-8") as o:
+                       o.write("Cookie: " + "; ".join(cookies) + "\n")
+ PY
+
+          if [ -s "$COOKIE_HEADER_FILE" ]; then
+            echo "AUTH_COOKIE_HEADER_FILE=$COOKIE_HEADER_FILE" >> "$GITHUB_ENV"
+            echo "✅ Auth cookie header prepared for ZAP request injection."
+          else
+            echo "::warning::Cookie header file empty; continuing unauthenticated."
+          fi
+            
+      
+      # ------------------------------------------------------------
+      # 5) ZAP Full Scan - Frontend (consistent scan type)
+      # ------------------------------------------------------------
+      - name: OWASP ZAP Full Scan (Frontend, Auth + Scoped)
         working-directory: app
         run: |
           set -euo pipefail
-          VOL_PATH="$(pwd)/zap-out"
-          test -d "$VOL_PATH" || (echo "::error::zap-out missing (previous step failed?)"; exit 1)
 
+          VOL_PATH="$(pwd)/zap-out"
+          TARGET="${{ env.ZAP_FRONTEND_URL }}"
+          OUT_JSON="zap-frontend.json"
+          OUT_HTML="zap-frontend.html"
+
+          echo "Target: $TARGET"
+          echo "Output: $OUT_JSON / $OUT_HTML"
+
+          # Optional: inject Cookie header if we have it
+          REPLACER_ARGS=""
+          if [ -n "${AUTH_COOKIE_HEADER_FILE:-}" ] && [ -s "${AUTH_COOKIE_HEADER_FILE:-}" ]; then
+            # ZAP replacer: replace/add Cookie header for all requests
+            # Format: -z "-config replacer.full_list(0).description=authcookie ..."
+            COOKIE_LINE="$(cat "${AUTH_COOKIE_HEADER_FILE}")"
+            # Extract everything after "Cookie: "
+            COOKIE_VALUE="${COOKIE_LINE#Cookie: }"
+            REPLACER_ARGS="-z -config replacer.full_list(0).description=authcookie \
+              -config replacer.full_list(0).enabled=true \
+              -config replacer.full_list(0).matchtype=REQ_HEADER \
+              -config replacer.full_list(0).matchstr=Cookie \
+              -config replacer.full_list(0).regex=false \
+              -config replacer.full_list(0).replacement=${COOKIE_VALUE}"
+            echo "Auth injection enabled (Cookie header)."
+          else
+            echo "Auth injection not enabled."
+          fi
+
+          set +e
           docker run --rm \
             --network host \
             -v "$VOL_PATH:/zap/wrk/:rw" \
-            "${{ env.ZAP_IMG }}" zap-baseline.py \
-            -t "${{ env.ZAP_BACKEND_URL }}" \
-            -r zap-backend.html \
-            -J zap-backend.json \
-            -I || true
+            "${{ env.ZAP_IMG }}" zap-full-scan.py \
+            -t "$TARGET" \
+            -r "$OUT_HTML" \
+            -J "$OUT_JSON" \
+            -n "${{ env.ZAP_CONTEXT_FILE }}" \
+            -c "${{ env.ZAP_RULES_FILE }}" \
+            -I \
+            ${REPLACER_ARGS}
+          ZAP_EXIT=$?
+          set -e
 
-          test -s "zap-out/zap-backend.json" || (echo "::error::ZAP backend JSON missing/empty (scanner crash?)"; exit 1)
-          jq -e 'type=="object"' "zap-out/zap-backend.json" >/dev/null
-      
-      # ==================================================================
-      # 3. The Gatekeeper
-      # ==================================================================
-      - name: Gate ZAP (High > 0)
+          echo "ZAP_EXIT_FRONTEND=$ZAP_EXIT" >> "$GITHUB_ENV"
+          echo "ZAP frontend exit code: $ZAP_EXIT"
+
+          test -s "zap-out/$OUT_JSON" || (echo "::error::ZAP frontend JSON missing/empty (scanner crash?)"; exit 1)
+          jq -e 'type=="object"' "zap-out/$OUT_JSON" >/dev/null
+
+      # ------------------------------------------------------------
+      # 6) ZAP Full Scan - Backend (consistent scan type)
+      # ------------------------------------------------------------
+      - name: OWASP ZAP Full Scan (Backend, Auth + Scoped)
+        working-directory: app
+        run: |
+          set -euo pipefail
+
+          VOL_PATH="$(pwd)/zap-out"
+          TARGET="${{ env.ZAP_BACKEND_URL }}"
+          OUT_JSON="zap-backend.json"
+          OUT_HTML="zap-backend.html"
+
+          echo "Target: $TARGET"
+          echo "Output: $OUT_JSON / $OUT_HTML"
+
+          REPLACER_ARGS=""
+          if [ -n "${AUTH_COOKIE_HEADER_FILE:-}" ] && [ -s "${AUTH_COOKIE_HEADER_FILE:-}" ]; then
+            COOKIE_LINE="$(cat "${AUTH_COOKIE_HEADER_FILE}")"
+            COOKIE_VALUE="${COOKIE_LINE#Cookie: }"
+            REPLACER_ARGS="-z -config replacer.full_list(0).description=authcookie \
+              -config replacer.full_list(0).enabled=true \
+              -config replacer.full_list(0).matchtype=REQ_HEADER \
+              -config replacer.full_list(0).matchstr=Cookie \
+              -config replacer.full_list(0).regex=false \
+              -config replacer.full_list(0).replacement=${COOKIE_VALUE}"
+            echo "Auth injection enabled (Cookie header)."
+          else
+            echo "Auth injection not enabled."
+          fi
+
+          set +e
+          docker run --rm \
+            --network host \
+            -v "$VOL_PATH:/zap/wrk/:rw" \
+            "${{ env.ZAP_IMG }}" zap-full-scan.py \
+            -t "$TARGET" \
+            -r "$OUT_HTML" \
+            -J "$OUT_JSON" \
+            -n "${{ env.ZAP_CONTEXT_FILE }}" \
+            -c "${{ env.ZAP_RULES_FILE }}" \
+            -I \
+            ${REPLACER_ARGS}
+          ZAP_EXIT=$?
+          set -e
+
+          echo "ZAP_EXIT_BACKEND=$ZAP_EXIT" >> "$GITHUB_ENV"
+          echo "ZAP backend exit code: $ZAP_EXIT"
+
+          test -s "zap-out/$OUT_JSON" || (echo "::error::ZAP backend JSON missing/empty (scanner crash?)"; exit 1)
+          jq -e 'type=="object"' "zap-out/$OUT_JSON" >/dev/null
+
+      # ------------------------------------------------------------
+      # 7) Governance Gate + Summary
+      #    - Blocks on any High
+      #    - Blocks on select Medium categories by alert name patterns
+      # ------------------------------------------------------------
+      - name: Gate + Summary (High + Selected Medium)
         working-directory: app
         run: |
           set -euo pipefail
@@ -140,79 +295,157 @@ jobs:
           FE="zap-out/zap-frontend.json"
           BE="zap-out/zap-backend.json"
 
-          HIGH_FE=$(jq '[.site[]? | .alerts[]? | select(.riskcode=="3")] | length' "$FE")
-          HIGH_BE=$(jq '[.site[]? | .alerts[]? | select(.riskcode=="3")] | length' "$BE")
+          # counts by riskcode (ZAP: 3=High, 2=Medium, 1=Low, 0=Info)
+          count_risk () {
+            local file="$1"; local risk="$2"
+            jq --arg r "$risk" '[.site[]? | .alerts[]? | select(.riskcode == $r)] | length' "$file"
+          }
 
-          echo "Frontend High=$HIGH_FE"
-          echo "Backend  High=$HIGH_BE"
+          HIGH_FE=$(count_risk "$FE" "3"); MED_FE=$(count_risk "$FE" "2")
+          HIGH_BE=$(count_risk "$BE" "3"); MED_BE=$(count_risk "$BE" "2")
 
-          # Write summary for later steps
-          {
-            echo "HIGH_FE=$HIGH_FE"
-            echo "HIGH_BE=$HIGH_BE"
-          } >> "$GITHUB_ENV"
+          echo "HIGH_FE=$HIGH_FE" >> "$GITHUB_ENV"
+          echo "MED_FE=$MED_FE"   >> "$GITHUB_ENV"
+          echo "HIGH_BE=$HIGH_BE" >> "$GITHUB_ENV"
+          echo "MED_BE=$MED_BE"   >> "$GITHUB_ENV"
 
-          if [ "$HIGH_FE" -gt 0 ] || [ "$HIGH_BE" -gt 0 ]; then
-            echo "::error::⛔ DAST Gate Failed (FE High=$HIGH_FE, BE High=$HIGH_BE)"
-            exit 1
+          echo "Frontend: High=$HIGH_FE Medium=$MED_FE"
+          echo "Backend : High=$HIGH_BE Medium=$MED_BE"
+
+          # Block on High
+          if [ "${{ env.BLOCK_HIGH }}" = "1" ]; then
+            if [ "$HIGH_FE" -gt 0 ] || [ "$HIGH_BE" -gt 0 ]; then
+              echo "::error::⛔ DAST Gate Failed: High vulnerabilities found (FE=$HIGH_FE, BE=$HIGH_BE)"
+              exit 1
+            fi
           fi
+
+          # Block on selected medium categories (by alert name pattern)
+          if [ "${{ env.BLOCK_MEDIUM_CATEGORIES }}" = "1" ]; then
+            PATTERN="${{ env.MEDIUM_BLOCK_PATTERNS }}"
+
+            MED_BLOCK_FE=$(jq --arg re "$PATTERN" '
+              [ .site[]? | .alerts[]? 
+                | select(.riskcode=="2")
+                | select(.alert? | test($re; "i"))
+              ] | length
+            ' "$FE")
+
+            MED_BLOCK_BE=$(jq --arg re "$PATTERN" '
+              [ .site[]? | .alerts[]? 
+                | select(.riskcode=="2")
+                | select(.alert? | test($re; "i"))
+              ] | length
+            ' "$BE")
+
+            echo "MED_BLOCK_FE=$MED_BLOCK_FE" >> "$GITHUB_ENV"
+            echo "MED_BLOCK_BE=$MED_BLOCK_BE" >> "$GITHUB_ENV"
+
+            echo "Medium (blocked categories) FE=$MED_BLOCK_FE BE=$MED_BLOCK_BE (pattern=$PATTERN)"
+
+            if [ "$MED_BLOCK_FE" -gt 0 ] || [ "$MED_BLOCK_BE" -gt 0 ]; then
+              echo "::error::⛔ DAST Gate Failed: Selected Medium categories found (FE=$MED_BLOCK_FE, BE=$MED_BLOCK_BE)"
+              exit 1
+            fi
+          fi
+
+          # Write a small markdown summary artifact
+          SUMMARY="zap-out/summary.md"
+          {
+            echo "# DAST Weekly Summary"
+            echo ""
+            echo "- ZAP image: \`${{ env.ZAP_IMG }}\`"
+            echo "- ZAP exit codes: FE=\`${ZAP_EXIT_FRONTEND:-unknown}\` BE=\`${ZAP_EXIT_BACKEND:-unknown}\`"
+            echo ""
+            echo "## Counts"
+            echo "| Target | High | Medium |"
+            echo "|---|---:|---:|"
+            echo "| Frontend | ${HIGH_FE} | ${MED_FE} |"
+            echo "| Backend | ${HIGH_BE} | ${MED_BE} |"
+            echo ""
+            echo "## Governance"
+            echo "- Block High: \`${{ env.BLOCK_HIGH }}\`"
+            echo "- Block selected Medium: \`${{ env.BLOCK_MEDIUM_CATEGORIES }}\`"
+            echo "- Medium patterns: \`${{ env.MEDIUM_BLOCK_PATTERNS }}\`"
+          } > "$SUMMARY"
 
           echo "✅ DAST Gate Passed"
 
-      - name: Upload ZAP Report
-        if: always() 
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f #v6.0.0
+      # ------------------------------------------------------------
+      # 8) Upload artifacts (folder)
+      # ------------------------------------------------------------
+      - name: Upload ZAP Artifacts (folder)
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: zap-full-scan-report
-          path: app/zap-out/zap-report.html
+          name: zap-out
+          path: app/zap-out/
           retention-days: 30
 
-      # Debug logs on failure      
+      # ------------------------------------------------------------
+      # 9) Debug logs on failure
+      # ------------------------------------------------------------
       - name: Debug - Container Logs
         if: failure()
         working-directory: app
         run: |
           docker compose ps || true
           docker compose logs --no-color || true
-      
-      # Create issue on failure (idempotent per day+workflow)      
+
+      # ------------------------------------------------------------
+      # 10) Create an issue on failure (better body)
+      # ------------------------------------------------------------
       - name: Create Issue on Failure
-        if: failure() && github.event_name != 'pull_request'
+        if: failure()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           TODAY="$(date -u +%Y-%m-%d)"
           KEY="DAST_FAIL_${TODAY}_${{ github.workflow }}"
-
-          TITLE="🚨 DAST Full Scan Failed (${TODAY})"
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
-          HIGH_FE="${HIGH_FE:-unknown}"
-          HIGH_BE="${HIGH_BE:-unknown}"
-
+          TITLE="🚨 DAST Weekly Failed (${TODAY})"
           BODY=$(cat <<EOF
           **Key:** ${KEY}  
           **Workflow:** ${{ github.workflow }}  
           **Date (UTC):** ${TODAY}  
           **Run:** ${RUN_URL}
 
-          **Counts**
-          - Frontend High: ${HIGH_FE}
-          - Backend High: ${HIGH_BE}
+          ## Targets
+          - Frontend: ${{ env.ZAP_FRONTEND_URL }}
+          - Backend:  ${{ env.ZAP_BACKEND_URL }}
 
-          **Artifacts**
-          - \`zap-results\` (HTML + JSON)
+          ## ZAP Runtime
+          - Image (pinned): \`${{ env.ZAP_IMG }}\`
+          - Exit codes: FE=\`${{ env.ZAP_EXIT_FRONTEND || 'unknown' }}\` BE=\`${{ env.ZAP_EXIT_BACKEND || 'unknown' }}\`
 
-          **Triage**
-          1) Open \`zap-frontend.html\` / \`zap-backend.html\`
-          2) Confirm auth flows, redirects, CSP/headers, CORS behavior
-          3) Review compose logs in the run output (step: Debug - Container Logs)
+          ## Counts
+          - Frontend High: \`${{ env.HIGH_FE || 'unknown' }}\`
+          - Backend  High: \`${{ env.HIGH_BE || 'unknown' }}\`
+          - Frontend Medium: \`${{ env.MED_FE || 'unknown' }}\`
+          - Backend  Medium: \`${{ env.MED_BE || 'unknown' }}\`
+          - Medium blocked categories FE: \`${{ env.MED_BLOCK_FE || 'n/a' }}\`
+          - Medium blocked categories BE: \`${{ env.MED_BLOCK_BE || 'n/a' }}\`
+
+          ## Artifacts (download from this run)
+          - \`zap-out\` (contains html/json + summary.md)
+
+          ## Triage (playbook)
+          1) Open \`summary.md\` first  
+          2) Review \`zap-frontend.html\` and \`zap-backend.html\`  
+          3) Validate auth coverage:
+             - Is login endpoint correct?
+             - Are we successfully establishing a session cookie/token?
+          4) If alerts are noisy/static:
+             - tighten scope include/exclude
+             - add ZAP rule suppressions to \`${{ env.ZAP_RULES_FILE }}\`
+
           EOF
           )
 
-          # Idempotency: if an issue with the same Key exists, don't spam.
-          if gh issue list --limit 100 --search "${KEY}" --json title,body | jq -e --arg k "${KEY}" '.[] | select(.body | contains($k))' >/dev/null; then
+          # Idempotency: avoid spamming
+          if gh issue list --limit 100 --search "${KEY}" --json body | jq -e --arg k "${KEY}" '.[] | select(.body | contains($k))' >/dev/null; then
             echo "Issue already exists for ${KEY}."
             exit 0
           fi
@@ -221,8 +454,12 @@ jobs:
             --title "$TITLE" \
             --body "$BODY" \
             --label "security" \
-            --label "dast"
-      
+            --label "dast" \
+            --label "automated"
+
+      # ------------------------------------------------------------
+      # 11) Cleanup secrets + env + teardown
+      # ------------------------------------------------------------
       - name: Cleanup Secrets + Env
         if: always()
         working-directory: app
