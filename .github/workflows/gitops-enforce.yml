@@ -167,6 +167,45 @@ jobs:
           sudo chmod +x /usr/local/bin/yq
           yq --version
 
+      
+      - name: Debug - Inspect cosign
+        run: |
+          cosign download attestation \
+            --predicate-type "https://security.sigstore.dev/attestations/dast/zap/v1" \
+            "$IMAGE" \
+            | jq -r '.[0].payload' | base64 -d | jq
+
+          cosign download attestation \
+            --predicate-type "https://spdx.dev/Document" \
+            "$IMAGE" \
+            | jq -r '.[0].payload' | base64 -d | jq '.predicate | {spdxVersion, name, documentNamespace}'
+
+          cosign verify-attestation "$IMAGE" \
+            --type "https://security.sigstore.dev/attestations/dast/zap/v1" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            --certificate-identity-regexp "^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*" \
+            | jq '.[0].payload' -r | base64 -d | jq
+       
+      - name: 🔍 DEBUG - Inspect Image Signatures
+        env:
+          # Use the NEW digest that caused the error
+          TEST_IMAGE: "docker.io/agslima/app-stayheathy-backend@sha256:e7d7ac6fdb568b25f29dc9e1608d817b03359c30f860554c7425e360758ef9b4"
+        run: |
+          set -euo pipefail
+          
+          echo "=== 1. Checking for Signatures on: $TEST_IMAGE ==="
+          # List all signatures associated with this image
+          cosign tree "$TEST_IMAGE"
+          
+          echo "=== 2. Inspecting the Certificate Identity ==="
+          # Download the certificate and print the Subject (Identity)
+          # This tells us EXACTLY what regex we need in the policy.
+          cosign verify "$TEST_IMAGE" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            --certificate-identity-regexp ".*" 2>&1 | grep "CertificateIdentity" || true
+            
+          echo "=== End Debug ==="
+
       - name: Update prod digests (kustomize overlay)
         run: |
           set -euo pipefail
