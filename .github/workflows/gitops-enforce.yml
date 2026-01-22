@@ -105,12 +105,6 @@ jobs:
 
           echo "✅ Loaded Digests."
 
-      # - name: Log in to Docker Hub
-      #   uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3
-      # with:
-      #    username: ${{ secrets.DOCKER_HUB_USERNAME }}
-      #    password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
-
       - name: Install Cosign
         uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
 
@@ -139,8 +133,7 @@ jobs:
             cosign verify-attestation "$IMAGE" \
               --type "${{ env.ZAP_PREDICATE_TYPE }}" \
               --certificate-oidc-issuer "${{ env.OIDC_ISSUER }}" \
-              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*" \
-              > /dev/null
+              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*"
 
             echo "🧾 Verifying SBOM attestation..."
             cosign verify-attestation "$IMAGE" \
@@ -148,6 +141,25 @@ jobs:
               --certificate-oidc-issuer "${{ env.OIDC_ISSUER }}" \
               --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*" \
               > /dev/null
+
+            echo "🔍 Start DEBUG - Inspect Image Signatures"
+            cosign download attestation \
+            --predicate-type "https://security.sigstore.dev/attestations/dast/zap/v1" \
+            "$IMAGE" \
+            | jq -r '.[0].payload' | base64 -d | jq
+
+          cosign download attestation \
+            --predicate-type "https://spdx.dev/Document" \
+            "$IMAGE" \
+            | jq -r '.[0].payload' | base64 -d | jq '.predicate | {spdxVersion, name, documentNamespace}'
+
+          cosign verify-attestation "$IMAGE" \
+            --type "https://security.sigstore.dev/attestations/dast/zap/v1" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            --certificate-identity-regexp "^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*" \
+            | jq '.[0].payload' -r | base64 -d | jq
+            
+          echo "🔍 End DEBUG - Inspect Image Signatures"
           }
 
           verify_all "${{ env.BACKEND_IMAGE }}"
@@ -167,25 +179,6 @@ jobs:
           sudo chmod +x /usr/local/bin/yq
           yq --version
 
-      
-      - name: Debug - Inspect cosign
-        run: |
-          cosign download attestation \
-            --predicate-type "https://security.sigstore.dev/attestations/dast/zap/v1" \
-            "$IMAGE" \
-            | jq -r '.[0].payload' | base64 -d | jq
-
-          cosign download attestation \
-            --predicate-type "https://spdx.dev/Document" \
-            "$IMAGE" \
-            | jq -r '.[0].payload' | base64 -d | jq '.predicate | {spdxVersion, name, documentNamespace}'
-
-          cosign verify-attestation "$IMAGE" \
-            --type "https://security.sigstore.dev/attestations/dast/zap/v1" \
-            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
-            --certificate-identity-regexp "^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*" \
-            | jq '.[0].payload' -r | base64 -d | jq
-       
       - name: 🔍 DEBUG - Inspect Image Signatures
         env:
           # Use the NEW digest that caused the error
