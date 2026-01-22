@@ -146,7 +146,8 @@ jobs:
             cosign verify-attestation "$IMAGE" \
               --type "${{ env.ZAP_PREDICATE_TYPE }}" \
               --certificate-oidc-issuer "${{ env.OIDC_ISSUER }}" \
-              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*"
+              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*" \
+              > /dev/null
 
             echo "🧾 Verifying SBOM attestation..."
             cosign verify-attestation "$IMAGE" \
@@ -154,14 +155,6 @@ jobs:
               --certificate-oidc-issuer "${{ env.OIDC_ISSUER }}" \
               --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*" \
               > /dev/null
-
-            echo "🔍 Start DEBUG - Inspect Image Signatures"
-            cosign verify-attestation "$IMAGE" \
-              --type "https://security.sigstore.dev/attestations/dast/zap/v1" \
-              --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
-              --certificate-identity-regexp "^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*"
-            
-            echo "🔍 End DEBUG - Inspect Image Signatures"
           }
 
           verify_all "${{ env.BACKEND_IMAGE }}"
