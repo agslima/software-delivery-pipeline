@@ -108,6 +108,19 @@ jobs:
       - name: Install Cosign
         uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
 
+      - name: Install Kyverno CLI
+        uses: kyverno/action-install-cli@fcee92fca5c883169ef9927acf543e0b5fc58289 # v0.2.0
+        with:
+          release: 'v1.13.2'
+          verify: true
+
+      - name: Install yq
+        run: |
+          set -euo pipefail
+          sudo wget -qO /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download/${{env.YQ_VERSION}}/yq_linux_amd64"
+          sudo chmod +x /usr/local/bin/yq
+          yq --version
+      
       - name: Verify Signatures + Required Attestations (hard gate)
         run: |
           set -euo pipefail
@@ -165,19 +178,6 @@ jobs:
           verify_all "${{ env.BACKEND_IMAGE }}"
           verify_all "${{ env.FRONTEND_IMAGE }}"
           echo "✅ All signatures & attestations verified."
-
-      - name: Install Kyverno CLI
-        uses: kyverno/action-install-cli@fcee92fca5c883169ef9927acf543e0b5fc58289 # v0.2.0
-        with:
-          release: 'v1.13.2'
-          verify: true
-
-      - name: Install yq
-        run: |
-          set -euo pipefail
-          sudo wget -qO /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download/${{env.YQ_VERSION}}/yq_linux_amd64"
-          sudo chmod +x /usr/local/bin/yq
-          yq --version
 
       - name: 🔍 DEBUG - Inspect Image Signatures
         env:
