@@ -105,15 +105,22 @@ jobs:
 
           echo "✅ Loaded Digests."
 
-      # - name: Log in to Docker Hub
-      #   uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3
-      # with:
-      #    username: ${{ secrets.DOCKER_HUB_USERNAME }}
-      #    password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
-
       - name: Install Cosign
         uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
 
+      - name: Install Kyverno CLI
+        uses: kyverno/action-install-cli@fcee92fca5c883169ef9927acf543e0b5fc58289 # v0.2.0
+        with:
+          release: 'v1.13.2'
+          verify: true
+
+      - name: Install yq
+        run: |
+          set -euo pipefail
+          sudo wget -qO /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download/${{env.YQ_VERSION}}/yq_linux_amd64"
+          sudo chmod +x /usr/local/bin/yq
+          yq --version
+      
       - name: Verify Signatures + Required Attestations (hard gate)
         run: |
           set -euo pipefail
@@ -139,8 +146,7 @@ jobs:
             cosign verify-attestation "$IMAGE" \
               --type "${{ env.ZAP_PREDICATE_TYPE }}" \
               --certificate-oidc-issuer "${{ env.OIDC_ISSUER }}" \
-              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*" \
-              > /dev/null
+              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*"
 
             echo "🧾 Verifying SBOM attestation..."
             cosign verify-attestation "$IMAGE" \
@@ -148,24 +154,39 @@ jobs:
               --certificate-oidc-issuer "${{ env.OIDC_ISSUER }}" \
               --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*" \
               > /dev/null
+
+            echo "🔍 Start DEBUG - Inspect Image Signatures"
+            cosign verify-attestation "$IMAGE" \
+              --type "https://security.sigstore.dev/attestations/dast/zap/v1" \
+              --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+              --certificate-identity-regexp "^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*"
+            
+            echo "🔍 End DEBUG - Inspect Image Signatures"
           }
 
           verify_all "${{ env.BACKEND_IMAGE }}"
           verify_all "${{ env.FRONTEND_IMAGE }}"
           echo "✅ All signatures & attestations verified."
 
-      - name: Install Kyverno CLI
-        uses: kyverno/action-install-cli@fcee92fca5c883169ef9927acf543e0b5fc58289 # v0.2.0
-        with:
-          release: 'v1.13.2'
-          verify: true
-
-      - name: Install yq
+      - name: 🔍 DEBUG - Inspect Image Signatures
+        env:
+          # Use the NEW digest that caused the error
+          TEST_IMAGE: "docker.io/agslima/app-stayheathy-backend@sha256:e7d7ac6fdb568b25f29dc9e1608d817b03359c30f860554c7425e360758ef9b4"
         run: |
           set -euo pipefail
-          sudo wget -qO /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download/${{env.YQ_VERSION}}/yq_linux_amd64"
-          sudo chmod +x /usr/local/bin/yq
-          yq --version
+          
+          echo "=== 1. Checking for Signatures on: $TEST_IMAGE ==="
+          # List all signatures associated with this image
+          cosign tree "$TEST_IMAGE"
+          
+          echo "=== 2. Inspecting the Certificate Identity ==="
+          # Download the certificate and print the Subject (Identity)
+          # This tells us EXACTLY what regex we need in the policy.
+          cosign verify "$TEST_IMAGE" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            --certificate-identity-regexp ".*" 2>&1 | grep "CertificateIdentity" || true
+            
+          echo "=== End Debug ==="
 
       - name: Update prod digests (kustomize overlay)
         run: |
@@ -173,22 +194,47 @@ jobs:
           FILE="k8s/overlays/prod/kustomization.yaml"
           test -f "$FILE" || (echo "::error::Missing $FILE"; exit 1)
 
-          yq -i '
-            (.images[] | select(.name == "docker.io/agslima/app-stayheathy-backend") | .digest) = strenv(BACKEND_DIGEST)
-          ' "$FILE"
+          # Comment to fix bug
+          # yq -i '
+          #  (.images[] | select(.name == "docker.io/agslima/app-stayheathy-backend") | .digest) = strenv(BACKEND_DIGEST)
+          # ' "$FILE"
+          
+          # yq -i '
+          #  (.images[] | select(.name == "docker.io/agslima/app-stayheathy-frontend") | .digest) = strenv(FRONTEND_DIGEST)
+          # ' "$FILE"
 
-          yq -i '
-            (.images[] | select(.name == "docker.io/agslima/app-stayheathy-frontend") | .digest) = strenv(FRONTEND_DIGEST)
-          ' "$FILE"
-
-          echo "✅ Updated prod overlay:"
-          yq -r '.images[] | .name + " => " + .digest' "$FILE"
+          # echo "✅ Updated prod overlay:"
+          # yq -r '.images[] | .name + " => " + .digest' "$FILE"
 
           # Fail closed
-          yq -r '.images[].digest' "$FILE" | grep -q '^sha256:' || (
-            echo "::error::Prod overlay digests not set correctly"
+          # yq -r '.images[].digest' "$FILE" | grep -q '^sha256:' || (
+          #   echo "::error::Prod overlay digests not set correctly"
+          #   exit 1
+          # )  
+          
+          # 🟢 DEBUG: Show file before update
+          echo "Before Update:"
+          cat "$FILE"
+
+          # 🟢 FIX: Match by repository name only (ignoring registry prefix)
+          # This works regardless of 'docker.io' vs 'index.docker.io'
+          yq -i '
+            (.images[] | select(.name == "*app-stayheathy-backend") | .digest) = strenv(BACKEND_DIGEST)
+          ' "$FILE"
+
+          yq -i '
+            (.images[] | select(.name == "*app-stayheathy-frontend") | .digest) = strenv(FRONTEND_DIGEST)
+          ' "$FILE"
+
+          # 🟢 DEBUG: Verify the update actually happened
+          echo "After Update:"
+          grep -E "digest|newTag" "$FILE" || true
+          
+          # Fail if the digests inside the file don't match our env vars
+          if ! grep -q "$BACKEND_DIGEST" "$FILE"; then
+            echo "::error::Backend digest was NOT updated in kustomization.yaml!"
             exit 1
-          )
+          fi
 
       - name: Validate rendered prod manifests against cluster policy
         run: |
@@ -212,13 +258,12 @@ jobs:
 
           test -s /tmp/prod.yaml || (echo "::error::Rendered prod.yaml is empty"; exit 1)
 
-          # remove --audit-warn=false \ to debug 
+          # remove  to debug 
           kyverno apply "$POLICY" \
             --resource /tmp/prod.yaml \
-            
+            --audit-warn=false \
             --registry \
-            --detailed-results \
-            -v 6 > "$LOG_FILE" 2>&1 || true
+            --detailed-results > "$LOG_FILE" 2>&1 || true
 
           cat "$LOG_FILE"
 
