@@ -157,22 +157,22 @@ jobs:
 
             echo "🔍 Start DEBUG - Inspect Image Signatures"
             cosign download attestation \
-            --predicate-type "https://security.sigstore.dev/attestations/dast/zap/v1" \
-            "$IMAGE" \
-            | jq -r '.[0].payload' | base64 -d | jq
+              --predicate-type "https://security.sigstore.dev/attestations/dast/zap/v1" \
+              "$IMAGE" \
+              | jq -r '.[0].payload' | base64 -d | jq
 
-          cosign download attestation \
-            --predicate-type "https://spdx.dev/Document" \
-            "$IMAGE" \
-            | jq -r '.[0].payload' | base64 -d | jq '.predicate | {spdxVersion, name, documentNamespace}'
+            cosign download attestation \
+              --predicate-type "https://spdx.dev/Document" \
+              "$IMAGE" \
+              | jq -r '.[0].payload' | base64 -d | jq '.predicate | {spdxVersion, name, documentNamespace}'
 
-          cosign verify-attestation "$IMAGE" \
-            --type "https://security.sigstore.dev/attestations/dast/zap/v1" \
-            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
-            --certificate-identity-regexp "^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*" \
-            | jq '.[0].payload' -r | base64 -d | jq
+            cosign verify-attestation "$IMAGE" \
+              --type "https://security.sigstore.dev/attestations/dast/zap/v1" \
+              --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+              --certificate-identity-regexp "^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*" \
+              | jq '.[0].payload' -r | base64 -d | jq
             
-          echo "🔍 End DEBUG - Inspect Image Signatures"
+            echo "🔍 End DEBUG - Inspect Image Signatures"
           }
 
           verify_all "${{ env.BACKEND_IMAGE }}"
