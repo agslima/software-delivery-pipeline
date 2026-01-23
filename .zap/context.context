@@ -1,0 +1,8 @@
+# ZAP Context file
+
+context
+  name=app-context
+  description=CI weekly DAST context
+  includeInContextRegexes=\Qhttp://127.0.0.1:4173\E.*,\Qhttp://127.0.0.1:8080\E.*
+  excludeFromContextRegexes=.*\.(css|js|map|png|jpg|jpeg|gif|svg|ico|woff|woff2)$
+  technology=
