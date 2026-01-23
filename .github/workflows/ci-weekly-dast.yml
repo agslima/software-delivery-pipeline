@@ -120,130 +120,130 @@ jobs:
       #    Produces a session cookie and writes it to a header file
       # ------------------------------------------------------------
       - name: Auth Bootstrap (discover login URL + mint JWT)
-  working-directory: app
-  run: |
-    set -euo pipefail
+        working-directory: app
+        run: |
+          set -euo pipefail
 
-    ADMIN_USER="${{ vars.ADMIN_USER }}"
-    ADMIN_PASS_FILE="${COMPOSE_SECRETS_DIR}/admin_pass.txt"
-    test -s "$ADMIN_PASS_FILE" || (echo "::error::Missing admin_pass secret file"; exit 1)
-    ADMIN_PASS="$(cat "$ADMIN_PASS_FILE")"
+          ADMIN_USER="${{ vars.ADMIN_USER }}"
+          ADMIN_PASS_FILE="${COMPOSE_SECRETS_DIR}/admin_pass.txt"
+          test -s "$ADMIN_PASS_FILE" || (echo "::error::Missing admin_pass secret file"; exit 1)
+          ADMIN_PASS="$(cat "$ADMIN_PASS_FILE")"
 
-    # Try common mount points (add /api/auth/login if you ever change mount)
-    CANDIDATES=(
-  "http://127.0.0.1:8080/login"
-  "http://127.0.0.1:8080/api/login"
-  "http://127.0.0.1:8080/api/auth/login"
-)
+          # Try common mount points (add /api/auth/login if you ever change mount)
+          CANDIDATES=(
+            "http://127.0.0.1:8080/login"
+            "http://127.0.0.1:8080/api/login"
+            "http://127.0.0.1:8080/api/v1/auth/login"
+          )
 
-    TOKEN=""
-    LOGIN_URL=""
+          TOKEN=""
+          LOGIN_URL=""
 
-    for URL in "${CANDIDATES[@]}"; do
-      echo "Trying login URL: $URL"
-      set +e
-      RESP="$(curl -fsS -X POST "$URL" \
-        -H "Content-Type: application/json" \
-        --data "{\"username\":\"${ADMIN_USER}\",\"password\":\"${ADMIN_PASS}\"}" 2>/dev/null)"
-      RC=$?
-      set -e
+          for URL in "${CANDIDATES[@]}"; do
+            echo "Trying login URL: $URL"
+            set +e
+            RESP="$(curl -fsS -X POST "$URL" \
+              -H "Content-Type: application/json" \
+              --data "{\"username\":\"${ADMIN_USER}\",\"password\":\"${ADMIN_PASS}\"}" 2>/dev/null)"
+            RC=$?
+            set -e
 
-      if [ $RC -ne 0 ]; then
-        echo "  -> not reachable / non-2xx"
-        continue
-      fi
+            if [ $RC -ne 0 ]; then
+              echo "  -> not reachable / non-2xx"
+              continue
+            fi
 
-      TOKEN="$(echo "$RESP" | jq -r '.token // empty' || true)"
-      if [ -n "$TOKEN" ]; then
-        LOGIN_URL="$URL"
-        break
-      fi
-      echo "  -> reachable but token missing (response: $RESP)"
-    done
+            TOKEN="$(echo "$RESP" | jq -r '.token // empty' || true)"
+            if [ -n "$TOKEN" ]; then
+              LOGIN_URL="$URL"
+              break
+            fi
+            echo "  -> reachable but token missing (response: $RESP)"
+          done
 
-    if [ -z "$TOKEN" ]; then
-      echo "::error::Could not acquire JWT. Check router mount in server.js and credentials."
-      exit 1
-    fi
+          if [ -z "$TOKEN" ]; then
+            echo "::error::Could not acquire JWT. Check router mount in server.js and credentials."
+            exit 1
+          fi
 
-    echo "✅ Login succeeded at: $LOGIN_URL"
-    echo "ZAP_AUTH_HEADER=Authorization: Bearer ${TOKEN}" >> "$GITHUB_ENV"
+          echo "✅ Login succeeded at: $LOGIN_URL"
+          echo "ZAP_AUTH_HEADER=Authorization: Bearer ${TOKEN}" >> "$GITHUB_ENV"
 
-    mkdir -p zap-out
-    printf "%s\n" "Authorization: Bearer ${TOKEN}" > zap-out/zap-auth-header.txt
-    chmod 600 zap-out/zap-auth-header.txt
-      
+          mkdir -p zap-out
+          printf "%s\n" "Authorization: Bearer ${TOKEN}" > zap-out/zap-auth-header.txt
+          chmod 600 zap-out/zap-auth-header.txt
+
       # ------------------------------------------------------------
       # 5) ZAP Full Scan - Frontend
       # ------------------------------------------------------------
       - name: OWASP ZAP Full Scan (Frontend, Auth)
-  working-directory: app
-  run: |
-    set -euo pipefail
-    mkdir -p zap-out
-    chmod 700 zap-out
+        working-directory: app
+        run: |
+          set -euo pipefail
+          mkdir -p zap-out
+          chmod 700 zap-out
 
-    VOL_PATH="$(pwd)/zap-out"
-    TARGET="http://127.0.0.1:4173"
+          VOL_PATH="$(pwd)/zap-out"
+          TARGET="http://127.0.0.1:4173"
 
-    set +e
-    docker run --rm \
-      --network host \
-      -v "$VOL_PATH:/zap/wrk/:rw" \
-      "${{ env.ZAP_IMG }}" zap-full-scan.py \
-      -t "$TARGET" \
-      -r zap-frontend.html \
-      -J zap-frontend.json \
-      -I \
-      -z "-config replacer.full_list(0).description=authheader" \
-      -z "-config replacer.full_list(0).enabled=true" \
-      -z "-config replacer.full_list(0).matchtype=REQ_HEADER" \
-      -z "-config replacer.full_list(0).matchstr=Authorization" \
-      -z "-config replacer.full_list(0).regex=false" \
-      -z "-config replacer.full_list(0).replacement=${ZAP_AUTH_HEADER#Authorization: }"
-    ZAP_EXIT=$?
-    set -e
+          set +e
+          docker run --rm \
+            --network host \
+            -v "$VOL_PATH:/zap/wrk/:rw" \
+            "${{ env.ZAP_IMG }}" zap-full-scan.py \
+            -t "$TARGET" \
+            -r zap-frontend.html \
+            -J zap-frontend.json \
+            -I \
+            -z "-config replacer.full_list(0).description=authheader" \
+            -z "-config replacer.full_list(0).enabled=true" \
+            -z "-config replacer.full_list(0).matchtype=REQ_HEADER" \
+            -z "-config replacer.full_list(0).matchstr=Authorization" \
+            -z "-config replacer.full_list(0).regex=false" \
+            -z "-config replacer.full_list(0).replacement=${ZAP_AUTH_HEADER#Authorization: }"
+          ZAP_EXIT=$?
+          set -e
 
-    echo "ZAP_EXIT_FRONTEND=$ZAP_EXIT" >> "$GITHUB_ENV"
-    echo "ZAP exit code (frontend): $ZAP_EXIT"
+          echo "ZAP_EXIT_FRONTEND=$ZAP_EXIT" >> "$GITHUB_ENV"
+          echo "ZAP exit code (frontend): $ZAP_EXIT"
 
-    test -s "zap-out/zap-frontend.json" || (echo "::error::ZAP FE json missing/empty"; exit 1)
-    jq -e 'type=="object"' "zap-out/zap-frontend.json" >/dev/null
-    
+          test -s "zap-out/zap-frontend.json" || (echo "::error::ZAP FE json missing/empty"; exit 1)
+          jq -e 'type=="object"' "zap-out/zap-frontend.json" >/dev/null
+
       # ------------------------------------------------------------
       # 6) ZAP Full Scan - Backend
       # ------------------------------------------------------------
       - name: OWASP ZAP Full Scan (Backend, Auth)
-  working-directory: app
-  run: |
-    set -euo pipefail
-    VOL_PATH="$(pwd)/zap-out"
-    TARGET="http://127.0.0.1:8080"
+        working-directory: app
+        run: |
+          set -euo pipefail
+          VOL_PATH="$(pwd)/zap-out"
+          TARGET="http://127.0.0.1:8080"
 
-    set +e
-    docker run --rm \
-      --network host \
-      -v "$VOL_PATH:/zap/wrk/:rw" \
-      "${{ env.ZAP_IMG }}" zap-full-scan.py \
-      -t "$TARGET" \
-      -r zap-backend.html \
-      -J zap-backend.json \
-      -I \
-      -z "-config replacer.full_list(0).description=authheader" \
-      -z "-config replacer.full_list(0).enabled=true" \
-      -z "-config replacer.full_list(0).matchtype=REQ_HEADER" \
-      -z "-config replacer.full_list(0).matchstr=Authorization" \
-      -z "-config replacer.full_list(0).regex=false" \
-      -z "-config replacer.full_list(0).replacement=${ZAP_AUTH_HEADER#Authorization: }"
-    ZAP_EXIT=$?
-    set -e
+          set +e
+          docker run --rm \
+            --network host \
+            -v "$VOL_PATH:/zap/wrk/:rw" \
+            "${{ env.ZAP_IMG }}" zap-full-scan.py \
+            -t "$TARGET" \
+            -r zap-backend.html \
+            -J zap-backend.json \
+            -I \
+            -z "-config replacer.full_list(0).description=authheader" \
+            -z "-config replacer.full_list(0).enabled=true" \
+            -z "-config replacer.full_list(0).matchtype=REQ_HEADER" \
+            -z "-config replacer.full_list(0).matchstr=Authorization" \
+            -z "-config replacer.full_list(0).regex=false" \
+            -z "-config replacer.full_list(0).replacement=${ZAP_AUTH_HEADER#Authorization: }"
+          ZAP_EXIT=$?
+          set -e
 
-    echo "ZAP_EXIT_BACKEND=$ZAP_EXIT" >> "$GITHUB_ENV"
-    echo "ZAP exit code (backend): $ZAP_EXIT"
+          echo "ZAP_EXIT_BACKEND=$ZAP_EXIT" >> "$GITHUB_ENV"
+          echo "ZAP exit code (backend): $ZAP_EXIT"
 
-    test -s "zap-out/zap-backend.json" || (echo "::error::ZAP BE json missing/empty"; exit 1)
-    jq -e 'type=="object"' "zap-out/zap-backend.json" >/dev/null
-      
+          test -s "zap-out/zap-backend.json" || (echo "::error::ZAP BE json missing/empty"; exit 1)
+          jq -e 'type=="object"' "zap-out/zap-backend.json" >/dev/null
+
       # ------------------------------------------------------------
       # 7) Governance Gate + Summary
       #    - Blocks on any High
@@ -287,14 +287,14 @@ jobs:
             PATTERN="${{ env.MEDIUM_BLOCK_PATTERNS }}"
 
             MED_BLOCK_FE=$(jq --arg re "$PATTERN" '
-              [ .site[]? | .alerts[]? 
+              [ .site[]? | .alerts[]?
                 | select(.riskcode=="2")
                 | select(.alert? | test($re; "i"))
               ] | length
             ' "$FE")
 
             MED_BLOCK_BE=$(jq --arg re "$PATTERN" '
-              [ .site[]? | .alerts[]? 
+              [ .site[]? | .alerts[]?
                 | select(.riskcode=="2")
                 | select(.alert? | test($re; "i"))
               ] | length
@@ -369,9 +369,9 @@ jobs:
 
           TITLE="🚨 DAST Weekly Failed (${TODAY})"
           BODY=$(cat <<EOF
-          **Key:** ${KEY}  
-          **Workflow:** ${{ github.workflow }}  
-          **Date (UTC):** ${TODAY}  
+          **Key:** ${KEY}
+          **Workflow:** ${{ github.workflow }}
+          **Date (UTC):** ${TODAY}
           **Run:** ${RUN_URL}
 
           ## Targets
@@ -394,8 +394,8 @@ jobs:
           - \`zap-out\` (contains html/json + summary.md)
 
           ## Triage (playbook)
-          1) Open \`summary.md\` first  
-          2) Review \`zap-frontend.html\` and \`zap-backend.html\`  
+          1) Open \`summary.md\` first
+          2) Review \`zap-frontend.html\` and \`zap-backend.html\`
           3) Validate auth coverage:
              - Is login endpoint correct?
              - Are we successfully establishing a session cookie/token?
