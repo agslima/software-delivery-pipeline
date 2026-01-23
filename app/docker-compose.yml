@@ -8,8 +8,6 @@
 #   docker-compose down -v --remove-orphans   # Remove the old volume and orphans
 #
 
-version: '3.8'
-
 networks:
   app_network:
     driver: bridge
