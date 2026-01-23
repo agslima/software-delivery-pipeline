@@ -119,187 +119,131 @@ jobs:
       # 4) Auth bootstrap (form login)
       #    Produces a session cookie and writes it to a header file
       # ------------------------------------------------------------
-      - name: Auth Bootstrap (JWT -> Authorization header)
-        id: auth
-        run: |
-          set -euo pipefail
+      - name: Auth Bootstrap (discover login URL + mint JWT)
+  working-directory: app
+  run: |
+    set -euo pipefail
 
-          # login endpoint + params.
-          # POST /api/v1/auth/login with JSON body
-          LOGIN_URL="http://127.0.0.1:8080/api/v1/auth/login"
+    ADMIN_USER="${{ vars.ADMIN_USER }}"
+    ADMIN_PASS_FILE="${COMPOSE_SECRETS_DIR}/admin_pass.txt"
+    test -s "$ADMIN_PASS_FILE" || (echo "::error::Missing admin_pass secret file"; exit 1)
+    ADMIN_PASS="$(cat "$ADMIN_PASS_FILE")"
 
-          ADMIN_USER="${{ vars.ADMIN_USER }}"
-          ADMIN_PASS="${{ secrets.ADMIN_PASS }}"
+    # Try common mount points (add /api/auth/login if you ever change mount)
+    CANDIDATES=(
+  "http://127.0.0.1:8080/login"
+  "http://127.0.0.1:8080/api/login"
+  "http://127.0.0.1:8080/api/auth/login"
+)
 
-          echo "Attempting login at: $LOGIN_URL"
+    TOKEN=""
+    LOGIN_URL=""
 
-          # Save cookies to file
-          COOKIE_JAR="$(mktemp)"
-          echo "COOKIE_JAR=$COOKIE_JAR" >> "$GITHUB_ENV"
+    for URL in "${CANDIDATES[@]}"; do
+      echo "Trying login URL: $URL"
+      set +e
+      RESP="$(curl -fsS -X POST "$URL" \
+        -H "Content-Type: application/json" \
+        --data "{\"username\":\"${ADMIN_USER}\",\"password\":\"${ADMIN_PASS}\"}" 2>/dev/null)"
+      RC=$?
+      set -e
 
-          # Try login; adjust payload to match app
-          curl -fsS -c "$COOKIE_JAR" -X POST \
-            -H "Content-Type: application/json" \
-            --data "{\"username\":\"${ADMIN_USER}\",\"password\":\"${ADMIN_PASS}\"}" \
-            "$LOGIN_URL" >/dev/null || {
-              echo "::warning::Login failed. Auth coverage may be limited. Adjust LOGIN_URL/payload."
-              # still continue; ZAP will run unauthenticated
-              exit 0
-            }
+      if [ $RC -ne 0 ]; then
+        echo "  -> not reachable / non-2xx"
+        continue
+      fi
 
-          # Convert cookies into a single "Cookie:" header line for ZAP replacer
-          COOKIE_HEADER_FILE="app/zap-out/auth-cookie-header.txt"
-          python3 - <<'PY' "$COOKIE_JAR" "$COOKIE_HEADER_FILE"
-          import sys
+      TOKEN="$(echo "$RESP" | jq -r '.token // empty' || true)"
+      if [ -n "$TOKEN" ]; then
+        LOGIN_URL="$URL"
+        break
+      fi
+      echo "  -> reachable but token missing (response: $RESP)"
+    done
 
-          # 1. Get arguments from shell
-          jar_path = sys.argv[1]
-          out_path = sys.argv[2]
+    if [ -z "$TOKEN" ]; then
+      echo "::error::Could not acquire JWT. Check router mount in server.js and credentials."
+      exit 1
+    fi
 
-          cookies = []
+    echo "✅ Login succeeded at: $LOGIN_URL"
+    echo "ZAP_AUTH_HEADER=Authorization: Bearer ${TOKEN}" >> "$GITHUB_ENV"
 
-          # 2. Read the Cookie Jar file
-          with open(jar_path, "r", encoding="utf-8") as f:
-              for line in f:
-                  # Skip comments and empty lines
-                  if line.startswith("#") or not line.strip():
-                      continue
-                  
-                  # Parse tab-separated values
-                  parts = line.strip().split("\t")
-                  
-                  # Ensure the line has enough columns (Netscape format usually has 7)
-                  if len(parts) >= 7:
-                      name = parts[5]
-                      value = parts[6]
-                      cookies.append(f"{name}={value}")
-
-          # 3. Write the formatted header to the output file
-          if cookies:
-              with open(out_path, "w", encoding="utf-8") as o:
-                  # Join all cookies with "; "
-                  o.write("Cookie: " + "; ".join(cookies) + "\n")
-          PY
-
-          # 4. Check if file exists and is not empty (-s)
-          if [ -s "$COOKIE_HEADER_FILE" ]; then
-              # Export to GitHub Actions Environment
-              echo "AUTH_COOKIE_HEADER_FILE=$COOKIE_HEADER_FILE" >> "$GITHUB_ENV"
-              echo "✅ Auth cookie header prepared for ZAP request injection."
-          else
-              # Log a warning in GitHub Actions UI
-              echo "::warning::Cookie header file empty; continuing unauthenticated."
-          fi
-            
+    mkdir -p zap-out
+    printf "%s\n" "Authorization: Bearer ${TOKEN}" > zap-out/zap-auth-header.txt
+    chmod 600 zap-out/zap-auth-header.txt
       
       # ------------------------------------------------------------
       # 5) ZAP Full Scan - Frontend
       # ------------------------------------------------------------
-      - name: OWASP ZAP Full Scan (Frontend, Auth + Scoped)
-        working-directory: app
-        run: |
-          set -euo pipefail
+      - name: OWASP ZAP Full Scan (Frontend, Auth)
+  working-directory: app
+  run: |
+    set -euo pipefail
+    mkdir -p zap-out
+    chmod 700 zap-out
 
-          VOL_PATH="$(pwd)/zap-out"
-          TARGET="${{ env.ZAP_FRONTEND_URL }}"
-          OUT_JSON="zap-frontend.json"
-          OUT_HTML="zap-frontend.html"
+    VOL_PATH="$(pwd)/zap-out"
+    TARGET="http://127.0.0.1:4173"
 
-          echo "Target: $TARGET"
-          echo "Output: $OUT_JSON / $OUT_HTML"
+    set +e
+    docker run --rm \
+      --network host \
+      -v "$VOL_PATH:/zap/wrk/:rw" \
+      "${{ env.ZAP_IMG }}" zap-full-scan.py \
+      -t "$TARGET" \
+      -r zap-frontend.html \
+      -J zap-frontend.json \
+      -I \
+      -z "-config replacer.full_list(0).description=authheader" \
+      -z "-config replacer.full_list(0).enabled=true" \
+      -z "-config replacer.full_list(0).matchtype=REQ_HEADER" \
+      -z "-config replacer.full_list(0).matchstr=Authorization" \
+      -z "-config replacer.full_list(0).regex=false" \
+      -z "-config replacer.full_list(0).replacement=${ZAP_AUTH_HEADER#Authorization: }"
+    ZAP_EXIT=$?
+    set -e
 
-          # Optional: inject Cookie header if have it
-          REPLACER_ARGS=""
-          if [ -n "${AUTH_COOKIE_HEADER_FILE:-}" ] && [ -s "${AUTH_COOKIE_HEADER_FILE:-}" ]; then
-            # ZAP replacer: replace/add Cookie header for all requests
-            # Format: -z "-config replacer.full_list(0).description=authcookie ..."
-            COOKIE_LINE="$(cat "${AUTH_COOKIE_HEADER_FILE}")"
-            # Extract everything after "Cookie: "
-            COOKIE_VALUE="${COOKIE_LINE#Cookie: }"
-            REPLACER_ARGS="-z -config replacer.full_list(0).description=authcookie \
-              -config replacer.full_list(0).enabled=true \
-              -config replacer.full_list(0).matchtype=REQ_HEADER \
-              -config replacer.full_list(0).matchstr=Cookie \
-              -config replacer.full_list(0).regex=false \
-              -config replacer.full_list(0).replacement=${COOKIE_VALUE}"
-            echo "Auth injection enabled (Cookie header)."
-          else
-            echo "Auth injection not enabled."
-          fi
+    echo "ZAP_EXIT_FRONTEND=$ZAP_EXIT" >> "$GITHUB_ENV"
+    echo "ZAP exit code (frontend): $ZAP_EXIT"
 
-          set +e
-          docker run --rm \
-            --network host \
-            -v "$VOL_PATH:/zap/wrk/:rw" \
-            "${{ env.ZAP_IMG }}" zap-full-scan.py \
-            -t "$TARGET" \
-            -r "$OUT_HTML" \
-            -J "$OUT_JSON" \
-            -n "${{ env.ZAP_CONTEXT_FILE }}" \
-            -c "${{ env.ZAP_RULES_FILE }}" \
-            -I \
-            ${REPLACER_ARGS}
-          ZAP_EXIT=$?
-          set -e
-
-          echo "ZAP_EXIT_FRONTEND=$ZAP_EXIT" >> "$GITHUB_ENV"
-          echo "ZAP frontend exit code: $ZAP_EXIT"
-
-          test -s "zap-out/$OUT_JSON" || (echo "::error::ZAP frontend JSON missing/empty (scanner crash?)"; exit 1)
-          jq -e 'type=="object"' "zap-out/$OUT_JSON" >/dev/null
-
+    test -s "zap-out/zap-frontend.json" || (echo "::error::ZAP FE json missing/empty"; exit 1)
+    jq -e 'type=="object"' "zap-out/zap-frontend.json" >/dev/null
+    
       # ------------------------------------------------------------
       # 6) ZAP Full Scan - Backend
       # ------------------------------------------------------------
-      - name: OWASP ZAP Full Scan (Backend, Auth + Scoped)
-        working-directory: app
-        run: |
-          set -euo pipefail
+      - name: OWASP ZAP Full Scan (Backend, Auth)
+  working-directory: app
+  run: |
+    set -euo pipefail
+    VOL_PATH="$(pwd)/zap-out"
+    TARGET="http://127.0.0.1:8080"
 
-          VOL_PATH="$(pwd)/zap-out"
-          TARGET="${{ env.ZAP_BACKEND_URL }}"
-          OUT_JSON="zap-backend.json"
-          OUT_HTML="zap-backend.html"
+    set +e
+    docker run --rm \
+      --network host \
+      -v "$VOL_PATH:/zap/wrk/:rw" \
+      "${{ env.ZAP_IMG }}" zap-full-scan.py \
+      -t "$TARGET" \
+      -r zap-backend.html \
+      -J zap-backend.json \
+      -I \
+      -z "-config replacer.full_list(0).description=authheader" \
+      -z "-config replacer.full_list(0).enabled=true" \
+      -z "-config replacer.full_list(0).matchtype=REQ_HEADER" \
+      -z "-config replacer.full_list(0).matchstr=Authorization" \
+      -z "-config replacer.full_list(0).regex=false" \
+      -z "-config replacer.full_list(0).replacement=${ZAP_AUTH_HEADER#Authorization: }"
+    ZAP_EXIT=$?
+    set -e
 
-          echo "Target: $TARGET"
-          echo "Output: $OUT_JSON / $OUT_HTML"
+    echo "ZAP_EXIT_BACKEND=$ZAP_EXIT" >> "$GITHUB_ENV"
+    echo "ZAP exit code (backend): $ZAP_EXIT"
 
-          REPLACER_ARGS=""
-          if [ -n "${AUTH_COOKIE_HEADER_FILE:-}" ] && [ -s "${AUTH_COOKIE_HEADER_FILE:-}" ]; then
-            COOKIE_LINE="$(cat "${AUTH_COOKIE_HEADER_FILE}")"
-            COOKIE_VALUE="${COOKIE_LINE#Cookie: }"
-            REPLACER_ARGS="-z -config replacer.full_list(0).description=authcookie \
-              -config replacer.full_list(0).enabled=true \
-              -config replacer.full_list(0).matchtype=REQ_HEADER \
-              -config replacer.full_list(0).matchstr=Cookie \
-              -config replacer.full_list(0).regex=false \
-              -config replacer.full_list(0).replacement=${COOKIE_VALUE}"
-            echo "Auth injection enabled (Cookie header)."
-          else
-            echo "Auth injection not enabled."
-          fi
-
-          set +e
-          docker run --rm \
-            --network host \
-            -v "$VOL_PATH:/zap/wrk/:rw" \
-            "${{ env.ZAP_IMG }}" zap-full-scan.py \
-            -t "$TARGET" \
-            -r "$OUT_HTML" \
-            -J "$OUT_JSON" \
-            -n "${{ env.ZAP_CONTEXT_FILE }}" \
-            -c "${{ env.ZAP_RULES_FILE }}" \
-            -I \
-            ${REPLACER_ARGS}
-          ZAP_EXIT=$?
-          set -e
-
-          echo "ZAP_EXIT_BACKEND=$ZAP_EXIT" >> "$GITHUB_ENV"
-          echo "ZAP backend exit code: $ZAP_EXIT"
-
-          test -s "zap-out/$OUT_JSON" || (echo "::error::ZAP backend JSON missing/empty (scanner crash?)"; exit 1)
-          jq -e 'type=="object"' "zap-out/$OUT_JSON" >/dev/null
-
+    test -s "zap-out/zap-backend.json" || (echo "::error::ZAP BE json missing/empty"; exit 1)
+    jq -e 'type=="object"' "zap-out/zap-backend.json" >/dev/null
+      
       # ------------------------------------------------------------
       # 7) Governance Gate + Summary
       #    - Blocks on any High
