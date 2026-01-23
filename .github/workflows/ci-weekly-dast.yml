@@ -103,10 +103,9 @@ jobs:
         working-directory: app
         run: |
           set -euo pipefail
-          docker compose --env-file .env config
 
           ls -la "$SECRETS_PATH"
-          test -f "$SECRETS_PATH/db_pass.txt" || (echo "::error::Missing db_pass secret file
+          test -f "$SECRETS_PATH/db_pass.txt"
           
           docker compose up -d --build
 
