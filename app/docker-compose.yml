@@ -1,6 +1,7 @@
 # Docker Compose Configuration
 #
 # Quick Start:
+#
 #   docker-compose up --build                 # Start all services
 #   docker-compose logs -f                    # View logs
 #   docker-compose down                       # Stop all services
