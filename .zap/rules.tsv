@@ -1,0 +1,29 @@
+# ZAP rules (TSV) for ZAP scan scripts (zap-full-scan.py / zap-api-scan.py)
+# columns: ruleId  action  threshold  otherInfo
+# action: IGNORE / WARN / FAIL
+# threshold: OFF / LOW / MEDIUM / HIGH
+#
+# Philosophy:
+# - Keep "real vulns" (injection, auth, traversal, SSRF, etc.) as-is (they'll be gated by the workflow).
+# - Downgrade common "missing header" hygiene findings to WARN to reduce CI churn.
+# - IGNORE only when I'm certain it is non-actionable in my environment.
+
+# --- Common header hygiene (usually noisy in CI) ---
+10020   WARN    OFF     # Missing Anti-clickjacking Header
+10021   WARN    OFF     # X-Content-Type-Options Header Missing
+10016   WARN    OFF     # Web Browser XSS Protection Header Not Set (legacy/varies)
+10038   WARN    OFF     # Content Security Policy (CSP) Header Not Set (SPA often needs tuning)
+10035   WARN    OFF     # Strict-Transport-Security Header Not Set (often false in local HTTP CI)
+10036   WARN    OFF     # Server Leaks Version Information via "Server" HTTP Response Header Field
+10037   WARN    OFF     # Server Leaks Information via "X-Powered-By" HTTP Response Header Field
+10015   WARN    OFF     # Incomplete or No Cache-control and Pragma HTTP Header Set
+10096   WARN    OFF     # Timestamp Disclosure
+
+# --- Optional: cut noise further (use with caution) ---
+# If FE serves only static content on localhost, IGNORE some header checks for FE target.
+# Prefer WARN first; change to IGNORE only after confirming it hides nothing important.
+# 10038 IGNORE OFF
+
+# --- Keep these as default (do NOT suppress) ---
+# Auth/session/JWT findings, injection, SSRF, traversal, deserialization, RCE, command injection, XXE, etc.
+# will be gated by the workflow (risk + confidence + patterns/pluginids).

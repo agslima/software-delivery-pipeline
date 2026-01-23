@@ -43,7 +43,7 @@ jobs:
       - name: Unit Tests (TDD)
         working-directory: app/${{ matrix.component }}
         run: npm test
-        
+
   # ==================================================================
   # JOB 2: INFRASTRUCTURE LINTING
   # ==================================================================   
@@ -79,7 +79,6 @@ jobs:
         run: |
           # Copy the specific file to a generic name for the policy check
           cp ${{ matrix.path }} Dockerfile
-          
           conftest test Dockerfile \
             --policy policies/dockerfile.rego
 
@@ -120,4 +119,3 @@ jobs:
           scan-ref: '.'
           severity: 'HIGH,CRITICAL'
           exit-code: 1
-            

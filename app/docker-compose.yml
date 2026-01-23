@@ -1,12 +1,16 @@
 # Docker Compose Configuration
 #
 # Quick Start:
+#
 #   docker-compose up --build                 # Start all services
 #   docker-compose logs -f                    # View logs
 #   docker-compose down                       # Stop all services
 #   docker-compose down -v --remove-orphans   # Remove the old volume and orphans
 #
-# version: '3.8'
+
+networks:
+  app_network:
+    driver: bridge
 
 services:
   frontend:
@@ -19,20 +23,23 @@ services:
       backend:
         condition: service_healthy
     
+    # Network Attachment
+    networks:
+      - app_network
+    
     # Least Privilege
     cap_drop: ["ALL"]
     security_opt:
       - no-new-privileges:true
     restart: unless-stopped
     read_only: true
-    
+
     # Nginx Alpine UID (101)
     tmpfs:
       - /tmp:uid=101,gid=101,mode=1777
       - /var/run:uid=101,gid=101,mode=0755
       - /var/cache/nginx:uid=101,gid=101,mode=0755
     
-    # Availability
     deploy:
       resources:
         limits:
@@ -46,7 +53,8 @@ services:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health >/dev/null || exit 1"]
       interval: 10s
       timeout: 3s
-      retries: 12
+      retries: 3
+      start_period: 30s
 
   backend:
     build:
@@ -54,15 +62,22 @@ services:
       dockerfile: docker/Dockerfile.server
     ports:
       - "8080:8080"
+    
+    # Network Attachment
+    networks:
+      - app_network
 
     environment:
       NODE_ENV: production
       PORT: "8080"
       LOG_LEVEL: info
-
-      CORS_ORIGIN: "http://localhost:4173,https://localhost:4173,http://localhost:8080"
+      CORS_ORIGIN: "http://frontend:8080,http://localhost:4173"
+      
+      # Secrets
       ADMIN_USER: ${ADMIN_USER}
-
+      ADMIN_PASS_FILE: /run/secrets/admin_pass
+      JWT_SECRET_FILE: /run/secrets/jwt_secret
+      
       DB_HOST: postgres
       DB_USER: ${DB_USER}
       DB_NAME: ${DB_NAME}
@@ -97,11 +112,15 @@ services:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health >/dev/null || exit 1"]
       interval: 10s
       timeout: 3s
-      retries: 12
+      retries: 3
+      start_period: 30s
 
   postgres:
     image: postgres:15-alpine
     
+    networks:
+      - app_network
+
     secrets:
       - db_pass
 
@@ -112,6 +131,7 @@ services:
 
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./database/script/db-init:/docker-entrypoint-initdb.d:ro
     
     # Resource Limits
     deploy:
@@ -125,7 +145,8 @@ services:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB || exit 1"]
       interval: 10s
       timeout: 3s
-      retries: 12
+      retries: 3
+      start_period: 30s
 
 volumes:
   pgdata:

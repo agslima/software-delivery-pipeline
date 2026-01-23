@@ -1,0 +1,20 @@
+# ZAP Context file (scan scripts compatible)
+# Enforces scope for both FE and BE during CI scans.
+
+context
+  name=app-context
+  description=CI weekly DAST context (FE+BE)
+  # Include only local ephemeral targets (strictly)
+  includeInContextRegexes=^http://127\.0\.0\.1:4173/.*,^http://127\.0\.0\.1:8080/.*
+
+  # Exclude noisy static assets + common irrelevant endpoints
+  excludeFromContextRegexes=\
+^http://127\.0\.0\.1:(4173|8080)/.*\.(css|js|map|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$,\
+^http://127\.0\.0\.1:(4173|8080)/(health|metrics)(/.*)?$,\
+^http://127\.0\.0\.1:(4173|8080)/(favicon\.ico|robots\.txt)$,\
+^http://127\.0\.0\.1:(4173|8080)/(static|assets)(/.*)?$,\
+^http://127\.0\.0\.1:8080/(swagger|api-docs|openapi)(/.*)?$,\
+^http://127\.0\.0\.1:8080/.*\b(logout|signout)\b.*$
+
+  # Optional: keep empty unless using ZAP tech sets
+  technology=

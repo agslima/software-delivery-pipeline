@@ -37,7 +37,7 @@ jobs:
     outputs:
       release_tag: ${{ steps.tag.outputs.release_tag }}
     steps:
-    
+
       - name: Set Release Tag
         id: tag
         env:
@@ -137,7 +137,7 @@ jobs:
           - name: backend
             image_repo: app-stayheathy-backend
           - name: frontend
-            image_repo: app-stayheathy-frontend    
+            image_repo: app-stayheathy-frontend
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
         with:
@@ -205,13 +205,12 @@ jobs:
     runs-on: ubuntu-latest
     needs: [trivy-scan, build-push, resolve]
     permissions:
-      contents: read    
-      
+      contents: read
     env:
       ZAP_IMG: ghcr.io/zaproxy/zaproxy@sha256:8e79e827afb9e8bdba390c829eb3062062cdb407570559e2ddebd49130c00a59
       HEALTH_TIMEOUT: "120" # seconds
       COMPOSE_PROJECT_NAME: dast-${{ github.run_id }}-${{ github.run_attempt }} 
-      
+
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
         with:
@@ -231,7 +230,7 @@ jobs:
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
-   
+
       - name: Set Variables + Compose Secrets (file-based)
         working-directory: app
         run: |
@@ -251,7 +250,7 @@ jobs:
             echo "DB_USER=${{ vars.DB_USER }}"
             echo "DB_NAME=${{ vars.DB_NAME }}"
             echo "COMPOSE_PROJECT_NAME=${{ env.COMPOSE_PROJECT_NAME }}"
-            echo "SECRETS_PATH=${SECRETS_DIR}" 
+            echo "SECRETS_PATH=${SECRETS_DIR}"
           } >> "$ENV_FILE"
           chmod 600 "$ENV_FILE"
 
@@ -262,12 +261,12 @@ jobs:
           chmod 600 "${SECRETS_DIR}"/*.txt
 
           echo "Secrets dir: ${SECRETS_DIR}"
-          
+
       - name: Start Ephemeral Environment (Pinned Digests)
         working-directory: app
         run: |
           set -euo pipefail
-          
+
           BACKEND_DIGEST="$(cat ../digests/digest-backend)"
           FRONTEND_DIGEST="$(cat ../digests/digest-frontend)"
 
@@ -297,7 +296,7 @@ jobs:
           VOL_PATH="$(pwd)/zap-out"
           echo "ZAP volume: $VOL_PATH"
           echo "ZAP image: ${{ env.ZAP_IMG }}"
-          
+
           docker run --rm \
             --network host \
             -v "$VOL_PATH:/zap/wrk/:rw" \
@@ -309,7 +308,6 @@ jobs:
 
           test -s "zap-out/zap-frontend.json" || (echo "::error::ZAP frontend JSON missing/empty (scanner crash?)"; exit 1)
           jq -e 'type=="object"' "zap-out/zap-frontend.json" >/dev/null
-          
 
       - name: OWASP ZAP Baseline (Backend)
         working-directory: app
@@ -317,7 +315,7 @@ jobs:
           set -euo pipefail
 
           VOL_PATH="$(pwd)/zap-out"
-          
+
           docker run --rm \
             --network host \
             -v "$VOL_PATH:/zap/wrk/:rw" \
@@ -329,7 +327,7 @@ jobs:
 
           test -s "zap-out/zap-backend.json" || (echo "::error::ZAP backend JSON missing/empty (scanner crash?)"; exit 1)
           jq -e 'type=="object"' "zap-out/zap-backend.json" >/dev/null
-          
+
 
       - name: Gate ZAP (High > 0)
         working-directory: app
@@ -367,7 +365,7 @@ jobs:
           if [ -n "${COMPOSE_SECRETS_DIR:-}" ] && [ -d "${COMPOSE_SECRETS_DIR:-}" ]; then
             rm -rf "${COMPOSE_SECRETS_DIR}"
           fi
-          
+
       - name: Teardown
         if: always()
         working-directory: app
@@ -397,7 +395,6 @@ jobs:
       # COSIGN_LOG_LEVEL: debug
       # COSIGN_DOCKER_MEDIA_TYPES: "1"
       # COSIGN_REGISTRY_REFERRERS_MODE: legacy
-      
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
         with:
@@ -479,7 +476,7 @@ jobs:
             --predicate zap-attestation.json \
             --type "${{ env.ZAP_PREDICATE_TYPE }}" \
             "$IMAGE"
-            
+
       - name: Sign Image
         run: |
           set -euo pipefail
@@ -487,31 +484,28 @@ jobs:
           echo "IMAGE=$IMAGE"
           cosign sign --yes "$IMAGE"
 
-      - name: Verify Signature (OIDC identity) 
+      - name: Verify Signature (OIDC identity)
         run: |
           set -euo pipefail
-          
+
           # 🟢 Retry up to 5 times with increasing backoff
           for i in 1 2 3 4 5; do
             echo "🔍 Verify attempt $i/5..."
-            
             if cosign verify \
               "$IMAGE" \
               --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*"; 
-              
-            then
+              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*"; then
               echo "✅ Signature Verified!"
               exit 0
             fi
-            
+
             echo "⚠️ Verification failed. Retrying in $((i*5)) seconds..."
             sleep $((i*5))
           done
 
           echo "::error::❌ Verify failed after 5 attempts. Check Registry consistency or Auth."
           exit 1
-       
+
       - name: Generate SBOM
         uses: anchore/sbom-action@0b82b0b1a22399a1c542d4d656f70cd903571b5c #v0.21.1
         with:
