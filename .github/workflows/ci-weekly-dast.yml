@@ -87,12 +87,12 @@ jobs:
             echo "COMPOSE_PROJECT_NAME=${{ env.COMPOSE_PROJECT_NAME }}"
             echo "COMPOSE_SECRETS_DIR=${COMPOSE_SECRETS_DIR}"
           } >> "$ENV_FILE"
-          chmod 644 "$ENV_FILE"
+          chmod 600 "$ENV_FILE"
 
           printf "%s" "${{ secrets.JWT_SECRET }}"  > "${COMPOSE_SECRETS_DIR}/jwt_secret.txt"
           printf "%s" "${{ secrets.ADMIN_PASS }}"  > "${COMPOSE_SECRETS_DIR}/admin_pass.txt"
           printf "%s" "${{ secrets.DB_PASS }}"     > "${COMPOSE_SECRETS_DIR}/db_pass.txt"
-          chmod 644 "${COMPOSE_SECRETS_DIR}"/*.txt
+          chmod 600 "${COMPOSE_SECRETS_DIR}"/*.txt
 
           echo "Secrets dir: ${COMPOSE_SECRETS_DIR}"
 
