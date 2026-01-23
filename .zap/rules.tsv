@@ -1,0 +1,10 @@
+# ZAP rules (tsv) for scan scripts.
+# columns: ruleId  action  threshold  otherInfo
+# action: IGNORE / WARN / FAIL
+# threshold: OFF / LOW / MEDIUM / HIGH
+
+# Example: ignore missing anti-clickjacking header
+# 10020 IGNORE
+
+# Example: turn "X-Content-Type-Options Header Missing" into WARN instead of FAIL
+# 10021 WARN
