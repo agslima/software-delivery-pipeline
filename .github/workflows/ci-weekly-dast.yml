@@ -34,8 +34,8 @@ jobs:
       # ZAP as code
       # - context define include/exclude and users
       # - rules file tune/ignore noisy rules
-      ZAP_CONTEXT_FILE: .zap/context.context
-      ZAP_RULES_FILE: .zap/rules.tsv
+      ZAP_CONTEXT_FILE: ${{ github.workspace }}/.zap/context.context
+      ZAP_RULES_FILE:   ${{ github.workspace }}/.zap/rules.tsv
 
       # Scope
       ZAP_SCOPE_INCLUDE: '^http://127\.0\.0\.1:(4173|8080)/.*'
