@@ -72,29 +72,29 @@ jobs:
         run: |
           set -euo pipefail
 
-          COMPOSE_SECRETS_DIR="${RUNNER_TEMP}/compose-secrets"
-          echo "COMPOSE_SECRETS_DIR=${COMPOSE_SECRETS_DIR}" >> "$GITHUB_ENV"
+          SECRETS_PATH="${RUNNER_TEMP}/compose-secrets"
+          echo "SECRETS_PATH=${SECRETS_PATH}" >> "$GITHUB_ENV"
 
           ENV_FILE=".env"
           rm -f "$ENV_FILE"
-          rm -rf "$COMPOSE_SECRETS_DIR"
-          mkdir -p "$COMPOSE_SECRETS_DIR"
+          rm -rf "$SECRETS_PATH"
+          mkdir -p "$SECRETS_PATH"
 
           {
             echo "ADMIN_USER=${{ vars.ADMIN_USER }}"
             echo "DB_USER=${{ vars.DB_USER }}"
             echo "DB_NAME=${{ vars.DB_NAME }}"
             echo "COMPOSE_PROJECT_NAME=${{ env.COMPOSE_PROJECT_NAME }}"
-            echo "COMPOSE_SECRETS_DIR=${COMPOSE_SECRETS_DIR}"
+            echo "SECRETS_PATH=${SECRETS_PATH}"
           } >> "$ENV_FILE"
           chmod 600 "$ENV_FILE"
 
-          printf "%s" "${{ secrets.JWT_SECRET }}"  > "${COMPOSE_SECRETS_DIR}/jwt_secret.txt"
-          printf "%s" "${{ secrets.ADMIN_PASS }}"  > "${COMPOSE_SECRETS_DIR}/admin_pass.txt"
-          printf "%s" "${{ secrets.DB_PASS }}"     > "${COMPOSE_SECRETS_DIR}/db_pass.txt"
-          chmod 600 "${COMPOSE_SECRETS_DIR}"/*.txt
+          printf "%s" "${{ secrets.JWT_SECRET }}"  > "${SECRETS_PATH}/jwt_secret.txt"
+          printf "%s" "${{ secrets.ADMIN_PASS }}"  > "${SECRETS_PATH}/admin_pass.txt"
+          printf "%s" "${{ secrets.DB_PASS }}"     > "${SECRETS_PATH}/db_pass.txt"
+          chmod 600 "${SECRETS_PATH}"/*.txt
 
-          echo "Secrets dir: ${COMPOSE_SECRETS_DIR}"
+          echo "Secrets dir: ${SECRETS_PATH}"
 
       # ------------------------------------------------------------
       # 2) Start compose + health
@@ -103,6 +103,11 @@ jobs:
         working-directory: app
         run: |
           set -euo pipefail
+          docker compose --env-file .env config
+
+          ls -la "$SECRETS_PATH"
+          test -f "$SECRETS_PATH/db_pass.txt" || (echo "::error::Missing db_pass secret file
+          
           docker compose up -d --build
 
           echo "⏳ Waiting for Backend health..."
@@ -147,7 +152,7 @@ jobs:
           set -euo pipefail
 
           ADMIN_USER="${{ vars.ADMIN_USER }}"
-          ADMIN_PASS_FILE="${COMPOSE_SECRETS_DIR}/admin_pass.txt"
+          ADMIN_PASS_FILE="${SECRETS_PATH}/admin_pass.txt"
           test -s "$ADMIN_PASS_FILE" || (echo "::error::Missing admin_pass secret file"; exit 1)
           ADMIN_PASS="$(cat "$ADMIN_PASS_FILE")"
 
@@ -701,8 +706,8 @@ jobs:
         run: |
           set -euo pipefail
           rm -f .env
-          if [ -n "${COMPOSE_SECRETS_DIR:-}" ] && [ -d "${COMPOSE_SECRETS_DIR:-}" ]; then
-            rm -rf "${COMPOSE_SECRETS_DIR}"
+          if [ -n "${SECRETS_PATH:-}" ] && [ -d "${SECRETS_PATH:-}" ]; then
+            rm -rf "${SECRETS_PATH}"
           fi
           # Defense-in-depth: ensure token is not left in artifacts beyond what you intend.
           # Remove this line if you truly need the header file in artifacts for debugging:
