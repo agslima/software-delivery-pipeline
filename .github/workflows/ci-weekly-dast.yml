@@ -1,4 +1,4 @@
-name: DAST Scan (Weekly, Authenticated)
+name: DAST Scan
 
 on:
   schedule:
@@ -27,7 +27,7 @@ jobs:
       # Compose isolation
       COMPOSE_PROJECT_NAME: dast-${{ github.run_id }}-${{ github.run_attempt }}
 
-      # ZAP context settings (files committed in repo)
+      # ZAP context settings
       ZAP_CONTEXT_FILE: .zap/context.context
       ZAP_RULES_FILE: .zap/rules.tsv
 
@@ -44,7 +44,7 @@ jobs:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
       # ------------------------------------------------------------
-      # 1) Variables + file-based Compose secrets (outside repo)
+      # 1) Variables + file-based Compose secrets
       # ------------------------------------------------------------
       - name: Set Variables + Compose Secrets (file-based)
         working-directory: app
@@ -54,7 +54,7 @@ jobs:
           COMPOSE_SECRETS_DIR="${RUNNER_TEMP}/compose-secrets"
           echo "COMPOSE_SECRETS_DIR=${COMPOSE_SECRETS_DIR}" >> "$GITHUB_ENV"
 
-          # .env is used by docker compose (since we're in app/)
+          # .env is used by docker compose
           ENV_FILE=".env"
           rm -f "$ENV_FILE"
           rm -rf "$COMPOSE_SECRETS_DIR"
@@ -79,7 +79,7 @@ jobs:
           echo "Secrets dir: ${COMPOSE_SECRETS_DIR}"
 
       # ------------------------------------------------------------
-      # 2) Start compose BEFORE checks
+      # 2) Start compose
       # ------------------------------------------------------------
       - name: Start Ephemeral Environment
         working-directory: app
@@ -119,14 +119,14 @@ jobs:
       # 4) Auth bootstrap (form login)
       #    Produces a session cookie and writes it to a header file
       # ------------------------------------------------------------
-      - name: Auth Bootstrap (Form Login -> Cookie)
+      - name: Auth Bootstrap (JWT -> Authorization header)
         id: auth
         run: |
           set -euo pipefail
 
-          # Adjust to match app login endpoint + params.
-          # Example assumes: POST /api/auth/login with JSON body
-          LOGIN_URL="http://127.0.0.1:8080/api/auth/login"
+          # login endpoint + params.
+          # POST /api/v1/auth/login with JSON body
+          LOGIN_URL="http://127.0.0.1:8080/api/v1/auth/login"
 
           ADMIN_USER="${{ vars.ADMIN_USER }}"
           ADMIN_PASS="${{ secrets.ADMIN_PASS }}"
@@ -137,7 +137,7 @@ jobs:
           COOKIE_JAR="$(mktemp)"
           echo "COOKIE_JAR=$COOKIE_JAR" >> "$GITHUB_ENV"
 
-          # Try login; adjust payload to match your app
+          # Try login; adjust payload to match app
           curl -fsS -c "$COOKIE_JAR" -X POST \
             -H "Content-Type: application/json" \
             --data "{\"username\":\"${ADMIN_USER}\",\"password\":\"${ADMIN_PASS}\"}" \
@@ -193,7 +193,7 @@ jobs:
             
       
       # ------------------------------------------------------------
-      # 5) ZAP Full Scan - Frontend (consistent scan type)
+      # 5) ZAP Full Scan - Frontend
       # ------------------------------------------------------------
       - name: OWASP ZAP Full Scan (Frontend, Auth + Scoped)
         working-directory: app
@@ -208,7 +208,7 @@ jobs:
           echo "Target: $TARGET"
           echo "Output: $OUT_JSON / $OUT_HTML"
 
-          # Optional: inject Cookie header if we have it
+          # Optional: inject Cookie header if have it
           REPLACER_ARGS=""
           if [ -n "${AUTH_COOKIE_HEADER_FILE:-}" ] && [ -s "${AUTH_COOKIE_HEADER_FILE:-}" ]; then
             # ZAP replacer: replace/add Cookie header for all requests
@@ -249,7 +249,7 @@ jobs:
           jq -e 'type=="object"' "zap-out/$OUT_JSON" >/dev/null
 
       # ------------------------------------------------------------
-      # 6) ZAP Full Scan - Backend (consistent scan type)
+      # 6) ZAP Full Scan - Backend
       # ------------------------------------------------------------
       - name: OWASP ZAP Full Scan (Backend, Auth + Scoped)
         working-directory: app
@@ -367,7 +367,7 @@ jobs:
             fi
           fi
 
-          # Write a small markdown summary artifact
+          # Markdown summary artifact
           SUMMARY="zap-out/summary.md"
           {
             echo "# DAST Weekly Summary"
@@ -390,7 +390,7 @@ jobs:
           echo "✅ DAST Gate Passed"
 
       # ------------------------------------------------------------
-      # 8) Upload artifacts (folder)
+      # 8) Upload artifacts
       # ------------------------------------------------------------
       - name: Upload ZAP Artifacts (folder)
         if: always()
@@ -411,7 +411,7 @@ jobs:
           docker compose logs --no-color || true
 
       # ------------------------------------------------------------
-      # 10) Create an issue on failure (better body)
+      # 10) Create an issue on failure
       # ------------------------------------------------------------
       - name: Create Issue on Failure
         if: failure()
@@ -446,7 +446,7 @@ jobs:
           - Medium blocked categories FE: \`${{ env.MED_BLOCK_FE || 'n/a' }}\`
           - Medium blocked categories BE: \`${{ env.MED_BLOCK_BE || 'n/a' }}\`
 
-          ## Artifacts (download from this run)
+          ## Artifacts download from this run
           - \`zap-out\` (contains html/json + summary.md)
 
           ## Triage (playbook)
