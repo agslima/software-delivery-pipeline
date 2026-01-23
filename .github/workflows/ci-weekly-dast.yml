@@ -94,6 +94,8 @@ jobs:
           printf "%s" "${{ secrets.DB_PASS }}"     > "${COMPOSE_SECRETS_DIR}/db_pass.txt"
           chmod 644 "${COMPOSE_SECRETS_DIR}"/*.txt
 
+          echo "Secrets dir: ${COMPOSE_SECRETS_DIR}"
+
       # ------------------------------------------------------------
       # 2) Start compose + health
       # ------------------------------------------------------------
@@ -126,7 +128,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p zap-out
-          chmod 700 zap-out
+          chmod 777 zap-out
           echo "ZAP image (pinned): ${{ env.ZAP_IMG }}"
           echo "Context file: ${{ env.ZAP_CONTEXT_FILE }}"
           echo "Rules file  : ${{ env.ZAP_RULES_FILE }}"
@@ -168,7 +170,7 @@ jobs:
 
           mkdir -p zap-out
           printf "%s\n" "Authorization: Bearer ${TOKEN}" > zap-out/zap-auth-header.txt
-          chmod 600 zap-out/zap-auth-header.txt
+          chmod 644 zap-out/zap-auth-header.txt
 
           # Verify auth actually works
           if [ -n "${{ env.AUTH_VERIFY_URL }}" ]; then
@@ -593,14 +595,14 @@ jobs:
 
       - name: Upload SARIF (Frontend)
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@cdefb33c0f6224e58673d9004f47f7cb3e328b89 # v4.0.0
         with:
           sarif_file: app/zap-out/zap-frontend.sarif
           category: zap-frontend
 
       - name: Upload SARIF (Backend)
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@cdefb33c0f6224e58673d9004f47f7cb3e328b89 # v4.0.0
         with:
           sarif_file: app/zap-out/zap-backend.sarif
           category: zap-backend
