@@ -55,7 +55,7 @@ jobs:
       # Optional: Turn on gate by specific ZAP rule IDs (pluginid)
       BLOCK_MEDIUM_PLUGINIDS: "" # Example: "40018,40012"; empty use regex patterns only.
 
-      LOGIN_URL: http://127.0.0.1:8080/api/v1/auth/login
+      LOGIN_URL: http://127.0.0.1:8080/api/auth/login
 
       # Optional: a protected endpoint to validate auth coverage
       # If don't have one, create a simple authenticated "ping/me" route.
