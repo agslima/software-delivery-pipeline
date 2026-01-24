@@ -175,7 +175,6 @@ jobs:
           curl -i -sS -X OPTIONS http://127.0.0.1:8080/api/v1/auth/login | head -n 30 || true
 
       - name: Debug - Check app logs for seeding/migrations
-        if: failure()
         working-directory: app
         run: |
           set -euo pipefail
