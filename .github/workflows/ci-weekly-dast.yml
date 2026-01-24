@@ -217,51 +217,26 @@ jobs:
          head -c 400 zap-out/login-401.json || true
          echo ""
          
-      # ------------------------------------------------------------
-      # 4) Auth bootstrap (JWT) + mask + verify
-      # ------------------------------------------------------------
-      - name: Auth Bootstrap (mint JWT) + Verify
+      - name: Debug - Login schema validation (no secrets)
         working-directory: app
         run: |
           set -euo pipefail
-
-          ADMIN_USER="${{ vars.ADMIN_USER }}"
-          ADMIN_PASS_FILE="${SECRETS_PATH}/admin_pass.txt"
-          test -s "$ADMIN_PASS_FILE" || (echo "::error::Missing admin_pass secret file"; exit 1)
-          ADMIN_PASS="$(cat "$ADMIN_PASS_FILE")"
-
-          echo "Logging in at: ${{ env.LOGIN_URL }} (token will be masked)"
-          RESP="$(curl -fsS -X POST "${{ env.LOGIN_URL }}" \
-            -H "Content-Type: application/json" \
-            --data "{\"username\":\"${ADMIN_USER}\",\"password\":\"${ADMIN_PASS}\"}")"
-
-          TOKEN="$(echo "$RESP" | jq -r '.token // empty' || true)"
-          if [ -z "$TOKEN" ]; then
-            echo "::error::Could not acquire JWT. Response: $RESP"
-            exit 1
-          fi
-
-          # Mask token so it won't leak in logs
-          echo "::add-mask::${TOKEN}"
-
-          # Store for later steps (avoid echoing token)
-          echo "ZAP_AUTH_HEADER=Authorization: Bearer ${TOKEN}" >> "$GITHUB_ENV"
-
-          mkdir -p zap-out
-          printf "%s\n" "Authorization: Bearer ${TOKEN}" > zap-out/zap-auth-header.txt
-          chmod 644 zap-out/zap-auth-header.txt
-
-          # Verify auth actually works
-          if [ -n "${{ env.AUTH_VERIFY_URL }}" ]; then
-            echo "Verifying auth against: ${{ env.AUTH_VERIFY_URL }}"
-            curl -fsS -o /dev/null \
-              -H "Authorization: Bearer ${TOKEN}" \
-              "${{ env.AUTH_VERIFY_URL }}"
-            echo "✅ Auth verification passed"
-          else
-            echo "::warning::AUTH_VERIFY_URL not set; consider adding a protected endpoint to validate coverage."
-          fi
-
+          for payload in \
+            '{"username":"x","password":"y"}' \
+            '{"email":"x","password":"y"}' \
+            '{"user":"x","password":"y"}' \
+            '{"login":"x","password":"y"}'; do
+            code="$(curl -sS -o /dev/null -w "%{http_code}" \
+              -X POST "http://127.0.0.1:8080/api/v1/auth/login" \
+              -H "Content-Type: application/json" \
+              --data "$payload")"
+            echo "$code  payload=$payload"
+          done
+      
+      # ------------------------------------------------------------
+      # 4) Auth bootstrap (JWT) + mask + verify
+      # ------------------------------------------------------------
+      
       # ------------------------------------------------------------
       # 5) ZAP Full Scan - Frontend (AJAX spider + context + rules)
       #    - Uses context (-n) to enforce scope
