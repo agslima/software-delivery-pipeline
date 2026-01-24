@@ -125,6 +125,32 @@ jobs:
           echo "✅ Application is live!"
 
       # Debug suite 
+      
+      - name: Debug - Discover login route by probing (no secrets)
+        working-directory: app
+        run: |
+         set -euo pipefail
+
+         CANDIDATES=(
+           "http://127.0.0.1:8080/login"
+           "http://127.0.0.1:8080/auth/login"
+           "http://127.0.0.1:8080/api/login"
+           "http://127.0.0.1:8080/api/auth/login"
+           "http://127.0.0.1:8080/api/v1/login"
+           "http://127.0.0.1:8080/api/v1/auth/login"
+           "http://127.0.0.1:8080/api/v1/auth/signin"
+           "http://127.0.0.1:8080/api/v1/auth/token"
+          )
+
+          for u in "${CANDIDATES[@]}"; do
+            code="$(curl -sS -o /dev/null -w "%{http_code}" \
+             -X POST "$u" -H "Content-Type: application/json" --data '{}' || true)"
+             # We only care if it is NOT 404. 400/401/415/422 are good signals the route exists.
+            if [ "$code" != "404" ] && [ "$code" != "000" ]; then
+              echo "Candidate exists: $u (HTTP $code)"
+            fi
+          done 
+      
       - name: Debug - Auth inputs presence (no secret values)
         working-directory: app
         run: |
@@ -175,26 +201,7 @@ jobs:
           test -f "${{ env.ZAP_CONTEXT_FILE }}" || (echo "::error::Missing context file ${{ env.ZAP_CONTEXT_FILE }}"; exit 1)
           test -f "${{ env.ZAP_RULES_FILE }}"   || (echo "::error::Missing rules file ${{ env.ZAP_RULES_FILE }}"; exit 1)
      
-      # Debug II
-      - name: Debug login
-        working-directory: app
-        run: |
-          set -euo pipefail
-
-          # ADMIN_USER="${{ vars.ADMIN_USER }}"
-          # ADMIN_PASS_FILE="${SECRETS_PATH}/admin_pass.txt"
-
-          HTTP_CODE="$(curl -sS -o zap-out/login-response.json -w "%{http_code}" \
-           -X POST "${{ env.LOGIN_URL }}" \
-           -H  "Content-Type: application/json" \
-           --data "{\"username\":\"${ADMIN_USER}\",\"password\":\"${ADMIN_PASS}\"}")"
-
-          echo "Login HTTP status: $HTTP_CODE"
-          echo "Response (first 400 chars):"
-          head -c 400 zap-out/login-response.json || true
-          echo ""
-          test "$HTTP_CODE" = "200" || (echo "::error::Login failed"; exit 1)
-
+      
       # ------------------------------------------------------------
       # 4) Auth bootstrap (JWT) + mask + verify
       # ------------------------------------------------------------
@@ -203,8 +210,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          # ADMIN_USER="${{ vars.ADMIN_USER }}"
-          # ADMIN_PASS_FILE="${SECRETS_PATH}/admin_pass.txt"
+          ADMIN_USER="${{ vars.ADMIN_USER }}"
+          ADMIN_PASS_FILE="${SECRETS_PATH}/admin_pass.txt"
           test -s "$ADMIN_PASS_FILE" || (echo "::error::Missing admin_pass secret file"; exit 1)
           ADMIN_PASS="$(cat "$ADMIN_PASS_FILE")"
 
