@@ -181,8 +181,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          ADMIN_USER="${{ vars.ADMIN_USER }}"
-          ADMIN_PASS_FILE="${SECRETS_PATH}/admin_pass.txt"
+          # ADMIN_USER="${{ vars.ADMIN_USER }}"
+          # ADMIN_PASS_FILE="${SECRETS_PATH}/admin_pass.txt"
 
           HTTP_CODE="$(curl -sS -o zap-out/login-response.json -w "%{http_code}" \
            -X POST "${{ env.LOGIN_URL }}" \
@@ -203,8 +203,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          ADMIN_USER="${{ vars.ADMIN_USER }}"
-          ADMIN_PASS_FILE="${SECRETS_PATH}/admin_pass.txt"
+          # ADMIN_USER="${{ vars.ADMIN_USER }}"
+          # ADMIN_PASS_FILE="${SECRETS_PATH}/admin_pass.txt"
           test -s "$ADMIN_PASS_FILE" || (echo "::error::Missing admin_pass secret file"; exit 1)
           ADMIN_PASS="$(cat "$ADMIN_PASS_FILE")"
 
