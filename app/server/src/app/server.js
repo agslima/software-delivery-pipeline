@@ -1,9 +1,10 @@
 const http = require('http');
-const app = require('./createApp');
+const createApp = require('./createApp');
 const env = require('../config/env');
 const logger = require('../observability/logger');
 const db = require('../infra/db/knex');
 
+const app = createApp();
 const server = http.createServer(app);
 
 server.listen(env.PORT, '0.0.0.0', () => {
@@ -36,4 +37,3 @@ const shutdown = async (signal) => {
 
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
-

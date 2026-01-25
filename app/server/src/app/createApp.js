@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('../config/helmet');
 const env = require('../config/env');
+const corsOptions = require('../config/cors');
 
 const requestId = require('../api/http/middleware/requestId');
 const httpLogger = require('../api/http/middleware/httpLogger');
@@ -16,20 +17,19 @@ module.exports = function createApp() {
 
   app.use(helmet);
 
-  app.use(cors({
-    origin: env.CORS_ORIGIN.split(',').map(s => s.trim()),
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id'],
-  }));
+  app.use(cors(corsOptions));
 
   app.use(express.json({ limit: '1mb' }));
 
   app.use(requestId);
   if (env.NODE_ENV !== 'test') app.use(httpLogger);
 
+  app.get('/health', (_req, res) => {
+    res.json({ status: 'ok', uptime: process.uptime() });
+  });
+
   app.use('/api/v1', v1Routes);
 
   app.use(errorHandler);
   return app;
 };
-

@@ -1,5 +1,6 @@
 const express = require('express');
 const db = require('../../../infra/db/knex');
+const { AppError } = require('../../http/errors/AppError');
 
 const router = express.Router();
 
@@ -10,11 +11,8 @@ router.get('/readyz', async (_req, res, next) => {
     await db.raw('select 1');
     res.json({ status: 'ready' });
   } catch (err) {
-    err.status = 503;
-    err.code = 'NOT_READY';
-    next(err);
+    next(new AppError({ status: 503, code: 'NOT_READY', message: 'Not ready' }));
   }
 });
 
 module.exports = router;
-
