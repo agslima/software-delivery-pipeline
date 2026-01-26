@@ -93,37 +93,33 @@ GitHub Actions is used intentionally as the **delivery control plane**.
 ### Pipeline Flow
 
 ```mermaid
-
 graph TD
-    subgraph "Phase 1: Code & Dependencies"
-        A[Code Commit] -->|Gate 1: Secrets| B(Gitleaks)
-        B -->|Gate 2: SAST & SCA| C(Trivy)
-        C -->|Gate 3: Unit Tests| D(Jest / TDD)
-    end
-    
-    subgraph "Phase 2: Artifact Construction"
-        D -->|"Build (Ephemeral)"| E[Docker Build]
-        E -->|Gate 4: Dockerfile Policy| F(Hadolint)
-        F -->|"Gate 5: DAST (Runtime)"| G(OWASP ZAP)
-    end
-    
-    subgraph "Phase 3: Release & Trust"
-        G -->|Build & Push| H[Container Registry]
-        H -->|Gate 6: Image Scan| I(Trivy)
-        I -->|Attestation| J(Syft SBOM)
-        J -->|Signing & Provenance| K(Cosign / SLSA)
+    subgraph "PR Gates"
+        A[Pull Request] --> B[Code Quality (lint/tests)]
+        B --> C[Infra Hygiene (Hadolint/Conftest/Kubeconform)]
+        C --> D[Security Scan (Gitleaks + Trivy FS)]
     end
 
-    subgraph "Phase 4: Delivery (GitOps)"
-        K -->|Policy Check| L(Kyverno CLI)
-        L -->|Update Manifest| M[k8s/deployment.yaml]
-        M -->|Git Commit & Push| N[Main Branch]
+    D --> E[Merge to main]
+    E --> F[Tag vX.Y.Z]
+
+    subgraph "Release Gate"
+        F --> G[Build & Push (digest)]
+        G --> H[Trivy Image Gate]
+        H --> I[DAST (ZAP baseline)]
+        I --> J[Sign & Attest (cosign + SBOM + SLSA)]
+    end
+
+    subgraph "Delivery (GitOps)"
+        J --> K[Kyverno Validate]
+        K --> L[k8s/overlays/prod/kustomization.yaml]
+        L --> M[PR to main]
     end
 ```
 
 > This pipeline is intentionally **fail-fast**: artifacts are never built or published unless all required quality gates pass.
 
-For more details on how is enforce branch protection, code ownership, and release integrity, see `docs/GOVERNANCE.md`.
+For more details on how branch protection, code ownership, and release integrity are enforced, see `docs/governance.md`.
 
 ---
 
@@ -133,19 +129,16 @@ For more details on how is enforce branch protection, code ownership, and releas
 
 - **Unit Tests (TDD)**
 - **Gitleaks:** Secret detection
-- **Trivy (FS / IaC)**:
-  - Dependency vulnerabilities
-  - Kubernetes misconfigurations
+- **Trivy (FS):** Vulnerability and secret scan on PRs; nightly deep scans include config/code in `ci-security-deep.yml`
 
 ### Layer 2: Artifact Construction
 
-- **Docker Buildx** (reproducible builds)
-- **Hadolint + OPA (Conftest):** Dockerfile hardening (non-root users, pinned versions), and Policy drift detection
+- **Docker Buildx** (digest-identified builds in the release gate)
+- **Hadolint + OPA (Conftest) + Kubeconform:** Dockerfile hardening and K8s manifest validation in PRs
 - **OWASP ZAP**
-  - Pipeline spins up an ephemeral application instance
-  - Actively scans runtime behavior (headers, cookies, misconfigurations)
-  - Debug-friendly failure handling (container logs preserved)
-  - ZAP results are captured and attested, not used as raw CI output
+  - Release gate runs baseline scans against digest-pinned compose
+  - Weekly workflow runs authenticated full scans and uploads SARIF
+  - ZAP results are captured as artifacts; release gate attests results
 
 ### Layer 3: Supply Chain Guarantees (SLSA Level 3)
   
@@ -156,7 +149,7 @@ For more details on how is enforce branch protection, code ownership, and releas
 
 ### Layer 4: Delivery (GitOps)
 
-- **Kyverno:** Validates the updated manifests against cluster policies before committing to the repo.
+- **Kyverno:** Validates the updated manifests against cluster policies before opening a PR.
   
 ---
 
@@ -166,7 +159,7 @@ For more details on how is enforce branch protection, code ownership, and releas
 
 - The pipeline utilizes a **Push-based GitOps** model.
 - CI updates Kubernetes manifests with the **immutable image digest** of the newly signed artifact.
-- A Pull Request is automatically opened to the GitOps branch.
+- A Pull Request is automatically opened to `main` with updated digests.
 - **Constraint:** CI cannot commit to main directly; it must pass the same policy checks as a human developer.
 
 ### Runtime Admission Control
@@ -200,7 +193,7 @@ To validate the effectiveness of the delivery control plane, a legacy applicatio
   - Initial scans detected 27 Critical vulnerabilities
 
 - **Triage:**
-  - Dependency upgrades automated via Snyk
+  - Dependency upgrades automated via Dependabot
   - Manual refactoring to mitigate XSS and Prototype Pollution
 
 - **Risk Acceptance Policy:**
@@ -221,6 +214,8 @@ To validate the effectiveness of the delivery control plane, a legacy applicatio
 
 ### Evidence
 
+Screenshots below are from a legacy remediation exercise; current workflows use Trivy for scanning.
+
 | Initial Vulnerability Scan | Post-Fix Clean Scan |
 | --- | --- |
 | ![image](https://github.com/agslima/secure-app-analysis/blob/main/docs/images/scan-snyk-01.png) | ![image](https://github.com/agslima/secure-app-analysis/blob/main/docs/images/scan-snyk-02.png) |
@@ -238,13 +233,13 @@ You don't have to trust this documentation. You can cryptographically verify the
 Check that the image was signed by this specific GitHub Repository's CI pipeline using Keyless OIDC.
 
 ```bash
-# 1. Export the Release Image URL (Replace tag with latest version)
-export IMAGE="docker.io/agslima/software-delivery-pipeline:v1.0.0"
+# 1. Export a release image digest (backend or frontend)
+export IMAGE="docker.io/agslima/app-stayheathy-backend@sha256:<digest>"
 
 # 2. Verify the signature against the OpenID Connect (OIDC) identity
 cosign verify "$IMAGE" \
-  --certificate-identity-regexp "[https://github.com/agslima/software-delivery-pipeline](https://github.com/agslima/software-delivery-pipeline).*" \
-  --certificate-oidc-issuer "[https://token.actions.githubusercontent.com](https://token.actions.githubusercontent.com)" | jq .
+  --certificate-identity-regexp "^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\\.yml@refs/tags/v.*" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" | jq .
 ```
 
 ## Local Development & Testing
@@ -267,7 +262,7 @@ npm start
 ## Technology Stack (Reference)
 
 - **CI/CD:** GitHub Actions
-- **Supply Chain:** Cosign, Syft, SLSA Generator
+- **Supply Chain:** Cosign, Syft (SBOM), GitHub build provenance (SLSA)
 - **Security Analysis:** Trivy, OWASP ZAP, Gitleaks
 - **Governance:** Kyverno
 - **Containers:** Docker
