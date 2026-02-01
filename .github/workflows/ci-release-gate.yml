@@ -79,7 +79,7 @@ jobs:
             file: app/docker/Dockerfile.client
             image_repo: app-stayheathy-frontend
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
           fetch-depth: 0
           ref: ${{ needs.resolve.outputs.release_tag }}
@@ -87,14 +87,14 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f #v3.12.0
 
-      - uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef #v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 #v3
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
       - name: Build & Push
         id: build
-        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.file }}
@@ -139,7 +139,7 @@ jobs:
           - name: frontend
             image_repo: app-stayheathy-frontend
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
           fetch-depth: 0
           ref: ${{ needs.resolve.outputs.release_tag }}
@@ -149,7 +149,7 @@ jobs:
           name: digest-${{ matrix.name }}
           path: digests
 
-      - uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef #v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 #v3
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
@@ -212,7 +212,7 @@ jobs:
       COMPOSE_PROJECT_NAME: dast-${{ github.run_id }}-${{ github.run_attempt }} 
 
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
           fetch-depth: 0
           ref: ${{ needs.resolve.outputs.release_tag }}
@@ -226,7 +226,7 @@ jobs:
           name: digest-frontend
           path: digests
 
-      - uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef #v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 #v3
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
@@ -396,12 +396,12 @@ jobs:
       # COSIGN_DOCKER_MEDIA_TYPES: "1"
       # COSIGN_REGISTRY_REFERRERS_MODE: legacy
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
           fetch-depth: 0
           ref: ${{ needs.resolve.outputs.release_tag }}
 
-      - uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef #v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 #v3
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
@@ -507,7 +507,7 @@ jobs:
           exit 1
 
       - name: Generate SBOM
-        uses: anchore/sbom-action@0b82b0b1a22399a1c542d4d656f70cd903571b5c #v0.21.1
+        uses: anchore/sbom-action@deef08a0db64bfad603422135db61477b16cef56 #v0.22.1
         with:
           image: ${{ env.IMAGE }}
           format: spdx-json
@@ -522,7 +522,7 @@ jobs:
             "$IMAGE"
 
       - name: Attest Build Provenance
-        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a #v3.0.0
+        uses: actions/attest-build-provenance@96278af6caaf10aea03fd8d33a09a777ca52d62f #v3.2.0
         with:
           subject-name: docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}
           subject-digest: ${{ env.DIGEST }}
