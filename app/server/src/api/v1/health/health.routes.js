@@ -1,12 +1,20 @@
 const express = require('express');
 const db = require('../../../infra/db/knex');
 const { AppError } = require('../../http/errors/AppError');
+const rateLimit = require('express-rate-limit');
 
 const router = express.Router();
 
+const readyzLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60, // limit each IP to 60 /readyz requests per windowMs
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 router.get('/healthz', (_req, res) => res.json({ status: 'ok' }));
 
-router.get('/readyz', async (_req, res, next) => {
+router.get('/readyz', readyzLimiter, async (_req, res, next) => {
   try {
     await db.raw('select 1');
     res.json({ status: 'ready' });
