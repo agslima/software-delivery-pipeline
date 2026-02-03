@@ -26,7 +26,7 @@ jobs:
       security-events: write
       issues: write
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
           fetch-depth: 0
 
@@ -84,13 +84,13 @@ jobs:
 
       # Reporting (Only runs if Validation passed)
       - name: Upload Trivy SARIF (Code)
-        uses: github/codeql-action/upload-sarif@cdefb33c0f6224e58673d9004f47f7cb3e328b89 #v4.0.0
+        uses: github/codeql-action/upload-sarif@b20883b0cd1f46c72ae0ba6d1090936928f9fa30 #v4.0.0
         with:
           sarif_file: trivy-code.sarif
           category: code
 
       - name: Upload Trivy SARIF (Infra)
-        uses: github/codeql-action/upload-sarif@cdefb33c0f6224e58673d9004f47f7cb3e328b89 # v4.0.0
+        uses: github/codeql-action/upload-sarif@b20883b0cd1f46c72ae0ba6d1090936928f9fa30 # v4.0.0
         with:
           sarif_file: trivy-infra.sarif
           category: infrastructure
@@ -162,7 +162,7 @@ jobs:
       COMPOSE_PROJECT_NAME: dast-${{ github.run_id }}-${{ github.run_attempt }}
 
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       # 1) Variables + real Compose secrets (file-based, outside repo)
       - name: Set Variables + Compose Secrets (file-based)
