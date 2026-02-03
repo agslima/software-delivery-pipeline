@@ -24,6 +24,7 @@ FROM nginxinc/nginx-unprivileged:1.29-alpine@sha256:5aea7cc516b419e3526f47dd1531
 # Patch the Runtime OS
 USER root
 
+# hadolint ignore=DL3018
 RUN apk update && apk upgrade --no-cache \
     && apk add --no-cache openssl \
     && mkdir -p /tmp/client_body_temp \
