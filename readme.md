@@ -95,19 +95,19 @@ GitHub Actions is used intentionally as the **delivery control plane**.
 ```mermaid
 graph TD
     subgraph "PR Gates"
-        A[Pull Request] --> B[Code Quality (lint/tests)]
-        B --> C[Infra Hygiene (Hadolint/Conftest/Kubeconform)]
-        C --> D[Security Scan (Gitleaks + Trivy FS)]
+        A[Pull Request] --> B["Code Quality (lint/tests)"]
+        B --> C["Infra Hygiene (Hadolint/Conftest/Kubeconform)"]
+        C --> D["Security Scan (Gitleaks + Trivy FS)"]
     end
 
     D --> E[Merge to main]
     E --> F[Tag vX.Y.Z]
 
     subgraph "Release Gate"
-        F --> G[Build & Push (digest)]
+        F --> G["Build & Push (digest)"]
         G --> H[Trivy Image Gate]
-        H --> I[DAST (ZAP baseline)]
-        I --> J[Sign & Attest (cosign + SBOM + SLSA)]
+        H --> I["DAST (ZAP baseline)"]
+        I --> J["Sign & Attest (cosign + SBOM + SLSA)"]
     end
 
     subgraph "Delivery (GitOps)"
@@ -213,8 +213,6 @@ To validate the effectiveness of the delivery control plane, a legacy applicatio
 > Managed debt is tracked in `docs/security-debt.md`, demonstrating risk-based decision making
 
 ### Evidence
-
-Screenshots below are from a legacy remediation exercise; current workflows use Trivy for scanning.
 
 | Initial Vulnerability Scan | Post-Fix Clean Scan |
 | --- | --- |
