@@ -10,7 +10,7 @@ router.get('/readyz', async (_req, res, next) => {
   try {
     await db.raw('select 1');
     res.json({ status: 'ready' });
-  } catch (err) {
+  } catch {
     next(new AppError({ status: 503, code: 'NOT_READY', message: 'Not ready' }));
   }
 });
