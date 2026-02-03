@@ -1,7 +1,3 @@
-// app/server/src/services/token.service.js
-/**
- * TokenService interface
- */
 class TokenService {
   sign(_payload) {
     throw new Error('Not implemented');

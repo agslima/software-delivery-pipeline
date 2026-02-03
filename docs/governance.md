@@ -31,7 +31,7 @@ flowchart TB
         TAG_RULE[Tag Protection Rules]
         
         subgraph CI["Governed CI/CD (Actions)"]
-            Check["PR Checks<br/>(Tests/SAST/Lint)"]
+            Check["PR Checks<br/>(Tests/Security/Lint)"]
             Build["Release Pipeline<br/>(Build/Sign/Attest)"]
         end
     end
@@ -108,13 +108,13 @@ This directly supports the design goal:
 - ⚠️ Require CODEOWNER review
 (Optional, but strongly recommended for governance-sensitive files)
 
-**Required Status Checks*"
+**Required Status Checks**
 
 - ✅ Require status checks to pass before merging
 - ✅ Only explicitly selected jobs are allowed:
-  - Code Quality & Security Gates
-  - Dockerfile Linting
-  - DAST (OWASP ZAP)
+  - Code Quality (server/client)
+  - Infra Hygiene (Hadolint/Conftest/Kubeconform)
+  - Security Quality Check (Gitleaks + Trivy FS)
 >❗ Release / signing jobs are intentionally excluded here and enforced via protected tags instead.
 
 **Merge Safety**
@@ -224,13 +224,13 @@ This model explicitly defends against:
 ### Verify Image Signature
 
 ```bash
-# 1. Export the "Golden Release" Image URL
-export IMAGE="docker.io/agslima/software-delivery-pipeline:v1.0.0"
+# 1. Export a release image digest (backend or frontend)
+export IMAGE="docker.io/agslima/app-stayheathy-backend@sha256:<digest>"
 
 # 2. Verify the signature against the OpenID Connect (OIDC) identity
 cosign verify "$IMAGE" \
-  --certificate-identity-regexp "[https://github.com/agslima/software-delivery-pipeline/](https://github.com/agslima/software-delivery-pipeline/).*" \
-  --certificate-oidc-issuer "[https://token.actions.githubusercontent.com](https://token.actions.githubusercontent.com)" | jq .
+  --certificate-identity-regexp "^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\\.yml@refs/tags/v.*" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" | jq .
   ```
 
 ### Verify SLSA Provenance
@@ -238,9 +238,9 @@ cosign verify "$IMAGE" \
 ```bash
 # Verify the attestation (SLSA Level 3)
 cosign verify-attestation "$IMAGE" \
-  --type slsaprovenance \
-  --certificate-identity-regexp "[https://github.com/agslima/software-delivery-pipeline/](https://github.com/agslima/software-delivery-pipeline/).*" \
-  --certificate-oidc-issuer "[https://token.actions.githubusercontent.com](https://token.actions.githubusercontent.com)" | jq .payload -r | base64 -d | jq .
+  --type "https://slsa.dev/provenance/v1" \
+  --certificate-identity-regexp "^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\\.yml@refs/tags/v.*" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" | jq .payload -r | base64 -d | jq .
   ```
 
 ### Verify active rules 

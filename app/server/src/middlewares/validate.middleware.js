@@ -1,4 +1,3 @@
-// app/server/src/middlewares/validate.middleware.js
 const logger = require('../utils/logger');
 
 const validate = (schema, property = 'body') => {
@@ -7,15 +6,15 @@ const validate = (schema, property = 'body') => {
 
     if (error) {
       const message = error.details.map(i => i.message).join(',');
-      
+
       logger.warn({
         path: req.originalUrl,
-        validationError: message
+        validationError: message,
       }, 'Input validation failed');
 
       return res.status(400).json({ error: message });
     }
-    
+
     next();
   };
 };

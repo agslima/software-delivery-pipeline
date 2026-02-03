@@ -1,5 +1,9 @@
-const prescriptions = {
+const db = require('../db/knex');
+const env = require('../../config/env');
+
+const mockPrescriptions = {
   'demo-id': {
+    id: 'demo-id',
     clinicName: 'StayHealthy',
     date: 'July 10, 2023',
     doctor: {
@@ -38,16 +42,24 @@ const prescriptions = {
   },
 };
 
-class PrescriptionService {
-  async getById(id) {
-    const prescription = prescriptions[id];
-    if (!prescription) {
-      const err = new Error('Prescription not found');
-      err.statusCode = 404;
-      throw err;
+class PrescriptionsRepository {
+  async findById(id) {
+    if (env.NODE_ENV === 'test') {
+      return mockPrescriptions[id] || null;
     }
-    return prescription;
+
+    const row = await db('prescriptions').where({ id }).first();
+    if (!row) return null;
+
+    return {
+      id: row.id,
+      clinicName: row.clinic_name,
+      date: row.date,
+      doctor: row.doctor,
+      patient: row.patient,
+      medications: row.medications,
+    };
   }
 }
 
-module.exports = PrescriptionService;
+module.exports = { PrescriptionsRepository };

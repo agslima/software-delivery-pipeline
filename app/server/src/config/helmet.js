@@ -8,7 +8,7 @@ module.exports = helmet({
       scriptSrc: ["'self'"],
       styleSrc: ["'self'"],
       fontSrc: ["'self'"],
-      imgSrc: ["'self'", "data:"],
+      imgSrc: ["'self'", 'data:'],
     },
   },
 });

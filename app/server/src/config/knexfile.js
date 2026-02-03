@@ -1,5 +1,5 @@
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '../../../.env') });
+require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 
 module.exports = {
   client: 'pg',
@@ -9,6 +9,6 @@ module.exports = {
     password: process.env.DB_PASS,
     database: process.env.DB_NAME,
   },
-  migrations: { directory: path.join(__dirname, '../db/migrations') },
-  seeds: { directory: path.join(__dirname, '../db/seeds') }
+  migrations: { directory: path.join(__dirname, '../infra/db/migrations') },
+  seeds: { directory: path.join(__dirname, '../infra/db/seeds') },
 };

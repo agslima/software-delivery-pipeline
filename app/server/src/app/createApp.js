@@ -1,0 +1,35 @@
+const express = require('express');
+const cors = require('cors');
+const helmet = require('../config/helmet');
+const env = require('../config/env');
+const corsOptions = require('../config/cors');
+
+const requestId = require('../api/http/middleware/requestId');
+const httpLogger = require('../api/http/middleware/httpLogger');
+const errorHandler = require('../api/http/errors/errorHandler');
+
+const v1Routes = require('./routes');
+
+module.exports = function createApp() {
+  const app = express();
+  app.set('trust proxy', 1);
+  app.disable('x-powered-by');
+
+  app.use(helmet);
+
+  app.use(cors(corsOptions));
+
+  app.use(express.json({ limit: '1mb' }));
+
+  app.use(requestId);
+  if (env.NODE_ENV !== 'test') app.use(httpLogger);
+
+  app.get('/health', (_req, res) => {
+    res.json({ status: 'ok', uptime: process.uptime() });
+  });
+
+  app.use('/api/v1', v1Routes);
+
+  app.use(errorHandler);
+  return app;
+};

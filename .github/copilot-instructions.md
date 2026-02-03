@@ -1,173 +1,153 @@
 # AI Agent Instructions for Secure Software Delivery Pipeline
 
-This codebase implements a **governed CI/CD pipeline** where security and supply chain integrity are enforced at every stage. Focus on understanding the security controls, pipeline architecture, and risk management philosophy rather than application-level features.
+This repo is a governed CI/CD reference. The application under `app/` is a demo full-stack system (React SPA + Node API + Postgres). Prioritize pipeline, policy, and security controls over feature work.
 
 ## Architecture Overview
 
-**What This Project Is:** A reference implementation of a **production-grade software delivery pipeline**, not a business application. The prescription management app is intentionally minimal—it's a delivery vehicle to demonstrate governance patterns.
+- CI/CD acts as the control plane: PR checks, release gates, attestations, and GitOps promotion.
+- Artifacts are immutable: images are addressed by digest and only trusted after signing and attestations.
+- Keyless signing: cosign uses GitHub OIDC; policies enforce issuer and workflow identity.
+- Risk acceptance is time-boxed and audited.
 
-**Core Design Principles:**
-- **CI/CD as Control Plane:** GitHub Actions enforces all quality/security gates before artifacts are created
-- **Fail-Fast Model:** Builds stop immediately on any policy violation; no container is built/pushed unless ALL gates pass
-- **Keyless Signing (OIDC):** No long-lived private keys; signatures bound to ephemeral GitHub Actions OIDC identity
-- **Risk Acceptance Philosophy:** Security is not binary—Medium/Low vulnerabilities can be documented as managed debt, tracked in `docs/security-debt.md`, and reviewed every 30 days
+## CI/CD Workflows and Gates
 
-## The Four-Stage Pipeline
+### PR Validation (`.github/workflows/ci-pr-validation.yml`)
 
-```
-CODE QUALITY → DOCKER LINTING → DAST (OWASP ZAP) → RELEASE & SIGNING
-```
+- Code quality matrix for `app/server` and `app/client`: `npm ci --ignore-scripts`, lint, unit tests.
+- Infra hygiene: Hadolint on `app/docker/Dockerfile.server` and `app/docker/Dockerfile.client`, Conftest with `policies/dockerfile.rego`, Kubeconform on `k8s/`.
+- Security scan: Gitleaks, Trivy filesystem scan (HIGH/CRITICAL).
 
-### Stage 1: Code Quality & Security (`code-quality` job)
-**File:** [.github/workflows/ci-cd.yml](.github/workflows/ci-cd.yml#L20-L60)  
-**Triggers:** Every push, PR, and tag
+### Release Gate (`.github/workflows/ci-release-gate.yml`)
 
-- **Jest Unit Tests** (`npm test`) — fails if tests don't pass
-- **Gitleaks** — detects hardcoded secrets in commit history
-- **Snyk SAST/SCA** — scans source code and `package-lock.json` for vulnerabilities
-- **Risk Acceptance Policy** (`scripts/check-security-debt.sh`) — Medium/Low CVEs must be acknowledged in `docs/security-debt.md` with the commit hash, or build fails
+Triggered by tags `v*.*.*` or manual dispatch.
 
-**Key Pattern:** Snyk results are converted to SARIF and uploaded to GitHub Security tab. The risk acceptance script (`check-security-debt.sh`) enforces policy by searching for the current git commit hash in the debt ledger.
+1. Build and push backend and frontend images (digest is the identity).
+2. Trivy gate per image: fail if CRITICAL > 0 or HIGH > 5.
+3. DAST baseline on digest-based compose (`app/docker-compose.yml` + `app/docker-compose.release.yml`), gate on High > 0.
+4. Sign and attest only after gates:
+   - cosign sign (OIDC)
+   - Trivy attestation predicate type `https://security.sigstore.dev/attestations/vuln/trivy/v1`
+   - ZAP attestation predicate type `https://security.sigstore.dev/attestations/dast/zap/v1`
+   - SBOM attestation (SPDX)
+   - SLSA provenance via `actions/attest-build-provenance`
 
-### Stage 2: Docker Linting (`docker-lint` job)
-**File:** [.github/workflows/ci-cd.yml](.github/workflows/ci-cd.yml#L61-L68)
+### Security Deep Scan (`.github/workflows/ci-security-deep.yml`)
 
-- **Hadolint** enforces Dockerfile best practices:
-  - Pin all base image versions (not `latest`)
-  - Run as non-root user (enforced in [app/Dockerfile](app/Dockerfile#L31): `USER node`)
-  - Minimize layer count for security scanning efficiency
+Nightly: Gitleaks + Trivy infra and code scans (SARIF) + governance JSON, enforced risk acceptance via `scripts/check-security-debt.sh`. Creates a triage issue on failure. Includes lightweight ZAP baseline.
 
-**Key Pattern:** Hadolint failures block the entire pipeline. See [app/Dockerfile](app/Dockerfile) for the reference implementation—note the explicit `--chown=node:node`, `npm ci --only=production`, and `USER node` directives.
+### Weekly DAST (`.github/workflows/ci-weekly-dast.yml`)
 
-### Stage 3: DAST (OWASP ZAP)
-**File:** [.github/workflows/ci-cd.yml](.github/workflows/ci-cd.yml#L69-L118)  
-**Triggers:** Main branch and tags only (disabled on PRs to save time)
+Full ZAP scans with auth:
 
-- Builds the container locally, starts it on port 3000
-- Waits for app to respond; **logs container output on failure** (critical for debugging)
-- Runs OWASP ZAP baseline scan against the live app
+- Uses `.zap/context.context` and `.zap/rules.tsv`.
+- Generates SARIF and gates High findings (confidence >= Medium) and selected Medium categories.
 
-**Key Pattern:** The wait-for-readiness logic uses `timeout 60s bash -c 'until curl -s -f http://localhost:3000'` with explicit `docker logs` dump on failure—this pattern is worth copying for any infrastructure debugging.
+### GitOps Enforcement (`.github/workflows/gitops-enforce.yml`)
 
-### Stage 4: Release, Signing & Attestation
-**File:** [.github/workflows/ci-cd.yml](.github/workflows/ci-cd.yml#L119-end)  
-**Triggers:** Tags matching `v*.*.*` only
+Manual promotion:
 
-**Four Sub-Jobs:**
+- Downloads digest artifacts from release.
+- Verifies cosign signature plus Trivy/ZAP/SBOM attestations.
+- Updates `k8s/overlays/prod/kustomization.yaml` digests.
+- Validates rendered manifests with Kyverno (`k8s/policies/cluster/*.yaml`) and opens a PR.
 
-1. **build-push:** Docker build → push to Docker Hub with SHA, `:latest`, and semver tags
-   - Uses `docker/build-push-action` with GitHub Actions cache
-   - Exports image digest (SHA256) to artifact file for downstream signing
-   - Runs Trivy scan post-push (only High/Critical failures allowed)
+### Sonar (`.github/workflows/sonar.yml`)
 
-2. **sign-and-attest:** Signs the immutable digest using keyless cosign
-   - Downloads digest artifact from build-push job
-   - Signs image: `cosign sign --yes $IMAGE`
-   - Verifies signature with OIDC issuer: `https://token.actions.githubusercontent.com`
-   - **Generates SBOM** (Syft) in SPDX format
-   - **Attests** SBOM to image: `cosign attest --type spdx`
-   - **SLSA Provenance:** Uses `actions/attest-build-provenance` to link artifact to exact Git commit and workflow run
+Scheduled test+coverage matrix and SonarQube scan.
 
-3. **Kyverno Policy Validation:** Validates [k8s/deployment.yaml](k8s/deployment.yaml) against [k8s/cluster-policy.yaml](k8s/cluster-policy.yaml)
+## Risk Acceptance and Governance
 
-4. **GitOps Update:** Replaces image tag in deployment manifest with immutable digest (best practice for production)
+- `scripts/check-security-debt.sh` enforces MEDIUM/LOW Trivy findings:
+  - Add to `docs/security-debt.md` with an expiry date, or
+  - Add to `.trivyignore` with a comment: `# allow-until: YYYY-MM-DD ...`
+- Keep expiry dates current; no permanent exceptions.
 
-## Developer Workflows
+## Local Development
 
-### Running Locally
+Backend:
 
 ```bash
-# Start the server (port 8080)
 cd app/server
 npm ci
-npm start
-
-# Run tests
 npm test
-npm run test:watch
+npm run dev
 ```
 
-**Environment:** Node >=18.0.0. The app loads `.env` via `dotenv` and expects `PORT` (defaults to 8080).
-
-### Building the Docker Image
+Frontend:
 
 ```bash
-docker build --load -t software-delivery-pipeline ./app
-docker run -p 3000:8080 --name app-under-test software-delivery-pipeline
+cd app/client
+npm ci
+npm run dev
 ```
 
-The Dockerfile uses multi-layer caching. Changes to source code (layer 4) rebuild quickly; dependency changes (layer 3) trigger a full rebuild.
-
-### Testing Security Debt
-
-Edit [docs/security-debt.md](docs/security-debt.md) to acknowledge vulnerabilities:
-
-```markdown
-### ID: RISK-2026-001 (BusyBox CVE-2025-46394)
-...
-Commit: <git-hash>
-```
-
-Run `scripts/check-security-debt.sh` manually to validate:
+Full stack with compose (expects secrets in `./secrets` or `SECRETS_PATH`):
 
 ```bash
-snyk test --severity-threshold=high --json-file-output=snyk-results.json
-./scripts/check-security-debt.sh snyk-results.json
+cd app
+docker compose up --build
 ```
 
-## Security Controls & Threat Model
-
-See [docs/threat-model.md](docs/threat-model.md) for deep technical analysis. Key scenarios:
-
-- **Dependency Poisoning:** Snyk SCA blocks High/Critical; Medium/Low require risk documentation
-- **Code Injection:** SAST + unit tests catch most issues
-- **Artifact Tampering:** Immutable SHA256 digest + Cosign signature prevents registry hijacking
-- **Rogue Deployments:** Kyverno policy enforces Cosign signature verification in the cluster
-- **Compromised Keys:** Keyless OIDC signing eliminates long-lived private key risk
+- Frontend: `http://localhost:4173`
+- Backend health: `http://localhost:8080/health`
 
 ## Project Structure
 
 ```
-.github/
-  workflows/ci-cd.yml          ← Main pipeline definition
+.github/workflows/
+  ci-pr-validation.yml     PR gates
+  ci-release-gate.yml      Release build/sign/attest
+  ci-security-deep.yml     Nightly governance scan
+  ci-weekly-dast.yml       Authenticated DAST
+  gitops-enforce.yml       GitOps promotion
+  sonar.yml                SonarQube scan
+policies/
+  dockerfile.rego          OPA policy for Dockerfile
 docs/
-  threat-model.md              ← Detailed security analysis
-  security-debt.md             ← Managed vulnerability ledger
-scripts/
-  check-security-debt.sh       ← Risk acceptance policy enforcement
+  security-debt.md         Risk acceptance ledger
+  threat-model.md          Threat model
 app/
-  Dockerfile                   ← Multi-stage build with security best practices
-  server/
-    app.js                     ← Express app (helmet, rate limiting, helmet)
-    index.js                   ← Entry point (dotenv, server.listen)
-    package.json               ← Node >=18, Express, Passport, bcryptjs, etc.
-    tests/                     ← Jest test suites
-  public/                      ← Static frontend files
+  docker/Dockerfile.server
+  docker/Dockerfile.client
+  docker-compose.yml
+  docker-compose.release.yml
+  server/                  Express API
+  client/                  React SPA
 k8s/
-  deployment.yaml              ← Kubernetes manifest (updated by GitOps)
-  cluster-policy.yaml          ← Kyverno policies enforcing signature verification
+  overlays/prod/           Digest-pinned prod overlay
+  policies/cluster/        Kyverno verify policies
+.zap/
+  context.context          ZAP context
+  rules.tsv                ZAP rules
 ```
 
 ## Common Patterns to Preserve
 
-1. **Fail-Fast Philosophy:** Always exit non-zero on policy violations. No warnings or soft fails.
-2. **Immutable Deployment:** Use SHA256 digests, not tags, in production manifests.
-3. **Risk as First-Class Citizen:** Medium/Low CVEs are OK if documented; High/Critical block releases.
-4. **Explicit Over Implicit:** The pipeline logs every decision. See the `Enforce Risk Acceptance Policy` step—it's verbose intentionally.
-5. **Keyless Signing:** Never commit private keys. OIDC tokens are ephemeral and safer.
+1. Hard gates stay hard: fail fast on policy violations; do not soften exit codes.
+2. Digest-pinned images in build, release, and kustomize overlays.
+3. Keyless signing plus attestations (predicate types and issuer must match Kyverno policies).
+4. Secret handling is file-based (Compose secrets, `RUNNER_TEMP`) and never logged.
+5. Dockerfile hardening (pinned base image digests, non-root runtime, remove npm in runtime, healthchecks).
+
+## Release Checklist
+
+- Tag uses semver (`vX.Y.Z`) and points at the intended commit.
+- `ci-release-gate.yml` passes (build/push, Trivy gate, DAST, sign/attest).
+- Digest artifacts exist for backend and frontend and are used in GitOps promotion.
+- `k8s/overlays/prod/kustomization.yaml` is updated via the GitOps PR.
+- Cosign/Kyverno identity and predicate types still match (`ci-release-gate.yml`, OIDC issuer, Trivy/ZAP/SBOM/SLSA).
 
 ## Red Flags
 
-- ❌ Modifying `.only=production` in npm ci without updating Hadolint rules
-- ❌ Removing the `docker logs` dump in DAST (makes debugging infrastructure failures hard)
-- ❌ Accepting Critical/High vulns without updating threat-model.md
-- ❌ Using mutable tags (`:latest`) in production deployments
-- ❌ Committing long-lived signing keys or credentials to `.env`
+- Removing digest pins or using mutable tags in `k8s/overlays/prod/kustomization.yaml`.
+- Weakening Trivy/DAST gates or deleting output validation checks.
+- Changing predicate types or OIDC identity without updating `k8s/policies/cluster/*.yaml`.
+- Bypassing risk acceptance (edits to `docs/security-debt.md` or `.trivyignore` without expiry).
+- Logging or persisting secrets in repo or CI output.
 
 ## Questions for Iteration
 
-When implementing features, ask:
-1. **Does this change the threat model?** If so, update `docs/threat-model.md`.
-2. **Should this be a security gate?** Add it before the build-push job.
-3. **Is the risk documented?** If not, add it to `docs/security-debt.md`.
-4. **Does this break Kyverno policies?** Run `kyverno apply` to validate manifest changes.
+1. Does this change the threat model or governance? Update `docs/threat-model.md` or `docs/governance.md`.
+2. Should this be a PR or release gate? Add it to the relevant workflow.
+3. Do Kyverno policies need updates for new attestations, image names, or environments?
+4. Does DAST scope or auth change? Update `.zap/context.context` and `.zap/rules.tsv`.
