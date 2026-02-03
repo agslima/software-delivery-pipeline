@@ -60,6 +60,7 @@ generate_secret() {
 generate_secret "db_pass.txt" "local_postgres_password"
 generate_secret "admin_pass.txt" "local_admin_password"
 generate_secret "jwt_secret.txt" "local_development_secret_key_123"
+generate_secret "data_encryption_key.txt" "local_development_data_encryption_key"
 
 # 4. Generate .env File
 if [ ! -f "$ENV_FILE" ]; then

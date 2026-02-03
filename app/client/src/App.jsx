@@ -1,119 +1,146 @@
 import { useEffect, useState } from 'react';
-import { getPrescription, login } from './api/prescriptionApi';
-import Login from './components/Login';
-import './styles/global.css';
-import './styles/Prescription.css';
+import { loginPatient, getMyPrescription, getMyPrescriptions } from './api/patientPortalApi';
+import PatientLogin from './components/PatientLogin';
+import PatientPortal from './components/PatientPortal';
+import './styles/Portal.css';
+
+const SESSION_KEY = 'stayhealthy_patient_session';
+
+const readSession = () => {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
 
 export default function App() {
-  const [token, setToken] = useState(null);
-  const [data, setData] = useState(null);
-  const [error, setError] = useState(null);
+  const [session, setSession] = useState(readSession);
+  const [prescriptions, setPrescriptions] = useState([]);
+  const [selectedId, setSelectedId] = useState(null);
+  const [prescriptionDetail, setPrescriptionDetail] = useState(null);
+  const [loadingList, setLoadingList] = useState(false);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [portalError, setPortalError] = useState(null);
 
-  const handleLogin = async (username, password) => {
-    setData(null);
-    setError(null);    
-    const fetchedToken = await login(username, password);
-    setToken(fetchedToken);
+  useEffect(() => {
+    if (session) {
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    } else {
+      sessionStorage.removeItem(SESSION_KEY);
+    }
+  }, [session]);
+
+  const handleLogout = () => {
+    setSession(null);
+    setPrescriptions([]);
+    setSelectedId(null);
+    setPrescriptionDetail(null);
+    setPortalError(null);
+  };
+
+  const handleLogin = async (email, password) => {
+    const result = await loginPatient(email, password);
+    setSession(result);
   };
 
   useEffect(() => {
-    if (!token) return;  
- 
-    getPrescription('demo-id', token)
-      .then((prescriptionData) => {
-        setData(prescriptionData);
+    if (!session?.token) return;
+
+    let isActive = true;
+    setLoadingList(true);
+    setPortalError(null);
+    setPrescriptionDetail(null);
+
+    getMyPrescriptions(session.token)
+      .then((data) => {
+        if (!isActive) return;
+        const list = data.prescriptions || [];
+        setPrescriptions(list);
+        setSelectedId(list[0]?.id || null);
       })
       .catch((err) => {
+        if (!isActive) return;
         if (err.message === 'SESSION_EXPIRED') {
-            setToken(null); 
+          handleLogout();
         } else {
-            setError('Could not load patient record. ' + err.message);
+          setPortalError('Unable to load prescriptions.');
         }
+      })
+      .finally(() => {
+        if (isActive) setLoadingList(false);
       });
-  }, [token]);
 
-  // 1. Show Login
-  if (!token) {
-    return <Login onLogin={handleLogin} />;
+    return () => {
+      isActive = false;
+    };
+  }, [session?.token]);
+
+  useEffect(() => {
+    if (!session?.token || !selectedId) return;
+
+    let isActive = true;
+    setLoadingDetail(true);
+    setPortalError(null);
+    setPrescriptionDetail(null);
+
+    getMyPrescription(selectedId, session.token)
+      .then((data) => {
+        if (isActive) setPrescriptionDetail(data);
+      })
+      .catch((err) => {
+        if (!isActive) return;
+        if (err.message === 'SESSION_EXPIRED') {
+          handleLogout();
+        } else if (err.message === 'FORBIDDEN') {
+          setPortalError('Access denied for this prescription.');
+        } else if (err.message === 'NOT_FOUND') {
+          setPortalError('Prescription not found.');
+        } else {
+          setPortalError('Unable to load prescription details.');
+        }
+      })
+      .finally(() => {
+        if (isActive) setLoadingDetail(false);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [selectedId, session?.token]);
+
+  if (!session?.token) {
+    return <PatientLogin onLogin={handleLogin} />;
   }
 
-  // 2. Show Main Loading Spinner
-  if (!data && !error) {
+  if (session.user?.role !== 'patient') {
     return (
-      <div className="loading-container">
-        <div className="spinner"></div>
-        <p>Decrypting patient record...</p>
+      <div className="portal-shell">
+        <div className="portal-card portal-card--center">
+          <h2>Patient Portal Access Only</h2>
+          <p className="portal-muted">
+            Your account is not configured as a patient. Please sign in with a patient account.
+          </p>
+          <button className="portal-button" onClick={handleLogout}>
+            Sign out
+          </button>
+        </div>
       </div>
     );
   }
 
-  // 3. Show Critical Error
-  if (error) {
-     return (
-        <div className="container" style={{textAlign: 'center', marginTop: '50px'}}>
-            <div className="error-banner">{error}</div>
-            <button onClick={() => setToken(null)} className="print-btn">Back to Login</button>
-        </div>
-     );
-  }
-
-  // 4. Success UI
   return (
-    <div className="container">
-       <button onClick={() => window.print()} className="print-btn">
-        🖨️ Print Official Prescription
-      </button>
-
-      <header className="header">
-        <div>
-          <div className="brand">{data.clinicName}</div>
-          <div style={{ marginTop: '10px' }}>
-            <strong>{data.doctor.name}</strong><br/>
-            License: {data.doctor.license}<br/>
-            {data.doctor.phone} | {data.doctor.email}
-          </div>
-        </div>
-        <div style={{ textAlign: 'right' }}>
-          <strong>Date:</strong> {data.date}
-        </div>
-      </header>
-      
-       <section className="info-grid">
-        <div>
-          <div className="section-title">Patient Details</div>
-          <p>
-            <strong>Name:</strong> {data.patient.name}<br/>
-            <strong>DOB:</strong> {data.patient.dob}<br/>
-            <strong>Gender:</strong> {data.patient.gender}
-          </p>
-        </div>
-        <div>
-          <div className="section-title">Contact</div>
-          <p>
-            {data.patient.phone}<br/>
-            {data.patient.email}
-          </p>
-        </div>
-      </section>
-
-      <section>
-        <div className="section-title">Prescribed Medications</div>
-        {data.medications.map((med, index) => (
-          <div key={index} className="medication-card">
-            <div className="medication-name">
-              {med.name}
-              <span>{med.dosage}</span>
-            </div>
-            <p><strong>Directions:</strong> {med.directions}</p>
-            <p><strong>Quantity:</strong> {med.quantity}</p>
-          </div>
-        ))}
-      </section>
-
-      <footer className="footer">
-        <p>If there are any concerns, please contact {data.doctor.name}.</p>
-        <p>{data.clinicName} - Official Medical Record</p>
-      </footer>
-    </div>
+    <PatientPortal
+      user={session.user}
+      prescriptions={prescriptions}
+      selectedId={selectedId}
+      prescriptionDetail={prescriptionDetail}
+      onSelect={setSelectedId}
+      onLogout={handleLogout}
+      loadingList={loadingList}
+      loadingDetail={loadingDetail}
+      portalError={portalError}
+    />
   );
 }
