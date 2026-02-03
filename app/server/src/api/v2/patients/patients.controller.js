@@ -28,7 +28,6 @@ exports.search = async (req, res, next) => {
       doctorUserId: req.user.sub,
       name: req.query.name,
       dob: req.query.dob,
-      patientId: req.query.patient_id,
       limit: req.query.limit,
     });
     const auditContext = buildAuditContext(req);
@@ -44,7 +43,6 @@ exports.search = async (req, res, next) => {
             query: {
               name: req.query.name,
               dob: req.query.dob,
-              patientId: req.query.patient_id,
             },
           },
         })
