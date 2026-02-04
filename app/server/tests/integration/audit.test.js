@@ -1,7 +1,7 @@
 const request = require('supertest');
 
-const auditEvents = [];
-let lastListFilters = null;
+const mockAuditEvents = [];
+let mockLastListFilters = null;
 const mockPatient = {
   id: '11111111-1111-4111-8111-111111111111',
   user_id: '22222222-2222-4222-8222-222222222222',
@@ -13,7 +13,7 @@ const mockPatient = {
   email: 'john.smith@stayhealthy.test',
 };
 
-const prescriptionSummary = {
+const mockPrescriptionSummary = {
   id: '33333333-3333-4333-8333-333333333333',
   status: 'active',
   issuedAt: '2023-07-10T10:00:00Z',
@@ -25,8 +25,8 @@ const prescriptionSummary = {
   },
 };
 
-const prescriptionDetail = {
-  ...prescriptionSummary,
+const mockPrescriptionDetail = {
+  ...mockPrescriptionSummary,
   patient: { id: mockPatient.id, name: 'John Smith' },
   items: [
     {
@@ -50,15 +50,15 @@ jest.mock('../../src/infra/v2/audit.repository', () => {
   return {
     AuditRepository: class AuditRepository {
       async create(event) {
-        auditEvents.push(event);
+        mockAuditEvents.push(event);
       }
 
       async list(filters) {
-        lastListFilters = filters;
-        return auditEvents;
+        mockLastListFilters = filters;
+        return mockAuditEvents;
       }
     },
-    __events: auditEvents,
+    __events: mockAuditEvents,
   };
 });
 
@@ -76,11 +76,11 @@ jest.mock('../../src/infra/v2/prescriptions.repository', () => {
   return {
     PrescriptionsRepository: class PrescriptionsRepository {
       async listByPatientId(patientId) {
-        return patientId === mockPatient.id ? [prescriptionSummary] : [];
+        return patientId === mockPatient.id ? [mockPrescriptionSummary] : [];
       }
 
       async findById(id) {
-        return id === prescriptionDetail.id ? prescriptionDetail : null;
+        return id === mockPrescriptionDetail.id ? mockPrescriptionDetail : null;
       }
     },
   };
@@ -91,8 +91,8 @@ const tokenService = require('../../src/infra/auth/jwtToken.service');
 
 describe('Integration: Audit logging', () => {
   beforeEach(() => {
-    auditEvents.length = 0;
-    lastListFilters = null;
+    mockAuditEvents.length = 0;
+    mockLastListFilters = null;
   });
 
   it('creates an audit event when patient lists prescriptions', async () => {
@@ -107,7 +107,7 @@ describe('Integration: Audit logging', () => {
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.statusCode).toBe(200);
-    expect(auditEvents.some((evt) => evt.event_type === 'patient_portal_prescriptions_view')).toBe(true);
+    expect(mockAuditEvents.some((evt) => evt.event_type === 'patient_portal_prescriptions_view')).toBe(true);
   });
 
   it('creates an audit event when patient views prescription detail', async () => {
@@ -118,11 +118,11 @@ describe('Integration: Audit logging', () => {
     });
 
     const res = await request(app)
-      .get(`/api/v2/patient/me/prescriptions/${prescriptionDetail.id}`)
+      .get(`/api/v2/patient/me/prescriptions/${mockPrescriptionDetail.id}`)
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.statusCode).toBe(200);
-    expect(auditEvents.some((evt) => evt.event_type === 'patient_portal_prescription_view')).toBe(true);
+    expect(mockAuditEvents.some((evt) => evt.event_type === 'patient_portal_prescription_view')).toBe(true);
   });
 
   it('allows admin to list audit events', async () => {
@@ -162,7 +162,7 @@ describe('Integration: Audit logging', () => {
       .set('Authorization', `Bearer ${adminToken}`);
 
     expect(res.statusCode).toBe(200);
-    expect(lastListFilters).toMatchObject({
+    expect(mockLastListFilters).toMatchObject({
       eventType: 'patient_portal_prescriptions_view',
       limit: 10,
       offset: 5,

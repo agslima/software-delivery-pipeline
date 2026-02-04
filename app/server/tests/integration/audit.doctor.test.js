@@ -1,16 +1,16 @@
 const request = require('supertest');
 
-const auditEvents = [];
+const mockAuditEvents = [];
 
-const doctorUserId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
-const doctorId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
-const patientId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
-const encounterId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
-const prescriptionId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
-const medicationId = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+const mockDoctorUserId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const mockDoctorId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const mockPatientId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+const mockEncounterId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+const mockPrescriptionId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+const mockMedicationId = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
 
 const mockPatient = {
-  id: patientId,
+  id: mockPatientId,
   user_id: '11111111-1111-4111-8111-111111111111',
   first_name: 'John',
   last_name: 'Smith',
@@ -21,8 +21,8 @@ const mockPatient = {
 };
 
 const mockDoctor = {
-  id: doctorId,
-  user_id: doctorUserId,
+  id: mockDoctorId,
+  user_id: mockDoctorUserId,
   first_name: 'Emily',
   last_name: 'Johnson',
   license_number: '12345',
@@ -34,25 +34,25 @@ const mockDoctor = {
   mfa_enabled: false,
 };
 
-const prescriptionSummary = {
-  id: prescriptionId,
+const mockPrescriptionSummary = {
+  id: mockPrescriptionId,
   status: 'active',
   issuedAt: '2023-07-10T10:00:00Z',
   expiresAt: '2023-08-10T10:00:00Z',
   notes: 'Follow up in 2 weeks',
   doctor: {
-    id: doctorId,
+    id: mockDoctorId,
     name: 'Dr. Emily Johnson',
   },
 };
 
-const prescriptionDetail = {
-  ...prescriptionSummary,
-  patient: { id: patientId, name: 'John Smith' },
+const mockPrescriptionDetail = {
+  ...mockPrescriptionSummary,
+  patient: { id: mockPatientId, name: 'John Smith' },
   items: [
     {
       id: '12121212-1212-4121-8121-121212121212',
-      medicationId,
+      medicationId: mockMedicationId,
       name: 'Amoxicillin',
       form: 'capsule',
       strength: '500mg',
@@ -67,15 +67,26 @@ const prescriptionDetail = {
   interactionWarnings: [],
 };
 
+const mockOpenEncounter = {
+  id: mockEncounterId,
+  patient_id: mockPatientId,
+  doctor_id: mockDoctorId,
+  status: 'open',
+  started_at: new Date('2023-07-10T09:00:00Z'),
+  ended_at: null,
+};
+
+let mockFindByDoctorPatientResult = mockOpenEncounter;
+
 jest.mock('../../src/infra/v2/audit.repository', () => {
   return {
     AuditRepository: class AuditRepository {
       async create(event) {
-        auditEvents.push(event);
+        mockAuditEvents.push(event);
       }
 
       async list() {
-        return auditEvents;
+        return mockAuditEvents;
       }
     },
   };
@@ -85,7 +96,7 @@ jest.mock('../../src/infra/v2/doctors.repository', () => {
   return {
     DoctorsRepository: class DoctorsRepository {
       async findByUserId(userId) {
-        return userId === doctorUserId ? mockDoctor : null;
+        return userId === mockDoctorUserId ? mockDoctor : null;
       }
     },
   };
@@ -99,32 +110,18 @@ jest.mock('../../src/infra/v2/encounters.repository', () => {
       }
 
       async findByDoctorPatient() {
-        return {
-          id: encounterId,
-          patient_id: patientId,
-          doctor_id: doctorId,
-          status: 'open',
-          started_at: new Date('2023-07-10T09:00:00Z'),
-          ended_at: null,
-        };
+        return mockFindByDoctorPatientResult;
       }
 
       async findById() {
-        return {
-          id: encounterId,
-          patient_id: patientId,
-          doctor_id: doctorId,
-          status: 'open',
-          started_at: new Date('2023-07-10T09:00:00Z'),
-          ended_at: null,
-        };
+        return mockOpenEncounter;
       }
 
       async create() {
         return {
-          id: encounterId,
-          patient_id: patientId,
-          doctor_id: doctorId,
+          id: mockEncounterId,
+          patient_id: mockPatientId,
+          doctor_id: mockDoctorId,
           facility_id: null,
           status: 'open',
           started_at: new Date('2023-07-10T09:00:00Z'),
@@ -136,9 +133,9 @@ jest.mock('../../src/infra/v2/encounters.repository', () => {
 
       async update() {
         return {
-          id: encounterId,
-          patient_id: patientId,
-          doctor_id: doctorId,
+          id: mockEncounterId,
+          patient_id: mockPatientId,
+          doctor_id: mockDoctorId,
           facility_id: null,
           status: 'closed',
           started_at: new Date('2023-07-10T09:00:00Z'),
@@ -169,19 +166,19 @@ jest.mock('../../src/infra/v2/prescriptions.repository', () => {
   return {
     PrescriptionsRepository: class PrescriptionsRepository {
       async listByPatientId() {
-        return [prescriptionSummary];
+        return [mockPrescriptionSummary];
       }
 
       async findById() {
-        return prescriptionDetail;
+        return mockPrescriptionDetail;
       }
 
       async create() {
-        return prescriptionDetail;
+        return mockPrescriptionDetail;
       }
 
       async update() {
-        return { ...prescriptionDetail, status: 'completed' };
+        return { ...mockPrescriptionDetail, status: 'completed' };
       }
     },
   };
@@ -212,16 +209,17 @@ const tokenService = require('../../src/infra/auth/jwtToken.service');
 
 const doctorToken = () =>
   tokenService.sign({
-    sub: doctorUserId,
+    sub: mockDoctorUserId,
     email: 'dr.emily@stayhealthy.test',
     role: 'doctor',
   });
 
-const hasEvent = (eventType) => auditEvents.some((evt) => evt.event_type === eventType);
+const hasEvent = (eventType) => mockAuditEvents.some((evt) => evt.event_type === eventType);
 
 describe('Integration: Doctor audit logging', () => {
   beforeEach(() => {
-    auditEvents.length = 0;
+    mockAuditEvents.length = 0;
+    mockFindByDoctorPatientResult = mockOpenEncounter;
   });
 
   it('logs patient search results', async () => {
@@ -235,7 +233,7 @@ describe('Integration: Doctor audit logging', () => {
 
   it('logs patient view', async () => {
     const res = await request(app)
-      .get(`/api/v2/patients/${patientId}`)
+      .get(`/api/v2/patients/${mockPatientId}`)
       .set('Authorization', `Bearer ${doctorToken()}`);
 
     expect(res.statusCode).toBe(200);
@@ -243,10 +241,11 @@ describe('Integration: Doctor audit logging', () => {
   });
 
   it('logs encounter creation', async () => {
+    mockFindByDoctorPatientResult = null;
     const res = await request(app)
       .post('/api/v2/encounters')
       .set('Authorization', `Bearer ${doctorToken()}`)
-      .send({ patientId });
+      .send({ patientId: mockPatientId });
 
     expect(res.statusCode).toBe(201);
     expect(hasEvent('encounter_created')).toBe(true);
@@ -257,10 +256,10 @@ describe('Integration: Doctor audit logging', () => {
       .post('/api/v2/prescriptions')
       .set('Authorization', `Bearer ${doctorToken()}`)
       .send({
-        patientId,
+        patientId: mockPatientId,
         items: [
           {
-            medicationId,
+            medicationId: mockMedicationId,
             dose: '500mg',
             route: 'oral',
             frequency: 'TID',
@@ -277,7 +276,7 @@ describe('Integration: Doctor audit logging', () => {
 
   it('logs encounter status update', async () => {
     const res = await request(app)
-      .patch(`/api/v2/encounters/${encounterId}`)
+      .patch(`/api/v2/encounters/${mockEncounterId}`)
       .set('Authorization', `Bearer ${doctorToken()}`)
       .send({ status: 'closed' });
 
@@ -287,7 +286,7 @@ describe('Integration: Doctor audit logging', () => {
 
   it('logs prescription updates', async () => {
     const res = await request(app)
-      .patch(`/api/v2/prescriptions/${prescriptionId}`)
+      .patch(`/api/v2/prescriptions/${mockPrescriptionId}`)
       .set('Authorization', `Bearer ${doctorToken()}`)
       .send({ status: 'completed' });
 
