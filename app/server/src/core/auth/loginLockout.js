@@ -50,7 +50,8 @@ class LoginLockout {
     const entry = this._get(key);
 
     if (!entry || now - entry.firstFailureAt > this.windowMs) {
-      this.store.set(key, { count: 1, firstFailureAt: now, lockedUntil: null });
+      const lockedUntil = this.maxFailures <= 1 ? now + this.lockoutMs : null;
+      this.store.set(key, { count: 1, firstFailureAt: now, lockedUntil });
       return;
     }
 
