@@ -7,9 +7,7 @@ const router = express.Router();
 
 const readyzLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 60, // limit each IP to 60 /readyz requests per windowMs
-  standardHeaders: true,
-  legacyHeaders: false,
+  max: 60, // limit each IP to 60 requests per windowMs
 });
 
 router.get('/healthz', (_req, res) => res.json({ status: 'ok' }));

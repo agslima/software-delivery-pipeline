@@ -8,12 +8,17 @@ const baseOptions = {
 
 const loginLimiter = rateLimit({
   ...baseOptions,
-  max: 100,
+  max: 20,
 });
 
 const readLimiter = rateLimit({
   ...baseOptions,
-  max: 100,
+  max: 120,
 });
 
-module.exports = { loginLimiter, readLimiter };
+const writeLimiter = rateLimit({
+  ...baseOptions,
+  max: 60,
+});
+
+module.exports = { loginLimiter, readLimiter, writeLimiter };

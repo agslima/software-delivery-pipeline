@@ -70,6 +70,20 @@ const env = cleanEnv(process.env, {
     desc: 'Database name',
     default: isTest ? 'test' : process.env.DB_NAME,
   }),
+
+  DATA_ENCRYPTION_KEY: str({
+    desc: 'Key used for field-level encryption',
+    default: isTest ? 'test-data-encryption-key' : getSecret('data_encryption_key', 'DATA_ENCRYPTION_KEY'),
+  }),
+
+  TLS_CERT_PATH: str({
+    desc: 'Optional TLS certificate path',
+    default: process.env.TLS_CERT_PATH || '',
+  }),
+  TLS_KEY_PATH: str({
+    desc: 'Optional TLS key path',
+    default: process.env.TLS_KEY_PATH || '',
+  }),
 });
 
 module.exports = env;

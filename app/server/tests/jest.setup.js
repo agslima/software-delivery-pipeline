@@ -7,6 +7,7 @@ process.env.ADMIN_PASS = 'test_password';
 process.env.JWT_SECRET = 'test_secret_key';
 process.env.LOG_LEVEL = 'silent'; 
 process.env.CORS_ORIGIN = 'http://localhost';
+process.env.DATA_ENCRYPTION_KEY = 'test-data-encryption-key';
 
 process.env.DB_HOST = 'localhost';
 process.env.DB_USER = 'test_user';

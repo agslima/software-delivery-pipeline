@@ -1,11 +1,24 @@
 const http = require('http');
+const https = require('https');
+const fs = require('fs');
 const createApp = require('./createApp');
 const env = require('../config/env');
 const logger = require('../observability/logger');
 const db = require('../infra/db/knex');
 
 const app = createApp();
-const server = http.createServer(app);
+let server;
+
+if (env.TLS_CERT_PATH && env.TLS_KEY_PATH) {
+  const tlsOptions = {
+    cert: fs.readFileSync(env.TLS_CERT_PATH),
+    key: fs.readFileSync(env.TLS_KEY_PATH),
+  };
+  server = https.createServer(tlsOptions, app);
+  logger.info({ tls: true }, 'TLS enabled for API server');
+} else {
+  server = http.createServer(app);
+}
 
 server.listen(env.PORT, '0.0.0.0', () => {
   logger.info({ port: env.PORT, env: env.NODE_ENV }, 'Server started');

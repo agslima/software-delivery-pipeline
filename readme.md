@@ -214,6 +214,8 @@ To validate the effectiveness of the delivery control plane, a legacy applicatio
 
 ### Evidence
 
+Screenshots below are from a legacy remediation exercise; current workflows use Trivy for scanning.
+
 | Initial Vulnerability Scan | Post-Fix Clean Scan |
 | --- | --- |
 | ![image](https://github.com/agslima/secure-app-analysis/blob/main/docs/images/scan-snyk-01.png) | ![image](https://github.com/agslima/secure-app-analysis/blob/main/docs/images/scan-snyk-02.png) |

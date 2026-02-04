@@ -24,13 +24,22 @@ FROM nginxinc/nginx-unprivileged:1.29-alpine@sha256:5aea7cc516b419e3526f47dd1531
 # Patch the Runtime OS
 USER root
 
+# hadolint ignore=DL3018
 RUN apk update && apk upgrade --no-cache \
+    && apk add --no-cache openssl \
     && mkdir -p /tmp/client_body_temp \
                 /tmp/proxy_temp \
                 /tmp/fastcgi_temp \
                 /tmp/uwsgi_temp \
                 /tmp/scgi_temp \
-    && chown -R nginx:nginx /tmp \
+                /etc/nginx/certs \
+    && openssl req -x509 -nodes -newkey rsa:2048 -days 3650 \
+        -subj "/CN=localhost" \
+        -keyout /etc/nginx/certs/tls.key \
+        -out /etc/nginx/certs/tls.crt \
+    && chmod 600 /etc/nginx/certs/tls.key \
+    && chown -R nginx:nginx /tmp /etc/nginx/certs \
+    && apk del openssl \
     && chmod -R 700 /tmp/*
 
 USER nginx
@@ -44,6 +53,6 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 HEALTHCHECK --interval=30s --timeout=3s \
   CMD wget --quiet --tries=1 --spider http://localhost:8080/ || exit 1
 
-EXPOSE 8080
+EXPOSE 8080 8443
 
 CMD ["nginx", "-g", "daemon off;"]

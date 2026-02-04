@@ -19,6 +19,7 @@ services:
       dockerfile: docker/Dockerfile.client
     ports:
       - "4173:8080"
+      - "8443:8443"
     depends_on:
       backend:
         condition: service_healthy
@@ -87,6 +88,7 @@ services:
       - jwt_secret
       - admin_pass
       - db_pass
+      - data_encryption_key
       
     depends_on:
       postgres:
@@ -158,3 +160,5 @@ secrets:
     file: ${SECRETS_PATH:-./secrets}/admin_pass.txt
   jwt_secret:
     file: ${SECRETS_PATH:-./secrets}/jwt_secret.txt
+  data_encryption_key:
+    file: ${SECRETS_PATH:-./secrets}/data_encryption_key.txt
