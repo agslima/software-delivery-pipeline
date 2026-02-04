@@ -120,3 +120,15 @@ jobs:
           severity: 'HIGH,CRITICAL'
           ignore-unfixed: true
           exit-code: 1
+
+      - name: 🚨 Notify Slack on Failure
+        if: failure()
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_COLOR: '#ff0000' # Red for danger
+          SLACK_TITLE: 'Security Gate Blocked Merge'
+          SLACK_MESSAGE: 'Trivy found Critical vulnerabilities. Auto-merge has been aborted.'
+          SLACK_USERNAME: 'Security Bot'
+          SLACK_ICON: 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png'
+
