@@ -101,13 +101,21 @@ describe('Integration: Audit logging', () => {
       email: mockPatient.email,
       role: 'patient',
     });
+    const requestId = 'audit-patient-req-1';
+    const userAgent = 'jest-audit-agent';
 
     const res = await request(app)
       .get('/api/v2/patient/me/prescriptions')
-      .set('Authorization', `Bearer ${token}`);
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Request-Id', requestId)
+      .set('User-Agent', userAgent);
 
     expect(res.statusCode).toBe(200);
     expect(mockAuditEvents.some((evt) => evt.event_type === 'patient_portal_prescriptions_view')).toBe(true);
+    const event = mockAuditEvents[mockAuditEvents.length - 1];
+    expect(event.ip_address).toContain('127.0.0.1');
+    expect(event.user_agent).toBe(userAgent);
+    expect(event.metadata).toMatchObject({ requestId });
   });
 
   it('creates an audit event when patient views prescription detail', async () => {
