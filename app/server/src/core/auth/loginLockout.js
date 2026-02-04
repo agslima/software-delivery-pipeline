@@ -17,7 +17,25 @@ class LoginLockout {
     return this.store.get(key) || null;
   }
 
+  _evictStaleEntries(now) {
+    for (const [storedKey, entry] of this.store.entries()) {
+      if (entry.lockedUntil && now < entry.lockedUntil) {
+        continue;
+      }
+
+      if (entry.lockedUntil && now >= entry.lockedUntil) {
+        this.store.delete(storedKey);
+        continue;
+      }
+
+      if (now - entry.firstFailureAt > this.windowMs) {
+        this.store.delete(storedKey);
+      }
+    }
+  }
+
   isLocked(key) {
+    this._evictStaleEntries(this.now());
     const entry = this._get(key);
     if (!entry || !entry.lockedUntil) return false;
     if (this.now() < entry.lockedUntil) return true;
@@ -28,6 +46,7 @@ class LoginLockout {
   registerFailure(key) {
     if (!key) return;
     const now = this.now();
+    this._evictStaleEntries(now);
     const entry = this._get(key);
 
     if (!entry || now - entry.firstFailureAt > this.windowMs) {
