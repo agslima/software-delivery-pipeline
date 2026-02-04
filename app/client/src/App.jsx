@@ -20,7 +20,7 @@ export default function App() {
   const [prescriptions, setPrescriptions] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [prescriptionDetail, setPrescriptionDetail] = useState(null);
-  const [loadingList, setLoadingList] = useState(false);
+  const [loadingList, setLoadingList] = useState(() => Boolean(readSession()?.token));
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [portalError, setPortalError] = useState(null);
 
@@ -37,28 +37,51 @@ export default function App() {
     setPrescriptions([]);
     setSelectedId(null);
     setPrescriptionDetail(null);
+    setLoadingList(false);
+    setLoadingDetail(false);
     setPortalError(null);
   };
 
   const handleLogin = async (email, password) => {
     const result = await loginPatient(email, password);
+    setLoadingList(true);
+    setLoadingDetail(false);
+    setPortalError(null);
+    setPrescriptions([]);
+    setSelectedId(null);
+    setPrescriptionDetail(null);
     setSession(result);
+  };
+
+  const handleSelect = (id) => {
+    if (!id) {
+      setSelectedId(null);
+      setPrescriptionDetail(null);
+      setLoadingDetail(false);
+      return;
+    }
+
+    setPortalError(null);
+    setPrescriptionDetail(null);
+    setLoadingDetail(true);
+    setSelectedId(id);
   };
 
   useEffect(() => {
     if (!session?.token) return;
 
     let isActive = true;
-    setLoadingList(true);
-    setPortalError(null);
-    setPrescriptionDetail(null);
 
     getMyPrescriptions(session.token)
       .then((data) => {
         if (!isActive) return;
         const list = data.prescriptions || [];
         setPrescriptions(list);
-        setSelectedId(list[0]?.id || null);
+        if (list.length === 0) {
+          handleSelect(null);
+          return;
+        }
+        handleSelect(list[0]?.id || null);
       })
       .catch((err) => {
         if (!isActive) return;
@@ -81,9 +104,6 @@ export default function App() {
     if (!session?.token || !selectedId) return;
 
     let isActive = true;
-    setLoadingDetail(true);
-    setPortalError(null);
-    setPrescriptionDetail(null);
 
     getMyPrescription(selectedId, session.token)
       .then((data) => {
@@ -136,7 +156,7 @@ export default function App() {
       prescriptions={prescriptions}
       selectedId={selectedId}
       prescriptionDetail={prescriptionDetail}
-      onSelect={setSelectedId}
+      onSelect={handleSelect}
       onLogout={handleLogout}
       loadingList={loadingList}
       loadingDetail={loadingDetail}
