@@ -11,7 +11,9 @@ let server;
 
 if (env.TLS_CERT_PATH && env.TLS_KEY_PATH) {
   const tlsOptions = {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename
     cert: fs.readFileSync(env.TLS_CERT_PATH),
+    // eslint-disable-next-line security/detect-non-literal-fs-filename
     key: fs.readFileSync(env.TLS_KEY_PATH),
   };
   server = https.createServer(tlsOptions, app);
