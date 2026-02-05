@@ -43,6 +43,12 @@ describe('App Integration', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     sessionStorage.clear();
+    api.getMfaStatus.mockResolvedValue({ configured: false, enabled: false });
+    api.enrollMfa.mockResolvedValue({
+      secret: 'JBSWY3DPEHPK3PXP',
+      otpauthUrl: 'otpauth://totp/StayHealthy?secret=JBSWY3DPEHPK3PXP',
+      qrCodeDataUrl: 'data:image/png;base64,qr',
+    });
   });
 
   it('shows login screen initially', () => {

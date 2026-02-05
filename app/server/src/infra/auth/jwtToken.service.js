@@ -11,6 +11,15 @@ class JwtTokenService {
     });
   }
 
+  signWithOptions(payload, options = {}) {
+    return jwt.sign(payload, jwtCfg.secret, {
+      expiresIn: options.expiresIn || jwtCfg.expiresIn,
+      issuer: jwtCfg.issuer,
+      audience: jwtCfg.audience,
+      algorithm: jwtCfg.algorithms[0],
+    });
+  }
+
   verify(token) {
     return jwt.verify(token, jwtCfg.secret, {
       issuer: jwtCfg.issuer,
@@ -21,4 +30,3 @@ class JwtTokenService {
 }
 
 module.exports = new JwtTokenService();
-

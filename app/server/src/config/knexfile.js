@@ -4,7 +4,9 @@ require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 
 const readSecret = (secretName, envVar) => {
   const secretPath = `/run/secrets/${secretName}`;
+  // eslint-disable-next-line security/detect-non-literal-fs-filename
   if (fs.existsSync(secretPath)) {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename
     return fs.readFileSync(secretPath, 'utf8').trim();
   }
   return process.env[envVar];

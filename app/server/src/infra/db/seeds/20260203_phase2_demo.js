@@ -20,7 +20,7 @@ const IDS = {
 };
 
 exports.seed = async function (knex) {
-  const v2 = knex.withSchema('v2');
+  const v2 = (table) => knex.withSchema('v2').from(table);
 
   await v2('prescription_items').del();
   await v2('prescriptions').del();

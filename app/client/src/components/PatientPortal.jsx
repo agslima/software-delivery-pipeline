@@ -35,6 +35,8 @@ const statusClass = (status) => {
   }
 };
 
+import { useState } from 'react';
+
 export default function PatientPortal({
   user,
   prescriptions,
@@ -45,7 +47,18 @@ export default function PatientPortal({
   loadingList,
   loadingDetail,
   portalError,
+  mfaStatus,
+  mfaEnrollData,
+  mfaEnrollLoading,
+  mfaEnrollError,
+  onEnrollMfa,
+  mfaVerifyLoading,
+  mfaVerifyError,
+  onVerifyMfaNow,
+  mfaBanner,
+  onDisableMfa,
 }) {
+  const [mfaCode, setMfaCode] = useState('');
   return (
     <div className="portal-shell">
       <header className="portal-header">
@@ -60,6 +73,77 @@ export default function PatientPortal({
       </header>
 
       {portalError && <div className="portal-error">{portalError}</div>}
+
+      <section className="portal-card portal-card--tight">
+        <div className="portal-card__header">
+          <h2>Security</h2>
+          <span className="portal-muted">
+            {mfaStatus?.enabled ? 'MFA enabled' : mfaStatus?.configured ? 'MFA configured' : 'MFA not set'}
+          </span>
+        </div>
+        <p className="portal-muted">
+          Add an authenticator app to protect your account with a one-time code.
+        </p>
+
+        {mfaBanner && <div className="portal-banner">{mfaBanner}</div>}
+
+        {mfaEnrollError && <div className="portal-error">{mfaEnrollError}</div>}
+
+        {!mfaStatus?.configured && !mfaEnrollData && (
+          <button className="portal-button" type="button" onClick={onEnrollMfa} disabled={mfaEnrollLoading}>
+            {mfaEnrollLoading ? 'Starting enrollment...' : 'Enable MFA'}
+          </button>
+        )}
+
+        {mfaStatus?.enabled && (
+          <button className="portal-button portal-button--ghost" type="button" onClick={onDisableMfa}>
+            Disable MFA
+          </button>
+        )}
+
+        {mfaEnrollData && (
+          <div className="portal-mfa">
+            <div className="portal-mfa__qr">
+              <img src={mfaEnrollData.qrCodeDataUrl} alt="MFA QR code" />
+            </div>
+            <div className="portal-mfa__details">
+              <div className="portal-detail-label">Setup code</div>
+              <div className="portal-detail-value portal-mfa__secret">{mfaEnrollData.secret}</div>
+              <div className="portal-muted">
+                Scan the QR code or enter the setup code in your authenticator app, then verify on next login.
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!mfaStatus?.enabled && mfaStatus?.configured && (
+          <form
+            className="portal-form portal-form--mfa"
+            onSubmit={(event) => {
+              event.preventDefault();
+              onVerifyMfaNow(mfaCode);
+            }}
+          >
+            <label>
+              Verification Code
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={mfaCode}
+                onChange={(event) => setMfaCode(event.target.value)}
+                placeholder="123456"
+                required
+                disabled={mfaVerifyLoading}
+              />
+            </label>
+            {mfaVerifyError && <div className="portal-error">{mfaVerifyError}</div>}
+            <button className="portal-button" type="submit" disabled={mfaVerifyLoading}>
+              {mfaVerifyLoading ? 'Verifying...' : 'Verify now'}
+            </button>
+          </form>
+        )}
+      </section>
 
       <div className="portal-grid">
         <section className="portal-card">
