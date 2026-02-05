@@ -24,8 +24,8 @@ exports.listEvents = async (req, res, next) => {
       actorUserId: req.query.actor_user_id,
       subjectType: req.query.subject_type,
       subjectId: req.query.subject_id,
-      limit: req.query.limit,
-      offset: req.query.offset,
+      limit: req.query.limit === undefined ? undefined : Number(req.query.limit),
+      offset: req.query.offset === undefined ? undefined : Number(req.query.offset),
     });
 
     return res.json({ events: events.map(mapEvent) });
