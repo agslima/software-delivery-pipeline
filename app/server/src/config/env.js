@@ -1,6 +1,6 @@
 require('dotenv').config();
 const fs = require('fs');
-const { cleanEnv, str, port } = require('envalid');
+const { cleanEnv, str, port, num } = require('envalid');
 
 const isTest = process.env.NODE_ENV === 'test';
 
@@ -83,6 +83,19 @@ const env = cleanEnv(process.env, {
   TLS_KEY_PATH: str({
     desc: 'Optional TLS key path',
     default: process.env.TLS_KEY_PATH || '',
+  }),
+
+  LOGIN_MAX_FAILURES: num({
+    desc: 'Max failed login attempts before temporary lockout',
+    default: 5,
+  }),
+  LOGIN_LOCK_MINUTES: num({
+    desc: 'Lockout duration in minutes after too many failed attempts',
+    default: 15,
+  }),
+  LOGIN_FAILURE_WINDOW_MINUTES: num({
+    desc: 'Rolling window for failed login attempts (minutes)',
+    default: 15,
   }),
 });
 

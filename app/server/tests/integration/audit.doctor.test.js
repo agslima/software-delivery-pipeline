@@ -223,12 +223,20 @@ describe('Integration: Doctor audit logging', () => {
   });
 
   it('logs patient search results', async () => {
+    const requestId = 'audit-doctor-req-1';
+    const userAgent = 'jest-doctor-agent';
     const res = await request(app)
       .get('/api/v2/patients/search?name=John')
-      .set('Authorization', `Bearer ${doctorToken()}`);
+      .set('Authorization', `Bearer ${doctorToken()}`)
+      .set('X-Request-Id', requestId)
+      .set('User-Agent', userAgent);
 
     expect(res.statusCode).toBe(200);
     expect(hasEvent('patient_search_result')).toBe(true);
+    const event = mockAuditEvents[mockAuditEvents.length - 1];
+    expect(event.ip_address).toContain('127.0.0.1');
+    expect(event.user_agent).toBe(userAgent);
+    expect(event.metadata).toMatchObject({ requestId });
   });
 
   it('logs patient view', async () => {

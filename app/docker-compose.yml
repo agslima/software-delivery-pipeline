@@ -2,10 +2,12 @@
 #
 # Quick Start:
 #
-#   docker-compose up --build                 # Start all services
-#   docker-compose logs -f                    # View logs
-#   docker-compose down                       # Stop all services
-#   docker-compose down -v --remove-orphans   # Remove the old volume and orphans
+#   docker compose up --build                 # Start all services (Compose v2)
+#   docker compose logs -f                    # View logs
+#   docker compose down                       # Stop all services
+#   docker compose down -v --remove-orphans   # Remove the old volume and orphans
+#
+# Note: The legacy `docker-compose` v1 may crash on event logs. Use `docker compose` v2.
 #
 
 networks:
@@ -41,14 +43,7 @@ services:
       - /var/run:uid=101,gid=101,mode=0755
       - /var/cache/nginx:uid=101,gid=101,mode=0755
     
-    deploy:
-      resources:
-        limits:
-          cpus: '0.50'
-          memory: 256M
-        reservations:
-          cpus: '0.10'
-          memory: 64M
+    # Resource limits apply only in Swarm mode. Keeping out of compose to avoid warnings.
 
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health >/dev/null || exit 1"]
@@ -104,11 +99,7 @@ services:
     tmpfs:
       - /tmp:uid=1000,gid=1000,mode=1777
       
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 512M
+    # Resource limits apply only in Swarm mode. Keeping out of compose to avoid warnings.
 
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health >/dev/null || exit 1"]
@@ -135,12 +126,7 @@ services:
       - pgdata:/var/lib/postgresql/data
       - ./database/script/db-init:/docker-entrypoint-initdb.d:ro
     
-    # Resource Limits
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 512M
+    # Resource limits apply only in Swarm mode. Keeping out of compose to avoid warnings.
     
     restart: unless-stopped
     healthcheck:

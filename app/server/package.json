@@ -2,7 +2,7 @@
   "name": "secure-prescription-api",
   "version": "1.0.0",
   "engines": {
-    "node": ">=18.0.0"
+    "node": "24.13.0"
   },
   "description": "Production-ready Node.js API",
   "type": "commonjs",
@@ -21,6 +21,7 @@
   },
   "jest": {
     "testEnvironment": "node",
+    "coverageProvider": "v8",
     "testMatch": [
       "**/tests/**/*.test.js"
     ],
@@ -29,7 +30,9 @@
     ],
     "collectCoverageFrom": [
       "src/**/*.js",
-      "!src/server.js"
+      "!src/server.js",
+      "!src/infra/db/migrations/**",
+      "!src/infra/db/seeds/**"
     ]
   },
   "dependencies": {
