@@ -12,7 +12,7 @@ router.post('/login', loginLimiter, validate(loginSchema), controller.login);
 router.post('/refresh', refreshLimiter, validate(refreshSchema), controller.refresh);
 router.post('/mfa/verify', mfaLimiter, auth, validate(mfaVerifySchema), controller.verifyMfa);
 router.post('/mfa/enroll', mfaLimiter, auth, validate(mfaEnrollSchema), controller.enrollMfa);
-router.get('/mfa/status', auth, controller.mfaStatus);
+router.get('/mfa/status', mfaLimiter, auth, controller.mfaStatus);
 router.post('/mfa/disable', mfaLimiter, auth, controller.disableMfa);
 
 module.exports = router;
