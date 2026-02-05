@@ -50,7 +50,6 @@
     "pino": "^10.3.0",
     "pino-http": "^11.0.0",
     "swagger-ui-express": "^5.0.1",
-    "uuid": "^13.0.0",
     "yamljs": "^0.3.0"
   },
   "devDependencies": {
@@ -64,7 +63,7 @@
   },
   "overrides": {
     "glob": "^10.5.0",
-    "tar":"^7.5.3",
-    "diff":"^8.0.3"
+    "tar": "^7.5.3",
+    "diff": "^8.0.3"
   }
 }
