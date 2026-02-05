@@ -19,8 +19,14 @@ module.exports = function validate(schema, property = 'body') {
       );
     }
 
-    req[property] = value;
+    if (property === 'query' && req.query) {
+      Object.keys(req.query).forEach((key) => {
+        delete req.query[key];
+      });
+      Object.assign(req.query, value);
+    } else {
+      req[property] = value;
+    }
     next();
   };
 };
-
