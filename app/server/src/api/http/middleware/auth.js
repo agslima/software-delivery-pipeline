@@ -9,10 +9,13 @@ module.exports = function auth(req, _res, next) {
 
   const token = header.slice('Bearer '.length).trim();
   try {
-    req.user = tokenService.verify(token);
+    const payload = tokenService.verify(token);
+    if (payload?.mfa) {
+      return next(new AppError({ status: 401, code: 'UNAUTHORIZED', message: 'Unauthorized' }));
+    }
+    req.user = payload;
     return next();
   } catch {
     return next(new AppError({ status: 401, code: 'INVALID_TOKEN', message: 'Invalid token' }));
   }
 };
-
