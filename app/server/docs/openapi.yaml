@@ -69,11 +69,81 @@ components:
       properties:
         accessToken:
           type: string
+        refreshToken:
+          type: string
         tokenType:
           type: string
           example: Bearer
         user:
           $ref: '#/components/schemas/UserSummary'
+        mfaRequired:
+          type: boolean
+        mfaToken:
+          type: string
+    RefreshRequestV2:
+      type: object
+      required:
+        - refreshToken
+      properties:
+        refreshToken:
+          type: string
+    RefreshResponseV2:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        tokenType:
+          type: string
+          example: Bearer
+    MfaVerifyRequestV2:
+      type: object
+      required:
+        - code
+      properties:
+        code:
+          type: string
+          example: "123456"
+    MfaVerifyResponseV2:
+      type: object
+      properties:
+        verified:
+          type: boolean
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        tokenType:
+          type: string
+          example: Bearer
+    MfaEnrollRequestV2:
+      type: object
+      properties:
+        label:
+          type: string
+          example: StayHealthy
+    MfaEnrollResponseV2:
+      type: object
+      properties:
+        secret:
+          type: string
+        otpauthUrl:
+          type: string
+        qrCodeDataUrl:
+          type: string
+    MfaStatusResponseV2:
+      type: object
+      properties:
+        configured:
+          type: boolean
+        enabled:
+          type: boolean
+    MfaDisableResponseV2:
+      type: object
+      properties:
+        disabled:
+          type: boolean
     AuditEvent:
       type: object
       properties:
@@ -383,6 +453,104 @@ paths:
                 $ref: '#/components/schemas/LoginResponseV2'
         401:
           description: Invalid credentials
+
+  /api/v2/auth/refresh:
+    post:
+      summary: Refresh access token (v2)
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequestV2'
+      responses:
+        200:
+          description: Successful refresh
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshResponseV2'
+        401:
+          description: Invalid refresh token
+
+  /api/v2/auth/mfa/verify:
+    post:
+      summary: Verify MFA code (v2)
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MfaVerifyRequestV2'
+      responses:
+        200:
+          description: MFA verified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MfaVerifyResponseV2'
+        400:
+          description: Invalid MFA code
+        401:
+          description: Unauthorized
+
+  /api/v2/auth/mfa/enroll:
+    post:
+      summary: Enroll MFA and return secret + QR (v2)
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MfaEnrollRequestV2'
+      responses:
+        200:
+          description: MFA enrollment payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MfaEnrollResponseV2'
+        401:
+          description: Unauthorized
+
+  /api/v2/auth/mfa/status:
+    get:
+      summary: Get MFA enrollment status (v2)
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: MFA status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MfaStatusResponseV2'
+        401:
+          description: Unauthorized
+
+  /api/v2/auth/mfa/disable:
+    post:
+      summary: Disable MFA and clear secret (v2)
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: MFA disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MfaDisableResponseV2'
+        401:
+          description: Unauthorized
 
   /api/v2/doctors/me:
     get:

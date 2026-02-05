@@ -1,12 +1,24 @@
-# To-do APP Refactor
+# Phase 2 To-Do (app/)
 
-## STEP 1
+## Current Status
 
-Checklist:
+- ✅ Schema & migrations (normalized `v2` tables)
+- ✅ Doctor APIs
+- ✅ Patient portal APIs/UI
+- ✅ Audit logging (doctor + patient)
+- ✅ Hardening (TLS, rate limits, field encryption, cache headers, HSTS)
+- ✅ Auth upgrades: refresh tokens + MFA (enroll, verify, status, enforced login)
+- ✅ Update client login flow to handle `mfaRequired` and MFA verify UI
 
-- [ ] Run migrations and seeds: cd app/server && npm run db:migrate && npm run db:seed
-- [ ] If using Docker, cd app && docker-compose up --build then re-run migrations/seeds inside the backend container if needed.
+## Remaining To Finish Phase 2
 
-- [ ] Demo data: cd app/server && npm run db:seed
-- [ ] Start the stack (Docker or Node)
-- [ ] Log in with john.smith@stayhealthy.test / DemoPass123!
+- [ ] Run migrations and seeds (inside container, since runtime image has no `npm`):
+  - `docker compose exec backend node ./node_modules/knex/bin/cli.js migrate:latest --knexfile src/config/knexfile.js`
+  - `docker compose exec backend node ./node_modules/knex/bin/cli.js seed:run --knexfile src/config/knexfile.js`
+- [ ] Verify Phase 2 demo flows end-to-end:
+  - Doctor: login → MFA (if enabled) → patient search → summary → encounter → create prescription
+  - Patient: login → list prescriptions → view detail
+
+## Ops Notes
+
+- Use **Compose v2** commands: `docker compose ...` (v1 `docker-compose` may crash on logs).

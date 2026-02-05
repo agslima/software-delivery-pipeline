@@ -155,6 +155,26 @@ body {
   box-shadow: none;
 }
 
+.portal-link {
+  margin-top: 16px;
+  background: none;
+  border: none;
+  color: var(--ink);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.portal-banner {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(12, 124, 140, 0.12);
+  color: var(--ink);
+  font-weight: 600;
+}
+
 .portal-inline {
   display: inline-flex;
   align-items: center;
@@ -176,6 +196,44 @@ body {
   display: grid;
   grid-template-columns: 1fr 1.6fr;
   gap: 24px;
+}
+
+.portal-card--tight {
+  padding: 18px 22px;
+}
+
+.portal-mfa {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 20px;
+  margin-top: 16px;
+  align-items: start;
+}
+
+.portal-form--mfa {
+  margin-top: 16px;
+}
+
+.portal-mfa__qr img {
+  width: 140px;
+  height: 140px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: white;
+  padding: 8px;
+}
+
+.portal-mfa__secret {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+  margin: 6px 0 10px;
+}
+
+@media (max-width: 900px) {
+  .portal-mfa {
+    grid-template-columns: 1fr;
+  }
 }
 
 .portal-list {

@@ -97,6 +97,15 @@ const env = cleanEnv(process.env, {
     desc: 'Rolling window for failed login attempts (minutes)',
     default: 15,
   }),
+
+  REFRESH_TOKEN_TTL_DAYS: num({
+    desc: 'Refresh token time-to-live in days',
+    default: 7,
+  }),
+  MFA_TOKEN_TTL_MINUTES: num({
+    desc: 'MFA token time-to-live in minutes',
+    default: 5,
+  }),
 });
 
 module.exports = env;

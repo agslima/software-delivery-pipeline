@@ -1,5 +1,13 @@
 import { useEffect, useState } from 'react';
-import { loginPatient, getMyPrescription, getMyPrescriptions } from './api/patientPortalApi';
+import {
+  loginPatient,
+  verifyMfa,
+  getMyPrescription,
+  getMyPrescriptions,
+  getMfaStatus,
+  enrollMfa,
+  disableMfa,
+} from './api/patientPortalApi';
 import PatientLogin from './components/PatientLogin';
 import PatientPortal from './components/PatientPortal';
 import './styles/Portal.css';
@@ -23,6 +31,14 @@ export default function App() {
   const [loadingList, setLoadingList] = useState(() => Boolean(readSession()?.token));
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [portalError, setPortalError] = useState(null);
+  const [mfaChallenge, setMfaChallenge] = useState(null);
+  const [mfaStatus, setMfaStatus] = useState(null);
+  const [mfaEnrollData, setMfaEnrollData] = useState(null);
+  const [mfaEnrollLoading, setMfaEnrollLoading] = useState(false);
+  const [mfaEnrollError, setMfaEnrollError] = useState(null);
+  const [mfaVerifyLoading, setMfaVerifyLoading] = useState(false);
+  const [mfaVerifyError, setMfaVerifyError] = useState(null);
+  const [mfaBanner, setMfaBanner] = useState(null);
 
   useEffect(() => {
     if (session) {
@@ -40,10 +56,26 @@ export default function App() {
     setLoadingList(false);
     setLoadingDetail(false);
     setPortalError(null);
+    setMfaChallenge(null);
+    setMfaStatus(null);
+    setMfaEnrollData(null);
+    setMfaEnrollLoading(false);
+    setMfaEnrollError(null);
+    setMfaVerifyLoading(false);
+    setMfaVerifyError(null);
+    setMfaBanner(null);
   };
 
   const handleLogin = async (email, password) => {
     const result = await loginPatient(email, password);
+    if (result?.mfaRequired) {
+      setMfaChallenge({
+        mfaToken: result.mfaToken,
+        user: result.user,
+        email,
+      });
+      throw new Error('MFA_REQUIRED');
+    }
     setLoadingList(true);
     setLoadingDetail(false);
     setPortalError(null);
@@ -51,6 +83,25 @@ export default function App() {
     setSelectedId(null);
     setPrescriptionDetail(null);
     setSession(result);
+  };
+
+  const handleVerifyMfa = async (code) => {
+    if (!mfaChallenge?.mfaToken) {
+      throw new Error('SERVER_ERROR');
+    }
+    const result = await verifyMfa(code, mfaChallenge.mfaToken);
+    setMfaChallenge(null);
+    setLoadingList(true);
+    setLoadingDetail(false);
+    setPortalError(null);
+    setPrescriptions([]);
+    setSelectedId(null);
+    setPrescriptionDetail(null);
+    setSession({ token: result.token, user: mfaChallenge.user });
+  };
+
+  const handleCancelMfa = () => {
+    setMfaChallenge(null);
   };
 
   const handleSelect = (id) => {
@@ -101,6 +152,26 @@ export default function App() {
   }, [session?.token]);
 
   useEffect(() => {
+    if (!session?.token) return;
+    let isActive = true;
+
+    getMfaStatus(session.token)
+      .then((data) => {
+        if (isActive) setMfaStatus(data);
+      })
+      .catch((err) => {
+        if (!isActive) return;
+        if (err.message === 'SESSION_EXPIRED') {
+          handleLogout();
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [session?.token]);
+
+  useEffect(() => {
     if (!session?.token || !selectedId) return;
 
     let isActive = true;
@@ -130,8 +201,78 @@ export default function App() {
     };
   }, [selectedId, session?.token]);
 
+  const handleEnrollMfa = async () => {
+    if (!session?.token) return;
+    setMfaEnrollLoading(true);
+    setMfaEnrollError(null);
+    setMfaBanner(null);
+    try {
+      const result = await enrollMfa(session.token, session.user?.email || 'StayHealthy');
+      setMfaEnrollData(result);
+      setMfaStatus({ configured: true, enabled: false });
+    } catch (err) {
+      if (err.message === 'SESSION_EXPIRED') {
+        handleLogout();
+        return;
+      }
+      setMfaEnrollError('Unable to start MFA enrollment.');
+    } finally {
+      setMfaEnrollLoading(false);
+    }
+  };
+
+  const handleVerifyMfaNow = async (code) => {
+    if (!session?.token) return;
+    setMfaVerifyLoading(true);
+    setMfaVerifyError(null);
+    setMfaBanner(null);
+    try {
+      const result = await verifyMfa(code, session.token);
+      setSession({ token: result.token, user: session.user });
+      setMfaStatus({ configured: true, enabled: true });
+      setMfaEnrollData(null);
+      setMfaBanner('Multi-factor authentication enabled.');
+    } catch (err) {
+      if (err.message === 'INVALID_MFA_CODE') {
+        setMfaVerifyError('Invalid verification code.');
+      } else if (err.message === 'SESSION_EXPIRED') {
+        handleLogout();
+      } else {
+        setMfaVerifyError('Unable to verify MFA code.');
+      }
+    } finally {
+      setMfaVerifyLoading(false);
+    }
+  };
+
+  const handleDisableMfa = async () => {
+    if (!session?.token) return;
+    setMfaEnrollError(null);
+    setMfaVerifyError(null);
+    setMfaBanner(null);
+    try {
+      await disableMfa(session.token);
+      setMfaStatus({ configured: false, enabled: false });
+      setMfaEnrollData(null);
+      setMfaBanner('Multi-factor authentication disabled.');
+    } catch (err) {
+      if (err.message === 'SESSION_EXPIRED') {
+        handleLogout();
+        return;
+      }
+      setMfaEnrollError('Unable to disable MFA.');
+    }
+  };
+
   if (!session?.token) {
-    return <PatientLogin onLogin={handleLogin} />;
+    return (
+      <PatientLogin
+        onLogin={handleLogin}
+        onVerifyMfa={handleVerifyMfa}
+        mfaChallenge={mfaChallenge}
+        onCancelMfa={handleCancelMfa}
+      />
+    );
   }
 
   if (session.user?.role !== 'patient') {
@@ -161,6 +302,16 @@ export default function App() {
       loadingList={loadingList}
       loadingDetail={loadingDetail}
       portalError={portalError}
+      mfaStatus={mfaStatus}
+      mfaEnrollData={mfaEnrollData}
+      mfaEnrollLoading={mfaEnrollLoading}
+      mfaEnrollError={mfaEnrollError}
+      onEnrollMfa={handleEnrollMfa}
+      mfaVerifyLoading={mfaVerifyLoading}
+      mfaVerifyError={mfaVerifyError}
+      onVerifyMfaNow={handleVerifyMfaNow}
+      mfaBanner={mfaBanner}
+      onDisableMfa={handleDisableMfa}
     />
   );
 }
