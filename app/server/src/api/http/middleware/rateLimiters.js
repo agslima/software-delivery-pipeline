@@ -21,4 +21,14 @@ const writeLimiter = rateLimit({
   max: 60,
 });
 
-module.exports = { loginLimiter, readLimiter, writeLimiter };
+const refreshLimiter = rateLimit({
+  ...baseOptions,
+  max: 30,
+});
+
+const mfaLimiter = rateLimit({
+  ...baseOptions,
+  max: 30,
+});
+
+module.exports = { loginLimiter, readLimiter, writeLimiter, refreshLimiter, mfaLimiter };

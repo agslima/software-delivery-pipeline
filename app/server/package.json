@@ -28,6 +28,9 @@
     "setupFiles": [
       "<rootDir>/tests/jest.setup.js"
     ],
+    "moduleNameMapper": {
+      "^qrcode$": "<rootDir>/tests/__mocks__/qrcode.js"
+    },
     "collectCoverageFrom": [
       "src/**/*.js",
       "!src/server.js",
@@ -49,6 +52,7 @@
     "pg": "^8.16.3",
     "pino": "^10.2.0",
     "pino-http": "^11.0.0",
+    "qrcode": "^1.5.4",
     "swagger-ui-express": "^5.0.1",
     "uuid": "^9.0.1",
     "yamljs": "^0.3.0"

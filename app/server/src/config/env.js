@@ -7,7 +7,9 @@ const isTest = process.env.NODE_ENV === 'test';
 const getSecret = (secretName, envVarName) => {
   try {
     const secretPath = `/run/secrets/${secretName}`;
+    // eslint-disable-next-line security/detect-non-literal-fs-filename
     if (fs.existsSync(secretPath)) {
+      // eslint-disable-next-line security/detect-non-literal-fs-filename
       return fs.readFileSync(secretPath, 'utf8').trim();
     }
   } catch {
@@ -96,6 +98,15 @@ const env = cleanEnv(process.env, {
   LOGIN_FAILURE_WINDOW_MINUTES: num({
     desc: 'Rolling window for failed login attempts (minutes)',
     default: 15,
+  }),
+
+  REFRESH_TOKEN_TTL_DAYS: num({
+    desc: 'Refresh token time-to-live in days',
+    default: 7,
+  }),
+  MFA_TOKEN_TTL_MINUTES: num({
+    desc: 'MFA token time-to-live in minutes',
+    default: 5,
   }),
 });
 

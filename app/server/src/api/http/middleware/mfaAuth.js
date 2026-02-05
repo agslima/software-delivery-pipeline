@@ -1,7 +1,7 @@
 const { AppError } = require('../errors/AppError');
 const tokenService = require('../../../infra/auth/jwtToken.service');
 
-module.exports = function auth(req, _res, next) {
+module.exports = function mfaAuth(req, _res, next) {
   const header = req.header('authorization');
   if (!header || !header.startsWith('Bearer ')) {
     return next(new AppError({ status: 401, code: 'UNAUTHORIZED', message: 'Unauthorized' }));
@@ -10,7 +10,7 @@ module.exports = function auth(req, _res, next) {
   const token = header.slice('Bearer '.length).trim();
   try {
     const payload = tokenService.verify(token);
-    if (payload?.mfa) {
+    if (!payload || !payload.mfa) {
       return next(new AppError({ status: 401, code: 'UNAUTHORIZED', message: 'Unauthorized' }));
     }
     req.user = payload;

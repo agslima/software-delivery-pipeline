@@ -5,4 +5,16 @@ const loginSchema = Joi.object({
   password: Joi.string().min(8).max(128).required(),
 });
 
-module.exports = { loginSchema };
+const refreshSchema = Joi.object({
+  refreshToken: Joi.string().min(32).required(),
+});
+
+const mfaVerifySchema = Joi.object({
+  code: Joi.string().pattern(/^\d{6}$/).required(),
+});
+
+const mfaEnrollSchema = Joi.object({
+  label: Joi.string().max(128).optional(),
+});
+
+module.exports = { loginSchema, refreshSchema, mfaVerifySchema, mfaEnrollSchema };
