@@ -7,7 +7,9 @@ const isTest = process.env.NODE_ENV === 'test';
 const getSecret = (secretName, envVarName) => {
   try {
     const secretPath = `/run/secrets/${secretName}`;
+    // eslint-disable-next-line security/detect-non-literal-fs-filename
     if (fs.existsSync(secretPath)) {
+      // eslint-disable-next-line security/detect-non-literal-fs-filename
       return fs.readFileSync(secretPath, 'utf8').trim();
     }
   } catch {
