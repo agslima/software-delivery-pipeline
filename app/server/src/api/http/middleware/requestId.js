@@ -6,7 +6,6 @@ const generateRequestId = () => {
   }
 
   // Fallback for older runtimes that lack randomUUID.
-  // eslint-disable-next-line global-require
   const { v4: uuid } = require('uuid');
   return uuid();
 };
