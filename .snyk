@@ -1,0 +1,10 @@
+# Snyk (https://snyk.io) policy file, patches or ignores known vulnerabilities.
+# Ignore documentation: https://docs.snyk.io/developer-tools/snyk-cli/commands/ignore
+version: v1.19.0
+# ignores vulnerabilities until expiry date; change duration by modifying expiry date
+ignore:
+  SNYK-CC-K8S-1:
+    - 'k8s/test/*':
+        reason: 'Test environment does not require root restrictions'
+        expires: '2026-05-01T00:00:00.000Z'
+        
