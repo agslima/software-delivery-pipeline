@@ -1,30 +1,6 @@
 
-Something went wrong. Please try again.
-
-backend-1   | {"level":50,"time":1770400741234,"err":{"type":"TypeError","message":"this.db.withSchema(...) is not a function","stack":"TypeError: this.db.withSchema(...) is not a function\n    at UsersRepository.findByEmail (/app/src/infra/users/users.repository.js:8:36)\n    at PasswordAuthService.login (/app/src/core/auth/passwordAuth.service.js:21:45)\n    at exports.login (/app/src/api/v2/auth/auth.controller.js:37:35)\n    at Layer.handleRequest (/app/node_modules/router/lib/layer.js:152:17)\n    at next (/app/node_modules/router/lib/route.js:157:13)\n    at /app/src/api/http/middleware/validate.js:30:5\n    at Layer.handleRequest (/app/node_modules/router/lib/layer.js:152:17)\n    at next (/app/node_modules/router/lib/route.js:157:13)\n    at /app/node_modules/express-rate-limit/dist/index.cjs:942:7\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)"},"requestId":"bead196385c9455b8f8c91d02ca2d19a","method":"POST","path":"/api/v2/auth/login","status":500,"code":"INTERNAL","msg":"Internal Server Error"}
-frontend-1  | 172.18.0.1 - - [06/Feb/2026:17:59:01 +0000] "POST /api/v2/auth/login HTTP/1.1" 500 110 "https://scaling-space-giggle-vpw79xrw6xv26x9v-4173.app.github.dev/" "Mozilla/5.0 (X11; Linux x86_64; rv:147.0) Gecko/20100101 Firefox/147.0" "131.0.191.240" rt=0.018 uct="0.001" uht="0.019" urt="0.019"
-backend-1   | {"level":30,"time":1770400741236,"req":{"id":"bead196385c9455b8f8c91d02ca2d19a","method":"POST","url":"/api/v2/auth/login","query":{},"params":{},"headers":{"host":"localhost","x-real-ip":"172.18.0.1","x-forwarded-for":"131.0.191.240, 172.18.0.1","x-forwarded-proto":"http","content-length":"65","accept":"*/*","user-agent":"Mozilla/5.0 (X11; Linux x86_64; rv:147.0) Gecko/20100101 Firefox/147.0","accept-encoding":"gzip, deflate, br, zstd","accept-language":"en-US, pt-BR; q=0.9, en; q=0.8","origin":"https://localhost:4173","referer":"https://scaling-space-giggle-vpw79xrw6xv26x9v-4173.app.github.dev/","x-request-id":"bead196385c9455b8f8c91d02ca2d19a","x-forwarded-port":"443","x-forwarded-scheme":"https","x-original-uri":"/api/v2/auth/login","x-scheme":"https","sec-fetch-dest":"empty","sec-fetch-mode":"cors","sec-fetch-site":"same-origin","priority":"u=0","x-forwarded-host":"scaling-space-giggle-vpw79xrw6xv26x9v-4173.app.github.dev","proxy-connection":"Keep-Alive","content-type":"application/json"},"remoteAddress":"172.18.0.4","remotePort":46654},"requestId":"bead196385c9455b8f8c91d02ca2d19a","statusCode":200,"requestId":"bead196385c9455b8f8c91d02ca2d19a","statusCode":500,"res":{"statusCode":500,"headers":{"content-security-policy":"default-src 'self';script-src 'self';style-src 'self';font-src 'self';img-src 'self' data:;base-uri 'self';form-action 'self';frame-ancestors 'self';object-src 'none';script-src-attr 'none';upgrade-insecure-requests","cross-origin-opener-policy":"same-origin","cross-origin-resource-policy":"same-origin","origin-agent-cluster":"?1","referrer-policy":"no-referrer","strict-transport-security":"max-age=15552000; includeSubDomains; preload","x-content-type-options":"nosniff","x-dns-prefetch-control":"off","x-download-options":"noopen","x-frame-options":"SAMEORIGIN","x-permitted-cross-domain-policies":"none","x-xss-protection":"0","access-control-allow-origin":"https://localhost:4173","vary":"Origin","x-request-id":"bead196385c9455b8f8c91d02ca2d19a","cache-control":"no-store","pragma":"no-cache","ratelimit-policy":"20;w=900","ratelimit-limit":"20","ratelimit-remaining":"19","ratelimit-reset":"900","content-type":"application/json; charset=utf-8","content-length":"110"}},"err":{"type":"Error","message":"failed with status code 500","stack":"Error: failed with status code 500\n    at onResFinished (/app/node_modules/pino-http/logger.js:115:39)\n    at ServerResponse.onResponseComplete (/app/node_modules/pino-http/logger.js:178:14)\n    at ServerResponse.emit (node:events:520:22)\n    at onFinish (node:_http_outgoing:1026:10)\n    at callback (node:internal/streams/writable:764:21)\n    at afterWrite (node:internal/streams/writable:708:5)\n    at afterWriteTick (node:internal/streams/writable:694:10)\n    at process.processTicksAndRejections (node:internal/process/task_queues:89:21)"},"responseTime":9,"msg":"request errored"}
-backend-1   | {"level":30,"time":1770400749737,"req":{"id":"cf78eae1-53a0-4579-91e2-9dbcfb5336a8","method":"GET","url":"/health","query":{},"params":{},"headers":{"host":"127.0.0.1:8080","user-agent":"Wget","accept":"*/*","connection":"close"},"remoteAddress":"127.0.0.1","remotePort":37568},"requestId":"cf78eae1-53a0-4579-91e2-9dbcfb5336a8","statusCode":200,"res":{"statusCode":200,"headers":{"content-security-policy":"default-src 'self';script-src 'self';style-src 'self';font-src 'self';img-src 'self' data:;base-uri 'self';form-action 'self';frame-ancestors 'self';object-src 'none';script-src-attr 'none';upgrade-insecure-requests","cross-origin-opener-policy":"same-origin","cross-origin-resource-policy":"same-origin","origin-agent-cluster":"?1","referrer-policy":"no-referrer","strict-transport-security":"max-age=15552000; includeSubDomains; preload","x-content-type-options":"nosniff","x-dns-prefetch-control":"off","x-download-options":"noopen","x-frame-options":"SAMEORIGIN","x-permitted-cross-domain-policies":"none","x-xss-protection":"0","vary":"Origin","x-request-id":"cf78eae1-53a0-4579-91e2-9dbcfb5336a8","content-type":"application/json; charset=utf-8","content-length":"37"}},"responseTime":1,"msg":"request completed"}
-
-curl -s -X POST http://scaling-space-giggle-vpw79xrw6xv26x9v-8080.app.github.dev/api/v2/auth/login \
+curl -s -X POST https://scaling-space-giggle-vpw79xrw6xv26x9v-8080.app.github.dev/api/v2/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"dr.emily@stayhealthy.test","password":"DemoPass123!"}'
-<html>
-<head><title>308 Permanent Redirect</title></head>
-<body>
-<center><h1>308 Permanent Redirect</h1></center>
-<hr><center>nginx</center>
-</body>
-</html>
 
-curl -s http://scaling-space-giggle-vpw79xrw6xv26x9v-8080.app.github.dev/api/v2/doctors/me \
-  -H "Authorization: Bearer DOCTOR_TOKEN"
-
-<html>
-<head><title>308 Permanent Redirect</title></head>
-<body>
-<center><h1>308 Permanent Redirect</h1></center>
-<hr><center>nginx</center>
-</body>
-</html>
 
