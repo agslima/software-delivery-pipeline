@@ -1,11 +1,13 @@
 
 Something went wrong. Please try again.
 
-backend-1   | {"level":50,"time":1770397486376,"err":{"type":"Error","message":"Not allowed by CORS","stack":"Error: Not allowed by CORS\n    at origin (/app/src/config/cors.js:13:21)\n    at /app/node_modules/cors/lib/index.js:219:13\n    at optionsCallback (/app/node_modules/cors/lib/index.js:199:9)\n    at corsMiddleware (/app/node_modules/cors/lib/index.js:204:7)\n    at Layer.handleRequest (/app/node_modules/router/lib/layer.js:152:17)\n    at trimPrefix (/app/node_modules/router/index.js:342:13)\n    at /app/node_modules/router/index.js:297:9\n    at processParams (/app/node_modules/router/index.js:582:12)\n    at next (/app/node_modules/router/index.js:291:5)\n    at internalNext (/app/node_modules/helmet/index.cjs:531:6)"},"method":"POST","path":"/api/v2/auth/login","status":500,"code":"INTERNAL","msg":"Internal Server Error"}
-frontend-1  | 172.18.0.1 - - [06/Feb/2026:17:04:46 +0000] "POST /api/v2/auth/login HTTP/1.1" 500 63 "https://scaling-space-giggle-vpw79xrw6xv26x9v-4173.app.github.dev/" "Mozilla/5.0 (X11; Linux x86_64; rv:147.0) Gecko/20100101 Firefox/147.0" "131.0.191.240" rt=0.002 uct="0.000" uht="0.002" urt="0.002"
+backend-1   | {"level":50,"time":1770399514396,"err":{"type":"AppError","message":"Invalid request","stack":"AppError: Invalid request\n    at /app/src/api/http/middleware/validate.js:13:9\n    at Layer.handleRequest (/app/node_modules/router/lib/layer.js:152:17)\n    at next (/app/node_modules/router/lib/route.js:157:13)\n    at /app/node_modules/express-rate-limit/dist/index.cjs:942:7\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async /app/node_modules/express-rate-limit/dist/index.cjs:825:5","name":"AppError","status":400,"code":"VALIDATION_ERROR","details":[{"message":"\"email\" must be a valid email","path":["email"]}]},"requestId":"c8fe12bb9b12b50456b47bb392558c87","method":"POST","path":"/api/v2/auth/login","status":400,"code":"VALIDATION_ERROR","msg":"Invalid request"}
 
-
-curl -s -X POST http://localhost:8080/api/v2/auth/login \
+frontend-1  | 172.18.0.1 - - [06/Feb/2026:17:38:34 +0000] "POST /api/v2/auth/login HTTP/1.1" 400 187 "https://scaling-space-giggle-vpw79xrw6xv26x9v-4173.app.github.dev/" "Mozilla/5.0 (X11; Linux x86_64; rv:147.0) Gecko/20100101 Firefox/147.0" "131.0.191.240" rt=0.019 uct="0.001" uht="0.019" urt="0.019"
+backend-1   | {"level":30,"time":1770399514398,"req":{"id":"c8fe12bb9b12b50456b47bb392558c87","method":"POST","url":"/api/v2/auth/login","query":{},"params":{},"headers":{"host":"localhost","x-real-ip":"172.18.0.1","x-forwarded-for":"131.0.191.240, 172.18.0.1","x-forwarded-proto":"http","content-length":"65","accept":"*/*","user-agent":"Mozilla/5.0 (X11; Linux x86_64; rv:147.0) Gecko/20100101 Firefox/147.0","accept-encoding":"gzip, deflate, br, zstd","accept-language":"en-US, pt-BR; q=0.9, en; q=0.8","origin":"https://localhost:4173","referer":"https://scaling-space-giggle-vpw79xrw6xv26x9v-4173.app.github.dev/","x-request-id":"c8fe12bb9b12b50456b47bb392558c87","x-forwarded-port":"443","x-forwarded-scheme":"https","x-original-uri":"/api/v2/auth/login","x-scheme":"https","sec-fetch-dest":"empty","sec-fetch-mode":"cors","sec-fetch-site":"same-origin","priority":"u=0","x-forwarded-host":"scaling-space-giggle-vpw79xrw6xv26x9v-4173.app.github.dev","proxy-connection":"Keep-Alive","content-type":"application/json"},"remoteAddress":"172.18.0.4","remotePort":54866},"requestId":"c8fe12bb9b12b50456b47bb392558c87","statusCode":200,"requestId":"c8fe12bb9b12b50456b47bb392558c87","statusCode":400,"res":{"statusCode":400,"headers":{"content-security-policy":"default-src 'self';script-src 'self';style-src 'self';font-src 'self';img-src 'self' data:;base-uri 'self';form-action 'self';frame-ancestors 'self';object-src 'none';script-src-attr 'none';upgrade-insecure-requests","cross-origin-opener-policy":"same-origin","cross-origin-resource-policy":"same-origin","origin-agent-cluster":"?1","referrer-policy":"no-referrer","strict-transport-security":"max-age=15552000; includeSubDomains; preload","x-content-type-options":"nosniff","x-dns-prefetch-control":"off","x-download-options":"noopen","x-frame-options":"SAMEORIGIN","x-permitted-cross-domain-policies":"none","x-xss-protection":"0","access-control-allow-origin":"https://localhost:4173","vary":"Origin","x-request-id":"c8fe12bb9b12b50456b47bb392558c87","cache-control":"no-store","pragma":"no-cache","ratelimit-policy":"20;w=900","ratelimit-limit":"20","ratelimit-remaining":"19","ratelimit-reset":"900","content-type":"application/json; charset=utf-8","content-length":"187"}},"responseTime":10,"msg":"request completed"}
+backend-1   | {"level":30,"time":1770399523206,"req":{"id":"51b36255-9d36-4403-b833-4222a3b12894","method":"GET","url":"/health","query":{},"params":{},"headers":{"host":"127.0.0.1:8080","user-agent":"Wget","accept":"*/*","connection":"close"},"remoteAddress":"127.0.0.1","remotePort":58606},"requestId":"51b36255-9d36-4403-b833-4222a3b12894","statusCode":200,"res":{"statusCode":200,"headers":{"content-security-policy":"default-src 'self';script-src 'self';style-src 'self';font-src 'self';img-src 'self' data:;base-uri 'self';form-action 'self';frame-ancestors 'self';object-src 'none';script-src-attr 'none';upgrade-insecure-requests","cross-origin-opener-policy":"same-origin","cross-origin-resource-policy":"same-origin","origin-agent-cluster":"?1","referrer-policy":"no-referrer","strict-transport-security":"max-age=15552000; includeSubDomains; preload","x-content-type-options":"nosniff","x-dns-prefetch-control":"off","x-download-options":"noopen","x-frame-options":"SAMEORIGIN","x-permitted-cross-domain-policies":"none","x-xss-protection":"0","vary":"Origin","x-request-id":"51b36255-9d36-4403-b833-4222a3b12894","content-type":"application/json; charset=utf-8","content-length":"36"}},"responseTime":0,"msg":"request completed"}
+backend-1   | {"level":30,"time":1770399533250,"req":{"id":"1317db5d-482a-4600-ae5b-f8fc1b2a4222","method":"GET","url":"/health","query":{},"params":{},"headers":{"host":"127.0.0.1:8080","user-agent":"Wget","accept":"*/*","connection":"close"},"remoteAddress":"127.0.0.1","remotePort":50092},"requestId":"1317db5d-482a-4600-ae5b-f8fc1b2a4222","statusCode":200,"res":{"statusCode":200,"headers":{"content-security-policy":"default-src 'self';script-src 'self';style-src 'self';font-src 'self';img-src 'self' data:;base-uri 'self';form-action 'self';frame-ancestors 'self';object-src 'none';script-src-attr 'none';upgrade-insecure-requests","cross-origin-opener-policy":"same-origin","cross-origin-resource-policy":"same-origin","origin-agent-cluster":"?1","referrer-policy":"no-referrer","strict-transport-security":"max-age=15552000; includeSubDomains; preload","x-content-type-options":"nosniff","x-dns-prefetch-control":"off","x-download-options":"noopen","x-frame-options":"SAMEORIGIN","x-permitted-cross-domain-policies":"none","x-xss-protection":"0","vary":"Origin","x-request-id":"1317db5d-482a-4600-ae5b-f8fc1b2a4222","content-type":"application/json; charset=utf-8","content-length":"36"}},"responseTime":0,"msg":"request completed"}
+curl -s -X POST http://scaling-space-giggle-vpw79xrw6xv26x9v-8080.app.github.dev/api/v2/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"dr.emily@stayhealthy.test","password":"DemoPass123!"}'
 
@@ -15,6 +17,7 @@ curl -s -X POST http://localhost:8080/api/v2/auth/login \
 <center><h1>308 Permanent Redirect</h1></center>
 <hr><center>nginx</center>
 </body>
+</html>
 
 curl -s http://scaling-space-giggle-vpw79xrw6xv26x9v-8080.app.github.dev/api/v2/doctors/me \
   -H "Authorization: Bearer DOCTOR_TOKEN"
@@ -27,45 +30,3 @@ curl -s http://scaling-space-giggle-vpw79xrw6xv26x9v-8080.app.github.dev/api/v2/
 </body>
 </html>
 
-curl -s "http://localhost:8080/api/v2/patients/search?name=John" \
-  -H "Authorization: Bearer DOCTOR_TOKEN"
-<html>
-<head><title>308 Permanent Redirect</title></head>
-<body>
-<center><h1>308 Permanent Redirect</h1></center>
-<hr><center>nginx</center>
-</body>
-</html>
-
-curl -s http://localhost:8080/api/v2/patients/00000000-0000-4000-8000-000000000030/summary \
-  -H "Authorization: Bearer DOCTOR_TOKEN"
-
-<html>
-<head><title>308 Permanent Redirect</title></head>
-<body>
-<center><h1>308 Permanent Redirect</h1></center>
-<hr><center>nginx</center>
-</body>
-</html>
-
-curl -s -X POST http://localhost:8080/api/v2/encounters \
-  -H "Authorization: Bearer DOCTOR_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"patientId":"00000000-0000-4000-8000-000000000030"}'
-
-<html>
-<head><title>308 Permanent Redirect</title></head>
-<body>
-<center><h1>308 Permanent Redirect</h1></center>
-<hr><center>nginx</center>
-</body>
-</html>
-
-curl -s -X POST http://localhost:8080/api/v2/prescriptions \
-  -H "Authorization: Bearer DOCTOR_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "patientId":"00000000-0000-4000-8000-000000000030",
-    "items":[{"medicationId":"00000000-0000-4000-8000-000000000060","dose":"500mg","route":"oral","frequency":"TID","duration":"10 days","quantity":"30 capsules","instructions":"Take with meals."}],
-    "notes":"Follow up in 2 weeks"
-  }'
