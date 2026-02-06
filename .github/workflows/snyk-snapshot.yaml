@@ -35,7 +35,6 @@ jobs:
         continue-on-error: true 
         run: |
           snyk iac test --report \
-          --ignore-policy \
           --target-reference="${{ github.ref_name }}" \
           --remote-repo-url="${{ github.repository }}" 
           
