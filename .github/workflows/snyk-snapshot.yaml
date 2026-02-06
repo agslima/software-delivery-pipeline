@@ -1,3 +1,5 @@
+# Snyk CLI documentation: https://docs.snyk.io/developer-tools/snyk-cli
+
 name: Snyk Weekly Snapshot
 on:
   workflow_dispatch:
