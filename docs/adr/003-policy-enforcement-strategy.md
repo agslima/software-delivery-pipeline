@@ -249,20 +249,3 @@ Simple errors (e.g., mutable tags) could reach production pipelines
 
 Reduces developer experience and delivery speed
 
-
-
----
-
-Summary
-
-This project deliberately separates policy validation from policy enforcement:
-
-CI enforces correctness
-
-Cluster enforces trust
-
-
-This mirrors real-world secure delivery architectures and ensures that the system remains both practical and credible.
-
-
-

@@ -244,20 +244,3 @@ High blast radius
 Poor auditability
 
 Inconsistent application
-
-
-
----
-
-Summary
-
-This decision acknowledges that perfect enforcement is not always compatible with real-world operations.
-
-By implementing a controlled, auditable, and explicit break-glass mechanism, the project balances:
-
-Security
-
-Reliability
-
-Human judgment
-

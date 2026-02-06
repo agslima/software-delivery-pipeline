@@ -332,24 +332,3 @@ Scanners are not enforcement mechanisms
 
 Incidents may not be CVE-based
 
-
-
----
-
-Summary
-
-This decision ensures that the system can:
-
-Respond to supply-chain incidents
-
-Revoke previously trusted artifacts
-
-Contain damage rapidly
-
-Maintain auditable, policy-driven control
-
-
-Trust is not permanent—it is conditional and revocable.
-
-
-

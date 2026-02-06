@@ -19,9 +19,9 @@ Modern software supply chains are exposed to multiple classes of risk, including
 
 To mitigate these risks, the project requires:
 
-* 1. **Cryptographic assurance** that a container image was built by a trusted CI workflow
-* 2. **Machine-verifiable security evidence** (vulnerability and DAST results)
-* 3. **Policy-based enforcement** at deployment time
+1. **Cryptographic assurance** that a container image was built by a trusted CI workflow
+2. **Machine-verifiable security evidence** (vulnerability and DAST results)
+3. **Policy-based enforcement** at deployment time
 
 Several tooling combinations were evaluated, including Docker Content Trust / Notary v1/v2, custom PKI-based signing, and external admission controllers.
 
@@ -36,10 +36,10 @@ The project adopts a **Sigstore-based supply chain security model**, using:
 
 Images are:
 
-* 1. Built and pushed by GitHub Actions
-* 2. **Signed keylessly** using OIDC identity (GitHub Actions → Fulcio)
-* 3. **Attested** with structured security metadata (Trivy, OWASP ZAP)
-* 4. **Verified at admission time** in the Kubernetes cluster via Kyverno ClusterPolicies
+1. Built and pushed by GitHub Actions
+2. **Signed keylessly** using OIDC identity (GitHub Actions → Fulcio)
+3. **Attested** with structured security metadata (Trivy, OWASP ZAP)
+4. **Verified at admission time** in the Kubernetes cluster via Kyverno ClusterPolicies
 
 ---
 
@@ -79,157 +79,78 @@ Kyverno enables enforcement of:
 
 All enforcement logic lives alongside Kubernetes manifests, reinforcing policy-as-code.
 
-
 ---
 
 ## Attestation Model
 
-The pipeline produces and enforces multiple attestations:
-
-Trivy Vulnerability Attestation
-
-Predicate Type: https://security.sigstore.dev/attestations/vuln/trivy/v1
-
-Captures:
-
-Scan result (PASS/FAIL)
-
-Vulnerability counts by severity
-
-Scanner name and version
-
-
-
-OWASP ZAP DAST Attestation
-
-Predicate Type: https://security.sigstore.dev/attestations/dast/zap/v1
-
-Captures:
-
-Dynamic security testing results
-
-High-risk findings threshold enforcement
-
-
-
-Kyverno policies evaluate these attestations declaratively before allowing deployment.
+- The pipeline produces and enforces multiple attestations:
+  - Trivy Vulnerability Attestation
+    - Predicate Type: https://security.sigstore.dev/attestations/vuln/trivy/v1
+    - Captures:
+      - Scan result (PASS/FAIL)
+      - Vulnerability counts by severity
+      - Scanner name and version
+  - OWASP ZAP DAST Attestation
+    - Predicate Type: https://security.sigstore.dev/attestations/dast/zap/v1
+    - Captures:
+      - Dynamic security testing results
+      - High-risk findings threshold enforcement
+  - Kyverno policies evaluate these attestations declaratively before allowing deployment.
 
 
 ---
 
-CI vs Cluster Responsibility Split
+## CI vs Cluster Responsibility Split
 
 This strategy intentionally separates responsibilities:
+- CI Responsibilities
+  - Build and push images
+  - Generate SBOMs and security scans
+  - Sign images and attach attestations
+  - Perform best-effort verification (cosign CLI checks)
 
-CI Responsibilities
-
-Build and push images
-
-Generate SBOMs and security scans
-
-Sign images and attach attestations
-
-Perform best-effort verification (cosign CLI checks)
-
-
-Cluster Responsibilities
-
-Enforce trust policies
-
-Verify cryptographic signatures
-
-Validate security attestations
-
-Reject non-compliant workloads
-
-
-This ensures defense in depth: CI can fail fast, but the cluster is the final authority.
+- Cluster Responsibilities
+  - Enforce trust policies
+  - Verify cryptographic signatures
+  - Validate security attestations
+  - Reject non-compliant workloads
+  - This ensures defense in depth: CI can fail fast, but the cluster is the final authority.
 
 
 ---
 
-Consequences
+## Consequences
 
-Positive
+### Positive
 
-Strong provenance guarantees without key management overhead
+- Strong provenance guarantees without key management overhead
+- Immutable, auditable promotion path from build to deploy
+- Policy-driven security enforcement independent of CI correctness
+- Alignment with SLSA Level 2+ principles
 
-Immutable, auditable promotion path from build to deploy
+### Negative / Trade-offs
 
-Policy-driven security enforcement independent of CI correctness
+- Requires container registry access to fetch signatures and attestations
+- Admission-time verification introduces slight latency
+- Kyverno CLI cannot fully validate verifyImages in CI (expected limitation)
 
-Alignment with SLSA Level 2+ principles
-
-
-Negative / Trade-offs
-
-Requires container registry access to fetch signatures and attestations
-
-Admission-time verification introduces slight latency
-
-Kyverno CLI cannot fully validate verifyImages in CI (expected limitation)
-
-
-These trade-offs are acceptable given the project's goal as a governed supply chain reference implementation.
-
+> These trade-offs are acceptable given the project's goal as a governed supply chain reference implementation.
 
 ---
 
-Future Considerations
+## Future Considerations
 
 In a production-grade environment, this strategy could be extended with:
 
-Pull-based GitOps enforcement (ArgoCD + Kyverno)
-
-SBOM attestation verification
-
-Time-based or environment-based policy strictness
-
-Multi-tenant trust domains per repository or team
-
-
+- Pull-based GitOps enforcement (ArgoCD + Kyverno)
+- SBOM attestation verification
+- Time-based or environment-based policy strictness
+- Multi-tenant trust domains per repository or team
 
 ---
 
-References
+## References
 
-Sigstore Project (Cosign, Fulcio, Rekor)
-
-Kyverno verifyImages documentation
-
-SLSA Supply Chain Levels
-
-ADR 002 has been created and structured to be consistent with ADR 001, technically rigorous, and portfolio-ready.
-
-What this ADR does well
-
-Clearly explains why Cosign + Kyverno (not just what you used)
-
-Demonstrates supply-chain security maturity (OIDC identity, attestations, policy-as-code)
-
-Explicitly documents CI vs Cluster responsibilities (this is a senior-level touch)
-
-Acknowledges Kyverno CLI limitations without undermining the design
-
-Aligns with SLSA concepts without overclaiming
-
-
-How to reference it
-
-In your docs/decisions.md, you can now link it like this:
-
-- ADR 001 – CI-Driven (Push-Based) GitOps Strategy
-- ADR 002 – Image Signing & Attestation Strategy (Cosign + Kyverno)
-
-Optional next ADRs (recommended)
-
-If you want to go even more “staff/principal-grade”, the next natural ADRs would be:
-
-ADR 003 – Policy Enforcement Strategy (CI vs Admission Control)
-
-ADR 004 – Vulnerability Management Thresholds & Risk Acceptance
-
-ADR 005 – Namespace-Based Security Domains (prod vs non-prod)
-
-
-
+- Sigstore Project (Cosign, Fulcio, Rekor)
+- Kyverno verifyImages documentation
+- SLSA Supply Chain Levels
