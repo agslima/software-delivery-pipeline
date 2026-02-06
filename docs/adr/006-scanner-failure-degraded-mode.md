@@ -1,4 +1,4 @@
-Architecture Decision Record (ADR)
+# Architecture Decision Record (ADR)
 
 ADR 006: Scanner Failure & Degraded Mode Strategy
 
@@ -280,38 +280,3 @@ High blast radius
 Hard to scope
 
 Encourages policy drift
-
-
-
----
-
-Summary
-
-This decision formalizes a Degraded Mode that:
-
-Preserves security guarantees
-
-Prevents brittle pipelines
-
-Forces explicit risk decisions
-
-Reflects real-world operational maturity
-
-
-Scanner failures are treated as signals requiring judgment, not as excuses to weaken policy.
-
-
----
-
-If you want, next I can:
-
-Add a Degraded Mode Flow Diagram to your README
-
-Update CI workflows to emit structured scanner outcomes
-
-Propose ADR 007 – Supply Chain Incident Response & Revocation
-
-Review all ADRs as a complete architecture narrative for interviews
-
-
-Just tell me how deep you want to go.
