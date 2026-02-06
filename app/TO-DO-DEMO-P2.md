@@ -45,6 +45,12 @@ Use these demo IDs (from v2 seed):
 curl -s -X POST http://localhost:8080/api/v2/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"dr.emily@stayhealthy.test","password":"DemoPass123!"}'
+
+  curl -s -X POST https://scaling-space-giggle-vpw79xrw6xv26x9v-8080.app.github.dev/api/v2/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"dr.emily@stayhealthy.test","password":"DemoPass123!"}'
+
+  
 ```
 
 Copy `accessToken` as `DOCTOR_TOKEN`.
