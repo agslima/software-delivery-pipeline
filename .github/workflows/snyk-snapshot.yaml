@@ -23,6 +23,7 @@ jobs:
         run: |
           snyk monitor --all-projects \
           --exclude=test,vendor \
+          --target-reference="${{ github.ref_name }}" \
           --project-name-prefix="${{ github.repository }}/" \
           --remote-repo-url="${{ github.repository }}"
 
@@ -43,7 +44,7 @@ jobs:
         run: |
           snyk code test --all-projects \
           --report \
-          --project-name-prefix="${{ github.repository }}/" \
+          --project-name="${{ github.repository }}/" \
           --target-reference="${{ github.ref_name }}" \
           --remote-repo-url="${{ github.repository }}" 
           
