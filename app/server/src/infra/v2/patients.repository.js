@@ -2,11 +2,11 @@ const db = require('../db/knex');
 
 class PatientsRepository {
   async findById(id) {
-    return db.withSchema('v2')('patients').where({ id }).first();
+    return db.withSchema('v2').from('patients').where({ id }).first();
   }
 
   async findByUserId(userId) {
-    return db.withSchema('v2')('patients').where({ user_id: userId }).first();
+    return db.withSchema('v2').from('patients').where({ user_id: userId }).first();
   }
 
   async searchForDoctor({ doctorId, name, dob, patientId, limit = 25, status = 'open' }) {

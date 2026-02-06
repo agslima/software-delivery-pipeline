@@ -2,12 +2,12 @@ const db = require('../db/knex');
 
 class EncountersRepository {
   async findById(id) {
-    return db.withSchema('v2')('encounters').where({ id }).first();
+    return db.withSchema('v2').from('encounters').where({ id }).first();
   }
 
   async findByDoctorPatient({ doctorId, patientId, status }) {
     return db
-      .withSchema('v2')('encounters')
+      .withSchema('v2').from('encounters')
       .where({ doctor_id: doctorId, patient_id: patientId })
       .modify((qb) => {
         if (status) qb.andWhere('status', status);
@@ -18,7 +18,7 @@ class EncountersRepository {
 
   async existsForDoctorPatient({ doctorId, patientId, status }) {
     const row = await db
-      .withSchema('v2')('encounters')
+      .withSchema('v2').from('encounters')
       .where({ doctor_id: doctorId, patient_id: patientId })
       .modify((qb) => {
         if (status) qb.andWhere('status', status);
@@ -29,12 +29,12 @@ class EncountersRepository {
   }
 
   async create(encounter) {
-    await db.withSchema('v2')('encounters').insert(encounter);
+    await db.withSchema('v2').from('encounters').insert(encounter);
     return this.findById(encounter.id);
   }
 
   async update(id, updates) {
-    await db.withSchema('v2')('encounters').where({ id }).update(updates);
+    await db.withSchema('v2').from('encounters').where({ id }).update(updates);
     return this.findById(id);
   }
 }

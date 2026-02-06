@@ -129,7 +129,7 @@ class PrescriptionsRepository {
       const prescriptionId = randomUUID();
       const now = issuedAt || new Date();
 
-      await trx.withSchema('v2')('prescriptions').insert({
+      await trx.withSchema('v2').from('prescriptions').insert({
         id: prescriptionId,
         patient_id: patientId,
         doctor_id: doctorId,
@@ -152,7 +152,7 @@ class PrescriptionsRepository {
         instructions: item.instructions ? encrypt(item.instructions) : null,
       }));
 
-      await trx.withSchema('v2')('prescription_items').insert(itemRows);
+      await trx.withSchema('v2').from('prescription_items').insert(itemRows);
 
       return this.findById(prescriptionId, { trx });
     });
@@ -163,7 +163,7 @@ class PrescriptionsRepository {
     if (payload.notes) {
       payload.notes = encrypt(payload.notes);
     }
-    await db.withSchema('v2')('prescriptions').where({ id }).update(payload);
+    await db.withSchema('v2').from('prescriptions').where({ id }).update(payload);
     return this.findById(id);
   }
 }

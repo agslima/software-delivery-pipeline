@@ -2,12 +2,12 @@ const db = require('../db/knex');
 
 class AuditRepository {
   async create(event) {
-    await db.withSchema('v2')('audit_events').insert(event);
+    await db.withSchema('v2').from('audit_events').insert(event);
   }
 
   async list({ eventType, actorUserId, subjectType, subjectId, limit = 50, offset = 0 }) {
     const query = db
-      .withSchema('v2')('audit_events')
+      .withSchema('v2').from('audit_events')
       .select(
         'id',
         'actor_user_id',
