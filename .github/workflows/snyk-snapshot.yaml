@@ -45,7 +45,6 @@ jobs:
         run: |
           snyk code test --all-projects \
           --report \
-          --target-name="Code Analysis" \
           --project-name="${{ github.repository }}/" \
           --target-reference="${{ github.ref_name }}" \
           --remote-repo-url="${{ github.repository }}" 
