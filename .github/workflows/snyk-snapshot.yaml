@@ -32,6 +32,7 @@ jobs:
         continue-on-error: true 
         run: |
           snyk iac test --report \
+          --exclude=test,vendor \
           --target-reference="${{ github.ref_name }}" \
           --remote-repo-url="${{ github.repository }}" 
           
@@ -39,4 +40,7 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         continue-on-error: true
-        run: snyk code test --all-projects
+        run: |
+          snyk code test --all-projects \
+            --remote-repo-url="${{ github.repository }}"
+          
