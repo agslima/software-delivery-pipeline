@@ -58,28 +58,28 @@ Copy `accessToken` as `DOCTOR_TOKEN`.
 **2.2 Get doctor profile**
 
 ```bash
-curl -s http://localhost:8080/api/v2/doctors/me \
+curl -s https://scaling-space-giggle-vpw79xrw6xv26x9v-8080.app.github.dev/api/v2/doctors/me \
   -H "Authorization: Bearer DOCTOR_TOKEN"
 ```
 
 **2.3 Patient search**
 
 ```bash
-curl -s "http://localhost:8080/api/v2/patients/search?name=John" \
+curl -s "http://scaling-space-giggle-vpw79xrw6xv26x9v-8080.app.github.dev/api/v2/patients/search?name=John" \
   -H "Authorization: Bearer DOCTOR_TOKEN"
 ```
 
 **2.4 Patient summary**
 
 ```bash
-curl -s http://localhost:8080/api/v2/patients/00000000-0000-4000-8000-000000000030/summary \
+curl -s http://scaling-space-giggle-vpw79xrw6xv26x9v-8080.app.github.dev/api/v2/patients/00000000-0000-4000-8000-000000000030/summary \
   -H "Authorization: Bearer DOCTOR_TOKEN"
 ```
 
 **2.5 Create encounter**
 
 ```bash
-curl -s -X POST http://localhost:8080/api/v2/encounters \
+curl -s -X POST http://scaling-space-giggle-vpw79xrw6xv26x9v-8080.app.github.dev/api/v2/encounters \
   -H "Authorization: Bearer DOCTOR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"patientId":"00000000-0000-4000-8000-000000000030"}'
@@ -90,7 +90,7 @@ Capture the returned `id` for later.
 **2.6 Create prescription**
 
 ```bash
-curl -s -X POST http://localhost:8080/api/v2/prescriptions \
+curl -s -X POST http://scaling-space-giggle-vpw79xrw6xv26x9v-8080.app.github.dev/api/v2/prescriptions \
   -H "Authorization: Bearer DOCTOR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -103,7 +103,7 @@ curl -s -X POST http://localhost:8080/api/v2/prescriptions \
 **2.7 Update prescription**
 
 ```bash
-curl -s -X PATCH http://localhost:8080/api/v2/prescriptions/00000000-0000-4000-8000-000000000050 \
+curl -s -X PATCH http://scaling-space-giggle-vpw79xrw6xv26x9v-8080.app.github.dev/api/v2/prescriptions/00000000-0000-4000-8000-000000000050 \
   -H "Authorization: Bearer DOCTOR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"status":"completed"}'
@@ -116,7 +116,7 @@ curl -s -X PATCH http://localhost:8080/api/v2/prescriptions/00000000-0000-4000-8
 Login as admin:
 
 ```bash
-curl -s -X POST http://localhost:8080/api/v2/auth/login \
+curl -s -X POST http://scaling-space-giggle-vpw79xrw6xv26x9v-8080.app.github.dev/api/v2/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"admin@stayhealthy.test","password":"DemoPass123!"}'
 ```
