@@ -13,8 +13,8 @@ class PatientsRepository {
     const query = db
       .withSchema('v2')
       .select('p.*')
-      .from({ p: 'patients' })
-      .join({ e: 'encounters' }, 'p.id', 'e.patient_id')
+      .from('patients as p')
+      .join('encounters as e', 'p.id', 'e.patient_id')
       .where('e.doctor_id', doctorId)
       .modify((qb) => {
         if (status) qb.andWhere('e.status', status);

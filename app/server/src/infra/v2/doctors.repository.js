@@ -17,8 +17,8 @@ class DoctorsRepository {
         'u.role as user_role',
         'u.mfa_enabled'
       )
-      .from({ d: 'doctors' })
-      .join({ u: 'users' }, 'd.user_id', 'u.id')
+      .from('doctors as d')
+      .join('users as u', 'd.user_id', 'u.id')
       .where('d.id', id)
       .first();
   }
@@ -39,8 +39,8 @@ class DoctorsRepository {
         'u.role as user_role',
         'u.mfa_enabled'
       )
-      .from({ d: 'doctors' })
-      .join({ u: 'users' }, 'd.user_id', 'u.id')
+      .from('doctors as d')
+      .join('users as u', 'd.user_id', 'u.id')
       .where('u.id', userId)
       .first();
   }
