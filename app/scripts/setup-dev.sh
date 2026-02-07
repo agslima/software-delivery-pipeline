@@ -82,6 +82,19 @@ DB_NAME=prescriptions_db
 # Admin Config
 ADMIN_USER=admin
 
+# Access Tokens
+ACCESS_TOKEN_TTL_MINUTES=15
+
+# OIDC (Optional)
+OIDC_ENABLED=false
+OIDC_REQUIRED=false
+OIDC_ISSUER=
+OIDC_AUDIENCE=
+OIDC_JWKS_URI=
+OIDC_EMAIL_CLAIM=email
+OIDC_ROLE_CLAIM=roles
+OIDC_CLOCK_TOLERANCE_SECONDS=5
+
 # NOTE: Passwords and Secrets are loaded from ./secrets/ directory
 # by docker-compose.yml automatically.
 EOF

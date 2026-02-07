@@ -27,6 +27,10 @@ class JwtTokenService {
       algorithms: jwtCfg.algorithms,
     });
   }
+
+  decode(token) {
+    return jwt.decode(token);
+  }
 }
 
 module.exports = new JwtTokenService();
