@@ -167,12 +167,12 @@ PORT=8080
 LOG_LEVEL=info
 
 DB_USER=app_user
-DB_PASS=secure_db_password
+DB_PASS=****
 DB_NAME=prescriptions_db
 
-JWT_SECRET=change_this_value
+JWT_SECRET=****
 ADMIN_USER=admin
-ADMIN_PASS=SuperSecurePassword123!
+ADMIN_PASS=****
 CORS_ORIGIN=http://localhost:4173
 ```
 
