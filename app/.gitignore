@@ -26,3 +26,8 @@ INSTRUCTION.md
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# local-dev
+.docker-compose.yml.swp
+TO-DO-DEMO-P2.md
+logs

@@ -37,9 +37,9 @@ class PrescriptionsRepository {
         'd.first_name as doctor_first_name',
         'd.last_name as doctor_last_name'
       )
-      .from({ p: 'prescriptions' })
-      .join({ pa: 'patients' }, 'p.patient_id', 'pa.id')
-      .join({ d: 'doctors' }, 'p.doctor_id', 'd.id')
+      .from('prescriptions as p')
+      .join('patients as pa', 'p.patient_id', 'pa.id')
+      .join('doctors as d', 'p.doctor_id', 'd.id')
       .where('p.id', id)
       .first();
 
@@ -64,8 +64,8 @@ class PrescriptionsRepository {
         'm.form as medication_form',
         'm.strength as medication_strength'
       )
-      .from({ pi: 'prescription_items' })
-      .join({ m: 'medications_catalog' }, 'pi.medication_id', 'm.id')
+      .from('prescription_items as pi')
+      .join('medications_catalog as m', 'pi.medication_id', 'm.id')
       .where('pi.prescription_id', id)
       .orderBy('pi.created_at', 'asc');
 
@@ -100,8 +100,8 @@ class PrescriptionsRepository {
         'd.first_name as doctor_first_name',
         'd.last_name as doctor_last_name'
       )
-      .from({ p: 'prescriptions' })
-      .join({ d: 'doctors' }, 'p.doctor_id', 'd.id')
+      .from('prescriptions as p')
+      .join('doctors as d', 'p.doctor_id', 'd.id')
       .where('p.patient_id', patientId)
       .orderBy('p.issued_at', 'desc');
 
@@ -129,7 +129,7 @@ class PrescriptionsRepository {
       const prescriptionId = randomUUID();
       const now = issuedAt || new Date();
 
-      await trx.withSchema('v2')('prescriptions').insert({
+      await trx.withSchema('v2').from('prescriptions').insert({
         id: prescriptionId,
         patient_id: patientId,
         doctor_id: doctorId,
@@ -152,7 +152,7 @@ class PrescriptionsRepository {
         instructions: item.instructions ? encrypt(item.instructions) : null,
       }));
 
-      await trx.withSchema('v2')('prescription_items').insert(itemRows);
+      await trx.withSchema('v2').from('prescription_items').insert(itemRows);
 
       return this.findById(prescriptionId, { trx });
     });
@@ -163,7 +163,7 @@ class PrescriptionsRepository {
     if (payload.notes) {
       payload.notes = encrypt(payload.notes);
     }
-    await db.withSchema('v2')('prescriptions').where({ id }).update(payload);
+    await db.withSchema('v2').from('prescriptions').where({ id }).update(payload);
     return this.findById(id);
   }
 }

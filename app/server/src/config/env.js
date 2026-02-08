@@ -1,6 +1,6 @@
 require('dotenv').config();
 const fs = require('fs');
-const { cleanEnv, str, port, num } = require('envalid');
+const { cleanEnv, str, port, num, bool } = require('envalid');
 
 const isTest = process.env.NODE_ENV === 'test';
 
@@ -48,6 +48,43 @@ const env = cleanEnv(process.env, {
   JWT_AUDIENCE: str({
     desc: 'JWT audience',
     default: process.env.JWT_AUDIENCE || 'prescription-api',
+  }),
+  ACCESS_TOKEN_TTL_MINUTES: num({
+    desc: 'Access token time-to-live in minutes',
+    default: 15,
+  }),
+
+  OIDC_ENABLED: bool({
+    desc: 'Enable OIDC token validation',
+    default: false,
+  }),
+  OIDC_REQUIRED: bool({
+    desc: 'Require OIDC tokens for API access',
+    default: false,
+  }),
+  OIDC_ISSUER: str({
+    desc: 'OIDC issuer',
+    default: process.env.OIDC_ISSUER || '',
+  }),
+  OIDC_AUDIENCE: str({
+    desc: 'OIDC audience (client ID or API audience)',
+    default: process.env.OIDC_AUDIENCE || '',
+  }),
+  OIDC_JWKS_URI: str({
+    desc: 'OIDC JWKS URI',
+    default: process.env.OIDC_JWKS_URI || '',
+  }),
+  OIDC_EMAIL_CLAIM: str({
+    desc: 'OIDC claim name for email',
+    default: process.env.OIDC_EMAIL_CLAIM || 'email',
+  }),
+  OIDC_ROLE_CLAIM: str({
+    desc: 'OIDC claim name for roles',
+    default: process.env.OIDC_ROLE_CLAIM || 'roles',
+  }),
+  OIDC_CLOCK_TOLERANCE_SECONDS: num({
+    desc: 'OIDC clock tolerance in seconds',
+    default: 5,
   }),
 
   ADMIN_USER: str({

@@ -68,6 +68,15 @@ services:
       PORT: "8080"
       LOG_LEVEL: info
       CORS_ORIGIN: "http://frontend:8080,http://localhost:4173"
+      ACCESS_TOKEN_TTL_MINUTES: ${ACCESS_TOKEN_TTL_MINUTES:-15}
+      OIDC_ENABLED: ${OIDC_ENABLED:-false}
+      OIDC_REQUIRED: ${OIDC_REQUIRED:-false}
+      OIDC_ISSUER: ${OIDC_ISSUER:-}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE:-}
+      OIDC_JWKS_URI: ${OIDC_JWKS_URI:-}
+      OIDC_EMAIL_CLAIM: ${OIDC_EMAIL_CLAIM:-email}
+      OIDC_ROLE_CLAIM: ${OIDC_ROLE_CLAIM:-roles}
+      OIDC_CLOCK_TOLERANCE_SECONDS: ${OIDC_CLOCK_TOLERANCE_SECONDS:-5}
       
       # Secrets
       ADMIN_USER: ${ADMIN_USER}

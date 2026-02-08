@@ -1,3 +1,13 @@
+
+#  This quick setup includes a PostgreSQL database and the backend server. 
+#  The frontend is excluded for faster startup
+#  
+# Quick Start:
+#
+#  docker compose -f docker-compose.quick.yml up
+#  docker compose -f docker-compose.quick.yml --profile backend up
+
+
 services:
   postgres:
     image: postgres:15-alpine

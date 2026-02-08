@@ -19,7 +19,7 @@ class RefreshTokensRepository {
 
   findByTokenHash(tokenHash) {
     if (!tokenHash) return null;
-    return this.db.withSchema('v2')('refresh_tokens').where({ token_hash: tokenHash }).first();
+    return this.db.withSchema('v2').from('refresh_tokens').where({ token_hash: tokenHash }).first();
   }
 
   revoke(id, revokedAt = new Date()) {
