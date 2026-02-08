@@ -28,7 +28,7 @@ components:
           example: admin
         password:
           type: string
-          example: SuperSecurePassword@157!
+          example: "****"
     
     LoginResponse:
       type: object
