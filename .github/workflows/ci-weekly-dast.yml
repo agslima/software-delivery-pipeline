@@ -55,11 +55,16 @@ jobs:
       # Optional: Turn on gate by specific ZAP rule IDs (pluginid)
       BLOCK_MEDIUM_PLUGINIDS: "" # Example: "40018,40012"; empty use regex patterns only.
 
-      LOGIN_URL: http://127.0.0.1:8080/api/v1/auth/login
+      # App auth (Phase 2 / patient portal)
+      # Defaults align with seeded demo users; override via repo vars/secrets.
+      ZAP_LOGIN_EMAIL: ${{ vars.ZAP_LOGIN_EMAIL || 'john.smith@stayhealthy.test' }}
+      ZAP_LOGIN_PASSWORD: ${{ secrets.ZAP_LOGIN_PASSWORD || 'DemoPass123!' }}
+
+      LOGIN_URL: http://127.0.0.1:8080/api/v2/auth/login
 
       # Optional: a protected endpoint to validate auth coverage
       # If don't have one, create a simple authenticated "ping/me" route.
-      AUTH_VERIFY_URL: http://127.0.0.1:8080/api/v1/me
+      AUTH_VERIFY_URL: http://127.0.0.1:8080/api/v2/auth/mfa/status
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -150,17 +155,29 @@ jobs:
         run: |
           set -euo pipefail
 
-          ADMIN_USER="${{ vars.ADMIN_USER }}"
-          ADMIN_PASS_FILE="${SECRETS_PATH}/admin_pass.txt"
-          test -s "$ADMIN_PASS_FILE" || (echo "::error::Missing admin_pass secret file"; exit 1)
-          ADMIN_PASS="$(cat "$ADMIN_PASS_FILE")"
+          LOGIN_EMAIL="${{ env.ZAP_LOGIN_EMAIL }}"
+          LOGIN_PASSWORD="${{ env.ZAP_LOGIN_PASSWORD }}"
+
+          if [ -z "$LOGIN_EMAIL" ] || [ -z "$LOGIN_PASSWORD" ]; then
+            echo "::error::Missing ZAP login credentials. Set vars.ZAP_LOGIN_EMAIL and secrets.ZAP_LOGIN_PASSWORD (or use seeded demo defaults)."
+            exit 1
+          fi
+
+          # Mask login password in logs (even if using demo default)
+          echo "::add-mask::${LOGIN_PASSWORD}"
 
           echo "Logging in at: ${{ env.LOGIN_URL }} (token will be masked)"
           RESP="$(curl -fsS -X POST "${{ env.LOGIN_URL }}" \
             -H "Content-Type: application/json" \
-            --data "{\"username\":\"${ADMIN_USER}\",\"password\":\"${ADMIN_PASS}\"}")"
+            --data "{\"email\":\"${LOGIN_EMAIL}\",\"password\":\"${LOGIN_PASSWORD}\"}")"
 
-          TOKEN="$(echo "$RESP" | jq -r '.token // empty' || true)"
+          MFA_REQUIRED="$(echo "$RESP" | jq -r '.mfaRequired // false' || true)"
+          if [ "$MFA_REQUIRED" = "true" ]; then
+            echo "::error::MFA is enabled for this user. Use a non-MFA account for DAST (seeded demo users have MFA disabled)."
+            exit 1
+          fi
+
+          TOKEN="$(echo "$RESP" | jq -r '.accessToken // .token // empty' || true)"
           if [ -z "$TOKEN" ]; then
             echo "::error::Could not acquire JWT. Response: $RESP"
             exit 1
