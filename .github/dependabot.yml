@@ -1,0 +1,66 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    labels:
+      - "ci"
+      - "dependencies"
+
+  # 2. Backend Dependencies
+  # Looks for package.json in the backend folder
+  - package-ecosystem: "npm"
+    directory: "/app/server"
+    schedule:
+      interval: "weekly"
+    groups:
+      npm-dependencies:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "fix"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "nodejs"
+      - "backend"
+
+  # 3. Backend Dependencies
+  # Looks for package.json in the backend folder
+  - package-ecosystem: "npm"
+    directory: "/app/client"
+    schedule:
+      interval: "weekly"
+    groups:
+      npm-dependencies:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "fix"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "nodejs"
+      - "frontend"
+
+  # 4. Docker Base Image
+  - package-ecosystem: "docker"
+    directory: "/app/docker"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "ci"
+    labels:
+      - "backend"
+      - "docker"
+      - "frontend"
+
+  

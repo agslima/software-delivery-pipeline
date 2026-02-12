@@ -1,0 +1,68 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: break-glass-admission-controls
+  annotations:
+    policies.kyverno.io/title: Break-glass Admission Controls
+    policies.kyverno.io/category: Supply Chain Security
+    policies.kyverno.io/severity: critical
+spec:
+  validationFailureAction: Enforce
+  background: false
+  webhookTimeoutSeconds: 30
+  rules:
+    # ============================================================
+    # Break-glass: only allowed with metadata + not expired
+    # (Admission context required; request.* variables)
+    # ============================================================
+    - name: break-glass-requires-metadata
+      match:
+        any:
+          - resources:
+              kinds: ["Deployment", "Pod"]
+              namespaces: ["prod", "production"]
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.labels.\"security.break-glass\" || '' }}"
+            operator: Equals
+            value: "true"
+      validate:
+        message: >
+          Break-glass requires annotations:
+          security.break-glass/ticket, security.break-glass/approved-by,
+          security.break-glass/expires-at (RFC3339).
+        deny:
+          conditions:
+            any:
+              - key: "{{ request.object.metadata.annotations.\"security.break-glass/ticket\" || '' }}"
+                operator: Equals
+                value: ""
+              - key: "{{ request.object.metadata.annotations.\"security.break-glass/approved-by\" || '' }}"
+                operator: Equals
+                value: ""
+              - key: "{{ request.object.metadata.annotations.\"security.break-glass/expires-at\" || '' }}"
+                operator: Equals
+                value: ""
+
+    - name: break-glass-must-not-be-expired
+      match:
+        any:
+          - resources:
+              kinds: ["Deployment", "Pod"]
+              namespaces: ["prod", "production"]
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.labels.\"security.break-glass\" || '' }}"
+            operator: Equals
+            value: "true"
+          - key: "{{ request.object.metadata.annotations.\"security.break-glass/expires-at\" || '' }}"
+            operator: NotEquals
+            value: ""
+      validate:
+        message: "Break-glass expires-at must be in the future (RFC3339)."
+        deny:
+          conditions:
+            any:
+              - key: "{{ time_after(time_now_utc(), request.object.metadata.annotations.\"security.break-glass/expires-at\") }}"
+                operator: Equals
+                value: false

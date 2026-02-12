@@ -1,0 +1,54 @@
+
+#  This quick setup includes a PostgreSQL database and the backend server. 
+#  The frontend is excluded for faster startup
+#  
+# Quick Start:
+#
+#  docker compose -f docker-compose.quick.yml up
+#  docker compose -f docker-compose.quick.yml --profile backend up
+
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ${DB_USER:-app}
+      POSTGRES_PASSWORD: ${DB_PASS:?Set DB_PASS}
+      POSTGRES_DB: ${DB_NAME:-app_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata_quick:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    profiles: ["backend"]
+    image: node:24-alpine
+    working_dir: /app
+    environment:
+      NODE_ENV: development
+      PORT: "8080"
+      LOG_LEVEL: info
+      DB_HOST: postgres
+      DB_USER: ${DB_USER:-app}
+      DB_PASS: ${DB_PASS:?Set DB_PASS}
+      DB_NAME: ${DB_NAME:-app_db}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET}
+      ADMIN_USER: ${ADMIN_USER:-admin}
+      ADMIN_PASS: ${ADMIN_PASS:?Set ADMIN_PASS}
+      DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:?Set DATA_ENCRYPTION_KEY}
+    volumes:
+      - ./server:/app
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: sh -c "npm install && npm run dev"
+
+volumes:
+  pgdata_quick:

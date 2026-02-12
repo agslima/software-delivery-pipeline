@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stay Healthy</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+    <style>
+        body { font-family: 'Poppins', sans-serif; background-color: #fff; color: #333; margin: 0; padding: 40px; }
+        .header { display: flex; align-items: center; border-bottom: 2px solid #a0c4ff; padding-bottom: 20px; margin-bottom: 40px; }
+        .logo { font-size: 32px; font-weight: 700; color: #333; }
+        .logo i { color: #4dabf7; margin-left: 5px; } 
+        
+        .container { display: flex; flex-wrap: wrap; justify-content: space-between; }
+        
+        .info-section { width: 45%; margin-bottom: 30px; }
+        .info-right { text-align: right; } 
+        
+        h3 { font-size: 16px; font-weight: 600; margin-bottom: 10px; color: #000; }
+        p { margin: 5px 0; font-size: 14px; }
+        .label { font-weight: 600; }
+
+        .med-list { width: 100%; margin-top: 20px; }
+        .med-item { margin-bottom: 20px; padding-left: 20px; border-left: 3px solid #eee; }
+        .med-name { font-weight: 700; font-size: 16px; display: list-item; list-style-type: disc; }
+        .med-details { margin-left: 0px; margin-top: 5px; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        function App() {
+            const [data, setData] = React.useState(null);
+
+            React.useEffect(() => {
+                fetch('/api/prescription')
+                    .then(response => response.json())
+                    .then(json => setData(json))
+                    .catch(err => console.error("Erro ao buscar dados:", err));
+            }, []);
+
+            if (!data) return <div>Carregando prescrição...</div>;
+
+            return (
+                <div>
+                    {/* Header */}
+                    <div className="header">
+                        <div className="logo">
+                            {data.clinicName} <i className="fa-solid fa-user-doctor"></i>
+                        </div>
+                    </div>
+
+                    <div className="container">
+                        {/* Detalhes da Prescrição (Esquerda) */}
+                        <div className="info-section">
+                            <h3>Prescription Details:</h3>
+                            <p><span className="label">Doctor:</span> {data.doctor.name}</p>
+                            <p><span className="label">Medical License:</span> {data.doctor.license}</p>
+                            <p><span className="label">Phone Number:</span> {data.doctor.phone}</p>
+                            <p><span className="label">Email:</span> {data.doctor.email}</p>
+                            <p><span className="label">Date:</span> {data.date}</p>
+                        </div>
+
+                        {/* Informações do Paciente (Direita) - Alinhado à direita conforme imagem */}
+                        <div className="info-section info-right">
+                            <h3>Patient Information:</h3>
+                            <p><span className="label">Name:</span> {data.patient.name}</p>
+                            <p><span className="label">Gender:</span> {data.patient.gender}</p>
+                            <p><span className="label">Date of Birth:</span> {data.patient.dob}</p>
+                            <p><span className="label">Phone Number:</span> {data.patient.phone}</p>
+                            <p><span className="label">Email:</span> {data.patient.email}</p>
+                        </div>
+
+                        {/* Lista de Medicamentos */}
+                        <div className="med-list">
+                            <h3>Prescription:</h3>
+                            <ul>
+                                {data.medications.map((med, index) => (
+                                    <li key={index} className="med-item" style={{listStyle: 'none'}}>
+                                        <div className="med-name">{med.name}</div>
+                                        <div className="med-details">
+                                            <p><span className="label">Dosage:</span> {med.dosage}</p>
+                                            <p><span className="label">Directions:</span> {med.directions}</p>
+                                            <p><span className="label">Quantity:</span> {med.quantity}</p>
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

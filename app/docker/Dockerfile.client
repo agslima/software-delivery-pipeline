@@ -1,0 +1,70 @@
+# ==========================================
+# STAGE 1: Build the React App
+# ==========================================
+
+FROM node:25-alpine@sha256:c8d96e95e88f08f814af06415db9cfd5ab4ebcdf40721327ff2172ff25cfb997 AS builder
+
+WORKDIR /app
+
+RUN apk update && apk upgrade --no-cache
+
+COPY client/package*.json ./
+
+RUN npm ci --ignore-scripts
+
+COPY client/ ./
+RUN npm run build
+
+# ==========================================
+# STAGE 2: Runtime (Unprivileged Nginx)
+# ==========================================
+
+FROM nginxinc/nginx-unprivileged:1.29-alpine@sha256:a731ba0194833ae0f80994a4ae08988aa95fdcc88f4f991340ce160770cf2b6d
+
+ARG BUILD_DATE=unknown
+ARG VCS_REF=unknown
+ARG VERSION=unknown
+ARG SOURCE=unknown
+
+LABEL org.opencontainers.image.title="stayhealthy-frontend" \
+      org.opencontainers.image.description="StayHealthy prescription SPA" \
+      org.opencontainers.image.created=$BUILD_DATE \
+      org.opencontainers.image.revision=$VCS_REF \
+      org.opencontainers.image.version=$VERSION \
+      org.opencontainers.image.source=$SOURCE
+
+# Patch the Runtime OS
+USER root
+
+# hadolint ignore=DL3018
+RUN apk update && apk upgrade --no-cache \
+    && apk add --no-cache openssl \
+    && mkdir -p /tmp/client_body_temp \
+                /tmp/proxy_temp \
+                /tmp/fastcgi_temp \
+                /tmp/uwsgi_temp \
+                /tmp/scgi_temp \
+                /etc/nginx/certs \
+    && openssl req -x509 -nodes -newkey rsa:2048 -days 3650 \
+        -subj "/CN=localhost" \
+        -keyout /etc/nginx/certs/tls.key \
+        -out /etc/nginx/certs/tls.crt \
+    && chmod 600 /etc/nginx/certs/tls.key \
+    && chown -R nginx:nginx /tmp /etc/nginx/certs \
+    && apk del openssl \
+    && chmod -R 700 /tmp/*
+
+USER nginx
+
+# Copy config
+COPY nginx/nginx.conf /etc/nginx/nginx.conf
+
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# Healthcheck
+HEALTHCHECK --interval=30s --timeout=3s \
+  CMD wget --quiet --tries=1 --spider http://localhost:8080/ || exit 1
+
+EXPOSE 8080 8443
+
+CMD ["nginx", "-g", "daemon off;"]

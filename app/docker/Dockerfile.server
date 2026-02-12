@@ -1,0 +1,61 @@
+# ==========================================
+# STAGE 1: Dependencies (prod only)
+# ==========================================
+
+FROM node:25-alpine@sha256:c8d96e95e88f08f814af06415db9cfd5ab4ebcdf40721327ff2172ff25cfb997 AS deps
+
+WORKDIR /app
+
+# Patch OS vulnerabilities
+# hadolint ignore=DL3018
+RUN apk update && apk upgrade --no-cache
+
+COPY server/package*.json ./
+
+RUN npm ci --omit=dev --ignore-scripts
+
+# ==========================================
+# STAGE 2: Runtime
+# ==========================================
+FROM node:25-alpine@sha256:c8d96e95e88f08f814af06415db9cfd5ab4ebcdf40721327ff2172ff25cfb997 AS runtime
+
+ARG BUILD_DATE=unknown
+ARG VCS_REF=unknown
+ARG VERSION=unknown
+ARG SOURCE=unknown
+
+LABEL org.opencontainers.image.title="stayhealthy-backend" \
+      org.opencontainers.image.description="StayHealthy prescription API" \
+      org.opencontainers.image.created=$BUILD_DATE \
+      org.opencontainers.image.revision=$VCS_REF \
+      org.opencontainers.image.version=$VERSION \
+      org.opencontainers.image.source=$SOURCE
+
+WORKDIR /app
+
+# hadolint ignore=DL3018
+RUN apk update && apk upgrade --no-cache \
+    && apk add --no-cache tini
+
+# Remove NPM to reduce attack surface
+RUN npm uninstall -g npm && \
+    rm -rf /usr/local/lib/node_modules/npm
+
+ENV NODE_ENV=production
+
+# Ownership for non-root user
+COPY --from=deps --chown=node:node /app/node_modules ./node_modules
+COPY --chown=node:node server ./
+
+# Switch to non-root user (UID 1000)
+USER node
+
+
+# Add Healthcheck
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+  CMD wget -q --spider http://localhost:8080/health || exit 1
+
+EXPOSE 8080
+
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["node", "src/server.js"]

@@ -1,0 +1,173 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: enforce-governed-artifacts-verifyimages
+  annotations:
+    policies.kyverno.io/title: Enforce Governed Supply Chain (VerifyImages)
+    policies.kyverno.io/category: Supply Chain Security
+    policies.kyverno.io/severity: critical
+spec:
+  validationFailureAction: Enforce
+  background: false
+  webhookTimeoutSeconds: 30
+
+  rules:
+
+    # ============================================================
+    # Rule 1: Require keyless signature (workflow identity)
+    # ============================================================
+    - name: require-image-signature
+      match:
+        any:
+          - resources:
+              kinds: ["Pod", "Deployment"]
+              namespaces: ["prod", "production"]
+      exclude:
+        any:
+          - resources:
+              selector:
+                matchLabels:
+                  security.break-glass: "true"
+      verifyImages:
+        - imageReferences:
+            - "docker.io/agslima/app-stayheathy-backend*"
+            - "docker.io/agslima/app-stayheathy-frontend*"
+          attestors:
+            - entries:
+                - keyless:
+                    issuer: https://token.actions.githubusercontent.com
+                    subjectRegExp: >-
+                      ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/(tags/v.*|heads/.*)
+
+    # ============================================================
+    # Rule 2: Require Trivy attestation (and who issued it)
+    # ============================================================
+    - name: require-trivy-attestation
+      match:
+        any:
+          - resources:
+              kinds: ["Pod", "Deployment"]
+              namespaces: ["prod", "production"]
+      exclude:
+        any:
+          - resources:
+              selector:
+                matchLabels:
+                  security.break-glass: "true"
+      verifyImages:
+        - imageReferences:
+            - "docker.io/agslima/app-stayheathy-backend*"
+            - "docker.io/agslima/app-stayheathy-frontend*"
+          attestations:
+            - predicateType: "https://security.sigstore.dev/attestations/vuln/trivy/v1"
+              attestors:
+                - entries:
+                    - keyless:
+                        issuer: https://token.actions.githubusercontent.com
+                        subjectRegExp: >-
+                          ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/(tags/v.*|heads/.*)
+              conditions:
+                - all:
+                    - key: "{{ predicate.result || '' }}"
+                      operator: Equals
+                      value: "PASS"
+                    - key: "{{ predicate.scanner.name || '' }}"
+                      operator: Equals
+                      value: "trivy"
+
+    # ============================================================
+    # Rule 3: Require ZAP attestation
+    # ============================================================
+    - name: require-zap-attestation
+      match:
+        any:
+          - resources:
+              kinds: ["Pod", "Deployment"]
+              namespaces: ["prod", "production"]
+      exclude:
+        any:
+          - resources:
+              selector:
+                matchLabels:
+                  security.break-glass: "true"
+      verifyImages:
+        - imageReferences:
+            - "docker.io/agslima/app-stayheathy-backend*"
+            - "docker.io/agslima/app-stayheathy-frontend*"
+          attestations:
+            - predicateType: "https://security.sigstore.dev/attestations/dast/zap/v1"
+              attestors:
+                - entries:
+                    - keyless:
+                        issuer: https://token.actions.githubusercontent.com
+                        subjectRegExp: >-
+                          ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/(tags/v.*|heads/.*)
+              conditions:
+                - all:
+                    - key: "{{ predicate.result || '' }}"
+                      operator: Equals
+                      value: "PASS"
+                    - key: "{{ predicate.scanner.name || '' }}"
+                      operator: Equals
+                      value: "owasp-zap"
+
+    # ============================================================
+    # Rule 4: Require SBOM (SPDX Document)
+    # ============================================================
+    - name: require-sbom-spdx
+      match:
+        any:
+          - resources:
+              kinds: ["Pod", "Deployment"]
+              namespaces: ["prod", "production"]
+      exclude:
+        any:
+          - resources:
+              selector:
+                matchLabels:
+                  security.break-glass: "true"
+      verifyImages:
+        - imageReferences:
+            - "docker.io/agslima/app-stayheathy-backend*"
+            - "docker.io/agslima/app-stayheathy-frontend*"
+          attestations:
+            - predicateType: "https://spdx.dev/Document"
+              attestors:
+                - entries:
+                    - keyless:
+                        issuer: https://token.actions.githubusercontent.com
+                        subjectRegExp: >-
+                          ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/(tags/v.*|heads/.*)
+
+    # ============================================================
+    # Rule 5: Require SLSA provenance (GitHub attest-build-provenance)
+    # ============================================================
+    - name: require-slsa-provenance
+      match:
+        any:
+          - resources:
+              kinds: ["Pod", "Deployment"]
+              namespaces: ["prod", "production"]
+      exclude:
+        any:
+          - resources:
+              selector:
+                matchLabels:
+                  security.break-glass: "true"
+      verifyImages:
+        - imageReferences:
+            - "docker.io/agslima/app-stayheathy-backend*"
+            - "docker.io/agslima/app-stayheathy-frontend*"
+          attestations:
+            - predicateType: "https://slsa.dev/provenance/v1"
+              attestors:
+                - entries:
+                    - keyless:
+                        issuer: https://token.actions.githubusercontent.com
+                        subjectRegExp: >-
+                          ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/(tags/v.*|heads/.*)
+              conditions:
+                - all:
+                    - key: "{{ predicate.buildDefinition.buildType || '' }}"
+                      operator: NotEquals
+                      value: ""

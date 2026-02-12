@@ -1,0 +1,78 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: ci-structural-policy
+  annotations:
+    policies.kyverno.io/title: CI Structural Validation
+    policies.kyverno.io/category: CI Guardrails
+spec:
+  validationFailureAction: Enforce
+  background: false
+  rules:
+
+    # 1) Require digest-pinned images
+    - name: require-digest-pinned-images
+      match:
+        resources:
+          kinds: ["Deployment", "Pod"]
+      validate:
+        message: "Images must be pinned by digest (@sha256:...)"
+        pattern:
+          spec:
+            template:
+              spec:
+                containers:
+                  - image: "*@sha256:*"
+
+    # 2) Ban latest tag explicitly
+    - name: ban-latest-tag
+      match:
+        resources:
+          kinds: ["Deployment", "Pod"]
+      validate:
+        message: "The ':latest' tag is not allowed"
+        pattern:
+          spec:
+            template:
+              spec:
+                containers:
+                  - image: "!*:latest"
+
+    # 3) Require basic container hardening
+    - name: require-container-hardening
+      match:
+        resources:
+          kinds: ["Deployment"]
+      validate:
+        message: "Containers must be hardened (no priv esc, RO FS, drop ALL caps)"
+        pattern:
+          spec:
+            template:
+              spec:
+                containers:
+                  - securityContext:
+                      allowPrivilegeEscalation: false
+                      readOnlyRootFilesystem: true
+                      capabilities:
+                        drop:
+                          - "ALL"
+
+    # 4) Require requests/limits
+    - name: require-resources
+      match:
+        resources:
+          kinds: ["Deployment"]
+      validate:
+        message: "Resources requests/limits must be defined"
+        pattern:
+          spec:
+            template:
+              spec:
+                containers:
+                  - resources:
+                      requests:
+                        memory: "?*"
+                        cpu: "?*"
+                      limits:
+                        memory: "?*"
+                        cpu: "?*"

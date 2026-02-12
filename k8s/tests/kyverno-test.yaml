@@ -1,0 +1,18 @@
+apiVersion: kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: enforce-governed-artifacts
+policies:
+  - ../policies/ci/enforce-governed-artifacts-ci.yaml
+resources:
+  - ../resources/deployment.yaml
+values:
+  - values.yaml
+results:
+  - policy: enforce-governed-artifacts
+    rule: require-digest-pinning
+    resource: app
+    kind: Deployment
+    result: pass
+    
+

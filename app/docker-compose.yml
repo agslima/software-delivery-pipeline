@@ -1,0 +1,170 @@
+# Docker Compose Configuration
+#
+# Quick Start:
+#
+#   docker compose up --build                 # Start all services (Compose v2)
+#   docker compose logs -f                    # View logs
+#   docker compose down                       # Stop all services
+#   docker compose down -v --remove-orphans   # Remove the old volume and orphans
+#
+# Note: The legacy `docker-compose` v1 may crash on event logs. Use `docker compose` v2.
+#
+
+networks:
+  app_network:
+    driver: bridge
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.client
+    ports:
+      - "4173:8080"
+      - "8443:8443"
+    depends_on:
+      backend:
+        condition: service_healthy
+    
+    # Network Attachment
+    networks:
+      - app_network
+    
+    # Least Privilege
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    read_only: true
+
+    # Nginx Alpine UID (101)
+    tmpfs:
+      - /tmp:uid=101,gid=101,mode=1777
+      - /var/run:uid=101,gid=101,mode=0755
+      - /var/cache/nginx:uid=101,gid=101,mode=0755
+    
+    # Resource limits apply only in Swarm mode. Keeping out of compose to avoid warnings.
+
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.server
+    ports:
+      - "8080:8080"
+    
+    # Network Attachment
+    networks:
+      - app_network
+
+    environment:
+      NODE_ENV: production
+      PORT: "8080"
+      LOG_LEVEL: info
+      CORS_ORIGIN: "http://frontend:8080,http://localhost:4173"
+      ENFORCE_TLS: ${ENFORCE_TLS:-false}
+      DATA_ENCRYPTION_KEY_ID: ${DATA_ENCRYPTION_KEY_ID:-v1}
+      DATA_ENCRYPTION_KEYS: ${DATA_ENCRYPTION_KEYS:-}
+      AUDIT_SINK: ${AUDIT_SINK:-db}
+      AUDIT_PII_REDACTION: ${AUDIT_PII_REDACTION:-none}
+      METRICS_ENABLED: ${METRICS_ENABLED:-false}
+      METRICS_PATH: ${METRICS_PATH:-/metrics}
+      METRICS_AUTH_TOKEN: ${METRICS_AUTH_TOKEN:-}
+      ACCESS_TOKEN_TTL_MINUTES: ${ACCESS_TOKEN_TTL_MINUTES:-15}
+      OIDC_ENABLED: ${OIDC_ENABLED:-false}
+      OIDC_REQUIRED: ${OIDC_REQUIRED:-false}
+      OIDC_ISSUER: ${OIDC_ISSUER:-}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE:-}
+      OIDC_JWKS_URI: ${OIDC_JWKS_URI:-}
+      OIDC_EMAIL_CLAIM: ${OIDC_EMAIL_CLAIM:-email}
+      OIDC_ROLE_CLAIM: ${OIDC_ROLE_CLAIM:-roles}
+      OIDC_MFA_REQUIRED_ROLES: ${OIDC_MFA_REQUIRED_ROLES:-doctor,admin}
+      OIDC_REQUIRED_AMR: ${OIDC_REQUIRED_AMR:-mfa}
+      OIDC_REQUIRED_ACR: ${OIDC_REQUIRED_ACR:-}
+      OIDC_CLOCK_TOLERANCE_SECONDS: ${OIDC_CLOCK_TOLERANCE_SECONDS:-5}
+      
+      # Secrets
+      ADMIN_USER: ${ADMIN_USER}
+      ADMIN_PASS_FILE: /run/secrets/admin_pass
+      JWT_SECRET_FILE: /run/secrets/jwt_secret
+      
+      DB_HOST: postgres
+      DB_USER: ${DB_USER}
+      DB_NAME: ${DB_NAME}
+      DB_PASS_FILE: /run/secrets/db_pass
+
+    secrets:
+      - jwt_secret
+      - admin_pass
+      - db_pass
+      - data_encryption_key
+      
+    depends_on:
+      postgres:
+        condition: service_healthy
+    
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    read_only: true   
+    
+    # Node Alpine UID (1000)
+    tmpfs:
+      - /tmp:uid=1000,gid=1000,mode=1777
+      
+    # Resource limits apply only in Swarm mode. Keeping out of compose to avoid warnings.
+
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+
+  postgres:
+    image: postgres:15-alpine
+    
+    networks:
+      - app_network
+
+    secrets:
+      - db_pass
+
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_pass
+
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./database/script/db-init:/docker-entrypoint-initdb.d:ro
+    
+    # Resource limits apply only in Swarm mode. Keeping out of compose to avoid warnings.
+    
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  pgdata:
+
+secrets:
+  db_pass:
+    file: ${SECRETS_PATH:-./secrets}/db_pass.txt
+  admin_pass:
+    file: ${SECRETS_PATH:-./secrets}/admin_pass.txt
+  jwt_secret:
+    file: ${SECRETS_PATH:-./secrets}/jwt_secret.txt
+  data_encryption_key:
+    file: ${SECRETS_PATH:-./secrets}/data_encryption_key.txt

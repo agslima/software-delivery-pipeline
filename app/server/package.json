@@ -1,0 +1,75 @@
+{
+  "name": "secure-prescription-api",
+  "version": "1.0.0",
+  "engines": {
+    "node": "24.13.0"
+  },
+  "description": "Production-ready Node.js API",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node src/server.js",
+    "db:migrate": "knex migrate:latest --knexfile src/config/knexfile.js",
+    "db:seed": "knex seed:run --knexfile src/config/knexfile.js",
+    "test": "jest --runInBand",
+    "test:unit": "jest tests/unit",
+    "test:int": "jest tests/integration --runInBand",
+    "test:watch": "jest tests/unit --watch",
+    "coverage": "jest --coverage --coverageReporters=lcov",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "coverageProvider": "v8",
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ],
+    "setupFiles": [
+      "<rootDir>/tests/jest.setup.js"
+    ],
+    "moduleNameMapper": {
+      "^qrcode$": "<rootDir>/tests/__mocks__/qrcode.js"
+    },
+    "collectCoverageFrom": [
+      "src/**/*.js",
+      "!src/server.js",
+      "!src/infra/db/migrations/**",
+      "!src/infra/db/seeds/**"
+    ]
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.2.4",
+    "envalid": "^8.1.1",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.2.1",
+    "helmet": "^8.1.0",
+    "joi": "^18.0.2",
+    "jsonwebtoken": "^9.0.2",
+    "knex": "^3.1.0",
+    "pg": "^8.18.0",
+    "pino": "^10.3.0",
+    "pino-http": "^11.0.0",
+    "prom-client": "^15.1.3",
+    "qrcode": "^1.5.4",
+    "swagger-ui-express": "^5.0.1",
+    "uuid": "^13.0.0",
+    "yamljs": "^0.3.0"
+  },
+  "devDependencies": {
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-jest": "^29.12.2",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-security": "^3.0.1",
+    "jest": "^30.2.0",
+    "supertest": "^7.1.4"
+  },
+  "overrides": {
+    "glob": "^10.5.0",
+    "tar": "^7.5.3",
+    "diff": "^8.0.3"
+  }
+}

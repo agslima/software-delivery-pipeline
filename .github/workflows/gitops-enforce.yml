@@ -1,0 +1,373 @@
+name: GitOps Enforcement
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'Release Run ID to promote'
+        required: true
+  # workflow_run:
+  #  workflows: ["Release"]
+  #  types: [completed]
+
+concurrency:
+  group: gitops-${{ github.event.workflow_run.id }}
+  cancel-in-progress: false
+
+env:
+  TRIVY_PREDICATE_TYPE: "https://security.sigstore.dev/attestations/vuln/trivy/v1"
+  ZAP_PREDICATE_TYPE: "https://security.sigstore.dev/attestations/dast/zap/v1"
+  SBOM_PREDICATE_TYPE: "https://spdx.dev/Document"
+  OIDC_ISSUER: "https://token.actions.githubusercontent.com"
+  YQ_VERSION: "v4.44.3"
+  
+jobs:
+  # verify-context:
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     contents: read
+  #   outputs:
+  #     release_tag: ${{ steps.validate.outputs.release_tag }}
+  #   steps:
+  #     - name: Guardrails - Validate Source
+  #       id: validate
+  #       env:
+  #         TRIGGER_REPO: ${{ github.event.workflow_run.head_repository.full_name }}
+  #         CURRENT_REPO: ${{ github.repository }}
+  #         TRIGGER_EVENT: ${{ github.event.workflow_run.event }}
+  #         HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+  #         REF_NAME: ${{ github.event.workflow_run.head_branch }} # Or extract tag from ref
+  #       run: |
+  #         set -euo pipefail
+
+  #         # 1. Security Check: Block Forks
+  #         if [ "$TRIGGER_REPO" != "$CURRENT_REPO" ]; then
+  #           echo "::error::Security: Workflow run originated from a fork ($TRIGGER_REPO). Aborting."
+  #           exit 1
+  #         fi
+
+  #         # 2. Logic Check: Only allow main or tags
+  #         if [ "$TRIGGER_EVENT" == "workflow_dispatch" ] && [ "$HEAD_BRANCH" != "main" ]; then
+  #            echo "::error::Manual releases must be triggered from main."
+  #            exit 1
+  #         fi
+
+  #         echo "Validation Passed."
+          
+  #         # Pass the tag/ref to the next job safely
+  #         echo "release_tag=$REF_NAME" >> "$GITHUB_OUTPUT"
+
+  # JOB 2: The Protected Deployment
+  # Only runs if 'verify-context' succeeds.
+  gitops:
+    runs-on: ubuntu-latest
+    # needs: verify-context
+    # if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    # environment: production
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: read
+      id-token: write 
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Download Digests from Release Workflow
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v4.1.7
+        with:
+          run-id: ${{ inputs.run_id || github.event.workflow_run.id }} # ${{ github.event.workflow_run.id }}
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          pattern: digest-*
+          path: digests
+
+      - name: Read & Validate Digests
+        run: |
+          set -euo pipefail
+          test -s digests/digest-backend || (echo "::error::digest-backend missing/empty"; exit 1)
+          test -s digests/digest-frontend || (echo "::error::digest-frontend missing/empty"; exit 1)
+
+          BACKEND_DIGEST="$(cat digests/digest-backend)"
+          FRONTEND_DIGEST="$(cat digests/digest-frontend)"
+
+          # Fail-closed: must look like sha256:...
+          echo "$BACKEND_DIGEST" | grep -Eq '^sha256:[a-f0-9]{64}$' || (echo "::error::Invalid backend digest"; exit 1)
+          echo "$FRONTEND_DIGEST" | grep -Eq '^sha256:[a-f0-9]{64}$' || (echo "::error::Invalid frontend digest"; exit 1)
+
+          echo "BACKEND_DIGEST=$BACKEND_DIGEST" >> $GITHUB_ENV
+          echo "FRONTEND_DIGEST=$FRONTEND_DIGEST" >> $GITHUB_ENV
+
+          echo "BACKEND_IMAGE=docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayheathy-backend@$BACKEND_DIGEST" >> $GITHUB_ENV
+          echo "FRONTEND_IMAGE=docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayheathy-frontend@$FRONTEND_DIGEST" >> $GITHUB_ENV
+
+          echo "✅ Loaded Digests."
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
+      
+      - name: Verify Signatures + Required Attestations (hard gate)
+        run: |
+          set -euo pipefail
+  
+          verify_all () {
+            local IMAGE="$1"
+            
+            # 1. Verify Image Signature
+            echo "🔐 Verifying signature for $IMAGE"
+            cosign verify "$IMAGE" \
+              --certificate-oidc-issuer "${{ env.OIDC_ISSUER }}" \
+              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*"
+
+            # 2. Verify Attestations (SILENT MODE)            
+            echo "🧾 Verifying Trivy attestation..."
+            cosign verify-attestation "$IMAGE" \
+              --type "${{ env.TRIVY_PREDICATE_TYPE }}" \
+              --certificate-oidc-issuer "${{ env.OIDC_ISSUER }}" \
+              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*" \
+              > /dev/null
+
+            echo "🧾 Verifying ZAP attestation..."
+            cosign verify-attestation "$IMAGE" \
+              --type "${{ env.ZAP_PREDICATE_TYPE }}" \
+              --certificate-oidc-issuer "${{ env.OIDC_ISSUER }}" \
+              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*" \
+              > /dev/null
+
+            echo "🧾 Verifying SBOM attestation..."
+            cosign verify-attestation "$IMAGE" \
+              --type "${{ env.SBOM_PREDICATE_TYPE }}" \
+              --certificate-oidc-issuer "${{ env.OIDC_ISSUER }}" \
+              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*" \
+              > /dev/null
+          }
+
+          verify_all "${{ env.BACKEND_IMAGE }}"
+          verify_all "${{ env.FRONTEND_IMAGE }}"
+          echo "✅ All signatures & attestations verified."
+
+      - name: Install Kyverno CLI
+        uses: kyverno/action-install-cli@fcee92fca5c883169ef9927acf543e0b5fc58289 # v0.2.0
+        with:
+          release: 'v1.13.2'
+          verify: true
+
+      - name: Install yq
+        run: |
+          set -euo pipefail
+          sudo wget -qO /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download/${{env.YQ_VERSION}}/yq_linux_amd64"
+          sudo chmod +x /usr/local/bin/yq
+          yq --version
+
+      - name: Update prod digests (kustomize overlay)
+        run: |
+          set -euo pipefail
+          FILE="k8s/overlays/prod/kustomization.yaml"
+          test -f "$FILE" || (echo "::error::Missing $FILE"; exit 1)
+
+          yq -i '
+            (.images[] | select(.name == "docker.io/agslima/app-stayheathy-backend") | .digest) = strenv(BACKEND_DIGEST)
+          ' "$FILE"
+
+          yq -i '
+            (.images[] | select(.name == "docker.io/agslima/app-stayheathy-frontend") | .digest) = strenv(FRONTEND_DIGEST)
+          ' "$FILE"
+
+          echo "✅ Updated prod overlay:"
+          yq -r '.images[] | .name + " => " + .digest' "$FILE"
+
+          # Fail closed
+          yq -r '.images[].digest' "$FILE" | grep -q '^sha256:' || (
+            echo "::error::Prod overlay digests not set correctly"
+            exit 1
+          )
+
+      - name: Validate rendered prod manifests against cluster policy (split policies)
+        run: |
+          set -euo pipefail
+          LOG_FILE="kyverno-gitops.log"
+
+          POLICY_DIR="k8s/policies/cluster"
+
+          kustomize build k8s/overlays/prod > /tmp/prod.yaml
+          test -s /tmp/prod.yaml || (echo "::error::Rendered prod.yaml is empty"; exit 1)
+
+          echo "=== Namespaces in rendered YAML ==="
+          yq -r 'select(.metadata != null) | .kind + " " + (.metadata.namespace // "NONE") + " " + .metadata.name' /tmp/prod.yaml | sort | uniq -c
+
+          echo "=== Images in rendered YAML ==="
+          yq -r '
+            select(.kind=="Deployment") |
+            .metadata.name as $n |
+            .spec.template.spec.containers[].image |
+            $n + " => " + .
+          ' /tmp/prod.yaml
+
+          echo "=== Kyverno policy evaluation (split policies) ==="
+
+          # If (and only if) your policies contain variables like {{ OIDC_ISSUER }} etc,
+          # pass them via --set. Otherwise REMOVE this block.
+          KYVERNO_SET_ARGS=(
+            "--set" "OIDC_ISSUER=https://token.actions.githubusercontent.com"
+            "--set" "TRIVY_PREDICATE_TYPE=https://security.sigstore.dev/attestations/vuln/trivy/v1"
+            "--set" "ZAP_PREDICATE_TYPE=https://security.sigstore.dev/attestations/dast/zap/v1"
+            "--set" "SBOM_PREDICATE_TYPE=https://spdx.dev/Document"
+            "--set" "SLSA_PREDICATE_TYPE=https://slsa.dev/provenance/v1"
+          )
+
+          # Apply all policies in the directory at once (cleaner output)
+          kyverno apply "$POLICY_DIR" \
+            --resource /tmp/prod.yaml \
+            --registry \
+            --detailed-results \
+            --audit-warn=false \
+           "${KYVERNO_SET_ARGS[@]}" \
+           > "$LOG_FILE" 2>&1 || true
+  
+          cat "$LOG_FILE"
+
+          # Treat skip as failure (you want hard-gates)
+          if grep -q "Policies Skipped" "$LOG_FILE"; then
+            echo "::error::❌ Kyverno skipped at least one policy (missing variables/context)."
+            exit 1
+          fi
+
+          if grep -qE "fail:[[:space:]]*[1-9]|error:[[:space:]]*[1-9]" "$LOG_FILE"; then
+            echo "::error::❌ Kyverno policy evaluation failed (fail/error > 0)."
+            exit 1
+          fi
+
+          echo "✅ Policy Validation Passed."
+      
+      - name: Validate rendered prod manifests against cluster policy
+        run: |
+          set -euo pipefail
+
+          LOG_FILE="kyverno-gitops.log"
+          : > "$LOG_FILE"
+
+          kustomize build k8s/overlays/prod > /tmp/prod.yaml
+          test -s /tmp/prod.yaml || (echo "::error::Rendered prod.yaml is empty"; exit 1)
+
+          echo "=== Namespaces in rendered YAML ===" | tee -a "$LOG_FILE"
+          yq -r 'select(.metadata != null) | .kind + " " + (.metadata.namespace // "NONE") + " " + .metadata.name' /tmp/prod.yaml \
+          | sort | uniq -c | tee -a "$LOG_FILE"
+
+          echo "=== Images in rendered YAML ===" | tee -a "$LOG_FILE"
+          yq -r '
+             select(.kind=="Deployment") |
+             .metadata.name as $n |
+             .spec.template.spec.containers[].image |
+             $n + " => " + .
+          ' /tmp/prod.yaml | tee -a "$LOG_FILE"
+
+          echo "=== Kyverno policy evaluation (split policies) ===" | tee -a "$LOG_FILE"
+
+          # Apply each split policy individually so debugging is straightforward.
+          POLICIES=(
+            "k8s/policies/cluster/verify-signature.yaml"
+            "k8s/policies/cluster/verify-trivy.yaml"
+            "k8s/policies/cluster/verify-zap.yaml"
+            "k8s/policies/cluster/verify-sbom.yaml"
+            "k8s/policies/cluster/verify-slsa.yaml"
+          )
+
+          any_failed=0
+          any_skipped=0
+
+          for POLICY in "${POLICIES[@]}"; do
+            echo "" | tee -a "$LOG_FILE"
+            echo "------------------------------------------------------------" | tee -a "$LOG_FILE"
+            echo "Applying policy: $POLICY" | tee -a "$LOG_FILE"
+            echo "------------------------------------------------------------" | tee -a "$LOG_FILE"
+
+            out="$(mktemp)"
+            kyverno apply "$POLICY" \
+              --resource /tmp/prod.yaml \
+              --audit-warn=false \
+              --registry \
+              --detailed-results > "$out" 2>&1 || true
+
+            cat "$out" | tee -a "$LOG_FILE"
+
+            # Treat skipped as failure in CI
+            if grep -q "Policies Skipped" "$out"; then
+              any_skipped=1
+            fi
+
+            # Fail if kyverno reports failures/errors
+            if grep -qE "fail:[[:space:]]*[1-9]|error:[[:space:]]*[1-9]" "$out"; then
+              any_failed=1
+            fi
+
+            rm -f "$out"
+          done
+
+          echo "" | tee -a "$LOG_FILE"
+          echo "======================== Summary ========================" | tee -a "$LOG_FILE"
+
+          if [[ "$any_failed" -eq 1 ]]; then
+            echo "::error::❌ Kyverno policy evaluation failed (fail/error > 0) in at least one policy." | tee -a "$LOG_FILE"
+            exit 1
+          fi
+
+          if [[ "$any_skipped" -eq 1 ]]; then
+            echo "::error::❌ Kyverno skipped one or more policies (treated as failure in CI)." | tee -a "$LOG_FILE"
+            exit 1
+          fi
+
+          echo "✅ Policy Validation Passed." | tee -a "$LOG_FILE"
+
+      - name: Upload Kyverno Log
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: kyverno-gitops-log
+          path: kyverno-gitops.log
+          retention-days: 30
+
+      - name: Compose PR Metadata
+        run: |
+          set -euo pipefail
+
+          RUN_ID="${{ github.event.workflow_run.id }}"
+          REPO="${{ github.repository }}"
+          SERVER_URL="${{ github.server_url }}"
+
+          echo "RELEASE_RUN_URL=${SERVER_URL}/${REPO}/actions/runs/${RUN_ID}" >> $GITHUB_ENV
+          echo "RELEASE_SHA=${{ github.event.workflow_run.head_sha }}" >> $GITHUB_ENV
+
+          # Use SHA-based branch name to avoid collisions
+          echo "PR_BRANCH=gitops/deploy-${{ github.event.workflow_run.head_sha }}" >> $GITHUB_ENV
+
+      - name: Create GitOps PR
+        uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 #v8.1.0
+        with:
+          token: ${{ secrets.TOKEN_GITHUB }}
+          commit-message: "deploy: promote ${{ env.RELEASE_SHA }}"
+          title: "Deploy release (${{ github.event.workflow_run.head_sha }})"
+
+          body: |
+            Automated GitOps promotion from a successful Release workflow run.
+
+            **Source**
+            - Release Run: ${{ env.RELEASE_RUN_URL }}
+            - Head SHA: `${{ env.RELEASE_SHA }}`
+
+            **Pinned Images**
+            - Backend: `${{ env.BACKEND_IMAGE }}`
+            - Frontend: `${{ env.FRONTEND_IMAGE }}`
+
+            **Supply Chain Verification**
+            - cosign verify (signature): ✅
+            - Trivy attestation: ✅ (`${{ env.TRIVY_PREDICATE_TYPE }}`)
+            - ZAP attestation: ✅ (`${{ env.ZAP_PREDICATE_TYPE }}`)
+            - SBOM attestation: ✅ (`${{ env.SBOM_PREDICATE_TYPE }}`)
+            - Kyverno structural checks: ✅
+
+          branch: ${{ env.PR_BRANCH }}
+          base: main
+          delete-branch: true
+

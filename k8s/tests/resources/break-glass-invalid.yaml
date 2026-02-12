@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: break-glass-abuse
+  namespace: production
+  labels:
+    security.break-glass: "true"
+spec:
+  selector:
+    matchLabels:
+      app: exploit
+  template:
+    metadata:
+      labels:
+        app: exploit
+    spec:
+      serviceAccountName: default
+      containers:
+        - name: app
+          image: docker.io/agslima/software-delivery-pipeline@sha256:EVIL

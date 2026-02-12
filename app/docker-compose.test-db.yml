@@ -1,0 +1,20 @@
+services:
+  test-postgres:
+    image: postgres:15-alpine
+    ports:
+      - "${TEST_DB_PORT:-5433}:5432"
+    environment:
+      POSTGRES_USER: ${TEST_DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${TEST_DB_PASS:?Set TEST_DB_PASS}
+      POSTGRES_DB: ${TEST_DB_NAME:-prescriptions_test}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - pgdata_test:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  pgdata_test:

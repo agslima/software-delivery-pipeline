@@ -1,0 +1,1082 @@
+openapi: 3.0.0
+info:
+  title: Prescription API
+  version: 1.0.0
+  description: Secure API for retrieving medical prescriptions
+servers:
+  - url: http://localhost:8080
+    description: Local Development
+  - url: https://api.stayhealthy.com
+    description: Production
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    LoginRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          example: admin
+        password:
+          type: string
+          example: "****"
+    
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+    LoginRequestV2:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    UserSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [doctor, patient, admin]
+        mfaEnabled:
+          type: boolean
+
+    LoginResponseV2:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        tokenType:
+          type: string
+          example: Bearer
+        user:
+          $ref: '#/components/schemas/UserSummary'
+        mfaRequired:
+          type: boolean
+        mfaToken:
+          type: string
+    RefreshRequestV2:
+      type: object
+      required:
+        - refreshToken
+      properties:
+        refreshToken:
+          type: string
+    RefreshResponseV2:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        tokenType:
+          type: string
+          example: Bearer
+    RevokeRequestV2:
+      type: object
+      required:
+        - refreshToken
+      properties:
+        refreshToken:
+          type: string
+    RevokeResponseV2:
+      type: object
+      properties:
+        revoked:
+          type: boolean
+    RevokeAllResponseV2:
+      type: object
+      properties:
+        revoked:
+          type: boolean
+    MfaVerifyRequestV2:
+      type: object
+      required:
+        - code
+      properties:
+        code:
+          type: string
+          example: "123456"
+    MfaVerifyResponseV2:
+      type: object
+      properties:
+        verified:
+          type: boolean
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        tokenType:
+          type: string
+          example: Bearer
+    MfaEnrollRequestV2:
+      type: object
+      properties:
+        label:
+          type: string
+          example: StayHealthy
+    MfaEnrollResponseV2:
+      type: object
+      properties:
+        secret:
+          type: string
+        otpauthUrl:
+          type: string
+        qrCodeDataUrl:
+          type: string
+    MfaStatusResponseV2:
+      type: object
+      properties:
+        configured:
+          type: boolean
+        enabled:
+          type: boolean
+    MfaDisableResponseV2:
+      type: object
+      properties:
+        disabled:
+          type: boolean
+    AuditEvent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        actorUserId:
+          type: string
+          format: uuid
+        eventType:
+          type: string
+        subjectType:
+          type: string
+        subjectId:
+          type: string
+          format: uuid
+        ipAddress:
+          type: string
+        userAgent:
+          type: string
+        redactionMode:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+
+    Doctor:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        firstName:
+          type: string
+        lastName:
+          type: string
+        licenseNumber:
+          type: string
+        specialty:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+          format: email
+        mfaEnabled:
+          type: boolean
+
+    Patient:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        firstName:
+          type: string
+        lastName:
+          type: string
+        dob:
+          type: string
+          format: date
+        gender:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+          format: email
+        address:
+          type: object
+          additionalProperties: true
+
+    Allergy:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        substance:
+          type: string
+        reaction:
+          type: string
+        severity:
+          type: string
+          enum: [low, moderate, high]
+
+    MedicationHistoryItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        form:
+          type: string
+        strength:
+          type: string
+        lastPrescribedAt:
+          type: string
+          format: date-time
+
+    PrescriptionSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [active, completed, cancelled]
+        issuedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        notes:
+          type: string
+        doctor:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+
+    PatientSummary:
+      type: object
+      properties:
+        patient:
+          $ref: '#/components/schemas/Patient'
+        allergies:
+          type: array
+          items:
+            $ref: '#/components/schemas/Allergy'
+        medicationHistory:
+          type: array
+          items:
+            $ref: '#/components/schemas/MedicationHistoryItem'
+        prescriptions:
+          type: array
+          items:
+            $ref: '#/components/schemas/PrescriptionSummary'
+
+    Encounter:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        patientId:
+          type: string
+          format: uuid
+        doctorId:
+          type: string
+          format: uuid
+        facilityId:
+          type: string
+          format: uuid
+          nullable: true
+        status:
+          type: string
+          enum: [open, closed]
+        startedAt:
+          type: string
+          format: date-time
+        endedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    PrescriptionItemV2:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        medicationId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        form:
+          type: string
+        strength:
+          type: string
+        dose:
+          type: string
+        route:
+          type: string
+        frequency:
+          type: string
+        duration:
+          type: string
+        quantity:
+          type: string
+        instructions:
+          type: string
+
+    PrescriptionV2:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [active, completed, cancelled]
+        issuedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        notes:
+          type: string
+        doctor:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+        patient:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PrescriptionItemV2'
+        interactionWarnings:
+          type: array
+          items:
+            type: object
+
+    Prescription:
+      type: object
+      properties:
+        id:
+          type: string
+        clinicName:
+          type: string
+        doctor:
+          type: object
+        patient:
+          type: object
+        medications:
+          type: array
+          items:
+            type: object
+
+# API Routes
+paths:
+  /api/v1/auth/login:
+    post:
+      summary: Login to get access token
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        200:
+          description: Successful login
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        401:
+          description: Invalid credentials
+
+  /api/v2/auth/login:
+    post:
+      summary: Login (v2) to get access token
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequestV2'
+      responses:
+        200:
+          description: Successful login
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponseV2'
+        401:
+          description: Invalid credentials
+
+  /api/v2/auth/refresh:
+    post:
+      summary: Refresh access token (v2)
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequestV2'
+      responses:
+        200:
+          description: Successful refresh
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshResponseV2'
+        401:
+          description: Invalid refresh token
+
+  /api/v2/auth/logout:
+    post:
+      summary: Revoke a refresh token (v2)
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RevokeRequestV2'
+      responses:
+        200:
+          description: Refresh token revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RevokeResponseV2'
+        400:
+          description: Refresh token required
+
+  /api/v2/auth/logout/all:
+    post:
+      summary: Revoke all refresh tokens for current user (v2)
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Refresh tokens revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RevokeAllResponseV2'
+        401:
+          description: Unauthorized
+
+  /api/v2/auth/mfa/verify:
+    post:
+      summary: Verify MFA code (v2)
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MfaVerifyRequestV2'
+      responses:
+        200:
+          description: MFA verified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MfaVerifyResponseV2'
+        400:
+          description: Invalid MFA code
+        401:
+          description: Unauthorized
+
+  /api/v2/auth/mfa/enroll:
+    post:
+      summary: Enroll MFA and return secret + QR (v2)
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MfaEnrollRequestV2'
+      responses:
+        200:
+          description: MFA enrollment payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MfaEnrollResponseV2'
+        401:
+          description: Unauthorized
+
+  /api/v2/auth/mfa/status:
+    get:
+      summary: Get MFA enrollment status (v2)
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: MFA status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MfaStatusResponseV2'
+        401:
+          description: Unauthorized
+
+  /api/v2/auth/mfa/disable:
+    post:
+      summary: Disable MFA and clear secret (v2)
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: MFA disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MfaDisableResponseV2'
+        401:
+          description: Unauthorized
+
+  /api/v2/doctors/me:
+    get:
+      summary: Get current doctor profile
+      tags: [Doctors]
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Doctor profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Doctor'
+
+  /api/v2/doctors/{id}:
+    get:
+      summary: Get doctor profile by id (self or admin)
+      tags: [Doctors]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      responses:
+        200:
+          description: Doctor profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Doctor'
+        403:
+          description: Forbidden
+        404:
+          description: Doctor not found
+
+  /api/v2/patients/search:
+    get:
+      summary: Search patients (doctor access)
+      tags: [Patients]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: name
+          schema:
+            type: string
+        - in: query
+          name: dob
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: patient_id
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 25
+      responses:
+        200:
+          description: Patient search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Patient'
+
+  /api/v2/patients/{id}:
+    get:
+      summary: Get patient profile
+      tags: [Patients]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      responses:
+        200:
+          description: Patient profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Patient'
+        403:
+          description: Forbidden
+        404:
+          description: Patient not found
+
+  /api/v2/patients/{id}/summary:
+    get:
+      summary: Get patient clinical summary
+      tags: [Patients]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      responses:
+        200:
+          description: Patient summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PatientSummary'
+        403:
+          description: Forbidden
+        404:
+          description: Patient not found
+
+  /api/v2/patients/{id}/prescriptions:
+    get:
+      summary: Get patient prescriptions
+      tags: [Patients]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      responses:
+        200:
+          description: Patient prescriptions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  prescriptions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PrescriptionSummary'
+
+  /api/v2/encounters:
+    post:
+      summary: Create encounter
+      tags: [Encounters]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - patientId
+              properties:
+                patientId:
+                  type: string
+                  format: uuid
+                facilityId:
+                  type: string
+                  format: uuid
+      responses:
+        201:
+          description: Encounter created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Encounter'
+        409:
+          description: Open encounter already exists
+
+  /api/v2/encounters/{id}:
+    patch:
+      summary: Update encounter status
+      tags: [Encounters]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+                  enum: [open, closed]
+      responses:
+        200:
+          description: Encounter updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Encounter'
+        404:
+          description: Encounter not found
+
+  /api/v2/prescriptions:
+    post:
+      summary: Create prescription
+      tags: [Prescriptions]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - patientId
+                - items
+              properties:
+                patientId:
+                  type: string
+                  format: uuid
+                encounterId:
+                  type: string
+                  format: uuid
+                expiresAt:
+                  type: string
+                  format: date-time
+                notes:
+                  type: string
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/PrescriptionItemV2'
+      responses:
+        201:
+          description: Prescription created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrescriptionV2'
+
+  /api/v2/prescriptions/{id}:
+    get:
+      summary: Get prescription details
+      tags: [Prescriptions]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      responses:
+        200:
+          description: Prescription detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrescriptionV2'
+        404:
+          description: Prescription not found
+    patch:
+      summary: Update prescription status or notes
+      tags: [Prescriptions]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [active, completed, cancelled]
+                expiresAt:
+                  type: string
+                  format: date-time
+                notes:
+                  type: string
+      responses:
+        200:
+          description: Prescription updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrescriptionV2'
+        404:
+          description: Prescription not found
+
+  /api/v2/patient/me/prescriptions:
+    get:
+      summary: Get my prescriptions (patient portal)
+      tags: [Patient]
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Patient prescriptions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  prescriptions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PrescriptionSummary'
+
+  /api/v2/patient/me/prescriptions/{id}:
+    get:
+      summary: Get my prescription detail (patient portal)
+      tags: [Patient]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      responses:
+        200:
+          description: Prescription detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrescriptionV2'
+        403:
+          description: Forbidden
+        404:
+          description: Prescription not found
+
+  /api/v2/medications:
+    get:
+      summary: Search medications catalog
+      tags: [Medications]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: query
+          schema:
+            type: string
+          required: true
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+      responses:
+        200:
+          description: Medication search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        name:
+                          type: string
+                        form:
+                          type: string
+                        strength:
+                          type: string
+                        rxnorm_code:
+                          type: string
+  /api/v2/audit/events:
+    get:
+      summary: List audit events (admin only)
+      tags: [Audit]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: event_type
+          schema:
+            type: string
+        - in: query
+          name: actor_user_id
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: subject_type
+          schema:
+            type: string
+        - in: query
+          name: subject_id
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 50
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            default: 0
+      responses:
+        200:
+          description: Audit events list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AuditEvent'
+
+  /api/v1/prescriptions/{id}:
+    get:
+      summary: Get prescription details
+      tags: [Prescriptions]
+      security:
+        - bearerAuth: []  
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+          required: true
+          description: Prescription ID (e.g., demo-id)
+      responses:
+        200:
+          description: Prescription data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prescription'
+        401:
+          description: Unauthorized (Missing/Invalid Token)
+        404:
+          description: Prescription not found

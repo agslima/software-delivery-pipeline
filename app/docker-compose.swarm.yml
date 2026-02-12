@@ -1,0 +1,33 @@
+# Docker Compose Configuration
+#
+#  Swarm mode:
+#
+#   docker stack deploy -c docker-compose.yml -c docker-compose.swarm.yml my_app # Swarm-only deploy resource limits.
+#
+# Note: The legacy `docker-compose` v1 may crash on event logs. Use `docker compose` v2.
+#
+
+services:
+  frontend:
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 256M
+        reservations:
+          cpus: '0.10'
+          memory: 64M
+
+  backend:
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+
+  postgres:
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M

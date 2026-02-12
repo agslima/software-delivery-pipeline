@@ -1,0 +1,87 @@
+name: Run Sonar
+
+on: 
+  schedule:
+    - cron: '30 15 * * SAT' # Runs at 15:30, only on Saturday
+  workflow_dispatch:
+
+jobs:
+  # ==================================================================
+  # JOB 1: TEST & GENERATE COVERAGE (Matrix)
+  # ==================================================================
+  code-quality:
+    name: Test & Coverage (${{ matrix.component }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        component: ['server', 'client']
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+      - name: Setup Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 #v6.2.0
+        with:
+          node-version-file: 'app/${{ matrix.component }}/package.json'
+          cache: 'npm'
+          cache-dependency-path: 'app/${{ matrix.component }}/package-lock.json'
+
+      - name: Install Dependencies
+        working-directory: app/${{ matrix.component }}
+        run: npm ci --ignore-scripts
+
+      # 1. Run Tests with Coverage
+      - name: Run Tests (Generate LCOV)
+        working-directory: app/${{ matrix.component }}
+        run: npm run coverage
+
+      - name: Fix LCOV Paths
+        working-directory: app/${{ matrix.component }}
+        run: |
+          sed -i "s|SF:|SF:app/${{ matrix.component }}/|g" coverage/lcov.info
+
+      # 3. Upload Coverage as Artifact
+      - name: Upload Coverage Artifact
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f #v6.0.0
+        with:
+          name: coverage-${{ matrix.component }}
+          path: app/${{ matrix.component }}/coverage/lcov.info
+          retention-days: 1
+
+  # ==================================================================
+  # JOB 2: SONARQUBE ANALYSIS (Aggregator)
+  # ==================================================================
+  sonar-scan:
+    name: SonarQube Scan
+    runs-on: ubuntu-latest
+    needs: [code-quality] 
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
+        with:
+          fetch-depth: 0
+
+      # 4. Download ALL coverage artifacts
+      - name: Download Backend Coverage
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v4.1.7
+        with:
+          name: coverage-server
+          path: app/server/coverage
+
+      - name: Download Frontend Coverage
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v4.1.7
+        with:
+          name: coverage-client
+          path: app/client/coverage
+
+      # 5. Run Sonar Scan
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONARCLOUD_TOKEN }}
+

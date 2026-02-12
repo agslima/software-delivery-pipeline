@@ -1,0 +1,135 @@
+name: PR Validation
+on:
+  workflow_dispatch: {}
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: pr-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ==================================================================
+  # JOB 1: TEST & CODE QUALITY
+  # ==================================================================
+  code-quality:
+    name: Code Quality (${{ matrix.component }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        component: ['server', 'client']
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 #v6.2.0
+        with:
+          node-version-file: 'app/${{ matrix.component }}/package.json'
+          cache: 'npm'
+          cache-dependency-path: 'app/${{ matrix.component }}/package-lock.json'
+
+      - name: Install Dependencies
+        working-directory: app/${{ matrix.component }}
+        run: npm ci --ignore-scripts
+
+      - name: Lint
+        working-directory: app/${{ matrix.component }}
+        run: npm run lint
+
+      - name: Unit Tests (TDD)
+        working-directory: app/${{ matrix.component }}
+        run: npm test
+
+  # ==================================================================
+  # JOB 2: INFRASTRUCTURE LINTING
+  # ==================================================================   
+  infra-lint:
+    name: Infra Hygiene
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [backend, frontend]
+        include:
+          - service: backend
+            path: app/docker/Dockerfile.server
+          - service: frontend
+            path: app/docker/Dockerfile.client
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
+
+      # 1. Hadolint (Lints the syntax)
+      - name: Lint Dockerfile (${{ matrix.service }})
+        uses: hadolint/hadolint-action@2332a7b74a6de0dda2e2221d575162eba76ba5e5 #v3.3.0
+        with:
+          dockerfile: ${{ matrix.path }}
+          failure-threshold: error
+
+      # 2. Conftest (OPA Policy)
+      - name: Setup Conftest
+        uses: princespaghetti/setup-conftest@427bf563268433011fd432d23ae41e567cc24272 #v1.0.0
+
+      - name: Run OPA Policy (${{ matrix.service }})
+        run: |
+          # Copy the specific file to a generic name for the policy check
+          cp ${{ matrix.path }} Dockerfile
+          conftest test Dockerfile \
+            --policy policies/dockerfile.rego
+
+      # 3. Kubeconform (Kubernetes Manifests)
+      - name: Validate K8s Manifests
+        if: matrix.service == 'backend'
+        uses: docker://ghcr.io/yannh/kubeconform@sha256:0474f7372c0089c41890101f0e293db5798e05942c98bbcf8359f206731115ea # v0.7.0
+        with:
+          entrypoint: "/kubeconform"
+          args: "-summary -output text -ignore-missing-schemas k8s/"
+
+  # ==================================================================
+  # JOB 3: Security Scan (Code + IaC)
+  # ==================================================================
+  security-scan:
+    name: Security Quality Check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      security-events: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
+        with:
+          fetch-depth: 0
+
+      # 1. Secret Scanning
+      - name: Secret Scanning (Gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 2. TRIVY SCAN: Filesystem (Dependencies & Code Secrets)
+      - name: Trivy Scan - Root FS
+        id: trivy-scan
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          severity: 'HIGH,CRITICAL'
+          ignore-unfixed: true
+          exit-code: 1
+
+      - name: 🚨 Notify Slack on Failure
+        if: failure() && steps.trivy-scan.outcome == 'failure'
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_COLOR: '#ff0000' # Red for danger
+          SLACK_TITLE: 'Security Gate Blocked Merge'
+          SLACK_MESSAGE: 'Trivy found Critical vulnerabilities. Auto-merge has been aborted.'
+          SLACK_USERNAME: 'Security Bot'
+          SLACK_ICON: 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png'
+

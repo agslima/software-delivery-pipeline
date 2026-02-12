@@ -1,0 +1,45 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: verify-zap
+  annotations:
+    policies.kyverno.io/title: Verify ZAP attestation
+    policies.kyverno.io/category: Supply Chain Security
+    policies.kyverno.io/severity: critical
+spec:
+  validationFailureAction: Enforce
+  background: false
+  webhookTimeoutSeconds: 30
+  rules:
+    - name: require-zap-attestation
+      match:
+        any:
+          - resources:
+              kinds: ["Pod", "Deployment"]
+              namespaces: ["prod", "production"]
+      exclude:
+        any:
+          - resources:
+              selector:
+                matchLabels:
+                  security.break-glass: "true"
+      verifyImages:
+        - imageReferences:
+            - "docker.io/agslima/app-stayheathy-backend*"
+            - "docker.io/agslima/app-stayheathy-frontend*"
+          attestations:
+            - predicateType: "https://security.sigstore.dev/attestations/dast/zap/v1"
+              attestors:
+                - entries:
+                    - keyless:
+                        issuer: https://token.actions.githubusercontent.com
+                        subjectRegExp: >-
+                          ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/(tags/v.*|heads/.*)
+              conditions:
+                - all:
+                    - key: "{{ predicate.result || '' }}"
+                      operator: Equals
+                      value: "PASS"
+                    - key: "{{ predicate.scanner.name || '' }}"
+                      operator: Equals
+                      value: "owasp-zap"
