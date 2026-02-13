@@ -1,8 +1,20 @@
 require('dotenv').config();
 const fs = require('fs');
+const { randomBytes } = require('crypto');
 const { cleanEnv, str, port, num, bool } = require('envalid');
 
 const isTest = process.env.NODE_ENV === 'test';
+
+const ensureTestSecret = (key, bytes = 32) => {
+  if (isTest && !process.env[key]) {
+    process.env[key] = randomBytes(bytes).toString('hex');
+  }
+};
+
+ensureTestSecret('JWT_SECRET', 32);
+ensureTestSecret('ADMIN_PASS', 16);
+ensureTestSecret('DB_PASS', 16);
+ensureTestSecret('DATA_ENCRYPTION_KEY', 32);
 
 let secretsJsonCache;
 

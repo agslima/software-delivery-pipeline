@@ -1,12 +1,13 @@
 # StayHealthy Prescription Portal
 
-## Internal Engineering Documentation
+## Internal engineering reference implementation for a full-stack prescription workflow
 
 ![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?logo=node.js&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Enabled-2496ED?logo=docker&logoColor=white)
 ![OpenAPI](https://img.shields.io/badge/OpenAPI-3.0-6BA539?logo=openapiinitiative&logoColor=white)
 ![JWT](https://img.shields.io/badge/Auth-JWT-blue?logo=jsonwebtokens)
 ![PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL%2015-4169E1?logo=postgresql&logoColor=white)
+OIDC
 ![Tests](https://img.shields.io/badge/Tests-Jest-C21325?logo=jest)
 ![License](https://img.shields.io/badge/License-Apache%202.0-blue)
 ![Internal Reference](https://img.shields.io/badge/Usage-Internal%20Reference-lightgrey)
@@ -89,6 +90,54 @@ graph LR
 
 ---
 
+## Key Capabilities
+
+- JWT auth with refresh tokens
+- Optional OIDC validation with AMR/ACR checks
+- MFA enrollment and verification
+- Audit pipeline (DB or console sinks)
+- Field-level encryption with key rotation
+- TLS enforcement middleware (behind proxy)
+- Rate limiting and hardened headers
+- Metrics endpoint (Prometheus format)
+
+---
+
+## Quick Start (Docker)
+
+Initialize secrets and `.env` (idempotent):
+```bash
+app/scripts/setup-dev.sh
+```
+
+Run the stack:
+```bash
+cd app
+docker-compose up --build
+```
+
+---
+
+## Quick Start (Node)
+
+Backend:
+```bash
+cd app/server
+npm install
+npm run dev
+npm run db:migrate
+npm run db:seed
+```
+
+Frontend:
+```bash
+cd app/client
+npm install
+npm run dev
+```
+
+---
+
 ## 4. Technology Stack 🛠
 
 ### Frontend
@@ -157,29 +206,41 @@ The application implements **baseline security controls** appropriate for intern
 
 ## 6. Configuration & Environment 💻
 
-All runtime configuration is environment-driven.
+Secrets are not hardcoded. Provide them via env or Docker secrets.
+
+Primary secrets
+- `DB_PASS`
+- `ADMIN_PASS`
+- `JWT_SECRET`
+- `DATA_ENCRYPTION_KEY`
+
+Optional
+- `DATA_ENCRYPTION_KEYS` for key rotation
+- `OIDC_*` for OIDC integration
+- `METRICS_AUTH_TOKEN` for metrics access
 
 Example `.env` (non-production):
-
 ```ini
 NODE_ENV=production
 PORT=8080
 LOG_LEVEL=info
 
 DB_USER=app_user
-DB_PASS=****
+DB_PASS=<set>
 DB_NAME=prescriptions_db
 
-JWT_SECRET=****
+JWT_SECRET=<set>
 ADMIN_USER=admin
-ADMIN_PASS=****
+ADMIN_PASS=<set>
 CORS_ORIGIN=http://localhost:4173
 ```
 
 > Note:
+> Docker secrets live under `app/secrets/` for local Compose.
 > Demo credentials must be provisioned via local secrets or environment variables.
 
 Additional security-related configuration:
+
 - Secrets can be sourced via environment variables, `*_FILE`, `/run/secrets/*`, or a JSON blob in `SECRETS_JSON`.
 - `ENFORCE_TLS=true` rejects non-HTTPS requests when running behind a TLS-terminating proxy.
 - Field-level encryption supports key rotation via `DATA_ENCRYPTION_KEY_ID` (primary) and `DATA_ENCRYPTION_KEYS`.
@@ -341,25 +402,19 @@ cd client && npm run lint
 
 ```text
 app/
-├── client/                 # React Frontend
+├── client/                 # React frontend (Vite)
+├── server/                 # Node.js API
 │   ├── src/
-│   │   ├── api/            # API Integration
-│   │   ├── components/     # UI Components (Login, etc.)
-│   │   └── styles/         # Custom CSS
-│   └── docker/             # Dockerfile.client
-│
-├── server/                 # Node.js Backend
-│   ├── src/
-│   │   ├── config/         # Env, Database, Swagger Config
-│   │   ├── db/             # Migrations & Seeds
-│   │   ├── docs/           # OpenAPI.yaml
-│   │   ├── middlewares/    # Auth, Error Handling, Logger
-│   │   ├── modules/        # Feature Modules (Auth, Prescription)
-│   │   └── utils/          # Logger, Helpers
-│   └── docker/             # Dockerfile.server
-│
-└── docker-compose.yml      # Orchestration
-
+│   │   ├── api/             # Routes, controllers, schemas
+│   │   ├── app/             # App wiring
+│   │   ├── config/          # Env and service config
+│   │   ├── core/            # Domain services
+│   │   └── infra/           # DB, repositories, auth
+│   └── tests/               # Jest tests
+├── docker/                 # Dockerfiles
+├── nginx/                  # Nginx config
+├── database/               # DB init assets
+└── docker-compose.yml
 ```
 
 ---
