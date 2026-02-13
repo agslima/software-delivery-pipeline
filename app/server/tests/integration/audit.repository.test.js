@@ -1,7 +1,8 @@
 const knex = require('knex');
-const { execSync } = require('node:child_process');
+const { execSync, spawnSync } = require('node:child_process');
 const { randomBytes } = require('node:crypto');
 const path = require('node:path');
+const shellQuote = require('shell-quote');
 
 jest.setTimeout(30000);
 
@@ -32,7 +33,16 @@ const dockerAvailable = () => {
 const execCompose = (args, envOverrides = {}) => {
   const env = { ...process.env, ...envOverrides };
   const cmd = `docker compose -f "${composeFile}" ${args}`;
-  execSync(cmd, { stdio: 'ignore', env });
+  const parsed = shellQuote.parse(cmd);
+  const program = parsed[0];
+  const programArgs = parsed.slice(1);
+  const result = spawnSync(program, programArgs, { stdio: 'ignore', env });
+  if (result.error) {
+    throw result.error;
+  }
+  if (typeof result.status === 'number' && result.status !== 0) {
+    throw new Error(`Command "${cmd}" exited with status ${result.status}`);
+  }
 };
 
 const waitForDb = (envOverrides) => {
