@@ -76,12 +76,12 @@ const buildApp = () => {
 };
 
 const { generateCode } = require('../../src/core/auth/mfa.service');
-const tokenService = require('../../src/infra/auth/jwtToken.service');
 
 describe('Integration: Auth MFA verify', () => {
   let app;
   let accessToken;
   let mfaToken;
+  let tokenService;
 
   beforeEach(() => {
     mockAuditEvents.length = 0;
@@ -89,6 +89,7 @@ describe('Integration: Auth MFA verify', () => {
 
     jest.resetModules();
     app = buildApp();
+    tokenService = require('../../src/infra/auth/jwtToken.service');
     accessToken = tokenService.sign({ sub: mockUser.id, email: mockUser.email, role: mockUser.role, mfaEnabled: false });
     mfaToken = tokenService.signWithOptions(
       { sub: mockUser.id, email: mockUser.email, role: mockUser.role, mfa: true },

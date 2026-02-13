@@ -2,7 +2,7 @@ const knex = require('knex');
 const { execSync, spawnSync } = require('node:child_process');
 const { randomBytes } = require('node:crypto');
 const path = require('node:path');
-const shellQuote = require('shell-quote');
+const { setTimeout: delay } = require('node:timers/promises');
 
 jest.setTimeout(30000);
 
@@ -17,7 +17,7 @@ let AuditService;
 let autoStarted = false;
 let composeProject = null;
 
-const appDir = path.resolve(__dirname, '../..');
+const appDir = path.resolve(__dirname, '../../..');
 const composeFile = path.join(appDir, 'docker-compose.test-db.yml');
 const defaultTestDbPass = randomBytes(16).toString('hex');
 
@@ -32,36 +32,45 @@ const dockerAvailable = () => {
 
 const execCompose = (args, envOverrides = {}) => {
   const env = { ...process.env, ...envOverrides };
-  const cmd = `docker compose -f "${composeFile}" ${args}`;
-  const parsed = shellQuote.parse(cmd);
-  const program = parsed[0];
-  const programArgs = parsed.slice(1);
-  const result = spawnSync(program, programArgs, { stdio: 'ignore', env });
-  if (result.error) {
+  const programArgs = ['compose', '-f', composeFile, ...args];
+  const result = spawnSync('docker', programArgs, { encoding: 'utf8', env });
+  if (!result.error) {
+    if (typeof result.status === 'number' && result.status === 0) {
+      return;
+    }
+    throw new Error(`docker compose failed.\n${result.stderr || result.stdout || 'No stderr output.'}`);
+  }
+
+  if (result.error.code !== 'ENOENT') {
     throw result.error;
   }
-  if (typeof result.status === 'number' && result.status !== 0) {
-    throw new Error(`Command "${cmd}" exited with status ${result.status}`);
+
+  const legacyArgs = ['-f', composeFile, ...args];
+  const legacy = spawnSync('docker-compose', legacyArgs, { encoding: 'utf8', env });
+  if (!legacy.error && typeof legacy.status === 'number' && legacy.status === 0) {
+    return;
   }
+
+  throw new Error(`docker-compose failed.\n${legacy.stderr || legacy.stdout || 'No stderr output.'}`);
 };
 
-const waitForDb = (envOverrides) => {
-  const maxAttempts = 30;
+const waitForDb = async (envOverrides) => {
+  const maxAttempts = 60;
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
       execCompose(
-        `exec -T test-postgres pg_isready -U "${envOverrides.TEST_DB_USER}" -d "${envOverrides.TEST_DB_NAME}"`,
+        ['exec', '-T', 'test-postgres', 'pg_isready', '-U', envOverrides.TEST_DB_USER, '-d', envOverrides.TEST_DB_NAME],
         envOverrides
       );
       return true;
     } catch {
-      // retry
+      await delay(1000);
     }
   }
   return false;
 };
 
-const startTestDb = () => {
+const startTestDb = async () => {
   if (!dockerAvailable()) {
     throw new Error('Docker is required to auto-start the test database.');
   }
@@ -75,11 +84,40 @@ const startTestDb = () => {
     TEST_DB_NAME: process.env.TEST_DB_NAME || 'prescriptions_test',
   };
 
-  execCompose('up -d', envOverrides);
+  const preferredPort = envOverrides.TEST_DB_PORT;
+  const fallbackPorts = process.env.TEST_DB_PORT
+    ? [preferredPort]
+    : [preferredPort, '5434', '5435', '5436', '5437', '5438', '5439'];
+  let lastError = null;
 
-  if (!waitForDb(envOverrides)) {
-    execCompose('logs test-postgres', envOverrides);
-    throw new Error('Test database did not become ready in time.');
+  for (const port of fallbackPorts) {
+    envOverrides.TEST_DB_PORT = port;
+    try {
+      execCompose(['up', '-d'], envOverrides);
+      if (!(await waitForDb(envOverrides))) {
+        execCompose(['logs', 'test-postgres'], envOverrides);
+        throw new Error('Test database did not become ready in time.');
+      }
+      lastError = null;
+      break;
+    } catch (err) {
+      lastError = err;
+      try {
+        execCompose(['down', '-v'], envOverrides);
+      } catch {
+        // ignore cleanup errors
+      }
+      if (process.env.TEST_DB_PORT) {
+        break;
+      }
+      if (!String(err?.message || '').includes('port is already allocated')) {
+        break;
+      }
+    }
+  }
+
+  if (lastError) {
+    throw lastError;
   }
 
   process.env.TEST_DB_HOST = process.env.TEST_DB_HOST || 'localhost';
@@ -92,7 +130,7 @@ const startTestDb = () => {
 
 const stopTestDb = () => {
   if (!autoStarted || !composeProject) return;
-  execCompose('down -v', { COMPOSE_PROJECT_NAME: composeProject });
+  execCompose(['down', '-v'], { COMPOSE_PROJECT_NAME: composeProject });
 };
 
 const getDbConfig = () => ({
@@ -157,7 +195,7 @@ describe('Integration: Audit repository storage and queries', () => {
     process.env.AUDIT_SINK = 'db';
     process.env.AUDIT_PII_REDACTION = 'none';
     if (!process.env.TEST_DB_HOST) {
-      startTestDb();
+      await startTestDb();
     }
     const config = getDbConfig();
     ensureDatabaseConfig(config);
