@@ -14,9 +14,6 @@ jobs:
     name: OWASP ZAP DAST (SPA + API, Auth, Gate, SARIF)
     runs-on: ubuntu-latest
 
-    # Needed for:
-    # - issues: create triage issue
-    # - security-events: upload SARIF to GitHub Code Scanning
     permissions:
       contents: read
       issues: write
@@ -24,54 +21,42 @@ jobs:
 
     env:
       ZAP_IMG: ghcr.io/zaproxy/zaproxy@sha256:8e79e827afb9e8bdba390c829eb3062062cdb407570559e2ddebd49130c00a59
-      ZAP_FRONTEND_URL: http://127.0.0.1:4173
-      ZAP_BACKEND_URL: http://127.0.0.1:8080
+      ZAP_FRONTEND_URL: http://frontend:8080
+      ZAP_BACKEND_URL: http://backend:8080
+      RUNNER_FRONTEND_URL: http://127.0.0.1:4173
+      RUNNER_BACKEND_URL: http://127.0.0.1:8080
       HEALTH_TIMEOUT: "180"
 
-      # Compose isolation
       COMPOSE_PROJECT_NAME: dast-${{ github.run_id }}-${{ github.run_attempt }}
+      # COMPOSE_NETWORK: ""
 
-      # ZAP as code
-      # - context define include/exclude and users
-      # - rules file tune/ignore noisy rules
       ZAP_CONTEXT_FILE: ${{ github.workspace }}/.zap/context.context
-      ZAP_RULES_FILE:   ${{ github.workspace }}/.zap/rules.tsv
+      ZAP_RULES_FILE: ${{ github.workspace }}/.zap/rules.tsv
+      MEDIUM_BLOCK_PATTERNS_FILE: ${{ github.workspace }}/.zap/medium-block-patterns.txt
 
-      # Scope
-      ZAP_SCOPE_INCLUDE: '^http://127\.0\.0\.1:(4173|8080)/.*'
+      ZAP_SCOPE_INCLUDE: '^http://(frontend|backend):8080/.*'
       ZAP_SCOPE_EXCLUDE: '.*\.(css|js|map|png|jpg|jpeg|gif|svg|ico|woff|woff2)$'
 
-      # Scan runtime knobs
       ZAP_SPIDER_MINS: "8"
       ZAP_STARTUP_TIMEOUT_MINS: "5"
       ZAP_PASSIVE_WAIT_SECS: "10"
 
-      # Governance thresholds (signal over noise)
       BLOCK_HIGH: "1"
-      # - Medium: block only selected categories AND only when confidence >= Medium
       BLOCK_MEDIUM_CATEGORIES: "1"
-      MEDIUM_BLOCK_PATTERNS: '(SQL Injection|SQLI|Server Side Request Forgery|SSRF|Authentication|Session|JWT|Insecure|Deserialization|Path Traversal|RCE|Command Injection|XXE)'
+      BLOCK_MEDIUM_PLUGINIDS: ""
 
-      # Optional: Turn on gate by specific ZAP rule IDs (pluginid)
-      BLOCK_MEDIUM_PLUGINIDS: "" # Example: "40018,40012"; empty use regex patterns only.
+      ZAP_LOGIN_EMAIL: ${{ vars.ZAP_LOGIN_EMAIL }}
+      ZAP_LOGIN_PASSWORD: ${{ secrets.ZAP_LOGIN_PASSWORD }}
+      ZAP_DEMO_LOGIN_EMAIL: john.smith@stayhealthy.test
+      ZAP_DEMO_LOGIN_PASSWORD: DemoPass123!
+      ALLOW_DEMO_AUTH_FALLBACK: "0"
+      DEBUG_DAST: "0"
 
-      # App auth (Phase 2 / patient portal)
-      # Defaults align with seeded demo users; override via repo vars/secrets.
-      ZAP_LOGIN_EMAIL: ${{ vars.ZAP_LOGIN_EMAIL || 'redacted@example.invalid' }}
-      ZAP_LOGIN_PASSWORD: ${{ secrets.ZAP_LOGIN_PASSWORD || '[REDACTED]' }}
-
-      LOGIN_URL: http://127.0.0.1:8080/api/v2/auth/login
-
-      # Optional: a protected endpoint to validate auth coverage
-      # If don't have one, create a simple authenticated "ping/me" route.
-      AUTH_VERIFY_URL: http://127.0.0.1:8080/api/v2/auth/mfa/status
+      AUTH_COVERAGE_REGEX: '/api/v2/'
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
-      # ------------------------------------------------------------
-      # 1) Variables + file-based Compose secrets
-      # ------------------------------------------------------------
       - name: Set Variables + Compose Secrets (file-based)
         working-directory: app
         run: |
@@ -87,8 +72,12 @@ jobs:
 
           {
             echo "ADMIN_USER=${{ vars.ADMIN_USER }}"
+            echo "ADMIN_PASS=${{ secrets.ADMIN_PASS }}"
             echo "DB_USER=${{ vars.DB_USER }}"
             echo "DB_NAME=${{ vars.DB_NAME }}"
+            echo "DB_PASS=${{ secrets.DB_PASS }}"
+            echo "JWT_SECRET=${{ secrets.JWT_SECRET }}"
+            echo "DATA_ENCRYPTION_KEY=${{ secrets.DATA_ENCRYPTION_KEY }}"
             echo "COMPOSE_PROJECT_NAME=${{ env.COMPOSE_PROJECT_NAME }}"
             echo "SECRETS_PATH=${SECRETS_PATH}"
           } >> "$ENV_FILE"
@@ -97,119 +86,112 @@ jobs:
           printf "%s" "${{ secrets.JWT_SECRET }}"  > "${SECRETS_PATH}/jwt_secret.txt"
           printf "%s" "${{ secrets.ADMIN_PASS }}"  > "${SECRETS_PATH}/admin_pass.txt"
           printf "%s" "${{ secrets.DB_PASS }}"     > "${SECRETS_PATH}/db_pass.txt"
+          DATA_ENCRYPTION_KEY_VALUE="${{ secrets.DATA_ENCRYPTION_KEY }}"
+          if [ -z "$DATA_ENCRYPTION_KEY_VALUE" ]; then
+            DATA_ENCRYPTION_KEY_VALUE="$(openssl rand -hex 32)"
+          fi
+          printf "%s" "$DATA_ENCRYPTION_KEY_VALUE" > "${SECRETS_PATH}/data_encryption_key.txt"
           chmod 600 "${SECRETS_PATH}"/*.txt
 
-          echo "Secrets dir: ${SECRETS_PATH}"
-
-      # ------------------------------------------------------------
-      # 2) Start compose + health
-      # ------------------------------------------------------------
       - name: Start Ephemeral Environment
         working-directory: app
         run: |
           set -euo pipefail
 
-          ls -la "$SECRETS_PATH"
-          test -f "$SECRETS_PATH/db_pass.txt"
-          
           docker compose up -d --build
+          echo "COMPOSE_NETWORK=${{ env.COMPOSE_PROJECT_NAME }}_app_network" >> "$GITHUB_ENV"
 
-          echo "⏳ Waiting for Backend health..."
-          timeout "${{ env.HEALTH_TIMEOUT }}s" bash -c \
-            'until curl -fsS http://127.0.0.1:8080/health >/dev/null; do sleep 5; done'
+          DB_PASS_VALUE="$(cat "$SECRETS_PATH/db_pass.txt")"
+          echo "::add-mask::${DB_PASS_VALUE}"
+          docker compose exec -T -e DB_PASS="$DB_PASS_VALUE" backend node ./node_modules/knex/bin/cli.js migrate:latest --knexfile src/config/knexfile.js
+          docker compose exec -T -e DB_PASS="$DB_PASS_VALUE" backend node ./node_modules/knex/bin/cli.js seed:run --knexfile src/config/knexfile.js
 
-          echo "⏳ Waiting for Frontend health..."
-          timeout "${{ env.HEALTH_TIMEOUT }}s" bash -c \
-            'until curl -fsS http://127.0.0.1:4173/health >/dev/null; do sleep 5; done'
-
-          echo "⏳ Verifying Frontend serves HTML..."
-          timeout "${{ env.HEALTH_TIMEOUT }}s" bash -c \
-            'until curl -fsS http://127.0.0.1:4173/ | head -n 3 | grep -qi "<!doctype"; do sleep 5; done' || true
+          timeout "${{ env.HEALTH_TIMEOUT }}s" bash -c 'until curl -fsS "${{ env.RUNNER_BACKEND_URL }}/health" >/dev/null; do sleep 5; done'
+          timeout "${{ env.HEALTH_TIMEOUT }}s" bash -c 'until curl -fsS "${{ env.RUNNER_FRONTEND_URL }}/health" >/dev/null; do sleep 5; done'
+          timeout "${{ env.HEALTH_TIMEOUT }}s" bash -c 'until curl -fsS "${{ env.RUNNER_FRONTEND_URL }}/" | head -n 3 | grep -qi "<!doctype"; do sleep 5; done' || true
 
           docker compose ps
-          echo "✅ Application is live!"
 
-      # ------------------------------------------------------------
-      # 3) Prepare outputs
-      # ------------------------------------------------------------
       - name: Prepare ZAP Output
         working-directory: app
         run: |
           set -euo pipefail
           mkdir -p zap-out
           chmod 777 zap-out
-          echo "ZAP image (pinned): ${{ env.ZAP_IMG }}"
-          echo "Context file: ${{ env.ZAP_CONTEXT_FILE }}"
-          echo "Rules file  : ${{ env.ZAP_RULES_FILE }}"
-          echo "Scope include (recommended in Context): ${{ env.ZAP_SCOPE_INCLUDE }}"
-          echo "Scope exclude (recommended in Context): ${{ env.ZAP_SCOPE_EXCLUDE }}"
 
           test -f "${{ env.ZAP_CONTEXT_FILE }}" || (echo "::error::Missing context file ${{ env.ZAP_CONTEXT_FILE }}"; exit 1)
-          test -f "${{ env.ZAP_RULES_FILE }}"   || (echo "::error::Missing rules file ${{ env.ZAP_RULES_FILE }}"; exit 1)
+          test -f "${{ env.ZAP_RULES_FILE }}" || (echo "::error::Missing rules file ${{ env.ZAP_RULES_FILE }}"; exit 1)
+          test -f "${{ env.MEDIUM_BLOCK_PATTERNS_FILE }}" || (echo "::error::Missing medium block patterns file ${{ env.MEDIUM_BLOCK_PATTERNS_FILE }}"; exit 1)
 
-      # ------------------------------------------------------------
-      # 4) Auth bootstrap (JWT) + mask + verify
-      # ------------------------------------------------------------
       - name: Auth Bootstrap (mint JWT) + Verify
         working-directory: app
         run: |
           set -euo pipefail
 
+          RUNNER_BACKEND_BASE="${RUNNER_BACKEND_URL:-}"
+          if [ -z "${RUNNER_BACKEND_BASE}" ]; then
+            echo "::error::RUNNER_BACKEND_URL is not set."
+            exit 1
+          fi
+          RUNNER_BACKEND_BASE="${RUNNER_BACKEND_BASE%/}"
+          LOGIN_URL="${RUNNER_BACKEND_BASE}/api/v2/auth/login"
+          AUTH_VERIFY_URL="${RUNNER_BACKEND_BASE}/api/v2/auth/mfa/status"
+          echo "Using auth endpoints: LOGIN_URL=${LOGIN_URL} AUTH_VERIFY_URL=${AUTH_VERIFY_URL}"
           LOGIN_EMAIL="${{ env.ZAP_LOGIN_EMAIL }}"
           LOGIN_PASSWORD="${{ env.ZAP_LOGIN_PASSWORD }}"
 
-          if [ -z "$LOGIN_EMAIL" ] || [ -z "$LOGIN_PASSWORD" ]; then
-            echo "::error::Missing ZAP login credentials. Set vars.ZAP_LOGIN_EMAIL and secrets.ZAP_LOGIN_PASSWORD (or use seeded demo defaults)."
-            exit 1
+          if [ -z "$LOGIN_EMAIL" ]; then
+            LOGIN_EMAIL="${{ env.ZAP_DEMO_LOGIN_EMAIL }}"
           fi
 
-          # Mask login password in logs (even if using demo default)
+          if [ -z "$LOGIN_PASSWORD" ]; then
+            if [ "${{ env.ALLOW_DEMO_AUTH_FALLBACK }}" = "1" ]; then
+              LOGIN_PASSWORD="${{ env.ZAP_DEMO_LOGIN_PASSWORD }}"
+              echo "::warning::Using demo auth fallback password for DAST execution."
+            else
+              echo "::error::Missing secrets.ZAP_LOGIN_PASSWORD and ALLOW_DEMO_AUTH_FALLBACK=0. Configure the secret or explicitly enable fallback."
+              exit 1
+            fi
+          fi
+
+          echo "::add-mask::${LOGIN_EMAIL}"
           echo "::add-mask::${LOGIN_PASSWORD}"
 
-          echo "Logging in at: ${{ env.LOGIN_URL }} (token will be masked)"
-          RESP="$(curl -fsS -X POST "${{ env.LOGIN_URL }}" \
-            -H "Content-Type: application/json" \
-            --data "{\"email\":\"${LOGIN_EMAIL}\",\"password\":\"${LOGIN_PASSWORD}\"}")"
+          RESP="$(curl -fsS -X POST "${LOGIN_URL}" -H "Content-Type: application/json" --data "{\"email\":\"${LOGIN_EMAIL}\",\"password\":\"${LOGIN_PASSWORD}\"}")"
 
           MFA_REQUIRED="$(echo "$RESP" | jq -r '.mfaRequired // false' || true)"
           if [ "$MFA_REQUIRED" = "true" ]; then
-            echo "::error::MFA is enabled for this user. Use a non-MFA account for DAST (seeded demo users have MFA disabled)."
+            echo "::error::MFA is enabled for this user. Use a non-MFA account for DAST."
             exit 1
           fi
 
           TOKEN="$(echo "$RESP" | jq -r '.accessToken // .token // empty' || true)"
           if [ -z "$TOKEN" ]; then
-            echo "::error::Could not acquire JWT. Response: $RESP"
+            echo "::error::Could not acquire JWT. Response redacted; check backend logs."
+            echo "$RESP" | jq -c '{mfaRequired, error, message}' || true
             exit 1
           fi
 
-          # Mask token so it won't leak in logs
           echo "::add-mask::${TOKEN}"
+          AUTH_HEADER="Authorization: Bearer ${TOKEN}"
+          echo "::add-mask::${AUTH_HEADER}"
 
-          # Store for later steps (avoid echoing token)
-          echo "ZAP_AUTH_HEADER=Authorization: Bearer ${TOKEN}" >> "$GITHUB_ENV"
+          echo "ZAP_AUTH_TOKEN=${TOKEN}" >> "$GITHUB_ENV"
+          echo "DAST_AUTH_ASSERTION_PASSED=0" >> "$GITHUB_ENV"
 
-          mkdir -p zap-out
-          printf "%s\n" "Authorization: Bearer ${TOKEN}" > zap-out/zap-auth-header.txt
-          chmod 644 zap-out/zap-auth-header.txt
-
-          # Verify auth actually works
-          if [ -n "${{ env.AUTH_VERIFY_URL }}" ]; then
-            echo "Verifying auth against: ${{ env.AUTH_VERIFY_URL }}"
-            curl -fsS -o /dev/null \
-              -H "Authorization: Bearer ${TOKEN}" \
-              "${{ env.AUTH_VERIFY_URL }}"
+          if [ -n "${AUTH_VERIFY_URL}" ]; then
+            curl -fsS -o /dev/null -H "Authorization: Bearer ${TOKEN}" "${AUTH_VERIFY_URL}"
+            echo "DAST_AUTH_ASSERTION_PASSED=1" >> "$GITHUB_ENV"
             echo "✅ Auth verification passed"
           else
-            echo "::warning::AUTH_VERIFY_URL not set; consider adding a protected endpoint to validate coverage."
+            echo "::warning::AUTH_VERIFY_URL not set; consider adding a protected endpoint."
           fi
 
-      # ------------------------------------------------------------
-      # 5) ZAP Full Scan - Frontend (AJAX spider + context + rules)
-      #    - Uses context (-n) to enforce scope
-      #    - Uses rules (-c) to manage noise/false positives
-      #    - Uses replacer to inject Authorization header (JWT)
-      # ------------------------------------------------------------
+          if [ "${{ env.DEBUG_DAST }}" = "1" ]; then
+            printf "%s\n" "Authorization: Bearer ${TOKEN}" > zap-out/zap-auth-header.txt
+            chmod 600 zap-out/zap-auth-header.txt
+          fi
+
       - name: OWASP ZAP Full Scan (Frontend, Auth, Context, Rules)
         working-directory: app
         run: |
@@ -217,16 +199,14 @@ jobs:
 
           VOL_PATH="$(pwd)/zap-out"
           TARGET="${{ env.ZAP_FRONTEND_URL }}"
-
-          # Avoid printing token; only pass the value portion
-          AUTH_VALUE="${ZAP_AUTH_HEADER#Authorization: }"
+          AUTH_VALUE="Bearer ${ZAP_AUTH_TOKEN}"
 
           set +e
           docker run --rm \
-            --network host \
+            --network "${COMPOSE_NETWORK}" \
             -v "$VOL_PATH:/zap/wrk/:rw" \
-            -v "$(pwd)/${{ env.ZAP_CONTEXT_FILE }}:/zap/wrk/context.context:ro" \
-            -v "$(pwd)/${{ env.ZAP_RULES_FILE }}:/zap/wrk/rules.tsv:ro" \
+            -v "${{ env.ZAP_CONTEXT_FILE }}:/zap/wrk/context.context:ro" \
+            -v "${{ env.ZAP_RULES_FILE }}:/zap/wrk/rules.tsv:ro" \
             "${{ env.ZAP_IMG }}" zap-full-scan.py \
             -t "$TARGET" \
             -n /zap/wrk/context.context \
@@ -248,15 +228,92 @@ jobs:
           set -e
 
           echo "ZAP_EXIT_FRONTEND=$ZAP_EXIT" >> "$GITHUB_ENV"
-          echo "ZAP exit code (frontend): $ZAP_EXIT"
-
           test -s "zap-out/zap-frontend.json" || (echo "::error::ZAP FE json missing/empty"; exit 1)
           jq -e 'type=="object"' "zap-out/zap-frontend.json" >/dev/null
 
-      # ------------------------------------------------------------
-      # 6) Backend scan strategy:
-      #    Prefer API scan (OpenAPI) when available, else fall back to full scan.
-      # ------------------------------------------------------------
+      - name: Assert authenticated coverage (Frontend)
+        working-directory: app
+        run: |
+          set -euo pipefail
+          FE="zap-out/zap-frontend.json"
+          # Coverage assertion (robust): count matching URLs across multiple possible instance shapes
+          # Note: This still proves "coverage reached URLs", not HTTP 200. Keep AUTH_VERIFY_URL as the auth truth.
+          MATCHES="$(jq --arg re "${{ env.AUTH_COVERAGE_REGEX }}" '
+            def uris:
+              [ .site[]?
+                | .alerts[]?
+                | (.instances? // [])
+                | .[]?
+                | (.uri? // .url? // empty)
+              ];
+            uris | map(select(. != "" and test($re))) | length
+          ' "$FE")"
+          if [ "$MATCHES" -eq 0 ]; then
+            echo "::warning::No authenticated coverage match found in frontend scan for regex=${{ env.AUTH_COVERAGE_REGEX }}"
+            echo "DAST_AUTH_COVERAGE_FRONTEND=0" >> "$GITHUB_ENV"
+          else
+            echo "DAST_AUTH_COVERAGE_FRONTEND=1" >> "$GITHUB_ENV"
+          fi
+
+      - name: Auth Refresh (re-mint JWT) before Backend scan
+        working-directory: app
+        run: |
+          set -euo pipefail
+
+          RUNNER_BACKEND_BASE="${RUNNER_BACKEND_URL:-}"
+          if [ -z "${RUNNER_BACKEND_BASE}" ]; then
+            echo "::error::RUNNER_BACKEND_URL is not set."
+            exit 1
+          fi
+          RUNNER_BACKEND_BASE="${RUNNER_BACKEND_BASE%/}"
+          LOGIN_URL="${RUNNER_BACKEND_BASE}/api/v2/auth/login"
+          AUTH_VERIFY_URL="${RUNNER_BACKEND_BASE}/api/v2/auth/mfa/status"
+          echo "Using auth endpoints: LOGIN_URL=${LOGIN_URL} AUTH_VERIFY_URL=${AUTH_VERIFY_URL}"
+          LOGIN_EMAIL="${{ env.ZAP_LOGIN_EMAIL }}"
+          LOGIN_PASSWORD="${{ env.ZAP_LOGIN_PASSWORD }}"
+
+          if [ -z "$LOGIN_EMAIL" ]; then
+            LOGIN_EMAIL="${{ env.ZAP_DEMO_LOGIN_EMAIL }}"
+          fi
+
+          if [ -z "$LOGIN_PASSWORD" ]; then
+            if [ "${{ env.ALLOW_DEMO_AUTH_FALLBACK }}" = "1" ]; then
+              LOGIN_PASSWORD="${{ env.ZAP_DEMO_LOGIN_PASSWORD }}"
+              echo "::warning::Using demo auth fallback password for DAST execution."
+            else
+              echo "::error::Missing secrets.ZAP_LOGIN_PASSWORD and ALLOW_DEMO_AUTH_FALLBACK=0. Configure the secret or explicitly enable fallback."
+              exit 1
+            fi
+          fi
+
+          echo "::add-mask::${LOGIN_EMAIL}"
+          echo "::add-mask::${LOGIN_PASSWORD}"
+
+          RESP="$(curl -fsS -X POST "${LOGIN_URL}" \
+            -H "Content-Type: application/json" \
+            --data "{\"email\":\"${LOGIN_EMAIL}\",\"password\":\"${LOGIN_PASSWORD}\"}")"
+
+          MFA_REQUIRED="$(echo "$RESP" | jq -r '.mfaRequired // false' || true)"
+          if [ "$MFA_REQUIRED" = "true" ]; then
+            echo "::error::MFA is enabled for this user. Use a non-MFA account for DAST."
+            exit 1
+          fi
+
+          TOKEN="$(echo "$RESP" | jq -r '.accessToken // .token // empty' || true)"
+          if [ -z "$TOKEN" ]; then
+            echo "::error::Could not acquire refreshed JWT. Response redacted; check backend logs."
+            echo "$RESP" | jq -c '{mfaRequired, error, message}' || true
+            exit 1
+          fi
+
+          echo "::add-mask::${TOKEN}"
+          echo "ZAP_AUTH_TOKEN=${TOKEN}" >> "$GITHUB_ENV"
+
+          if [ -n "${AUTH_VERIFY_URL}" ]; then
+            curl -fsS -o /dev/null -H "Authorization: Bearer ${TOKEN}" "${AUTH_VERIFY_URL}"
+            echo "✅ Auth refresh verification passed"
+          fi
+
       - name: Prepare OpenAPI (rewrite servers URL)
         working-directory: app
         run: |
@@ -264,39 +321,34 @@ jobs:
 
           SRC="server/src/docs/openapi.yaml"
           OUT="zap-out/openapi.yaml"
-
           test -f "$SRC" || (echo "::error::Missing OpenAPI spec at $SRC"; exit 1)
 
-          python3 - <<'PY'
-          import os, re, sys
-
-          src = os.environ.get("SRC", "server/src/docs/openapi.yaml")
-          out = os.environ.get("OUT", "zap-out/openapi.yaml")
-          backend = os.environ.get("ZAP_BACKEND_URL", "http://127.0.0.1:8080")
-
+          SRC="$SRC" OUT="$OUT" ZAP_BACKEND_URL="${{ env.ZAP_BACKEND_URL }}" python3 - <<'PY'
+          import os, re
+          src = os.environ["SRC"]
+          out = os.environ["OUT"]
+          backend = os.environ["ZAP_BACKEND_URL"]
           with open(src, "r", encoding="utf-8") as f:
             text = f.read()
-
           new_block = f"servers:\n  - url: {backend}\n"
-
           pattern = re.compile(r"^servers:\n(?:^[ \t]+-.*\n)+", re.M)
           if pattern.search(text):
             text = pattern.sub(new_block, text, count=1)
           else:
-            # Insert after info block if servers is missing.
-            info_pattern = re.compile(r"^info:\n(?:^[ \t]+.*\n)+", re.M)
-            match = info_pattern.search(text)
-            if match:
-              insert_at = match.end()
-              text = text[:insert_at] + "\n" + new_block + text[insert_at:]
-            else:
-              text = new_block + "\n" + text
-
+            text = new_block + "\n" + text
           with open(out, "w", encoding="utf-8") as f:
             f.write(text)
-
-          print(f"Wrote rewritten OpenAPI to {out} with servers URL={backend}")
+          if not text.strip():
+            raise SystemExit("rewritten openapi.yaml is empty")
+          print(f"Wrote {out}")
           PY
+
+          python3 -c 'import pathlib; p=pathlib.Path("zap-out/openapi.yaml"); assert p.exists() and p.stat().st_size>0'
+          ENDPOINT_COUNT="$(grep -Ec '^\s{2}/' zap-out/openapi.yaml || true)"
+          if [ "$ENDPOINT_COUNT" -eq 0 ]; then
+            echo "::error::OpenAPI rewrite produced zero endpoints"
+            exit 1
+          fi
 
           echo "OPENAPI_FOUND=1" >> "$GITHUB_ENV"
           echo "OPENAPI_FILE=zap-out/openapi.yaml" >> "$GITHUB_ENV"
@@ -308,16 +360,16 @@ jobs:
           set -euo pipefail
 
           VOL_PATH="$(pwd)/zap-out"
-          AUTH_VALUE="${ZAP_AUTH_HEADER#Authorization: }"
+          AUTH_VALUE="Bearer ${ZAP_AUTH_TOKEN}"
           OPENAPI_FILE="${{ env.OPENAPI_FILE }}"
 
           set +e
           docker run --rm \
-            --network host \
+            --network "${COMPOSE_NETWORK}" \
             -v "$VOL_PATH:/zap/wrk/:rw" \
-            -v "$(pwd)/${{ env.ZAP_RULES_FILE }}:/zap/wrk/rules.tsv:ro" \
+            -v "${{ env.ZAP_RULES_FILE }}:/zap/wrk/rules.tsv:ro" \
             "${{ env.ZAP_IMG }}" zap-api-scan.py \
-            -t "/zap/wrk/$(basename "$OPENAPI_FILE")" \
+            -t /zap/wrk/openapi.yaml \
             -f openapi \
             -r zap-backend.html \
             -J zap-backend.json \
@@ -333,58 +385,31 @@ jobs:
           set -e
 
           echo "ZAP_EXIT_BACKEND=$ZAP_EXIT" >> "$GITHUB_ENV"
-          echo "ZAP exit code (backend api scan): $ZAP_EXIT"
-
           test -s "zap-out/zap-backend.json" || (echo "::error::ZAP BE json missing/empty"; exit 1)
           jq -e 'type=="object"' "zap-out/zap-backend.json" >/dev/null
 
-      - name: OWASP ZAP Full Scan (Backend, Auth, Context, Rules) — fallback
-        if: env.OPENAPI_FOUND != '1'
+      - name: Assert authenticated coverage (Backend)
         working-directory: app
         run: |
           set -euo pipefail
+          BE="zap-out/zap-backend.json"
+          MATCHES="$(jq --arg re "${{ env.AUTH_COVERAGE_REGEX }}" '
+            def uris:
+              [ .site[]?
+                | .alerts[]?
+                | (.instances? // [])
+                | .[]?
+                | (.uri? // .url? // empty)
+              ];
+            uris | map(select(. != "" and test($re))) | length
+          ' "$BE")"
+          if [ "$MATCHES" -eq 0 ]; then
+            echo "::warning::No authenticated coverage match found in backend scan for regex=${{ env.AUTH_COVERAGE_REGEX }}"
+            echo "DAST_AUTH_COVERAGE_BACKEND=0" >> "$GITHUB_ENV"
+          else
+            echo "DAST_AUTH_COVERAGE_BACKEND=1" >> "$GITHUB_ENV"
+          fi
 
-          VOL_PATH="$(pwd)/zap-out"
-          TARGET="${{ env.ZAP_BACKEND_URL }}"
-          AUTH_VALUE="${ZAP_AUTH_HEADER#Authorization: }"
-
-          set +e
-          docker run --rm \
-            --network host \
-            -v "$VOL_PATH:/zap/wrk/:rw" \
-            -v "$(pwd)/${{ env.ZAP_CONTEXT_FILE }}:/zap/wrk/context.context:ro" \
-            -v "$(pwd)/${{ env.ZAP_RULES_FILE }}:/zap/wrk/rules.tsv:ro" \
-            "${{ env.ZAP_IMG }}" zap-full-scan.py \
-            -t "$TARGET" \
-            -n /zap/wrk/context.context \
-            -c /zap/wrk/rules.tsv \
-            -m "${{ env.ZAP_SPIDER_MINS }}" \
-            -T "${{ env.ZAP_STARTUP_TIMEOUT_MINS }}" \
-            -D "${{ env.ZAP_PASSIVE_WAIT_SECS }}" \
-            -j \
-            -r zap-backend.html \
-            -J zap-backend.json \
-            -I \
-            -z "-config replacer.full_list(0).description=authheader" \
-            -z "-config replacer.full_list(0).enabled=true" \
-            -z "-config replacer.full_list(0).matchtype=REQ_HEADER" \
-            -z "-config replacer.full_list(0).matchstr=Authorization" \
-            -z "-config replacer.full_list(0).regex=false" \
-            -z "-config replacer.full_list(0).replacement=${AUTH_VALUE}"
-          ZAP_EXIT=$?
-          set -e
-
-          echo "ZAP_EXIT_BACKEND=$ZAP_EXIT" >> "$GITHUB_ENV"
-          echo "ZAP exit code (backend full scan): $ZAP_EXIT"
-
-          test -s "zap-out/zap-backend.json" || (echo "::error::ZAP BE json missing/empty"; exit 1)
-          jq -e 'type=="object"' "zap-out/zap-backend.json" >/dev/null
-
-      # ------------------------------------------------------------
-      # 7) Governance Gate (risk + confidence + stable identifiers)
-      #    - High: block when confidence != Low
-      #    - Medium: block only selected categories AND confidence >= Medium
-      # ------------------------------------------------------------
       - name: Gate + Summary (Risk + Confidence)
         working-directory: app
         run: |
@@ -392,100 +417,97 @@ jobs:
 
           FE="zap-out/zap-frontend.json"
           BE="zap-out/zap-backend.json"
+          PATTERN="$(
+            awk '
+              BEGIN { ORS=""; first=1 }
+              {
+                line=$0
+                sub(/^[ \t\r\n]+/, "", line)
+                sub(/[ \t\r\n]+$/, "", line)
+                if (line == "" || line ~ /^#/) next
+                if (!first) printf "|"
+                printf "%s", line
+                first=0
+              }
+            ' "${{ env.MEDIUM_BLOCK_PATTERNS_FILE }}"
+          )"
+          if [ -z "${PATTERN}" ]; then
+            echo "::error::Medium block patterns file produced an empty pattern. Check ${MEDIUM_BLOCK_PATTERNS_FILE}."
+            exit 1
+          fi
+          echo "MEDIUM_BLOCK_PATTERNS=${PATTERN}" >> "$GITHUB_ENV"
 
-          # Normalize "riskcode" values:
-          # ZAP reports can be strings: 3=High, 2=Medium.
-          # Confidence strings typically: "Low" | "Medium" | "High"
           count_alerts () {
             local file="$1"; local risk="$2"; local min_conf="$3"
             jq --arg r "$risk" --arg mc "$min_conf" '
+              def confRank(c): if (c|ascii_downcase) == "high" then 3 elif (c|ascii_downcase) == "medium" then 2 elif (c|ascii_downcase) == "low" then 1 else 0 end;
+              def minRank(mc): if (mc|ascii_downcase) == "high" then 3 elif (mc|ascii_downcase) == "medium" then 2 elif (mc|ascii_downcase) == "low" then 1 else 0 end;
+              [ .site[]? | .alerts[]? | select((.riskcode|tostring) == $r) | select(confRank(.confidence // "") >= minRank($mc)) ] | length
+            ' "$file"
+          }
+
+          emit_top_findings () {
+            local file="$1"; local label="$2"
+            echo "### ${label}"
+            jq --arg re "$PATTERN" --arg pids "${{ env.BLOCK_MEDIUM_PLUGINIDS }}" '
               def confRank(c):
                 if (c|ascii_downcase) == "high" then 3
                 elif (c|ascii_downcase) == "medium" then 2
                 elif (c|ascii_downcase) == "low" then 1
                 else 0 end;
-              def minRank(mc):
-                if (mc|ascii_downcase) == "high" then 3
-                elif (mc|ascii_downcase) == "medium" then 2
-                elif (mc|ascii_downcase) == "low" then 1
-                else 0 end;
-
+              def pidAllowed(pid):
+                if ($pids|length) == 0 then false
+                else ($pids|split(",")|map(gsub("\\s+";""))|index(pid)) != null end;
               [ .site[]? | .alerts[]?
-                | select((.riskcode|tostring) == $r)
-                | select(confRank(.confidence // "") >= minRank($mc))
-              ] | length
-            ' "$file"
+                | . as $a
+                | ($a.instances // []) as $ins
+                | {
+                    alert: ($a.alert // "Unknown alert"),
+                    riskcode: ($a.riskcode|tostring),
+                    confidence: ($a.confidence // ""),
+                    pluginid: (($a.pluginid // $a.pluginId // "")|tostring),
+                    count: ($ins|length),
+                    sampleUrls: (($ins|map(.uri // .url)|map(select(. != null))|.[0:3]))
+                  }
+                | select(
+                    (.riskcode == "3" and confRank(.confidence) >= 2)
+                    or
+                    (.riskcode == "2" and confRank(.confidence) >= 2 and ((.alert|test($re; "i")) or pidAllowed(.pluginid)))
+                  )
+              ] | .[] | "- [plugin:\(.pluginid)] \(.alert) (risk=\(.riskcode), confidence=\(.confidence), instances=\(.count)) urls=\(.sampleUrls|join(", "))"' "$file"
           }
 
           HIGH_FE=$(count_alerts "$FE" "3" "medium")
           HIGH_BE=$(count_alerts "$BE" "3" "medium")
-
           MED_FE=$(count_alerts "$FE" "2" "low")
           MED_BE=$(count_alerts "$BE" "2" "low")
 
           echo "HIGH_FE=$HIGH_FE" >> "$GITHUB_ENV"
           echo "HIGH_BE=$HIGH_BE" >> "$GITHUB_ENV"
-          echo "MED_FE=$MED_FE"   >> "$GITHUB_ENV"
-          echo "MED_BE=$MED_BE"   >> "$GITHUB_ENV"
+          echo "MED_FE=$MED_FE" >> "$GITHUB_ENV"
+          echo "MED_BE=$MED_BE" >> "$GITHUB_ENV"
 
-          echo "Frontend: High(conf>=Medium)=$HIGH_FE  Medium=$MED_FE"
-          echo "Backend : High(conf>=Medium)=$HIGH_BE  Medium=$MED_BE"
+          MED_BLOCK () {
+            local file="$1"
+            jq --arg re "$PATTERN" --arg pids "${{ env.BLOCK_MEDIUM_PLUGINIDS }}" '
+              def confRank(c): if (c|ascii_downcase) == "high" then 3 elif (c|ascii_downcase) == "medium" then 2 elif (c|ascii_downcase) == "low" then 1 else 0 end;
+              def pidAllowed(pid): if ($pids|length) == 0 then false else ($pids|split(",")|map(gsub("\\s+";""))|index(pid)) != null end;
+              [ .site[]? | .alerts[]?
+                | select((.riskcode|tostring) == "2")
+                | select(confRank(.confidence // "") >= 2)
+                | select(( (.alert? // "") | test($re; "i") ) or pidAllowed((.pluginid // .pluginId // "")|tostring))
+              ] | length
+            ' "$file"
+          }
 
-          if [ "${{ env.BLOCK_HIGH }}" = "1" ]; then
-            if [ "$HIGH_FE" -gt 0 ] || [ "$HIGH_BE" -gt 0 ]; then
-              echo "::error::⛔ DAST Gate Failed: High vulnerabilities (confidence>=Medium) found (FE=$HIGH_FE, BE=$HIGH_BE)"
-              exit 1
-            fi
-          fi
+          MED_BLOCK_FE=$(MED_BLOCK "$FE")
+          MED_BLOCK_BE=$(MED_BLOCK "$BE")
+          echo "MED_BLOCK_FE=$MED_BLOCK_FE" >> "$GITHUB_ENV"
+          echo "MED_BLOCK_BE=$MED_BLOCK_BE" >> "$GITHUB_ENV"
 
-          if [ "${{ env.BLOCK_MEDIUM_CATEGORIES }}" = "1" ]; then
-            PATTERN="${{ env.MEDIUM_BLOCK_PATTERNS }}"
-            PLUGINIDS="${{ env.BLOCK_MEDIUM_PLUGINIDS }}"
-
-            # Medium + confidence >= Medium + matches pattern OR matches pluginid allowlist
-            MED_BLOCK () {
-              local file="$1"
-              jq --arg re "$PATTERN" --arg pids "$PLUGINIDS" '
-                def confRank(c):
-                  if (c|ascii_downcase) == "high" then 3
-                  elif (c|ascii_downcase) == "medium" then 2
-                  elif (c|ascii_downcase) == "low" then 1
-                  else 0 end;
-
-                def pidAllowed(pid):
-                  if ($pids|length) == 0 then false
-                  else ($pids|split(",")|map(gsub("\\s+";""))|index(pid)) != null end;
-
-                [ .site[]? | .alerts[]?
-                  | select((.riskcode|tostring) == "2")
-                  | select(confRank(.confidence // "") >= 2)
-                  | select( ( (.alert? // "") | test($re; "i") ) or pidAllowed((.pluginid // .pluginId // "")|tostring) )
-                ] | length
-              ' "$file"
-            }
-
-            MED_BLOCK_FE=$(MED_BLOCK "$FE")
-            MED_BLOCK_BE=$(MED_BLOCK "$BE")
-
-            echo "MED_BLOCK_FE=$MED_BLOCK_FE" >> "$GITHUB_ENV"
-            echo "MED_BLOCK_BE=$MED_BLOCK_BE" >> "$GITHUB_ENV"
-
-            echo "Medium (blocked, conf>=Medium) FE=$MED_BLOCK_FE BE=$MED_BLOCK_BE (pattern=$PATTERN, pluginids=$PLUGINIDS)"
-
-            if [ "$MED_BLOCK_FE" -gt 0 ] || [ "$MED_BLOCK_BE" -gt 0 ]; then
-              echo "::error::⛔ DAST Gate Failed: Selected Medium categories (confidence>=Medium) found (FE=$MED_BLOCK_FE, BE=$MED_BLOCK_BE)"
-              exit 1
-            fi
-          fi
-
-          # Markdown summary artifact
           SUMMARY="zap-out/summary.md"
           {
             echo "# DAST Weekly Summary"
-            echo ""
-            echo "- ZAP image: \`${{ env.ZAP_IMG }}\`"
-            echo "- Scan mode: FE=FullScan(AJAX)  BE=$( [ "${OPENAPI_FOUND:-0}" = "1" ] && echo "APIScan(OpenAPI)" || echo "FullScan(AJAX)" )"
-            echo "- ZAP exit codes: FE=\`${ZAP_EXIT_FRONTEND:-unknown}\`  BE=\`${ZAP_EXIT_BACKEND:-unknown}\`"
             echo ""
             echo "## Counts"
             echo "| Target | High (conf>=Medium) | Medium |"
@@ -493,18 +515,27 @@ jobs:
             echo "| Frontend | ${HIGH_FE} | ${MED_FE} |"
             echo "| Backend | ${HIGH_BE} | ${MED_BE} |"
             echo ""
-            echo "## Governance"
-            echo "- Block High: \`${{ env.BLOCK_HIGH }}\`"
-            echo "- Block selected Medium: \`${{ env.BLOCK_MEDIUM_CATEGORIES }}\`"
-            echo "- Medium patterns: \`${{ env.MEDIUM_BLOCK_PATTERNS }}\`"
-            echo "- Medium pluginids (optional): \`${{ env.BLOCK_MEDIUM_PLUGINIDS }}\`"
+            echo "## Authenticated coverage"
+            echo "- Auth verification passed: ${DAST_AUTH_ASSERTION_PASSED:-0}"
+            echo "- Frontend authenticated coverage: ${DAST_AUTH_COVERAGE_FRONTEND:-0}"
+            echo "- Backend authenticated coverage: ${DAST_AUTH_COVERAGE_BACKEND:-0}"
+            echo ""
+            echo "## Top Findings (gate-relevant)"
+            emit_top_findings "$FE" "Frontend"
+            emit_top_findings "$BE" "Backend"
           } > "$SUMMARY"
 
-          echo "✅ DAST Gate Passed"
+          if [ "${{ env.BLOCK_HIGH }}" = "1" ] && { [ "$HIGH_FE" -gt 0 ] || [ "$HIGH_BE" -gt 0 ]; }; then
+            jq -r '.site[]?.alerts[]? | select((.riskcode|tostring)=="3" and ((.confidence|ascii_downcase)=="high" or (.confidence|ascii_downcase)=="medium")) | "::error::Gate blocker plugin=\((.pluginid // .pluginId // "")|tostring) alert=\(.alert // "") confidence=\(.confidence // "") url=\((((.instances // [])[0].uri) // (((.instances // [])[0].url)) // "n/a"))"' "$FE" "$BE" || true
+            echo "::error::⛔ DAST Gate Failed: High vulnerabilities (confidence>=Medium) found (FE=$HIGH_FE, BE=$HIGH_BE)"
+            exit 1
+          fi
 
-      # ------------------------------------------------------------
-      # 8) Generate SARIF (Code Scanning) from ZAP JSON
-      # ------------------------------------------------------------
+          if [ "${{ env.BLOCK_MEDIUM_CATEGORIES }}" = "1" ] && { [ "$MED_BLOCK_FE" -gt 0 ] || [ "$MED_BLOCK_BE" -gt 0 ]; }; then
+            echo "::error::⛔ DAST Gate Failed: Selected Medium categories (confidence>=Medium) found (FE=$MED_BLOCK_FE, BE=$MED_BLOCK_BE)"
+            exit 1
+          fi
+
       - name: Generate SARIF (from ZAP JSON)
         if: always()
         working-directory: app
@@ -514,7 +545,6 @@ jobs:
           import json, os, hashlib, datetime
 
           def level_from_riskcode(rc: str) -> str:
-            # 3=High, 2=Medium, 1=Low, 0=Info
             rc = str(rc)
             if rc == "3": return "error"
             if rc == "2": return "warning"
@@ -523,16 +553,22 @@ jobs:
           def load_alerts(path: str):
             with open(path, "r", encoding="utf-8") as f:
               data = json.load(f)
-            alerts = []
-            for site in data.get("site", []) or []:
-              for a in site.get("alerts", []) or []:
-                alerts.append(a)
-            return alerts
+            return [a for site in data.get("site", []) or [] for a in (site.get("alerts", []) or [])]
 
-          def to_sarif(scan_name: str, json_path: str, out_path: str):
+          def collect_urls(alerts):
+            urls = []
+            for a in alerts:
+              instances = a.get("instances") or []
+              if not instances:
+                uri = a.get("uri") or a.get("url")
+                if uri: instances = [{"uri": uri}]
+              for inst in instances:
+                uri = inst.get("uri") or inst.get("url")
+                if uri and uri.startswith(("http://", "https://")): urls.append(uri)
+            return urls
+
+          def to_sarif(scan_name: str, json_path: str, out_path: str, url_map: dict):
             alerts = load_alerts(json_path)
-
-            # Build rule dictionary
             rules = {}
             results = []
 
@@ -552,99 +588,82 @@ jobs:
                   "name": alert,
                   "shortDescription": {"text": alert},
                   "fullDescription": {"text": f"{desc}\n\nSolution: {sol}\n\nReference: {ref}".strip()},
-                  "properties": {
-                    "tags": ["security", "dast", "owasp-zap"],
-                    "confidence": confidence,
-                    "pluginid": pluginid,
-                  },
+                  "helpUri": "https://www.zaproxy.org/docs/alerts/",
+                  "properties": {"tags": ["security", "dast", "owasp-zap", f"zap-plugin:{pluginid}"], "confidence": confidence, "pluginid": pluginid},
                 }
 
-              # Instances vary by report type; try common fields
               instances = a.get("instances") or []
               if not instances:
-                # Some reports use "uri" at top-level or other shapes
                 uri = a.get("uri") or a.get("url")
-                if uri:
-                  instances = [{"uri": uri}]
+                if uri: instances = [{"uri": uri}]
 
               for inst in instances:
                 uri = inst.get("uri") or inst.get("url") or "unknown"
+                artifact_uri = uri
+                region = None
+                if uri.startswith(("http://", "https://")):
+                  artifact_uri = "zap-out/targets.txt"
+                  if uri in url_map: region = {"startLine": url_map[uri]}
                 evidence = inst.get("evidence") or ""
                 method = inst.get("method") or ""
                 param = inst.get("param") or ""
 
-                # Stable fingerprint
-                fp = hashlib.sha256(f"{rid}|{uri}|{param}|{method}".encode("utf-8")).hexdigest()
+                fp_primary = hashlib.sha256(f"{rid}|{uri}|{param}|{method}".encode("utf-8")).hexdigest()
+                fp_instance = hashlib.sha256(f"{pluginid}|{uri}|{evidence}".encode("utf-8")).hexdigest()
 
                 results.append({
                   "ruleId": rid,
                   "level": level_from_riskcode(riskcode),
                   "message": {"text": f"{alert} (confidence={confidence})"},
-                  "locations": [{
-                    "physicalLocation": {
-                      "artifactLocation": {"uri": uri},
-                    }
-                  }],
-                  "partialFingerprints": {"primaryLocationLineHash": fp},
-                  "properties": {
-                    "confidence": confidence,
-                    "riskcode": riskcode,
-                    "pluginid": pluginid,
-                    "param": param,
-                    "method": method,
-                    "evidence": evidence,
-                  }
+                  "locations": [{"physicalLocation": {"artifactLocation": {"uri": artifact_uri}, **({"region": region} if region else {})}}],
+                  "partialFingerprints": {"primaryLocationLineHash": fp_primary},
+                  "fingerprints": {
+                    "zapPrimaryFingerprint": fp_primary,
+                    "zapInstanceFingerprint": fp_instance,
+                  },
+                  "properties": {"confidence": confidence, "riskcode": riskcode, "pluginid": pluginid, "param": param, "method": method, "evidence": evidence, "url": uri, "tags": ["security", "dast", "owasp-zap", f"zap-plugin:{pluginid}"]}
                 })
 
-          # SARIF envelope
             sarif = {
               "version": "2.1.0",
               "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
               "runs": [{
-                "tool": {
-                  "driver": {
-                    "name": "OWASP ZAP",
-                    "informationUri": "https://www.zaproxy.org/",
-                    "rules": list(rules.values()),
-                  }
-                },
-                "automationDetails": {
-                  "id": scan_name
-                },
+                "tool": {"driver": {"name": "OWASP ZAP", "informationUri": "https://www.zaproxy.org/", "rules": list(rules.values())}},
+                "automationDetails": {"id": scan_name},
                 "results": results,
-                "invocations": [{
-                  "executionSuccessful": True,
-                  "startTimeUtc": datetime.datetime.utcnow().isoformat() + "Z",
-                }]
+                "invocations": [{"executionSuccessful": True, "startTimeUtc": datetime.datetime.utcnow().isoformat() + "Z"}]
               }]
             }
-
             with open(out_path, "w", encoding="utf-8") as f:
               json.dump(sarif, f, indent=2)
 
           os.makedirs("zap-out", exist_ok=True)
-          to_sarif("frontend", "zap-out/zap-frontend.json", "zap-out/zap-frontend.sarif")
-          to_sarif("backend",  "zap-out/zap-backend.json",  "zap-out/zap-backend.sarif")
-          print("Wrote SARIF: zap-out/zap-frontend.sarif, zap-out/zap-backend.sarif")
+          all_alerts = load_alerts("zap-out/zap-frontend.json") + load_alerts("zap-out/zap-backend.json")
+          urls = sorted(set(collect_urls(all_alerts)))
+          url_map = {}
+          with open("zap-out/targets.txt", "w", encoding="utf-8") as f:
+            for i, url in enumerate(urls, start=1):
+              f.write(url + "\n")
+              url_map[url] = i
+
+          to_sarif("frontend", "zap-out/zap-frontend.json", "zap-out/zap-frontend.sarif", url_map)
+          to_sarif("backend", "zap-out/zap-backend.json", "zap-out/zap-backend.sarif", url_map)
           PY
 
       - name: Upload SARIF (Frontend)
         if: always()
-        uses: github/codeql-action/upload-sarif@45cbd0c69e560cd9e7cd7f8c32362050c9b7ded2 # v4.0.0
+        uses: github/codeql-action/upload-sarif@45cbd0c69e560cd9e7cd7f8c32362050c9b7ded2
         with:
           sarif_file: app/zap-out/zap-frontend.sarif
           category: zap-frontend
 
       - name: Upload SARIF (Backend)
         if: always()
-        uses: github/codeql-action/upload-sarif@45cbd0c69e560cd9e7cd7f8c32362050c9b7ded2 # v4.0.0
+        uses: github/codeql-action/upload-sarif@45cbd0c69e560cd9e7cd7f8c32362050c9b7ded2
         with:
           sarif_file: app/zap-out/zap-backend.sarif
           category: zap-backend
 
-      # ------------------------------------------------------------
-      # 9) Upload artifacts
-      # ------------------------------------------------------------
       - name: Upload ZAP Artifacts (folder)
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
@@ -653,9 +672,6 @@ jobs:
           path: app/zap-out/
           retention-days: 30
 
-      # ------------------------------------------------------------
-      # 10) Debug logs on failure
-      # ------------------------------------------------------------
       - name: Debug - Container Logs
         if: failure()
         working-directory: app
@@ -663,9 +679,6 @@ jobs:
           docker compose ps || true
           docker compose logs --no-color || true
 
-      # ------------------------------------------------------------
-      # 11) Create an issue on failure (kept)
-      # ------------------------------------------------------------
       - name: Create Issue on Failure
         if: failure()
         env:
@@ -675,6 +688,7 @@ jobs:
           TODAY="$(date -u +%Y-%m-%d)"
           KEY="DAST_FAIL_${TODAY}_${{ github.workflow }}"
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          SUMMARY_EXCERPT="$(head -n 25 app/zap-out/summary.md 2>/dev/null || echo 'summary.md unavailable')"
 
           TITLE="🚨 DAST Weekly Failed (${TODAY})"
           BODY=$(cat <<EOF
@@ -682,54 +696,31 @@ jobs:
           **Workflow:** ${{ github.workflow }}
           **Date (UTC):** ${TODAY}
           **Run:** ${RUN_URL}
+          **Commit SHA:** ${{ github.sha }}
+          **Actor:** ${{ github.actor }}
 
-          ## Targets
-          - Frontend: ${{ env.ZAP_FRONTEND_URL }}
-          - Backend:  ${{ env.ZAP_BACKEND_URL }}
+          ## Auth assertions
+          - Auth verify URL passed: ${{ env.DAST_AUTH_ASSERTION_PASSED }}
+          - FE authenticated coverage: ${{ env.DAST_AUTH_COVERAGE_FRONTEND }}
+          - BE authenticated coverage: ${{ env.DAST_AUTH_COVERAGE_BACKEND }}
 
-          ## ZAP Runtime
-          - Image (pinned): \`${{ env.ZAP_IMG }}\`
-          - Exit codes: FE=\`${{ env.ZAP_EXIT_FRONTEND || 'unknown' }}\` BE=\`${{ env.ZAP_EXIT_BACKEND || 'unknown' }}\`
+          echo "DAST_AUTH_ASSERTION_PASSED=0" >> "$GITHUB_ENV"
+          echo "DAST_AUTH_COVERAGE_FRONTEND=0" >> "$GITHUB_ENV"
+          echo "DAST_AUTH_COVERAGE_BACKEND=0" >> "$GITHUB_ENV"
 
-          ## Counts (High is confidence>=Medium)
-          - Frontend High: \`${{ env.HIGH_FE || 'unknown' }}\`
-          - Backend  High: \`${{ env.HIGH_BE || 'unknown' }}\`
-          - Frontend Medium: \`${{ env.MED_FE || 'unknown' }}\`
-          - Backend  Medium: \`${{ env.MED_BE || 'unknown' }}\`
-          - Medium blocked categories FE: \`${{ env.MED_BLOCK_FE || 'n/a' }}\`
-          - Medium blocked categories BE: \`${{ env.MED_BLOCK_BE || 'n/a' }}\`
-
-          ## Artifacts
-          - \`zap-out/\`: html/json + summary.md + SARIF
-
-          ## Triage (playbook)
-          1) Open \`summary.md\` first
-          2) Review \`zap-frontend.html\` and \`zap-backend.html\`
-          3) Validate auth coverage:
-             - JWT minted successfully?
-             - AUTH_VERIFY_URL returns 200?
-          4) Tune noise:
-             - update \`${{ env.ZAP_RULES_FILE }}\`
-             - tighten Context scope include/exclude
-
+          ## Summary excerpt
+          \`\`\`
+          ${SUMMARY_EXCERPT}
+          \`\`\`
           EOF
           )
 
           if gh issue list --limit 100 --search "${KEY}" --json body | jq -e --arg k "${KEY}" '.[] | select(.body | contains($k))' >/dev/null; then
-            echo "Issue already exists for ${KEY}."
             exit 0
           fi
 
-          gh issue create \
-            --title "$TITLE" \
-            --body "$BODY" \
-            --label "security" \
-            --label "dast" \
-            --label "automated"
+          gh issue create --title "$TITLE" --body "$BODY" --label "security" --label "dast" --label "automated"
 
-      # ------------------------------------------------------------
-      # 12) Cleanup + teardown
-      # ------------------------------------------------------------
       - name: Cleanup Secrets + Env
         if: always()
         working-directory: app
@@ -739,8 +730,6 @@ jobs:
           if [ -n "${SECRETS_PATH:-}" ] && [ -d "${SECRETS_PATH:-}" ]; then
             rm -rf "${SECRETS_PATH}"
           fi
-          # Defense-in-depth: ensure token is not left in artifacts beyond what you intend.
-          # Remove this line if you truly need the header file in artifacts for debugging:
           rm -f zap-out/zap-auth-header.txt || true
 
       - name: Teardown
