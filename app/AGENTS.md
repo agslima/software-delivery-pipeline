@@ -59,6 +59,7 @@ Applies only to `app/` and its subdirectories (`client/`, `server/`, `docker/`, 
 - Field-level encryption uses `DATA_ENCRYPTION_KEY` (see `app/server/src/utils/fieldEncryption.js`) and `app/secrets/data_encryption_key.txt` in Docker.
 - Optional TLS for API server: set `TLS_CERT_PATH` and `TLS_KEY_PATH` in the backend environment.
 - API responses set `Cache-Control: no-store` to reduce PHI caching risk.
+- Demo/test credentials are no longer hardcoded; seeds and tests generate values or require env vars (see `app/server/tests/helpers/testCredentials.js`).
 - If you change env names or add secrets, update:
   - `app/server/src/config/env.js`
   - `app/docker-compose.yml`
@@ -80,3 +81,7 @@ Applies only to `app/` and its subdirectories (`client/`, `server/`, `docker/`, 
 - Server tests are Jest under `app/server/tests`.
 - Client tests are Vitest under `app/client/src`.
 - Prefer updating or adding tests when changing auth, API responses, or UI flows.
+- Integration tests for audit storage can auto-start a Postgres container via `app/docker-compose.test-db.yml`.
+- Helper scripts:
+  - `app/scripts/test-db.sh` (spin up test DB, run audit repo integration test)
+  - `app/scripts/test-db-compose.sh` (manage test DB container)
