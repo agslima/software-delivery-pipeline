@@ -8,13 +8,13 @@ jest.mock('knex', () => {
 
 const { randomBytes } = require('crypto');
 
-const testDbPass = randomBytes(12).toString('hex');
+const mockDbPass = randomBytes(12).toString('hex');
 
 // 2. Mock the env variables
 jest.mock('../../src/config/env', () => ({
   DB_HOST: 'localhost',
   DB_USER: 'test_user',
-  DB_PASS: testDbPass,
+  DB_PASS: mockDbPass,
   DB_NAME: 'test_db',
 }));
 
@@ -28,7 +28,7 @@ describe('Unit: Database Config', () => {
       connection: {
         host: 'localhost',
         user: 'test_user',
-        password: testDbPass,
+        password: mockDbPass,
         database: 'test_db',
       },
       pool: { min: 2, max: 10 },
