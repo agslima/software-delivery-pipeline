@@ -482,11 +482,6 @@ jobs:
           MED_FE=$(count_alerts "$FE" "2" "low")
           MED_BE=$(count_alerts "$BE" "2" "low")
 
-          echo "HIGH_FE=$HIGH_FE" >> "$GITHUB_ENV"
-          echo "HIGH_BE=$HIGH_BE" >> "$GITHUB_ENV"
-          echo "MED_FE=$MED_FE" >> "$GITHUB_ENV"
-          echo "MED_BE=$MED_BE" >> "$GITHUB_ENV"
-
           MED_BLOCK () {
             local file="$1"
             jq --arg re "$PATTERN" --arg pids "${{ env.BLOCK_MEDIUM_PLUGINIDS }}" '
@@ -679,6 +674,12 @@ jobs:
           docker compose ps || true
           docker compose logs --no-color || true
 
+      - name: Init DAST defaults (avoid empty envs)
+        run: |
+          echo "DAST_AUTH_ASSERTION_PASSED=0" >> "$GITHUB_ENV"
+          echo "DAST_AUTH_COVERAGE_FRONTEND=0" >> "$GITHUB_ENV"
+          echo "DAST_AUTH_COVERAGE_BACKEND=0" >> "$GITHUB_ENV"
+          
       - name: Create Issue on Failure
         if: failure()
         env:
@@ -703,10 +704,6 @@ jobs:
           - Auth verify URL passed: ${{ env.DAST_AUTH_ASSERTION_PASSED }}
           - FE authenticated coverage: ${{ env.DAST_AUTH_COVERAGE_FRONTEND }}
           - BE authenticated coverage: ${{ env.DAST_AUTH_COVERAGE_BACKEND }}
-
-          echo "DAST_AUTH_ASSERTION_PASSED=0" >> "$GITHUB_ENV"
-          echo "DAST_AUTH_COVERAGE_FRONTEND=0" >> "$GITHUB_ENV"
-          echo "DAST_AUTH_COVERAGE_BACKEND=0" >> "$GITHUB_ENV"
 
           ## Summary excerpt
           \`\`\`
