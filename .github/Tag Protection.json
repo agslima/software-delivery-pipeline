@@ -1,0 +1,47 @@
+{
+  "id": 11512778,
+  "name": "Tag Protection",
+  "target": "tag",
+  "source_type": "Repository",
+  "source": "agslima/software-delivery-pipeline",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "exclude": [],
+      "include": [
+        "refs/tags/\"v*.*.*"
+      ]
+    }
+  },
+  "rules": [
+    {
+      "type": "deletion"
+    },
+    {
+      "type": "non_fast_forward"
+    },
+    {
+      "type": "creation"
+    },
+    {
+      "type": "required_signatures"
+    },
+    {
+      "type": "update"
+    },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": true,
+        "do_not_enforce_on_create": false,
+        "required_status_checks": [
+          {
+            "context": "CodeQL",
+            "integration_id": 57789
+          }
+        ]
+      }
+    }
+  ],
+  "bypass_actors": []
+}
