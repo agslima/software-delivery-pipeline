@@ -165,7 +165,32 @@ jobs:
           echo "::add-mask::${LOGIN_PASSWORD}"
 
           LOGIN_PAYLOAD="$(jq -cn --arg email "$LOGIN_EMAIL" --arg password "$LOGIN_PASSWORD" '{email:$email,password:$password}')"
-          RESP="$(curl -fsS -X POST "${LOGIN_URL}" -H "Content-Type: application/json" --data "$LOGIN_PAYLOAD")"
+          AUTH_HTTP_CODE=""
+          RESP=""
+          for attempt in 1 2 3 4 5; do
+            RESP="$(curl -sS -X POST "${LOGIN_URL}" -H "Content-Type: application/json" --data "$LOGIN_PAYLOAD" -w $'\n%{http_code}')"
+            AUTH_HTTP_CODE="$(printf '%s' "$RESP" | tail -n 1)"
+            RESP="$(printf '%s' "$RESP" | sed '$d')"
+
+            if [ "$AUTH_HTTP_CODE" = "200" ]; then
+              break
+            fi
+
+            if [ "$AUTH_HTTP_CODE" -ge 500 ] 2>/dev/null; then
+              echo "::warning::Auth bootstrap returned HTTP ${AUTH_HTTP_CODE} (attempt ${attempt}/5). Retrying..."
+              sleep 3
+              continue
+            fi
+
+            break
+          done
+
+          if [ "$AUTH_HTTP_CODE" != "200" ]; then
+            echo "::error::Auth bootstrap failed with HTTP ${AUTH_HTTP_CODE}."
+            echo "$RESP" | jq -c '{error, message, code, details}' 2>/dev/null || true
+            docker compose logs --no-color --tail=200 backend || true
+            exit 1
+          fi
 
           MFA_REQUIRED="$(echo "$RESP" | jq -r '.mfaRequired // false' || true)"
           if [ "$MFA_REQUIRED" = "true" ]; then
@@ -177,6 +202,7 @@ jobs:
           if [ -z "$TOKEN" ]; then
             echo "::error::Could not acquire JWT. Response redacted; check backend logs."
             echo "$RESP" | jq -c '{mfaRequired, error, message}' || true
+            docker compose logs --no-color --tail=200 backend || true
             exit 1
           fi
 
@@ -289,9 +315,35 @@ jobs:
           echo "::add-mask::${LOGIN_PASSWORD}"
 
           LOGIN_PAYLOAD="$(jq -cn --arg email "$LOGIN_EMAIL" --arg password "$LOGIN_PASSWORD" '{email:$email,password:$password}')"
-          RESP="$(curl -fsS -X POST "${LOGIN_URL}" \
-            -H "Content-Type: application/json" \
-            --data "$LOGIN_PAYLOAD")"
+          AUTH_HTTP_CODE=""
+          RESP=""
+          for attempt in 1 2 3 4 5; do
+            RESP="$(curl -sS -X POST "${LOGIN_URL}" \
+              -H "Content-Type: application/json" \
+              --data "$LOGIN_PAYLOAD" \
+              -w $'\n%{http_code}')"
+            AUTH_HTTP_CODE="$(printf '%s' "$RESP" | tail -n 1)"
+            RESP="$(printf '%s' "$RESP" | sed '$d')"
+
+            if [ "$AUTH_HTTP_CODE" = "200" ]; then
+              break
+            fi
+
+            if [ "$AUTH_HTTP_CODE" -ge 500 ] 2>/dev/null; then
+              echo "::warning::Auth refresh returned HTTP ${AUTH_HTTP_CODE} (attempt ${attempt}/5). Retrying..."
+              sleep 3
+              continue
+            fi
+
+            break
+          done
+
+          if [ "$AUTH_HTTP_CODE" != "200" ]; then
+            echo "::error::Auth refresh failed with HTTP ${AUTH_HTTP_CODE}."
+            echo "$RESP" | jq -c '{error, message, code, details}' 2>/dev/null || true
+            docker compose logs --no-color --tail=200 backend || true
+            exit 1
+          fi
 
           MFA_REQUIRED="$(echo "$RESP" | jq -r '.mfaRequired // false' || true)"
           if [ "$MFA_REQUIRED" = "true" ]; then
@@ -303,6 +355,7 @@ jobs:
           if [ -z "$TOKEN" ]; then
             echo "::error::Could not acquire refreshed JWT. Response redacted; check backend logs."
             echo "$RESP" | jq -c '{mfaRequired, error, message}' || true
+            docker compose logs --no-color --tail=200 backend || true
             exit 1
           fi
 
