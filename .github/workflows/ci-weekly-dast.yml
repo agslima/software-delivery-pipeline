@@ -122,6 +122,56 @@ jobs:
           docker compose exec -T -e DB_PASS="$DB_PASS_VALUE" backend node ./node_modules/knex/bin/cli.js migrate:latest --knexfile src/config/knexfile.js
           docker compose exec -T -e DB_PASS="$DB_PASS_VALUE" backend node ./node_modules/knex/bin/cli.js seed:run --knexfile src/config/knexfile.js
 
+          # Ensure DAST auth credentials exist and match configured values.
+          docker compose exec -T \
+            -e DB_PASS="$DB_PASS_VALUE" \
+            -e DAST_EMAIL="${{ env.ZAP_LOGIN_EMAIL }}" \
+            -e DAST_PASSWORD="${{ env.ZAP_LOGIN_PASSWORD }}" \
+            backend node - <<'NODE'
+          const bcrypt = require('bcryptjs');
+          const { randomUUID } = require('crypto');
+          const db = require('./src/infra/db/knex');
+
+          const email = String(process.env.DAST_EMAIL || '').trim().toLowerCase();
+          const password = String(process.env.DAST_PASSWORD || '');
+
+          if (!email || !password) {
+            throw new Error('Missing DAST_EMAIL and/or DAST_PASSWORD for auth user bootstrap');
+          }
+
+          (async () => {
+            const passwordHash = await bcrypt.hash(password, 10);
+            const existing = await db.withSchema('v2').from('users').where({ email }).first();
+
+            if (existing) {
+              await db
+                .withSchema('v2')
+                .from('users')
+                .where({ id: existing.id })
+                .update({
+                  password_hash: passwordHash,
+                  role: existing.role || 'admin',
+                  mfa_enabled: false,
+                });
+            } else {
+              await db.withSchema('v2').from('users').insert({
+                id: randomUUID(),
+                email,
+                password_hash: passwordHash,
+                role: 'admin',
+                mfa_enabled: false,
+              });
+            }
+
+            await db.destroy();
+            console.log('DAST auth user upserted');
+          })().catch(async (err) => {
+            console.error(err);
+            try { await db.destroy(); } catch {}
+            process.exit(1);
+          });
+          NODE
+
           timeout "${{ env.HEALTH_TIMEOUT }}s" bash -c 'until curl -fsS "${{ env.RUNNER_BACKEND_URL }}/health" >/dev/null; do sleep 5; done'
           timeout "${{ env.HEALTH_TIMEOUT }}s" bash -c 'until curl -fsS "${{ env.RUNNER_FRONTEND_URL }}/health" >/dev/null; do sleep 5; done'
           timeout "${{ env.HEALTH_TIMEOUT }}s" bash -c 'until curl -fsS "${{ env.RUNNER_FRONTEND_URL }}/" | head -n 3 | grep -qi "<!doctype"; do sleep 5; done' || true
