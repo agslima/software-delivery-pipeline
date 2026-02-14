@@ -9,21 +9,19 @@
 # - IGNORE only when I'm certain it is non-actionable in my environment.
 
 # --- Common header hygiene (usually noisy in CI) ---
-10020   WARN    OFF     # Missing Anti-clickjacking Header
-10021   WARN    OFF     # X-Content-Type-Options Header Missing
-10016   WARN    OFF     # Web Browser XSS Protection Header Not Set (legacy/varies)
-10038   WARN    OFF     # Content Security Policy (CSP) Header Not Set (SPA often needs tuning)
-10035   WARN    OFF     # Strict-Transport-Security Header Not Set (often false in local HTTP CI)
-10036   WARN    OFF     # Server Leaks Version Information via "Server" HTTP Response Header Field
-10037   WARN    OFF     # Server Leaks Information via "X-Powered-By" HTTP Response Header Field
-10015   WARN    OFF     # Incomplete or No Cache-control and Pragma HTTP Header Set
-10096   WARN    OFF     # Timestamp Disclosure
+10020   WARN    LOW     # Missing Anti-clickjacking Header
+10021   WARN    LOW     # X-Content-Type-Options Header Missing
+10016   WARN    LOW     # Web Browser XSS Protection Header Not Set (legacy)
+10038   WARN    LOW     # Content Security Policy (CSP) Header Not Set
+10015   WARN    LOW     # Incomplete/No Cache-control and Pragma Header Set
+10096   WARN    LOW     # Timestamp Disclosure
 
-# --- Optional: cut noise further (use with caution) ---
-# If FE serves only static content on localhost, IGNORE some header checks for FE target.
-# Prefer WARN first; change to IGNORE only after confirming it hides nothing important.
-# 10038 IGNORE OFF
+# In HTTP-only CI this is expected; don’t spam findings.
+10035   WARN    OFF     # Strict-Transport-Security Header Not Set (local HTTP)
 
-# --- Keep these as default (do NOT suppress) ---
-# Auth/session/JWT findings, injection, SSRF, traversal, deserialization, RCE, command injection, XXE, etc.
-# will be gated by the workflow (risk + confidence + patterns/pluginids).
+# --- Info leaks (keep visible; often actionable) ---
+10036   WARN    LOW     # Server Leaks Version Information via "Server"
+10037   WARN    LOW     # Server Leaks Info via "X-Powered-By"
+
+# --- Optional noise reduction (ONLY enable after a few stable runs) ---
+# 10038   IGNORE  LOW   # CSP missing
