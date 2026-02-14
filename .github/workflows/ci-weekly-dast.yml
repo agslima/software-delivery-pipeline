@@ -34,9 +34,6 @@ jobs:
       ZAP_RULES_FILE: ${{ github.workspace }}/.zap/rules.tsv
       MEDIUM_BLOCK_PATTERNS_FILE: ${{ github.workspace }}/.zap/medium-block-patterns.txt
 
-      ZAP_SCOPE_INCLUDE: '^http://(frontend|backend):8080/.*'
-      ZAP_SCOPE_EXCLUDE: '.*\.(css|js|map|png|jpg|jpeg|gif|svg|ico|woff|woff2)$'
-
       ZAP_SPIDER_MINS: "8"
       ZAP_STARTUP_TIMEOUT_MINS: "5"
       ZAP_PASSIVE_WAIT_SECS: "10"
@@ -47,15 +44,28 @@ jobs:
 
       ZAP_LOGIN_EMAIL: ${{ vars.ZAP_LOGIN_EMAIL }}
       ZAP_LOGIN_PASSWORD: ${{ secrets.ZAP_LOGIN_PASSWORD }}
-      ZAP_DEMO_LOGIN_EMAIL: john.smith@stayhealthy.test
-      ZAP_DEMO_LOGIN_PASSWORD: DemoPass123!
-      ALLOW_DEMO_AUTH_FALLBACK: "0"
       DEBUG_DAST: "0"
 
       AUTH_COVERAGE_REGEX: '/api/v2/'
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+      - name: Init DAST defaults (avoid empty envs)
+        run: |
+          echo "DAST_AUTH_ASSERTION_PASSED=0" >> "$GITHUB_ENV"
+          echo "DAST_AUTH_COVERAGE_FRONTEND=0" >> "$GITHUB_ENV"
+          echo "DAST_AUTH_COVERAGE_BACKEND=0" >> "$GITHUB_ENV"
+          echo "OPENAPI_FOUND=0" >> "$GITHUB_ENV"
+          echo "HIGH_FE=0" >> "$GITHUB_ENV"
+          echo "HIGH_BE=0" >> "$GITHUB_ENV"
+          echo "MED_FE=0" >> "$GITHUB_ENV"
+          echo "MED_BE=0" >> "$GITHUB_ENV"
+
+      - name: Docker info
+        run: |
+          docker version
+          docker compose version
 
       - name: Set Variables + Compose Secrets (file-based)
         working-directory: app
@@ -70,26 +80,43 @@ jobs:
           rm -rf "$SECRETS_PATH"
           mkdir -p "$SECRETS_PATH"
 
+          ADMIN_USER_VALUE="${{ vars.ADMIN_USER }}"
+          DB_USER_VALUE="${{ vars.DB_USER }}"
+          DB_NAME_VALUE="${{ vars.DB_NAME }}"
+          ADMIN_PASS_VALUE="${{ secrets.ADMIN_PASS }}"
+          DB_PASS_VALUE="${{ secrets.DB_PASS }}"
+          JWT_SECRET_VALUE="${{ secrets.JWT_SECRET }}"
+          DATA_ENCRYPTION_KEY_VALUE="${{ secrets.DATA_ENCRYPTION_KEY }}"
+
+          [ -n "$ADMIN_USER_VALUE" ] || ADMIN_USER_VALUE="admin"
+          [ -n "$DB_USER_VALUE" ] || DB_USER_VALUE="postgres"
+          [ -n "$DB_NAME_VALUE" ] || DB_NAME_VALUE="prescriptions_db"
+          [ -n "$ADMIN_PASS_VALUE" ] || ADMIN_PASS_VALUE="$(openssl rand -hex 16)"
+          [ -n "$DB_PASS_VALUE" ] || DB_PASS_VALUE="$(openssl rand -hex 16)"
+          [ -n "$JWT_SECRET_VALUE" ] || JWT_SECRET_VALUE="$(openssl rand -hex 32)"
+          [ -n "$DATA_ENCRYPTION_KEY_VALUE" ] || DATA_ENCRYPTION_KEY_VALUE="$(openssl rand -hex 32)"
+
+          echo "::add-mask::${ADMIN_PASS_VALUE}"
+          echo "::add-mask::${DB_PASS_VALUE}"
+          echo "::add-mask::${JWT_SECRET_VALUE}"
+          echo "::add-mask::${DATA_ENCRYPTION_KEY_VALUE}"
+
           {
-            echo "ADMIN_USER=${{ vars.ADMIN_USER }}"
-            echo "ADMIN_PASS=${{ secrets.ADMIN_PASS }}"
-            echo "DB_USER=${{ vars.DB_USER }}"
-            echo "DB_NAME=${{ vars.DB_NAME }}"
-            echo "DB_PASS=${{ secrets.DB_PASS }}"
-            echo "JWT_SECRET=${{ secrets.JWT_SECRET }}"
-            echo "DATA_ENCRYPTION_KEY=${{ secrets.DATA_ENCRYPTION_KEY }}"
+            echo "ADMIN_USER=${ADMIN_USER_VALUE}"
+            echo "ADMIN_PASS=${ADMIN_PASS_VALUE}"
+            echo "DB_USER=${DB_USER_VALUE}"
+            echo "DB_NAME=${DB_NAME_VALUE}"
+            echo "DB_PASS=${DB_PASS_VALUE}"
+            echo "JWT_SECRET=${JWT_SECRET_VALUE}"
+            echo "DATA_ENCRYPTION_KEY=${DATA_ENCRYPTION_KEY_VALUE}"
             echo "COMPOSE_PROJECT_NAME=${{ env.COMPOSE_PROJECT_NAME }}"
             echo "SECRETS_PATH=${SECRETS_PATH}"
           } >> "$ENV_FILE"
           chmod 600 "$ENV_FILE"
 
-          printf "%s" "${{ secrets.JWT_SECRET }}"  > "${SECRETS_PATH}/jwt_secret.txt"
-          printf "%s" "${{ secrets.ADMIN_PASS }}"  > "${SECRETS_PATH}/admin_pass.txt"
-          printf "%s" "${{ secrets.DB_PASS }}"     > "${SECRETS_PATH}/db_pass.txt"
-          DATA_ENCRYPTION_KEY_VALUE="${{ secrets.DATA_ENCRYPTION_KEY }}"
-          if [ -z "$DATA_ENCRYPTION_KEY_VALUE" ]; then
-            DATA_ENCRYPTION_KEY_VALUE="$(openssl rand -hex 32)"
-          fi
+          printf "%s" "$JWT_SECRET_VALUE"  > "${SECRETS_PATH}/jwt_secret.txt"
+          printf "%s" "$ADMIN_PASS_VALUE"  > "${SECRETS_PATH}/admin_pass.txt"
+          printf "%s" "$DB_PASS_VALUE"     > "${SECRETS_PATH}/db_pass.txt"
           printf "%s" "$DATA_ENCRYPTION_KEY_VALUE" > "${SECRETS_PATH}/data_encryption_key.txt"
           chmod 600 "${SECRETS_PATH}"/*.txt
 
@@ -99,12 +126,69 @@ jobs:
           set -euo pipefail
 
           docker compose up -d --build
-          echo "COMPOSE_NETWORK=${{ env.COMPOSE_PROJECT_NAME }}_app_network" >> "$GITHUB_ENV"
+          COMPOSE_NETWORK="$(docker network ls --format '{{.Name}}' | grep -E "^${{ env.COMPOSE_PROJECT_NAME }}_.*" | head -n 1 || true)"
+          if [ -z "$COMPOSE_NETWORK" ]; then
+            echo "::error::Could not determine Compose network for project ${{ env.COMPOSE_PROJECT_NAME }}"
+            docker compose ps || true
+            exit 1
+          fi
+          echo "COMPOSE_NETWORK=$COMPOSE_NETWORK" >> "$GITHUB_ENV"
+          echo "Using COMPOSE_NETWORK=$COMPOSE_NETWORK"
 
           DB_PASS_VALUE="$(cat "$SECRETS_PATH/db_pass.txt")"
           echo "::add-mask::${DB_PASS_VALUE}"
           docker compose exec -T -e DB_PASS="$DB_PASS_VALUE" backend node ./node_modules/knex/bin/cli.js migrate:latest --knexfile src/config/knexfile.js
           docker compose exec -T -e DB_PASS="$DB_PASS_VALUE" backend node ./node_modules/knex/bin/cli.js seed:run --knexfile src/config/knexfile.js
+
+          # Ensure DAST auth credentials exist and match configured values.
+          docker compose exec -T \
+            -e DB_PASS="$DB_PASS_VALUE" \
+            -e DAST_EMAIL="${{ env.ZAP_LOGIN_EMAIL }}" \
+            -e DAST_PASSWORD="${{ env.ZAP_LOGIN_PASSWORD }}" \
+            backend node - <<'NODE'
+          const bcrypt = require('bcryptjs');
+          const { randomUUID } = require('crypto');
+          const db = require('./src/infra/db/knex');
+
+          const email = String(process.env.DAST_EMAIL || '').trim().toLowerCase();
+          const password = String(process.env.DAST_PASSWORD || '');
+
+          if (!email || !password) {
+            throw new Error('Missing DAST_EMAIL and/or DAST_PASSWORD for auth user bootstrap');
+          }
+
+          (async () => {
+            const passwordHash = await bcrypt.hash(password, 10);
+            const existing = await db.withSchema('v2').from('users').where({ email }).first();
+
+            if (existing) {
+              await db
+                .withSchema('v2')
+                .from('users')
+                .where({ id: existing.id })
+                .update({
+                  password_hash: passwordHash,
+                  role: 'admin',
+                  mfa_enabled: false,
+                });
+            } else {
+              await db.withSchema('v2').from('users').insert({
+                id: randomUUID(),
+                email,
+                password_hash: passwordHash,
+                role: 'admin',
+                mfa_enabled: false,
+              });
+            }
+
+            await db.destroy();
+            console.log('DAST auth user upserted');
+          })().catch(async (err) => {
+            console.error(err);
+            try { await db.destroy(); } catch {}
+            process.exit(1);
+          });
+          NODE
 
           timeout "${{ env.HEALTH_TIMEOUT }}s" bash -c 'until curl -fsS "${{ env.RUNNER_BACKEND_URL }}/health" >/dev/null; do sleep 5; done'
           timeout "${{ env.HEALTH_TIMEOUT }}s" bash -c 'until curl -fsS "${{ env.RUNNER_FRONTEND_URL }}/health" >/dev/null; do sleep 5; done'
@@ -117,11 +201,36 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p zap-out
-          chmod 777 zap-out
+          chmod -R u+rwX,go+rX zap-out
 
           test -f "${{ env.ZAP_CONTEXT_FILE }}" || (echo "::error::Missing context file ${{ env.ZAP_CONTEXT_FILE }}"; exit 1)
           test -f "${{ env.ZAP_RULES_FILE }}" || (echo "::error::Missing rules file ${{ env.ZAP_RULES_FILE }}"; exit 1)
           test -f "${{ env.MEDIUM_BLOCK_PATTERNS_FILE }}" || (echo "::error::Missing medium block patterns file ${{ env.MEDIUM_BLOCK_PATTERNS_FILE }}"; exit 1)
+
+          # ZAP expects rules to be TAB-separated: pluginId <TAB> action <TAB> threshold
+          # Normalize whitespace-delimited rows, strip comments, and validate allowed values.
+          awk '
+            BEGIN { OFS="	" }
+            /^[[:space:]]*($|#)/ { next }
+            {
+              plugin=$1; action=toupper($2); threshold=toupper($3);
+
+              if (plugin == "" || action == "" || threshold == "") next;
+
+              # Validate action / threshold to avoid silent misconfig
+              if (action !~ /^(IGNORE|WARN|FAIL)$/) next;
+              if (threshold !~ /^(OFF|LOW|MEDIUM|HIGH)$/) next;
+
+              print plugin, action, threshold;
+            }
+          ' "${{ env.ZAP_RULES_FILE }}" > zap-out/rules.tsv
+
+          if [ ! -s zap-out/rules.tsv ]; then
+            echo "::error::Normalized rules file is empty or invalid (zap-out/rules.tsv)."
+            echo "::error::Check .zap/rules.tsv format: <pluginId> <action> <threshold>"
+            exit 1
+          fi
+          echo "Using normalized ZAP rules: $(pwd)/zap-out/rules.tsv"
 
       - name: Auth Bootstrap (mint JWT) + Verify
         working-directory: app
@@ -140,24 +249,41 @@ jobs:
           LOGIN_EMAIL="${{ env.ZAP_LOGIN_EMAIL }}"
           LOGIN_PASSWORD="${{ env.ZAP_LOGIN_PASSWORD }}"
 
-          if [ -z "$LOGIN_EMAIL" ]; then
-            LOGIN_EMAIL="${{ env.ZAP_DEMO_LOGIN_EMAIL }}"
-          fi
-
-          if [ -z "$LOGIN_PASSWORD" ]; then
-            if [ "${{ env.ALLOW_DEMO_AUTH_FALLBACK }}" = "1" ]; then
-              LOGIN_PASSWORD="${{ env.ZAP_DEMO_LOGIN_PASSWORD }}"
-              echo "::warning::Using demo auth fallback password for DAST execution."
-            else
-              echo "::error::Missing secrets.ZAP_LOGIN_PASSWORD and ALLOW_DEMO_AUTH_FALLBACK=0. Configure the secret or explicitly enable fallback."
-              exit 1
-            fi
+          if [ -z "$LOGIN_EMAIL" ] || [ -z "$LOGIN_PASSWORD" ]; then
+            echo "::error::Missing vars.ZAP_LOGIN_EMAIL and/or secrets.ZAP_LOGIN_PASSWORD for DAST auth bootstrap."
+            exit 1
           fi
 
           echo "::add-mask::${LOGIN_EMAIL}"
           echo "::add-mask::${LOGIN_PASSWORD}"
 
-          RESP="$(curl -fsS -X POST "${LOGIN_URL}" -H "Content-Type: application/json" --data "{\"email\":\"${LOGIN_EMAIL}\",\"password\":\"${LOGIN_PASSWORD}\"}")"
+          LOGIN_PAYLOAD="$(jq -cn --arg email "$LOGIN_EMAIL" --arg password "$LOGIN_PASSWORD" '{email:$email,password:$password}')"
+          AUTH_HTTP_CODE=""
+          RESP=""
+          for attempt in 1 2 3 4 5; do
+            RESP="$(curl -sS -X POST "${LOGIN_URL}" -H "Content-Type: application/json" --data "$LOGIN_PAYLOAD" -w $'\n%{http_code}')"
+            AUTH_HTTP_CODE="$(printf '%s' "$RESP" | tail -n 1)"
+            RESP="$(printf '%s' "$RESP" | sed '$d')"
+
+            if [ "$AUTH_HTTP_CODE" = "200" ]; then
+              break
+            fi
+
+            if [ "$AUTH_HTTP_CODE" -ge 500 ] 2>/dev/null; then
+              echo "::warning::Auth bootstrap returned HTTP ${AUTH_HTTP_CODE} (attempt ${attempt}/5). Retrying..."
+              sleep 3
+              continue
+            fi
+
+            break
+          done
+
+          if [ "$AUTH_HTTP_CODE" != "200" ]; then
+            echo "::error::Auth bootstrap failed with HTTP ${AUTH_HTTP_CODE}."
+            echo "$RESP" | jq -c '{error, message, code, details}' 2>/dev/null || true
+            docker compose logs --no-color --tail=200 backend || true
+            exit 1
+          fi
 
           MFA_REQUIRED="$(echo "$RESP" | jq -r '.mfaRequired // false' || true)"
           if [ "$MFA_REQUIRED" = "true" ]; then
@@ -169,6 +295,7 @@ jobs:
           if [ -z "$TOKEN" ]; then
             echo "::error::Could not acquire JWT. Response redacted; check backend logs."
             echo "$RESP" | jq -c '{mfaRequired, error, message}' || true
+            docker compose logs --no-color --tail=200 backend || true
             exit 1
           fi
 
@@ -206,7 +333,7 @@ jobs:
             --network "${COMPOSE_NETWORK}" \
             -v "$VOL_PATH:/zap/wrk/:rw" \
             -v "${{ env.ZAP_CONTEXT_FILE }}:/zap/wrk/context.context:ro" \
-            -v "${{ env.ZAP_RULES_FILE }}:/zap/wrk/rules.tsv:ro" \
+            -v "$(pwd)/zap-out/rules.tsv:/zap/wrk/rules.tsv:ro" \
             "${{ env.ZAP_IMG }}" zap-full-scan.py \
             -t "$TARGET" \
             -n /zap/wrk/context.context \
@@ -272,26 +399,44 @@ jobs:
           LOGIN_EMAIL="${{ env.ZAP_LOGIN_EMAIL }}"
           LOGIN_PASSWORD="${{ env.ZAP_LOGIN_PASSWORD }}"
 
-          if [ -z "$LOGIN_EMAIL" ]; then
-            LOGIN_EMAIL="${{ env.ZAP_DEMO_LOGIN_EMAIL }}"
-          fi
-
-          if [ -z "$LOGIN_PASSWORD" ]; then
-            if [ "${{ env.ALLOW_DEMO_AUTH_FALLBACK }}" = "1" ]; then
-              LOGIN_PASSWORD="${{ env.ZAP_DEMO_LOGIN_PASSWORD }}"
-              echo "::warning::Using demo auth fallback password for DAST execution."
-            else
-              echo "::error::Missing secrets.ZAP_LOGIN_PASSWORD and ALLOW_DEMO_AUTH_FALLBACK=0. Configure the secret or explicitly enable fallback."
-              exit 1
-            fi
+          if [ -z "$LOGIN_EMAIL" ] || [ -z "$LOGIN_PASSWORD" ]; then
+            echo "::error::Missing vars.ZAP_LOGIN_EMAIL and/or secrets.ZAP_LOGIN_PASSWORD for DAST auth refresh."
+            exit 1
           fi
 
           echo "::add-mask::${LOGIN_EMAIL}"
           echo "::add-mask::${LOGIN_PASSWORD}"
 
-          RESP="$(curl -fsS -X POST "${LOGIN_URL}" \
-            -H "Content-Type: application/json" \
-            --data "{\"email\":\"${LOGIN_EMAIL}\",\"password\":\"${LOGIN_PASSWORD}\"}")"
+          LOGIN_PAYLOAD="$(jq -cn --arg email "$LOGIN_EMAIL" --arg password "$LOGIN_PASSWORD" '{email:$email,password:$password}')"
+          AUTH_HTTP_CODE=""
+          RESP=""
+          for attempt in 1 2 3 4 5; do
+            RESP="$(curl -sS -X POST "${LOGIN_URL}" \
+              -H "Content-Type: application/json" \
+              --data "$LOGIN_PAYLOAD" \
+              -w $'\n%{http_code}')"
+            AUTH_HTTP_CODE="$(printf '%s' "$RESP" | tail -n 1)"
+            RESP="$(printf '%s' "$RESP" | sed '$d')"
+
+            if [ "$AUTH_HTTP_CODE" = "200" ]; then
+              break
+            fi
+
+            if [ "$AUTH_HTTP_CODE" -ge 500 ] 2>/dev/null; then
+              echo "::warning::Auth refresh returned HTTP ${AUTH_HTTP_CODE} (attempt ${attempt}/5). Retrying..."
+              sleep 3
+              continue
+            fi
+
+            break
+          done
+
+          if [ "$AUTH_HTTP_CODE" != "200" ]; then
+            echo "::error::Auth refresh failed with HTTP ${AUTH_HTTP_CODE}."
+            echo "$RESP" | jq -c '{error, message, code, details}' 2>/dev/null || true
+            docker compose logs --no-color --tail=200 backend || true
+            exit 1
+          fi
 
           MFA_REQUIRED="$(echo "$RESP" | jq -r '.mfaRequired // false' || true)"
           if [ "$MFA_REQUIRED" = "true" ]; then
@@ -303,6 +448,7 @@ jobs:
           if [ -z "$TOKEN" ]; then
             echo "::error::Could not acquire refreshed JWT. Response redacted; check backend logs."
             echo "$RESP" | jq -c '{mfaRequired, error, message}' || true
+            docker compose logs --no-color --tail=200 backend || true
             exit 1
           fi
 
@@ -344,9 +490,13 @@ jobs:
           PY
 
           python3 -c 'import pathlib; p=pathlib.Path("zap-out/openapi.yaml"); assert p.exists() and p.stat().st_size>0'
-          ENDPOINT_COUNT="$(grep -Ec '^\s{2}/' zap-out/openapi.yaml || true)"
+          if ! grep -qE '^[[:space:]]*paths:[[:space:]]*$' zap-out/openapi.yaml; then
+            echo "::error::OpenAPI rewrite produced no paths: section"
+            exit 1
+          fi
+          ENDPOINT_COUNT="$(grep -E '^[[:space:]]*/[^[:space:]]*:[[:space:]]*$' -c zap-out/openapi.yaml || true)"
           if [ "$ENDPOINT_COUNT" -eq 0 ]; then
-            echo "::error::OpenAPI rewrite produced zero endpoints"
+            echo "::error::OpenAPI rewrite produced zero endpoints under paths:"
             exit 1
           fi
 
@@ -361,13 +511,13 @@ jobs:
 
           VOL_PATH="$(pwd)/zap-out"
           AUTH_VALUE="Bearer ${ZAP_AUTH_TOKEN}"
-          OPENAPI_FILE="${{ env.OPENAPI_FILE }}"
 
           set +e
           docker run --rm \
             --network "${COMPOSE_NETWORK}" \
             -v "$VOL_PATH:/zap/wrk/:rw" \
-            -v "${{ env.ZAP_RULES_FILE }}:/zap/wrk/rules.tsv:ro" \
+            -v "$(pwd)/zap-out/openapi.yaml:/zap/wrk/openapi.yaml:ro" \
+            -v "$(pwd)/zap-out/rules.tsv:/zap/wrk/rules.tsv:ro" \
             "${{ env.ZAP_IMG }}" zap-api-scan.py \
             -t /zap/wrk/openapi.yaml \
             -f openapi \
@@ -481,6 +631,10 @@ jobs:
           HIGH_BE=$(count_alerts "$BE" "3" "medium")
           MED_FE=$(count_alerts "$FE" "2" "low")
           MED_BE=$(count_alerts "$BE" "2" "low")
+          echo "HIGH_FE=$HIGH_FE" >> "$GITHUB_ENV"
+          echo "HIGH_BE=$HIGH_BE" >> "$GITHUB_ENV"
+          echo "MED_FE=$MED_FE" >> "$GITHUB_ENV"
+          echo "MED_BE=$MED_BE" >> "$GITHUB_ENV"
 
           MED_BLOCK () {
             local file="$1"
@@ -674,12 +828,6 @@ jobs:
           docker compose ps || true
           docker compose logs --no-color || true
 
-      - name: Init DAST defaults (avoid empty envs)
-        run: |
-          echo "DAST_AUTH_ASSERTION_PASSED=0" >> "$GITHUB_ENV"
-          echo "DAST_AUTH_COVERAGE_FRONTEND=0" >> "$GITHUB_ENV"
-          echo "DAST_AUTH_COVERAGE_BACKEND=0" >> "$GITHUB_ENV"
-          
       - name: Create Issue on Failure
         if: failure()
         env:
@@ -689,6 +837,10 @@ jobs:
           TODAY="$(date -u +%Y-%m-%d)"
           KEY="DAST_FAIL_${TODAY}_${{ github.workflow }}"
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          if [ ! -f app/zap-out/summary.md ]; then
+            mkdir -p app/zap-out
+            echo 'summary.md unavailable (job failed before summary generation)' > app/zap-out/summary.md
+          fi
           SUMMARY_EXCERPT="$(head -n 25 app/zap-out/summary.md 2>/dev/null || echo 'summary.md unavailable')"
 
           TITLE="🚨 DAST Weekly Failed (${TODAY})"
@@ -704,6 +856,12 @@ jobs:
           - Auth verify URL passed: ${{ env.DAST_AUTH_ASSERTION_PASSED }}
           - FE authenticated coverage: ${{ env.DAST_AUTH_COVERAGE_FRONTEND }}
           - BE authenticated coverage: ${{ env.DAST_AUTH_COVERAGE_BACKEND }}
+
+          ## Counts
+          - High (FE): ${{ env.HIGH_FE }}
+          - High (BE): ${{ env.HIGH_BE }}
+          - Medium (FE): ${{ env.MED_FE }}
+          - Medium (BE): ${{ env.MED_BE }}
 
           ## Summary excerpt
           \`\`\`
