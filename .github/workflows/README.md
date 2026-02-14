@@ -7,6 +7,11 @@ This folder contains the active GitHub Actions workflows that power CI, security
 - Triggers: `workflow_dispatch`, `pull_request` (opened, synchronize, reopened)
 - Summary: Runs Node.js lint and unit tests for `server` and `client`, lints Dockerfiles with Hadolint, validates Dockerfiles with OPA Conftest, validates backend K8s manifests with Kubeconform, and performs secret scanning (Gitleaks) plus Trivy FS scanning (HIGH/CRITICAL). Sends a Slack notification on Trivy failure.
 
+**ci-pr-title.yaml**
+- Name: Semantic PR
+- Triggers: `pull_request_target` (opened, edited, synchronize)
+- Summary: Validates pull request titles against conventional commit types using `amannn/action-semantic-pull-request`; allows optional scope, and supports bypass labels (`bot`, `ignore-semantic-check`).
+
 **ci-release-gate.yml**
 - Name: Release
 - Triggers: tag push `v*.*.*`, manual with `tag` input
