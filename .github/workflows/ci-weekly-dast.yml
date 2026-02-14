@@ -45,11 +45,8 @@ jobs:
       BLOCK_MEDIUM_CATEGORIES: "1"
       BLOCK_MEDIUM_PLUGINIDS: ""
 
-      ZAP_LOGIN_EMAIL: ${{ vars.ZAP_LOGIN_EMAIL }}
-      ZAP_LOGIN_PASSWORD: ${{ secrets.ZAP_LOGIN_PASSWORD }}
-      ZAP_DEMO_LOGIN_EMAIL: john.smith@stayhealthy.test
-      ZAP_DEMO_LOGIN_PASSWORD: DemoPass123!
-      ALLOW_DEMO_AUTH_FALLBACK: "0"
+      ZAP_LOGIN_EMAIL: ${{ vars.ADMIN_USER }}
+      ZAP_LOGIN_PASSWORD: ${{ secrets.ADMIN_PASS }}
       DEBUG_DAST: "0"
 
       AUTH_COVERAGE_REGEX: '/api/v2/'
@@ -140,18 +137,9 @@ jobs:
           LOGIN_EMAIL="${{ env.ZAP_LOGIN_EMAIL }}"
           LOGIN_PASSWORD="${{ env.ZAP_LOGIN_PASSWORD }}"
 
-          if [ -z "$LOGIN_EMAIL" ]; then
-            LOGIN_EMAIL="${{ env.ZAP_DEMO_LOGIN_EMAIL }}"
-          fi
-
-          if [ -z "$LOGIN_PASSWORD" ]; then
-            if [ "${{ env.ALLOW_DEMO_AUTH_FALLBACK }}" = "1" ]; then
-              LOGIN_PASSWORD="${{ env.ZAP_DEMO_LOGIN_PASSWORD }}"
-              echo "::warning::Using demo auth fallback password for DAST execution."
-            else
-              echo "::error::Missing secrets.ZAP_LOGIN_PASSWORD and ALLOW_DEMO_AUTH_FALLBACK=0. Configure the secret or explicitly enable fallback."
-              exit 1
-            fi
+          if [ -z "$LOGIN_EMAIL" ] || [ -z "$LOGIN_PASSWORD" ]; then
+            echo "::error::Missing vars.ADMIN_USER and/or secrets.ADMIN_PASS for DAST auth bootstrap."
+            exit 1
           fi
 
           echo "::add-mask::${LOGIN_EMAIL}"
@@ -272,18 +260,9 @@ jobs:
           LOGIN_EMAIL="${{ env.ZAP_LOGIN_EMAIL }}"
           LOGIN_PASSWORD="${{ env.ZAP_LOGIN_PASSWORD }}"
 
-          if [ -z "$LOGIN_EMAIL" ]; then
-            LOGIN_EMAIL="${{ env.ZAP_DEMO_LOGIN_EMAIL }}"
-          fi
-
-          if [ -z "$LOGIN_PASSWORD" ]; then
-            if [ "${{ env.ALLOW_DEMO_AUTH_FALLBACK }}" = "1" ]; then
-              LOGIN_PASSWORD="${{ env.ZAP_DEMO_LOGIN_PASSWORD }}"
-              echo "::warning::Using demo auth fallback password for DAST execution."
-            else
-              echo "::error::Missing secrets.ZAP_LOGIN_PASSWORD and ALLOW_DEMO_AUTH_FALLBACK=0. Configure the secret or explicitly enable fallback."
-              exit 1
-            fi
+          if [ -z "$LOGIN_EMAIL" ] || [ -z "$LOGIN_PASSWORD" ]; then
+            echo "::error::Missing vars.ADMIN_USER and/or secrets.ADMIN_PASS for DAST auth refresh."
+            exit 1
           fi
 
           echo "::add-mask::${LOGIN_EMAIL}"
