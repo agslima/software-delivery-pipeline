@@ -47,9 +47,6 @@ jobs:
 
       ZAP_LOGIN_EMAIL: ${{ vars.ZAP_LOGIN_EMAIL }}
       ZAP_LOGIN_PASSWORD: ${{ secrets.ZAP_LOGIN_PASSWORD }}
-      ZAP_DEMO_LOGIN_EMAIL: john.smith@stayhealthy.test
-      ZAP_DEMO_LOGIN_PASSWORD: DemoPass123!
-      ALLOW_DEMO_AUTH_FALLBACK: "0"
       DEBUG_DAST: "0"
 
       AUTH_COVERAGE_REGEX: '/api/v2/'
@@ -80,6 +77,8 @@ jobs:
             echo "DATA_ENCRYPTION_KEY=${{ secrets.DATA_ENCRYPTION_KEY }}"
             echo "COMPOSE_PROJECT_NAME=${{ env.COMPOSE_PROJECT_NAME }}"
             echo "SECRETS_PATH=${SECRETS_PATH}"
+            echo "SEED_ADMIN_EMAIL=${{ vars.ZAP_LOGIN_EMAIL }}"
+            echo "SEED_DEFAULT_PASSWORD=${{ secrets.ZAP_LOGIN_PASSWORD }}"
           } >> "$ENV_FILE"
           chmod 600 "$ENV_FILE"
 
@@ -140,18 +139,9 @@ jobs:
           LOGIN_EMAIL="${{ env.ZAP_LOGIN_EMAIL }}"
           LOGIN_PASSWORD="${{ env.ZAP_LOGIN_PASSWORD }}"
 
-          if [ -z "$LOGIN_EMAIL" ]; then
-            LOGIN_EMAIL="${{ env.ZAP_DEMO_LOGIN_EMAIL }}"
-          fi
-
-          if [ -z "$LOGIN_PASSWORD" ]; then
-            if [ "${{ env.ALLOW_DEMO_AUTH_FALLBACK }}" = "1" ]; then
-              LOGIN_PASSWORD="${{ env.ZAP_DEMO_LOGIN_PASSWORD }}"
-              echo "::warning::Using demo auth fallback password for DAST execution."
-            else
-              echo "::error::Missing secrets.ZAP_LOGIN_PASSWORD and ALLOW_DEMO_AUTH_FALLBACK=0. Configure the secret or explicitly enable fallback."
-              exit 1
-            fi
+          if [ -z "$LOGIN_EMAIL" ] || [ -z "$LOGIN_PASSWORD" ]; then
+            echo "::error::Missing vars.ZAP_LOGIN_EMAIL and/or secrets.ZAP_LOGIN_PASSWORD for DAST auth bootstrap."
+            exit 1
           fi
 
           echo "::add-mask::${LOGIN_EMAIL}"
@@ -272,18 +262,9 @@ jobs:
           LOGIN_EMAIL="${{ env.ZAP_LOGIN_EMAIL }}"
           LOGIN_PASSWORD="${{ env.ZAP_LOGIN_PASSWORD }}"
 
-          if [ -z "$LOGIN_EMAIL" ]; then
-            LOGIN_EMAIL="${{ env.ZAP_DEMO_LOGIN_EMAIL }}"
-          fi
-
-          if [ -z "$LOGIN_PASSWORD" ]; then
-            if [ "${{ env.ALLOW_DEMO_AUTH_FALLBACK }}" = "1" ]; then
-              LOGIN_PASSWORD="${{ env.ZAP_DEMO_LOGIN_PASSWORD }}"
-              echo "::warning::Using demo auth fallback password for DAST execution."
-            else
-              echo "::error::Missing secrets.ZAP_LOGIN_PASSWORD and ALLOW_DEMO_AUTH_FALLBACK=0. Configure the secret or explicitly enable fallback."
-              exit 1
-            fi
+          if [ -z "$LOGIN_EMAIL" ] || [ -z "$LOGIN_PASSWORD" ]; then
+            echo "::error::Missing vars.ZAP_LOGIN_EMAIL and/or secrets.ZAP_LOGIN_PASSWORD for DAST auth refresh."
+            exit 1
           fi
 
           echo "::add-mask::${LOGIN_EMAIL}"
