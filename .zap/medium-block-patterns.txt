@@ -1,0 +1,13 @@
+SQL Injection
+SQLI
+Server Side Request Forgery
+SSRF
+Authentication
+Session
+JWT
+Insecure
+Deserialization
+Path Traversal
+RCE
+Command Injection
+XXE
