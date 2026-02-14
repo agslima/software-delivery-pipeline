@@ -111,6 +111,8 @@ jobs:
             echo "DATA_ENCRYPTION_KEY=${DATA_ENCRYPTION_KEY_VALUE}"
             echo "COMPOSE_PROJECT_NAME=${{ env.COMPOSE_PROJECT_NAME }}"
             echo "SECRETS_PATH=${SECRETS_PATH}"
+            echo "SEED_ADMIN_EMAIL=${{ vars.ZAP_LOGIN_EMAIL }}"
+            echo "SEED_DEFAULT_PASSWORD=${{ secrets.ZAP_LOGIN_PASSWORD }}"
           } >> "$ENV_FILE"
           chmod 600 "$ENV_FILE"
 
