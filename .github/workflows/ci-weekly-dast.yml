@@ -189,6 +189,21 @@ jobs:
           test -f "${{ env.ZAP_RULES_FILE }}" || (echo "::error::Missing rules file ${{ env.ZAP_RULES_FILE }}"; exit 1)
           test -f "${{ env.MEDIUM_BLOCK_PATTERNS_FILE }}" || (echo "::error::Missing medium block patterns file ${{ env.MEDIUM_BLOCK_PATTERNS_FILE }}"; exit 1)
 
+          # ZAP expects rules to be TAB-separated. Normalize whitespace-delimited rows and strip comments.
+          awk 'BEGIN{OFS="	"}
+            /^[[:space:]]*($|#)/ { next }
+            {
+              plugin=$1; sev=$2; action=$3;
+              if (plugin == "" || sev == "" || action == "") next;
+              print plugin, sev, action;
+            }
+          ' "${{ env.ZAP_RULES_FILE }}" > zap-out/rules.tsv
+
+          if [ ! -s zap-out/rules.tsv ]; then
+            echo "::error::Normalized rules file is empty (zap-out/rules.tsv)."
+            exit 1
+          fi
+
       - name: Auth Bootstrap (mint JWT) + Verify
         working-directory: app
         run: |
@@ -290,7 +305,7 @@ jobs:
             --network "${COMPOSE_NETWORK}" \
             -v "$VOL_PATH:/zap/wrk/:rw" \
             -v "${{ env.ZAP_CONTEXT_FILE }}:/zap/wrk/context.context:ro" \
-            -v "${{ env.ZAP_RULES_FILE }}:/zap/wrk/rules.tsv:ro" \
+            -v "$(pwd)/zap-out/rules.tsv:/zap/wrk/rules.tsv:ro" \
             "${{ env.ZAP_IMG }}" zap-full-scan.py \
             -t "$TARGET" \
             -n /zap/wrk/context.context \
@@ -470,7 +485,7 @@ jobs:
           docker run --rm \
             --network "${COMPOSE_NETWORK}" \
             -v "$VOL_PATH:/zap/wrk/:rw" \
-            -v "${{ env.ZAP_RULES_FILE }}:/zap/wrk/rules.tsv:ro" \
+            -v "$(pwd)/zap-out/rules.tsv:/zap/wrk/rules.tsv:ro" \
             "${{ env.ZAP_IMG }}" zap-api-scan.py \
             -t /zap/wrk/openapi.yaml \
             -f openapi \
