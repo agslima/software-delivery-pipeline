@@ -1,153 +1,105 @@
 # AI Agent Instructions for Secure Software Delivery Pipeline
 
-This repo is a governed CI/CD reference. The application under `app/` is a demo full-stack system (React SPA + Node API + Postgres). Prioritize pipeline, policy, and security controls over feature work.
+This repository is a governance-first CI/CD reference. The demo workload under `app/` is a prescription portal (React + Vite frontend, Node + Express backend, PostgreSQL), but most changes should preserve supply-chain controls, policy enforcement, and auditability.
 
-## Architecture Overview
+## Current Architecture Snapshot
 
-- CI/CD acts as the control plane: PR checks, release gates, attestations, and GitOps promotion.
-- Artifacts are immutable: images are addressed by digest and only trusted after signing and attestations.
-- Keyless signing: cosign uses GitHub OIDC; policies enforce issuer and workflow identity.
-- Risk acceptance is time-boxed and audited.
+- CI/CD is the control plane: PR quality/security checks, release gates, attestations, and GitOps promotion.
+- Container artifacts are immutable and digest-addressed.
+- Signing is keyless with GitHub OIDC + cosign.
+- Kubernetes admission is enforced with Kyverno verification policies for signature + attestations.
+- Risk acceptance is explicitly time-boxed and enforced in automation.
 
-## CI/CD Workflows and Gates
+## Active Workflows (`.github/workflows/`)
 
-### PR Validation (`.github/workflows/ci-pr-validation.yml`)
+- `ci-pr-validation.yml` (PR Validation)
+  - Lint + unit tests for `app/server` and `app/client`.
+  - Hadolint + Conftest (`policies/dockerfile.rego`) + Kubeconform validation on `k8s/`.
+  - Gitleaks and Trivy filesystem scan with HIGH/CRITICAL gating.
 
-- Code quality matrix for `app/server` and `app/client`: `npm ci --ignore-scripts`, lint, unit tests.
-- Infra hygiene: Hadolint on `app/docker/Dockerfile.server` and `app/docker/Dockerfile.client`, Conftest with `policies/dockerfile.rego`, Kubeconform on `k8s/`.
-- Security scan: Gitleaks, Trivy filesystem scan (HIGH/CRITICAL).
+- `ci-release-gate.yml` (Release)
+  - Triggered by `v*.*.*` tags or manual dispatch.
+  - Builds and pushes backend/frontend images and records digests.
+  - Trivy image gate: fail when `CRITICAL > 0` or `HIGH > 5`.
+  - ZAP baseline DAST against digest-based release compose environment.
+  - On successful gates: cosign signing + Trivy/ZAP/SBOM attestations + SLSA provenance.
 
-### Release Gate (`.github/workflows/ci-release-gate.yml`)
+- `gitops-enforce.yml` (GitOps Enforcement)
+  - Manual promotion workflow using a release run ID.
+  - Verifies signatures and attestations before updating `k8s/overlays/prod/kustomization.yaml`.
+  - Validates rendered manifests with Kyverno cluster policies.
+  - Opens a PR with digest updates.
 
-Triggered by tags `v*.*.*` or manual dispatch.
+- `ci-security-deep.yml` (Daily Security Scan)
+  - Nightly deep scan with Gitleaks + Trivy (code/config/SARIF + governance JSON).
+  - Enforces `scripts/check-security-debt.sh` and opens an issue on failure.
 
-1. Build and push backend and frontend images (digest is the identity).
-2. Trivy gate per image: fail if CRITICAL > 0 or HIGH > 5.
-3. DAST baseline on digest-based compose (`app/docker-compose.yml` + `app/docker-compose.release.yml`), gate on High > 0.
-4. Sign and attest only after gates:
-   - cosign sign (OIDC)
-   - Trivy attestation predicate type `https://security.sigstore.dev/attestations/vuln/trivy/v1`
-   - ZAP attestation predicate type `https://security.sigstore.dev/attestations/dast/zap/v1`
-   - SBOM attestation (SPDX)
-   - SLSA provenance via `actions/attest-build-provenance`
+- `ci-weekly-dast.yml` (DAST Scan)
+  - Weekly authenticated ZAP full scan using `.zap/context.context` and `.zap/rules.tsv`.
+  - Gates on high findings (and selected medium categories), publishes SARIF/artifacts.
 
-### Security Deep Scan (`.github/workflows/ci-security-deep.yml`)
+- `sonar.yml` (Run Sonar)
+  - Scheduled + manual tests with coverage and Sonar analysis.
 
-Nightly: Gitleaks + Trivy infra and code scans (SARIF) + governance JSON, enforced risk acceptance via `scripts/check-security-debt.sh`. Creates a triage issue on failure. Includes lightweight ZAP baseline.
+- `snyk-snapshot.yaml` (Snyk Weekly Snapshot)
+  - Weekly/manual Snyk monitor for dependencies, Docker images, IaC, and code snapshots.
 
-### Weekly DAST (`.github/workflows/ci-weekly-dast.yml`)
+- `dependabot-reviewer.yaml` (Dependabot auto-merge)
+  - Auto-merges patch/minor Dependabot updates; major updates stay manual.
 
-Full ZAP scans with auth:
+> `legacy/` workflow text files are reference-only and not active pipelines.
 
-- Uses `.zap/context.context` and `.zap/rules.tsv`.
-- Generates SARIF and gates High findings (confidence >= Medium) and selected Medium categories.
+## Policy and Governance Sources of Truth
 
-### GitOps Enforcement (`.github/workflows/gitops-enforce.yml`)
+- Dockerfile policy (OPA): `policies/dockerfile.rego`
+- Cluster verification policies (Kyverno): `k8s/policies/cluster/*.yaml`
+- Additional K8s policies: `k8s/policies/supply-chain-policy.yaml`, `k8s/policies/pod-hardening.yaml`
+- Risk acceptance ledger: `docs/security-debt.md`
+- Governance + threat model: `docs/governance.md`, `docs/threat-model.md`
+- Operational runbook and architecture context: `docs/runbook.md`, `docs/architecture.md`
 
-Manual promotion:
+## Delivery Invariants (Do Not Weaken)
 
-- Downloads digest artifacts from release.
-- Verifies cosign signature plus Trivy/ZAP/SBOM attestations.
-- Updates `k8s/overlays/prod/kustomization.yaml` digests.
-- Validates rendered manifests with Kyverno (`k8s/policies/cluster/*.yaml`) and opens a PR.
+1. Keep hard gates hard (Trivy/DAST/policy checks should fail the run when thresholds are exceeded).
+2. Keep image references digest-pinned in release artifacts and `k8s/overlays/*/kustomization.yaml`.
+3. Preserve keyless signing + attestations and their predicate types expected by Kyverno policies.
+4. Keep secret handling file-based where designed (`/run/secrets`, `RUNNER_TEMP`); never log secrets.
+5. Maintain Dockerfile hardening (non-root runtime, pinned bases, health checks, minimal runtime surface).
 
-### Sonar (`.github/workflows/sonar.yml`)
+## Workload and Platform Paths
 
-Scheduled test+coverage matrix and SonarQube scan.
+- Workload: `app/`
+  - Frontend: `app/client/`
+  - Backend: `app/server/`
+  - Docker assets: `app/docker/`, `app/docker-compose*.yml`
+  - Edge proxy: `app/nginx/nginx.conf`
+- Kubernetes manifests:
+  - Base: `k8s/base/`
+  - Overlays: `k8s/overlays/dev`, `k8s/overlays/prod`
+  - Policy tests: `k8s/tests/`
+- DAST config: `.zap/context.context`, `.zap/rules.tsv`
 
-## Risk Acceptance and Governance
 
-- `scripts/check-security-debt.sh` enforces MEDIUM/LOW Trivy findings:
-  - Add to `docs/security-debt.md` with an expiry date, or
-  - Add to `.trivyignore` with a comment: `# allow-until: YYYY-MM-DD ...`
-- Keep expiry dates current; no permanent exceptions.
+## GitHub Ruleset Template Storage
 
-## Local Development
+Store GitHub ruleset JSON exports in a dedicated folder:
 
-Backend:
+- Canonical location: `.github/rulesets/`
+- Use stable, lowercase, no-space filenames (for example):
+  - `.github/rulesets/branch-protection-main.json`
+  - `.github/rulesets/tag-protection-release.json`
 
-```bash
-cd app/server
-npm ci
-npm test
-npm run dev
-```
+Why this location:
+- Keeps governance-as-code artifacts beside workflows and repository policy controls.
+- Makes ruleset templates easy to discover, review, and protect via `CODEOWNERS`.
+- Avoids path/name friction in automation and shell scripts (spaces/casing differences).
 
-Frontend:
+If legacy files exist at the root of `.github/` (for example `branch-protection.json` or `Tag Protection.json`), treat them as migration candidates and standardize to `.github/rulesets/` in the next governance cleanup PR.
 
-```bash
-cd app/client
-npm ci
-npm run dev
-```
+## Change Checklist for Agents
 
-Full stack with compose (expects secrets in `./secrets` or `SECRETS_PATH`):
-
-```bash
-cd app
-docker compose up --build
-```
-
-- Frontend: `http://localhost:4173`
-- Backend health: `http://localhost:8080/health`
-
-## Project Structure
-
-```
-.github/workflows/
-  ci-pr-validation.yml     PR gates
-  ci-release-gate.yml      Release build/sign/attest
-  ci-security-deep.yml     Nightly governance scan
-  ci-weekly-dast.yml       Authenticated DAST
-  gitops-enforce.yml       GitOps promotion
-  sonar.yml                SonarQube scan
-policies/
-  dockerfile.rego          OPA policy for Dockerfile
-docs/
-  security-debt.md         Risk acceptance ledger
-  threat-model.md          Threat model
-app/
-  docker/Dockerfile.server
-  docker/Dockerfile.client
-  docker-compose.yml
-  docker-compose.release.yml
-  server/                  Express API
-  client/                  React SPA
-k8s/
-  overlays/prod/           Digest-pinned prod overlay
-  policies/cluster/        Kyverno verify policies
-.zap/
-  context.context          ZAP context
-  rules.tsv                ZAP rules
-```
-
-## Common Patterns to Preserve
-
-1. Hard gates stay hard: fail fast on policy violations; do not soften exit codes.
-2. Digest-pinned images in build, release, and kustomize overlays.
-3. Keyless signing plus attestations (predicate types and issuer must match Kyverno policies).
-4. Secret handling is file-based (Compose secrets, `RUNNER_TEMP`) and never logged.
-5. Dockerfile hardening (pinned base image digests, non-root runtime, remove npm in runtime, healthchecks).
-
-## Release Checklist
-
-- Tag uses semver (`vX.Y.Z`) and points at the intended commit.
-- `ci-release-gate.yml` passes (build/push, Trivy gate, DAST, sign/attest).
-- Digest artifacts exist for backend and frontend and are used in GitOps promotion.
-- `k8s/overlays/prod/kustomization.yaml` is updated via the GitOps PR.
-- Cosign/Kyverno identity and predicate types still match (`ci-release-gate.yml`, OIDC issuer, Trivy/ZAP/SBOM/SLSA).
-
-## Red Flags
-
-- Removing digest pins or using mutable tags in `k8s/overlays/prod/kustomization.yaml`.
-- Weakening Trivy/DAST gates or deleting output validation checks.
-- Changing predicate types or OIDC identity without updating `k8s/policies/cluster/*.yaml`.
-- Bypassing risk acceptance (edits to `docs/security-debt.md` or `.trivyignore` without expiry).
-- Logging or persisting secrets in repo or CI output.
-
-## Questions for Iteration
-
-1. Does this change the threat model or governance? Update `docs/threat-model.md` or `docs/governance.md`.
-2. Should this be a PR or release gate? Add it to the relevant workflow.
-3. Do Kyverno policies need updates for new attestations, image names, or environments?
-4. Does DAST scope or auth change? Update `.zap/context.context` and `.zap/rules.tsv`.
+- If workflow behavior changes, update `.github/workflows/README.md`.
+- If security thresholds or exception process changes, update docs and enforcement script together.
+- If attestation/signature identity changes, update matching Kyverno verification policies.
+- If API/auth/DAST scope changes, update `.zap/` config and related docs.
+- If architecture or control intent changes, update `docs/architecture.md`, `docs/threat-model.md`, and/or `docs/governance.md`.
