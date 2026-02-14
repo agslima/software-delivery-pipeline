@@ -201,7 +201,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p zap-out
-          chmod 777 zap-out
+          chmod -R u+rwX,go+rX zap-out
 
           test -f "${{ env.ZAP_CONTEXT_FILE }}" || (echo "::error::Missing context file ${{ env.ZAP_CONTEXT_FILE }}"; exit 1)
           test -f "${{ env.ZAP_RULES_FILE }}" || (echo "::error::Missing rules file ${{ env.ZAP_RULES_FILE }}"; exit 1)
@@ -481,9 +481,13 @@ jobs:
           PY
 
           python3 -c 'import pathlib; p=pathlib.Path("zap-out/openapi.yaml"); assert p.exists() and p.stat().st_size>0'
-          ENDPOINT_COUNT="$(grep -Ec '^\s{2}/' zap-out/openapi.yaml || true)"
+          if ! grep -qE '^[[:space:]]*paths:[[:space:]]*$' zap-out/openapi.yaml; then
+            echo "::error::OpenAPI rewrite produced no paths: section"
+            exit 1
+          fi
+          ENDPOINT_COUNT="$(grep -E '^[[:space:]]*/[^[:space:]]*:[[:space:]]*$' -c zap-out/openapi.yaml || true)"
           if [ "$ENDPOINT_COUNT" -eq 0 ]; then
-            echo "::error::OpenAPI rewrite produced zero endpoints"
+            echo "::error::OpenAPI rewrite produced zero endpoints under paths:"
             exit 1
           fi
 
@@ -498,12 +502,12 @@ jobs:
 
           VOL_PATH="$(pwd)/zap-out"
           AUTH_VALUE="Bearer ${ZAP_AUTH_TOKEN}"
-          OPENAPI_FILE="${{ env.OPENAPI_FILE }}"
 
           set +e
           docker run --rm \
             --network "${COMPOSE_NETWORK}" \
             -v "$VOL_PATH:/zap/wrk/:rw" \
+            -v "$(pwd)/zap-out/openapi.yaml:/zap/wrk/openapi.yaml:ro" \
             -v "$(pwd)/zap-out/rules.tsv:/zap/wrk/rules.tsv:ro" \
             "${{ env.ZAP_IMG }}" zap-api-scan.py \
             -t /zap/wrk/openapi.yaml \
