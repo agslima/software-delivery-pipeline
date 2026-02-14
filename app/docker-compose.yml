@@ -92,6 +92,7 @@ services:
       # Secrets
       ADMIN_USER: ${ADMIN_USER}
       ADMIN_PASS_FILE: /run/secrets/admin_pass
+      JWT_SECRET: ${JWT_SECRET}
       JWT_SECRET_FILE: /run/secrets/jwt_secret
       
       DB_HOST: postgres
