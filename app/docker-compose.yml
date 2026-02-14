@@ -96,6 +96,7 @@ services:
       
       DB_HOST: postgres
       DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
       DB_NAME: ${DB_NAME}
       DB_PASS_FILE: /run/secrets/db_pass
 
