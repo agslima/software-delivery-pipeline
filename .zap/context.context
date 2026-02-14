@@ -2,11 +2,19 @@ context
   name=app-context
   description=CI weekly DAST context (FE+BE)
 
-  # Include only local ephemeral targets (strictly) via Compose DNS
+  # ====================================================================
+  # SCOPE (STRICT)
+  # Only allow the ephemeral targets inside the Compose network.
+  # ====================================================================
   includeInContextRegexes=^http://frontend:8080/.*,^http://backend:8080/.*
 
-  # Exclude noisy static assets + common irrelevant endpoints
+  # ====================================================================
+  # EXCLUSIONS
+  # 1) Hard deny: any host that is NOT frontend/backend (prevents CDN drift)
+  # 2) Drop noisy assets and operational endpoints
+  # ====================================================================
   excludeFromContextRegexes=\
+^https?://(?!frontend:8080|backend:8080).*$,\
 ^http://(frontend|backend):8080/.*\.(css|js|map|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$,\
 ^http://(frontend|backend):8080/(health|metrics)(/.*)?$,\
 ^http://(frontend|backend):8080/(favicon\.ico|robots\.txt)$,\
@@ -14,4 +22,5 @@ context
 ^http://backend:8080/(swagger|api-docs|openapi)(/.*)?$,\
 ^http://backend:8080/.*\b(logout|signout)\b.*$
 
+  # Optional: keep empty unless using ZAP tech sets
   technology=

@@ -67,7 +67,7 @@ services:
       NODE_ENV: production
       PORT: "8080"
       LOG_LEVEL: info
-      CORS_ORIGIN: "http://frontend:8080,http://localhost:4173"
+      CORS_ORIGIN: "http://frontend:8080,http://localhost:4173,http://127.0.0.1:4173"
       ENFORCE_TLS: ${ENFORCE_TLS:-false}
       DATA_ENCRYPTION_KEY_ID: ${DATA_ENCRYPTION_KEY_ID:-v1}
       DATA_ENCRYPTION_KEYS: ${DATA_ENCRYPTION_KEYS:-}
@@ -92,10 +92,12 @@ services:
       # Secrets
       ADMIN_USER: ${ADMIN_USER}
       ADMIN_PASS_FILE: /run/secrets/admin_pass
+      JWT_SECRET: ${JWT_SECRET}
       JWT_SECRET_FILE: /run/secrets/jwt_secret
       
       DB_HOST: postgres
       DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
       DB_NAME: ${DB_NAME}
       DB_PASS_FILE: /run/secrets/db_pass
 
