@@ -47,9 +47,6 @@ jobs:
 
       ZAP_LOGIN_EMAIL: ${{ vars.ZAP_LOGIN_EMAIL }}
       ZAP_LOGIN_PASSWORD: ${{ secrets.ZAP_LOGIN_PASSWORD }}
-      ZAP_DEMO_LOGIN_EMAIL: john.smith@stayhealthy.test
-      ZAP_DEMO_LOGIN_PASSWORD: DemoPass123!
-      ALLOW_DEMO_AUTH_FALLBACK: "0"
       DEBUG_DAST: "0"
 
       AUTH_COVERAGE_REGEX: '/api/v2/'
@@ -70,26 +67,45 @@ jobs:
           rm -rf "$SECRETS_PATH"
           mkdir -p "$SECRETS_PATH"
 
+          ADMIN_USER_VALUE="${{ vars.ADMIN_USER }}"
+          DB_USER_VALUE="${{ vars.DB_USER }}"
+          DB_NAME_VALUE="${{ vars.DB_NAME }}"
+          ADMIN_PASS_VALUE="${{ secrets.ADMIN_PASS }}"
+          DB_PASS_VALUE="${{ secrets.DB_PASS }}"
+          JWT_SECRET_VALUE="${{ secrets.JWT_SECRET }}"
+          DATA_ENCRYPTION_KEY_VALUE="${{ secrets.DATA_ENCRYPTION_KEY }}"
+
+          [ -n "$ADMIN_USER_VALUE" ] || ADMIN_USER_VALUE="admin"
+          [ -n "$DB_USER_VALUE" ] || DB_USER_VALUE="postgres"
+          [ -n "$DB_NAME_VALUE" ] || DB_NAME_VALUE="prescriptions_db"
+          [ -n "$ADMIN_PASS_VALUE" ] || ADMIN_PASS_VALUE="$(openssl rand -hex 16)"
+          [ -n "$DB_PASS_VALUE" ] || DB_PASS_VALUE="$(openssl rand -hex 16)"
+          [ -n "$JWT_SECRET_VALUE" ] || JWT_SECRET_VALUE="$(openssl rand -hex 32)"
+          [ -n "$DATA_ENCRYPTION_KEY_VALUE" ] || DATA_ENCRYPTION_KEY_VALUE="$(openssl rand -hex 32)"
+
+          echo "::add-mask::${ADMIN_PASS_VALUE}"
+          echo "::add-mask::${DB_PASS_VALUE}"
+          echo "::add-mask::${JWT_SECRET_VALUE}"
+          echo "::add-mask::${DATA_ENCRYPTION_KEY_VALUE}"
+
           {
-            echo "ADMIN_USER=${{ vars.ADMIN_USER }}"
-            echo "ADMIN_PASS=${{ secrets.ADMIN_PASS }}"
-            echo "DB_USER=${{ vars.DB_USER }}"
-            echo "DB_NAME=${{ vars.DB_NAME }}"
-            echo "DB_PASS=${{ secrets.DB_PASS }}"
-            echo "JWT_SECRET=${{ secrets.JWT_SECRET }}"
-            echo "DATA_ENCRYPTION_KEY=${{ secrets.DATA_ENCRYPTION_KEY }}"
+            echo "ADMIN_USER=${ADMIN_USER_VALUE}"
+            echo "ADMIN_PASS=${ADMIN_PASS_VALUE}"
+            echo "DB_USER=${DB_USER_VALUE}"
+            echo "DB_NAME=${DB_NAME_VALUE}"
+            echo "DB_PASS=${DB_PASS_VALUE}"
+            echo "JWT_SECRET=${JWT_SECRET_VALUE}"
+            echo "DATA_ENCRYPTION_KEY=${DATA_ENCRYPTION_KEY_VALUE}"
             echo "COMPOSE_PROJECT_NAME=${{ env.COMPOSE_PROJECT_NAME }}"
             echo "SECRETS_PATH=${SECRETS_PATH}"
+            echo "SEED_ADMIN_EMAIL=${{ vars.ZAP_LOGIN_EMAIL }}"
+            echo "SEED_DEFAULT_PASSWORD=${{ secrets.ZAP_LOGIN_PASSWORD }}"
           } >> "$ENV_FILE"
           chmod 600 "$ENV_FILE"
 
-          printf "%s" "${{ secrets.JWT_SECRET }}"  > "${SECRETS_PATH}/jwt_secret.txt"
-          printf "%s" "${{ secrets.ADMIN_PASS }}"  > "${SECRETS_PATH}/admin_pass.txt"
-          printf "%s" "${{ secrets.DB_PASS }}"     > "${SECRETS_PATH}/db_pass.txt"
-          DATA_ENCRYPTION_KEY_VALUE="${{ secrets.DATA_ENCRYPTION_KEY }}"
-          if [ -z "$DATA_ENCRYPTION_KEY_VALUE" ]; then
-            DATA_ENCRYPTION_KEY_VALUE="$(openssl rand -hex 32)"
-          fi
+          printf "%s" "$JWT_SECRET_VALUE"  > "${SECRETS_PATH}/jwt_secret.txt"
+          printf "%s" "$ADMIN_PASS_VALUE"  > "${SECRETS_PATH}/admin_pass.txt"
+          printf "%s" "$DB_PASS_VALUE"     > "${SECRETS_PATH}/db_pass.txt"
           printf "%s" "$DATA_ENCRYPTION_KEY_VALUE" > "${SECRETS_PATH}/data_encryption_key.txt"
           chmod 600 "${SECRETS_PATH}"/*.txt
 
@@ -140,18 +156,9 @@ jobs:
           LOGIN_EMAIL="${{ env.ZAP_LOGIN_EMAIL }}"
           LOGIN_PASSWORD="${{ env.ZAP_LOGIN_PASSWORD }}"
 
-          if [ -z "$LOGIN_EMAIL" ]; then
-            LOGIN_EMAIL="${{ env.ZAP_DEMO_LOGIN_EMAIL }}"
-          fi
-
-          if [ -z "$LOGIN_PASSWORD" ]; then
-            if [ "${{ env.ALLOW_DEMO_AUTH_FALLBACK }}" = "1" ]; then
-              LOGIN_PASSWORD="${{ env.ZAP_DEMO_LOGIN_PASSWORD }}"
-              echo "::warning::Using demo auth fallback password for DAST execution."
-            else
-              echo "::error::Missing secrets.ZAP_LOGIN_PASSWORD and ALLOW_DEMO_AUTH_FALLBACK=0. Configure the secret or explicitly enable fallback."
-              exit 1
-            fi
+          if [ -z "$LOGIN_EMAIL" ] || [ -z "$LOGIN_PASSWORD" ]; then
+            echo "::error::Missing vars.ZAP_LOGIN_EMAIL and/or secrets.ZAP_LOGIN_PASSWORD for DAST auth bootstrap."
+            exit 1
           fi
 
           echo "::add-mask::${LOGIN_EMAIL}"
@@ -272,18 +279,9 @@ jobs:
           LOGIN_EMAIL="${{ env.ZAP_LOGIN_EMAIL }}"
           LOGIN_PASSWORD="${{ env.ZAP_LOGIN_PASSWORD }}"
 
-          if [ -z "$LOGIN_EMAIL" ]; then
-            LOGIN_EMAIL="${{ env.ZAP_DEMO_LOGIN_EMAIL }}"
-          fi
-
-          if [ -z "$LOGIN_PASSWORD" ]; then
-            if [ "${{ env.ALLOW_DEMO_AUTH_FALLBACK }}" = "1" ]; then
-              LOGIN_PASSWORD="${{ env.ZAP_DEMO_LOGIN_PASSWORD }}"
-              echo "::warning::Using demo auth fallback password for DAST execution."
-            else
-              echo "::error::Missing secrets.ZAP_LOGIN_PASSWORD and ALLOW_DEMO_AUTH_FALLBACK=0. Configure the secret or explicitly enable fallback."
-              exit 1
-            fi
+          if [ -z "$LOGIN_EMAIL" ] || [ -z "$LOGIN_PASSWORD" ]; then
+            echo "::error::Missing vars.ZAP_LOGIN_EMAIL and/or secrets.ZAP_LOGIN_PASSWORD for DAST auth refresh."
+            exit 1
           fi
 
           echo "::add-mask::${LOGIN_EMAIL}"
