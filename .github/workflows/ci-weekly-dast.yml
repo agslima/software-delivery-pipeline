@@ -233,6 +233,8 @@ jobs:
             exit 1
           fi
           echo "Using normalized ZAP rules: $(pwd)/zap-out/rules.tsv"
+          echo "Rules TSV preview (first 20):"
+          head -n 20 zap-out/rules.tsv | sed 's/	/[TAB]/g'
 
       - name: Auth Bootstrap (mint JWT) + Verify
         working-directory: app
@@ -321,6 +323,15 @@ jobs:
             chmod 600 zap-out/zap-auth-header.txt
           fi
 
+      - name: Debug ZAP context include/exclude regexes
+        working-directory: app
+        run: |
+          set -euo pipefail
+          echo "Context include:"
+          grep -E '^ *includeInContextRegexes=' -n "${{ env.ZAP_CONTEXT_FILE }}" || true
+          echo "Context exclude:"
+          grep -E '^ *excludeFromContextRegexes=' -n "${{ env.ZAP_CONTEXT_FILE }}" || true
+
       - name: OWASP ZAP Full Scan (Frontend, Auth, Context, Rules)
         working-directory: app
         run: |
@@ -357,9 +368,24 @@ jobs:
           ZAP_EXIT=$?
           set -e
 
+          if [ "$ZAP_EXIT" -ne 0 ]; then
+            echo "::warning::ZAP exited with code ${ZAP_EXIT}. Reports may be partial. Continuing to parse generated outputs."
+          fi
+
           echo "ZAP_EXIT_FRONTEND=$ZAP_EXIT" >> "$GITHUB_ENV"
           test -s "zap-out/zap-frontend.json" || (echo "::error::ZAP FE json missing/empty"; exit 1)
           jq -e 'type=="object"' "zap-out/zap-frontend.json" >/dev/null
+
+      - name: Assert ZAP scanned at least N URLs (Frontend)
+        working-directory: app
+        run: |
+          set -euo pipefail
+          FE="zap-out/zap-frontend.json"
+          URLS="$(jq '[.site[]? | .alerts[]? | (.instances? // []) | .[]? | (.uri? // .url? // empty)] | map(select(. != "")) | unique | length' "$FE")"
+          echo "ZAP_FRONTEND_UNIQUE_URLS=$URLS" >> "$GITHUB_ENV"
+          if [ "$URLS" -lt 10 ]; then
+            echo "::warning::Frontend scan produced too few unique URLs ($URLS). Scope/context/auth might be wrong."
+          fi
 
       - name: Assert authenticated coverage (Frontend)
         working-directory: app
@@ -538,9 +564,24 @@ jobs:
           ZAP_EXIT=$?
           set -e
 
+          if [ "$ZAP_EXIT" -ne 0 ]; then
+            echo "::warning::ZAP exited with code ${ZAP_EXIT}. Reports may be partial. Continuing to parse generated outputs."
+          fi
+
           echo "ZAP_EXIT_BACKEND=$ZAP_EXIT" >> "$GITHUB_ENV"
           test -s "zap-out/zap-backend.json" || (echo "::error::ZAP BE json missing/empty"; exit 1)
           jq -e 'type=="object"' "zap-out/zap-backend.json" >/dev/null
+
+      - name: Assert ZAP scanned at least N URLs (Backend)
+        working-directory: app
+        run: |
+          set -euo pipefail
+          BE="zap-out/zap-backend.json"
+          URLS="$(jq '[.site[]? | .alerts[]? | (.instances? // []) | .[]? | (.uri? // .url? // empty)] | map(select(. != "")) | unique | length' "$BE")"
+          echo "ZAP_BACKEND_UNIQUE_URLS=$URLS" >> "$GITHUB_ENV"
+          if [ "$URLS" -lt 10 ]; then
+            echo "::warning::Backend scan produced too few unique URLs ($URLS). OpenAPI import might be wrong."
+          fi
 
       - name: Assert authenticated coverage (Backend)
         working-directory: app
@@ -611,7 +652,14 @@ jobs:
                 else 0 end;
               def pidAllowed(pid):
                 if ($pids|length) == 0 then false
-                else ($pids|split(",")|map(gsub("\\s+";""))|index(pid)) != null end;
+                else
+                  ($pids
+                    | split(",")
+                    | map(gsub("\\s+";""))
+                    | map(tostring)
+                    | index(pid|tostring)
+                  ) != null
+                end;
               [ .site[]? | .alerts[]?
                 | . as $a
                 | ($a.instances // []) as $ins
@@ -644,7 +692,16 @@ jobs:
             local file="$1"
             jq --arg re "$PATTERN" --arg pids "${{ env.BLOCK_MEDIUM_PLUGINIDS }}" '
               def confRank(c): if (c|ascii_downcase) == "high" then 3 elif (c|ascii_downcase) == "medium" then 2 elif (c|ascii_downcase) == "low" then 1 else 0 end;
-              def pidAllowed(pid): if ($pids|length) == 0 then false else ($pids|split(",")|map(gsub("\\s+";""))|index(pid)) != null end;
+              def pidAllowed(pid):
+                if ($pids|length) == 0 then false
+                else
+                  ($pids
+                    | split(",")
+                    | map(gsub("\\s+";""))
+                    | map(tostring)
+                    | index(pid|tostring)
+                  ) != null
+                end;
               [ .site[]? | .alerts[]?
                 | select((.riskcode|tostring) == "2")
                 | select(confRank(.confidence // "") >= 2)
