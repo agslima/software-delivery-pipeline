@@ -164,7 +164,8 @@ jobs:
           echo "::add-mask::${LOGIN_EMAIL}"
           echo "::add-mask::${LOGIN_PASSWORD}"
 
-          RESP="$(curl -fsS -X POST "${LOGIN_URL}" -H "Content-Type: application/json" --data "{\"email\":\"${LOGIN_EMAIL}\",\"password\":\"${LOGIN_PASSWORD}\"}")"
+          LOGIN_PAYLOAD="$(jq -cn --arg email "$LOGIN_EMAIL" --arg password "$LOGIN_PASSWORD" '{email:$email,password:$password}')"
+          RESP="$(curl -fsS -X POST "${LOGIN_URL}" -H "Content-Type: application/json" --data "$LOGIN_PAYLOAD")"
 
           MFA_REQUIRED="$(echo "$RESP" | jq -r '.mfaRequired // false' || true)"
           if [ "$MFA_REQUIRED" = "true" ]; then
@@ -287,9 +288,10 @@ jobs:
           echo "::add-mask::${LOGIN_EMAIL}"
           echo "::add-mask::${LOGIN_PASSWORD}"
 
+          LOGIN_PAYLOAD="$(jq -cn --arg email "$LOGIN_EMAIL" --arg password "$LOGIN_PASSWORD" '{email:$email,password:$password}')"
           RESP="$(curl -fsS -X POST "${LOGIN_URL}" \
             -H "Content-Type: application/json" \
-            --data "{\"email\":\"${LOGIN_EMAIL}\",\"password\":\"${LOGIN_PASSWORD}\"}")"
+            --data "$LOGIN_PAYLOAD")"
 
           MFA_REQUIRED="$(echo "$RESP" | jq -r '.mfaRequired // false' || true)"
           if [ "$MFA_REQUIRED" = "true" ]; then
