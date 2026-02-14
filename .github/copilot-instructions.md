@@ -79,6 +79,23 @@ This repository is a governance-first CI/CD reference. The demo workload under `
   - Policy tests: `k8s/tests/`
 - DAST config: `.zap/context.context`, `.zap/rules.tsv`
 
+
+## GitHub Ruleset Template Storage
+
+Store GitHub ruleset JSON exports in a dedicated folder:
+
+- Canonical location: `.github/rulesets/`
+- Use stable, lowercase, no-space filenames (for example):
+  - `.github/rulesets/branch-protection-main.json`
+  - `.github/rulesets/tag-protection-release.json`
+
+Why this location:
+- Keeps governance-as-code artifacts beside workflows and repository policy controls.
+- Makes ruleset templates easy to discover, review, and protect via `CODEOWNERS`.
+- Avoids path/name friction in automation and shell scripts (spaces/casing differences).
+
+If legacy files exist at the root of `.github/` (for example `branch-protection.json` or `Tag Protection.json`), treat them as migration candidates and standardize to `.github/rulesets/` in the next governance cleanup PR.
+
 ## Change Checklist for Agents
 
 - If workflow behavior changes, update `.github/workflows/README.md`.
