@@ -207,18 +207,27 @@ jobs:
           test -f "${{ env.ZAP_RULES_FILE }}" || (echo "::error::Missing rules file ${{ env.ZAP_RULES_FILE }}"; exit 1)
           test -f "${{ env.MEDIUM_BLOCK_PATTERNS_FILE }}" || (echo "::error::Missing medium block patterns file ${{ env.MEDIUM_BLOCK_PATTERNS_FILE }}"; exit 1)
 
-          # ZAP expects rules to be TAB-separated. Normalize whitespace-delimited rows and strip comments.
-          awk 'BEGIN{OFS="	"}
+          # ZAP expects rules to be TAB-separated: pluginId <TAB> action <TAB> threshold
+          # Normalize whitespace-delimited rows, strip comments, and validate allowed values.
+          awk '
+            BEGIN { OFS="	" }
             /^[[:space:]]*($|#)/ { next }
             {
-              plugin=$1; sev=$2; action=$3;
-              if (plugin == "" || sev == "" || action == "") next;
-              print plugin, sev, action;
+              plugin=$1; action=toupper($2); threshold=toupper($3);
+
+              if (plugin == "" || action == "" || threshold == "") next;
+
+              # Validate action / threshold to avoid silent misconfig
+              if (action !~ /^(IGNORE|WARN|FAIL)$/) next;
+              if (threshold !~ /^(OFF|LOW|MEDIUM|HIGH)$/) next;
+
+              print plugin, action, threshold;
             }
           ' "${{ env.ZAP_RULES_FILE }}" > zap-out/rules.tsv
 
           if [ ! -s zap-out/rules.tsv ]; then
-            echo "::error::Normalized rules file is empty (zap-out/rules.tsv)."
+            echo "::error::Normalized rules file is empty or invalid (zap-out/rules.tsv)."
+            echo "::error::Check .zap/rules.tsv format: <pluginId> <action> <threshold>"
             exit 1
           fi
           echo "Using normalized ZAP rules: $(pwd)/zap-out/rules.tsv"
