@@ -333,7 +333,7 @@ jobs:
           set +e
           docker run --rm \
             --network "${COMPOSE_NETWORK}" \
-            --user "$(id -u):$(id -g)" \
+            --user root \
             -v "$VOL_PATH:/zap/wrk/:rw" \
             -v "${{ env.ZAP_CONTEXT_FILE }}:/zap/wrk/context.context:ro" \
             -v "$(pwd)/zap-out/rules.tsv:/zap/wrk/rules.tsv:ro" \
@@ -518,7 +518,7 @@ jobs:
           set +e
           docker run --rm \
             --network "${COMPOSE_NETWORK}" \
-            --user "$(id -u):$(id -g)" \
+            --user root \
             -v "$VOL_PATH:/zap/wrk/:rw" \
             -v "$(pwd)/zap-out/openapi.yaml:/zap/wrk/openapi.yaml:ro" \
             -v "$(pwd)/zap-out/rules.tsv:/zap/wrk/rules.tsv:ro" \
