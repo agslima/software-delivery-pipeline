@@ -16,6 +16,7 @@ jobs:
 
     permissions:
       contents: read
+      actions: read
       issues: write
       security-events: write
 
@@ -47,6 +48,9 @@ jobs:
       DEBUG_DAST: "0"
 
       AUTH_COVERAGE_REGEX: '/api/v2/'
+      MIN_FE_URLS: "10"
+      MIN_BE_URLS: "10"
+      FAIL_ON_LOW_URLS: "0"
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -383,8 +387,13 @@ jobs:
           FE="zap-out/zap-frontend.json"
           URLS="$(jq '[.site[]? | .alerts[]? | (.instances? // []) | .[]? | (.uri? // .url? // empty)] | map(select(. != "")) | unique | length' "$FE")"
           echo "ZAP_FRONTEND_UNIQUE_URLS=$URLS" >> "$GITHUB_ENV"
-          if [ "$URLS" -lt 10 ]; then
-            echo "::warning::Frontend scan produced too few unique URLs ($URLS). Scope/context/auth might be wrong."
+          MIN="${MIN_FE_URLS:-10}"
+          if [ "$URLS" -lt "$MIN" ]; then
+            echo "::warning::Frontend scan produced too few unique URLs ($URLS < $MIN). Scope/context/auth might be wrong."
+            if [ "${FAIL_ON_LOW_URLS:-0}" = "1" ]; then
+              echo "::error::Failing because FAIL_ON_LOW_URLS=1"
+              exit 1
+            fi
           fi
 
       - name: Assert authenticated coverage (Frontend)
@@ -579,8 +588,13 @@ jobs:
           BE="zap-out/zap-backend.json"
           URLS="$(jq '[.site[]? | .alerts[]? | (.instances? // []) | .[]? | (.uri? // .url? // empty)] | map(select(. != "")) | unique | length' "$BE")"
           echo "ZAP_BACKEND_UNIQUE_URLS=$URLS" >> "$GITHUB_ENV"
-          if [ "$URLS" -lt 10 ]; then
-            echo "::warning::Backend scan produced too few unique URLs ($URLS). OpenAPI import might be wrong."
+          MIN="${MIN_BE_URLS:-10}"
+          if [ "$URLS" -lt "$MIN" ]; then
+            echo "::warning::Backend scan produced too few unique URLs ($URLS < $MIN). OpenAPI import might be wrong."
+            if [ "${FAIL_ON_LOW_URLS:-0}" = "1" ]; then
+              echo "::error::Failing because FAIL_ON_LOW_URLS=1"
+              exit 1
+            fi
           fi
 
       - name: Assert authenticated coverage (Backend)
@@ -656,6 +670,7 @@ jobs:
                   ($pids
                     | split(",")
                     | map(gsub("\\s+";""))
+                    | map(select(. != ""))
                     | map(tostring)
                     | index(pid|tostring)
                   ) != null
@@ -698,6 +713,7 @@ jobs:
                   ($pids
                     | split(",")
                     | map(gsub("\\s+";""))
+                    | map(select(. != ""))
                     | map(tostring)
                     | index(pid|tostring)
                   ) != null
@@ -718,6 +734,10 @@ jobs:
           SUMMARY="zap-out/summary.md"
           {
             echo "# DAST Weekly Summary"
+            echo ""
+            echo "## Scan status"
+            echo "- ZAP_EXIT_FRONTEND: ${ZAP_EXIT_FRONTEND:-n/a}"
+            echo "- ZAP_EXIT_BACKEND: ${ZAP_EXIT_BACKEND:-n/a}"
             echo ""
             echo "## Counts"
             echo "| Target | High (conf>=Medium) | Medium |"
