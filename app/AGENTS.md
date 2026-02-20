@@ -85,3 +85,8 @@ Applies only to `app/` and its subdirectories (`client/`, `server/`, `docker/`, 
 - Helper scripts:
   - `app/scripts/test-db.sh` (spin up test DB, run audit repo integration test)
   - `app/scripts/test-db-compose.sh` (manage test DB container)
+
+## Dependency Maintenance
+
+- For `app/server/`, avoid `npm audit fix --force` (it can downgrade `eslint`/`jest` to incompatible majors).
+- Prefer targeted overrides in `app/server/package.json` (currently includes `ajv` and `minimatch`) and then refresh the lockfile with `npm install`.

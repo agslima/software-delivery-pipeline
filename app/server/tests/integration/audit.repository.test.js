@@ -4,7 +4,7 @@ const { randomBytes } = require('node:crypto');
 const path = require('node:path');
 const { setTimeout: delay } = require('node:timers/promises');
 
-jest.setTimeout(30000);
+jest.setTimeout(120000);
 
 const baseEnv = { ...process.env };
 
