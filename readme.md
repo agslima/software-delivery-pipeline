@@ -218,7 +218,7 @@ Screenshots below are from a legacy remediation exercise; current workflows use 
 
 | Initial Vulnerability Scan | Post-Fix Clean Scan |
 | --- | --- |
-| ![image](https://github.com/agslima/secure-app-analysis/blob/main/docs/images/scan-snyk-01.png) | ![image](https://github.com/agslima/secure-app-analysis/blob/main/docs/images/scan-snyk-02.png) |
+| ![image](https://github.com/agslima/software-delivery-pipeline/blob/main/docs/images/scan-snyk-01.png) | ![image](https://github.com/agslima/software-delivery-pipeline/blob/main/docs/images/scan-snyk-02.png) |
 
 ---
 
