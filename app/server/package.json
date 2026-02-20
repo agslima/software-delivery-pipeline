@@ -17,7 +17,8 @@
     "test:watch": "jest tests/unit --watch",
     "coverage": "jest --coverage --coverageReporters=lcov",
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "postinstall": "patch-package"
   },
   "jest": {
     "testEnvironment": "node",
@@ -60,22 +61,18 @@
     "yamljs": "^0.1.0"
   },
   "devDependencies": {
+    "ajv-draft-04": "^1.0.0",
     "eslint": "^10.0.1",
     "eslint-config-prettier": "^6.15.0",
     "eslint-plugin-jest": "^21.27.2",
     "eslint-plugin-node": "^0.0.0",
     "eslint-plugin-security": "^3.0.1",
     "jest": "^30.2.0",
+    "patch-package": "^8.0.0",
     "supertest": "^7.1.4"
   },
   "overrides": {
     "ajv": "^8.18.0",
-    "eslint": {
-      "ajv": "^6.12.6"
-    },
-    "@eslint/eslintrc": {
-      "ajv": "^6.12.6"
-    },
     "glob": "^10.5.0",
     "minimatch": "^10.2.2",
     "tar": "^7.5.3",

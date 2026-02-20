@@ -90,3 +90,4 @@ Applies only to `app/` and its subdirectories (`client/`, `server/`, `docker/`, 
 
 - For `app/server/`, avoid `npm audit fix --force` (it can downgrade `eslint`/`jest` to incompatible majors).
 - Prefer targeted overrides in `app/server/package.json` (currently includes `ajv` and `minimatch`) and then refresh the lockfile with `npm install`.
+- ESLint is patched via `patch-package` to work with `ajv` 8 + `ajv-draft-04`; run `npm install` in `app/server/` to apply patches.
