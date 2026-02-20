@@ -70,6 +70,12 @@
   },
   "overrides": {
     "ajv": "^8.18.0",
+    "eslint": {
+      "ajv": "^6.12.6"
+    },
+    "@eslint/eslintrc": {
+      "ajv": "^6.12.6"
+    },
     "glob": "^10.5.0",
     "minimatch": "^10.2.2",
     "tar": "^7.5.3",
