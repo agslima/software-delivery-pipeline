@@ -37,7 +37,7 @@ jobs:
 
       # TRIVY
       - name: Trivy Scan - Infrastructure
-        uses: aquasecurity/trivy-action@c1824fd6edce30d7ab345a9989de00bbd46ef284 # v0.34.0
+        uses: aquasecurity/trivy-action@97e0b3872f55f89b95b2f65b3dbab56962816478 # v0.34.2
         with:
           scan-type: 'config'
           scan-ref: '.'
@@ -49,7 +49,7 @@ jobs:
 
       # 2. CODE SCAN (Vulns & Secrets only)
       - name: Trivy Scan - Code
-        uses: aquasecurity/trivy-action@c1824fd6edce30d7ab345a9989de00bbd46ef284 # v0.34.0
+        uses: aquasecurity/trivy-action@97e0b3872f55f89b95b2f65b3dbab56962816478 # v0.34.2
         with:
           scan-type: 'fs'
           scan-ref: '.'
@@ -63,7 +63,7 @@ jobs:
 
       # 3. GOVERNANCE DATA (Full Scan)    
       - name: Generate Governance JSON
-        uses: aquasecurity/trivy-action@c1824fd6edce30d7ab345a9989de00bbd46ef284 # v0.34.0
+        uses: aquasecurity/trivy-action@97e0b3872f55f89b95b2f65b3dbab56962816478 # v0.34.2
         with:
           scan-type: 'fs'
           scan-ref: '.'
@@ -84,20 +84,20 @@ jobs:
 
       # Reporting (Only runs if Validation passed)
       - name: Upload Trivy SARIF (Code)
-        uses: github/codeql-action/upload-sarif@45cbd0c69e560cd9e7cd7f8c32362050c9b7ded2 #v4.0.0
+        uses: github/codeql-action/upload-sarif@0d579ffd059c29b07949a3cce3983f0780820c98 #v4.0.0
         with:
           sarif_file: trivy-code.sarif
           category: code
 
       - name: Upload Trivy SARIF (Infra)
-        uses: github/codeql-action/upload-sarif@45cbd0c69e560cd9e7cd7f8c32362050c9b7ded2 # v4.0.0
+        uses: github/codeql-action/upload-sarif@0d579ffd059c29b07949a3cce3983f0780820c98 # v4.0.0
         with:
           sarif_file: trivy-infra.sarif
           category: infrastructure
 
       # Upload artifacts
       - name: Upload Trivy Artifacts
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f #v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f #v7.0.0
         if: always()
         with:
           name: trivy-deep-scan
