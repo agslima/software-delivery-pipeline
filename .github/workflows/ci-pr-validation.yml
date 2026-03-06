@@ -26,7 +26,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 #v6.2.0
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f #v6.3.0
         with:
           node-version-file: 'app/${{ matrix.component }}/package.json'
           cache: 'npm'
@@ -73,7 +73,7 @@ jobs:
 
       # 2. Conftest (OPA Policy)
       - name: Setup Conftest
-        uses: princespaghetti/setup-conftest@427bf563268433011fd432d23ae41e567cc24272 #v1.0.0
+        uses: princespaghetti/setup-conftest@417586a9b2e806fc5a95c72dfe98e296ef092b6f #v1.0.0
 
       - name: Run OPA Policy (${{ matrix.service }})
         run: |
@@ -114,7 +114,7 @@ jobs:
       # 2. TRIVY SCAN: Filesystem (Dependencies & Code Secrets)
       - name: Trivy Scan - Root FS
         id: trivy-scan
-        uses: aquasecurity/trivy-action@c1824fd6edce30d7ab345a9989de00bbd46ef284
+        uses: aquasecurity/trivy-action@97e0b3872f55f89b95b2f65b3dbab56962816478
         with:
           scan-type: 'fs'
           scan-ref: '.'
