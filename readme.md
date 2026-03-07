@@ -186,6 +186,7 @@ For more details on how branch protection, code ownership, and release integrity
 <!-- [BEGIN_GENERATED_TABLE] -->
 <!-- [END_GENERATED_TABLE] -->
 
+<!--
 ### Case Study: Legacy Risk Remediation 🔬
 
 To validate the effectiveness of the delivery control plane, a legacy application with known security debt was intentionally passed through the pipeline.
@@ -222,7 +223,7 @@ Screenshots below are from a legacy remediation exercise; current workflows use 
 | Initial Vulnerability Scan | Post-Fix Clean Scan |
 | --- | --- |
 | ![image](https://github.com/agslima/software-delivery-pipeline/blob/main/docs/images/scan-snyk-01.png) | ![image](https://github.com/agslima/software-delivery-pipeline/blob/main/docs/images/scan-snyk-02.png) |
-
+-->
 ---
 
 ## Verification (How to Audit)
