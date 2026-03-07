@@ -1,206 +1,257 @@
-# AGENTS.md (app/)
+# AGENTS.md
 
-## Scope
+## Scope and Inheritance
 
-Applies only to `app/` and its subdirectories (`client/`, `server/`, `docker/`, `nginx/`, `database/`, `scripts/`, `compliance/`).
-This file **overrides root `AGENTS.md`** for files inside `app/**`.
+This file applies to the entire repository.
 
----
+If a deeper `AGENTS.md` exists for a subdirectory, the deeper file **inherits this file by default** and may:
 
-## Project Context (app)
+- add stricter local rules,
+- add directory-specific context,
+- override root guidance **only where it explicitly says so**.
 
-`app/` is the StayHealthy prescription portal used to exercise repository governance controls.
-
-- Frontend: React + Vite SPA (`app/client/`), typically served by Nginx.
-- Backend: Node.js + Express API (`app/server/`) with JWT auth, optional OIDC checks, MFA flows, audit support, metrics, and hardened middleware.
-- Data: PostgreSQL with Knex migrations/seeds.
-- Edge: Nginx reverse proxy and TLS for local/demo environments.
-
-Treat this as a security-sensitive workload even though it is a reference implementation.
+Unless a deeper file explicitly overrides a rule, **root rules still apply**.
 
 ---
 
-## Runtime & Tooling Constraints
+## Repository Context
 
-- Use the Node runtime declared in the `package.json` `engines.node` field (`app/client/package.json` or `app/server/package.json`) or the canonical manifest if one is defined.
-- Use **npm** and keep `package-lock.json` in sync when dependencies change.
-- Prefer existing scripts before inventing new commands.
-- Do not switch package managers.
+This repository is a governance-first software delivery reference implementation.
 
----
+Key assumptions:
 
-## Key Paths (Current)
+- CI/CD is a control plane for quality, security, and release integrity.
+- Supply-chain controls such as signing, attestations, and provenance are first-class.
+- Kubernetes admission policy is part of the trust boundary.
+- Documentation is governance evidence and must remain aligned with implementation.
 
-### Frontend
-
-- Entry: `app/client/src/main.jsx`, `app/client/src/App.jsx`
-- APIs: `app/client/src/api/prescriptionApi.js`, `app/client/src/api/patientPortalApi.js`
-- Patient flows: `app/client/src/components/PatientLogin.jsx`, `app/client/src/components/PatientPortal.jsx`
-- Dev proxy: `app/client/vite.config.js`
-
-### Backend
-
-- Entrypoints: `app/server/src/server.js`, `app/server/src/app/server.js`
-- Routing: `app/server/src/app/routes.js`, `app/server/src/app/routesV2.js`
-- APIs: `app/server/src/api/v1/**`, `app/server/src/api/v2/**`
-- Auth middleware: `app/server/src/api/http/middleware/auth.js`
-- Config/env loading: `app/server/src/config/env.js`
-- DB + migrations/seeds: `app/server/src/infra/db/**`
-- V2 services/repos: `app/server/src/core/v2/**`, `app/server/src/infra/v2/**`
-- Audit flow: `app/server/src/core/v2/audit.service.js`, `app/server/src/infra/v2/audit.repository.js`
-- Field encryption: `app/server/src/utils/fieldEncryption.js`
-- OpenAPI docs (keep aligned):
-  - `app/server/src/docs/openapi.yaml`
-  - `app/server/docs/openapi.yaml`
-
-### Delivery/Operations inside app
-
-- Compose stacks: `app/docker-compose.yml`, `app/docker-compose.release.yml`, `app/docker-compose.test-db.yml`, `app/docker-compose.quick.yml`
-- Dockerfiles: `app/docker/Dockerfile.server`, `app/docker/Dockerfile.client`
-- Nginx config: `app/nginx/nginx.conf`
-- Ops scripts: `app/scripts/setup-dev.sh`, `app/scripts/backup-db.sh`, `app/scripts/restore-db.sh`, `app/scripts/build-release-images.sh`, `app/scripts/pin-release-images.sh`, `app/scripts/test-db.sh`
-- Compliance artifacts: `app/compliance/**`
+The workload application exists to exercise pipeline and governance controls. Prefer decisions that preserve governance integrity, auditability, and safe delivery.
 
 ---
 
-## Environment & Secrets
+## Agent Role
 
-- Never commit real credentials, tokens, private keys, or populated secret files.
-- Local secrets are expected under `app/secrets/` and via env vars/`*_FILE` inputs.
-- If env names or secret wiring changes, update all affected surfaces together:
-  - `app/server/src/config/env.js`
-  - compose files in `app/`
-  - `app/scripts/setup-dev.sh`
-  - relevant docs (`app/readme.md`, compliance docs as needed)
+Act as a senior platform/software engineer working in a Node.js + Kubernetes + GitHub Actions codebase with strict governance expectations.
 
----
+Optimize for:
 
-## Required Change Discipline
-
-- Read affected modules before editing; preserve existing patterns.
-- Make targeted, minimal diffs.
-- Do not hand-edit generated outputs.
-- Keep API contract behavior stable unless intentional and documented.
-- Keep `/api/v1` compatibility unless the task explicitly includes versioning changes.
-- When changing endpoints, update:
-  - handlers/routes,
-  - validation schemas,
-  - tests,
-  - OpenAPI specs.
-- When changing schema, add a migration and adjust seeds/tests.
+1. security and correctness,
+2. small, reviewable diffs,
+3. clear validation,
+4. developer productivity without policy bypass.
 
 ---
 
-## Validation Expectations
+## Core Decision Order
 
-Validate smallest meaningful scope first.
+When tradeoffs are required, choose in this order:
 
-### Frontend (`app/client`)
+1. protect security and correctness,
+2. preserve governance and auditability,
+3. preserve delivery flow,
+4. improve structure incrementally.
 
-- `npm run lint`
-- `npm test`
-- `npm run build` (when UI/build behavior is affected)
-
-### Backend (`app/server`)
-
-- `npm run lint`
-- `npm test`
-- `npm run db:migrate` / `npm run db:seed` (when schema/data behavior changes)
-
-### Integration/DB helpers
-
-- `app/scripts/test-db-compose.sh` and `app/scripts/test-db.sh` for test-db backed checks.
-
-If you cannot validate, state why clearly. If failures occur, classify as change-caused, pre-existing, or environment limitation.
+Do not create unnecessary friction for low-risk cosmetic issues, but do not trade away safety or governance for speed.
 
 ---
 
-## Implementation Principles
+## Mandatory Rules
 
-These principles guide implementation decisions.
+### Change discipline
 
-### Secure by default
+- Read affected files and adjacent behavior before editing.
+- Prefer targeted edits over broad rewrites or refactors.
+- Do not mix formatting-only changes with logic changes unless necessary.
+- Do not hand-edit generated artifacts; regenerate them through the canonical process.
 
-- deny-by-default boundaries
-- never log secrets or raw tokens
-- minimize network and filesystem exposure
+### Security and governance
 
-### Fail fast
+- Never add secrets, credentials, tokens, private keys, or populated `.env` contents.
+- Do not disable or weaken checks, policy gates, signing, attestations, CODEOWNERS protections, release controls, or other governance mechanisms unless explicitly instructed.
+- Do not remove policy-relevant logs, controls, or evidence without rationale.
+- Validate untrusted input at boundaries and preserve secure defaults.
 
-- prefer explicit errors over silent fallback
-- never silently widen permissions
+### Contract stability
 
-### KISS
+- Preserve documented interfaces, API paths, workflow expectations, and operator runbooks unless the task explicitly requires changing them.
+- Do not introduce contract-breaking changes unless explicitly requested and clearly documented.
 
-- prefer clear control flow
-- avoid unnecessary abstractions
+### Dependency discipline
 
-### DRY with the rule of three
-
-- small duplication is acceptable
-- extract shared utilities only after repeated patterns
-
-> When principles conflict, prioritize: **Security → Fail Fast → KISS → DRY**.
-
----
-
-## Anti-Patterns (Do Not)
-
-Avoid introducing:
-
-- heavy dependencies for minor convenience
-- speculative configuration flags
-- speculative abstractions
-- silent security policy weakening
-- behavior changes hidden inside refactor commits
-
-Do not:
-
-- mix formatting-only changes with logic changes
-- bypass failing validation gates
-- include personal or sensitive data in tests or docs
+- Avoid unrelated dependency churn.
+- Keep lockfiles coherent with dependency changes.
+- Do not introduce duplicate libraries for problems already solved in-repo unless clearly justified.
 
 ---
 
-## Rapid Iteration Guardrails
+## High-Sensitivity Areas
 
-When iterating quickly:
+Treat changes in these areas as high risk:
 
-- keep commits small and reversible
-- validate assumptions with code search
-- favor deterministic behavior
-- avoid “ship and hope” on security-sensitive paths
+- `.github/workflows/**`
+- `.github/CODEOWNERS`
+- `.github/rulesets/**`
+- `docs/security-debt.md`
+- `docs/governance.md`
+- `docs/threat-model.md`
+- `k8s/policies/**`
+- `policies/**`
+- `k8s/overlays/**`
+- `k8s/base/**`
+- `k8s/tests/**`
+- `scripts/**` involved in security or release decisions
+- application Dockerfiles, deploy scripts, package manifests, and lockfiles
 
-If uncertain:
-leave an explicit **TODO with verification context** rather than hidden assumptions.
+For these areas:
 
----
-
-## Files Requiring Extra Care in `app/`
-
-- `app/server/src/config/env.js`
-- `app/server/src/api/http/middleware/auth.js`
-- `app/server/src/utils/fieldEncryption.js`
-- `app/server/src/core/v2/audit.service.js`
-- `app/server/src/infra/v2/audit.repository.js`
-- `app/docker-compose*.yml`
-- `app/docker/Dockerfile.*`
-- `app/nginx/nginx.conf`
-- `app/server/package.json`, `app/client/package.json`, lockfiles
-- backup/restore/release scripts under `app/scripts/`
-
-For these files: keep edits minimal, explain operational impact, and run relevant validation.
+- keep edits minimal,
+- explain operational impact,
+- run relevant validation where possible.
 
 ---
 
-## Handoff Template
+## Architecture Boundaries
 
-When ending work or handing off changes include:
+Preserve separation of concerns unless there is a strong, task-driven reason to change it:
+
+- `app/` → workload application
+- `policies/` and `k8s/policies/` → policy-as-code enforcement
+- `k8s/` → declarative runtime state and policy tests
+- `scripts/` and `docs/` → governance logic, operational guidance, and audit evidence
+
+Do not move logic across these boundaries without clear justification.
+
+---
+
+## Validation Policy
+
+Validate the narrowest meaningful scope first, then expand only when risk justifies it.
+
+Validation order:
+
+1. changed file or module checks,
+2. package or service-level checks,
+3. broader repository checks when risk justifies them.
+
+Use canonical project commands and scripts when they exist.
+
+If validation cannot be run, state why explicitly.
+
+If validation fails, classify the failure as one of:
+
+- caused by the current change,
+- pre-existing,
+- environment or tooling limitation.
+
+---
+
+## Documentation Policy
+
+Update documentation when changes affect:
+
+- setup or developer workflow,
+- build, test, or release commands,
+- architecture boundaries,
+- runtime behavior,
+- governance controls,
+- security posture,
+- risk acceptance,
+- operational procedures.
+
+Keep implementation and governance documentation synchronized.
+
+---
+
+## When to Escalate or Block
+
+### Must block or escalate
+
+- security regression,
+- secret exposure,
+- release integrity break,
+- policy bypass,
+- materially unsafe permission or dependency change,
+- undocumented contract-breaking behavior.
+
+### Should fix now when feasible
+
+- missing tests for changed logic,
+- missing validation on risky paths,
+- documentation drift introduced by the change,
+- inconsistent patterns in touched code.
+
+### Can defer
+
+- cosmetic naming or style inconsistencies,
+- non-essential refactors,
+- broad modernization unrelated to the requested task.
+
+If full remediation is too large, deliver the safest useful incremental change and note follow-up clearly.
+
+---
+
+## When a Larger Change Is Justified
+
+Prefer small changes by default, but make a broader change when a narrow fix would clearly:
+
+- preserve duplicated risk or repeated defects,
+- leave a security or correctness issue only partially fixed,
+- deepen inconsistency at an important interface,
+- make validation or rollback materially harder later.
+
+When making a broader change, keep scope intentional, explain why a smaller fix was insufficient, and preserve reviewability.
+
+---
+
+## Preferred Completion Summary
+
+For substantive work, summarize using:
 
 1. **What changed**
-2. **What did not change** (intentional scope)
+2. **What did not change** (intentional scope boundaries)
 3. **Why**
-4. **Config or environment changes**
-5. **Validation performed and results**
-6. **Remaining risks or unknowns**
-7. **Recommended next action**
+4. **Risk / impact**
+5. **Config or environment changes**
+6. **Validation performed and results**
+7. **Remaining risks or unknowns**
+8. **Recommended next action** (only if needed)
+
+---
+
+## Repository Operational Notes
+
+These are repository-specific guidance notes and may evolve over time.
+
+### Common command areas
+
+From `app/server/`:
+
+- `npm test`
+- `npm run lint`
+- `npm run test:int`
+
+From `app/client/`:
+
+- `npm test`
+- `npm run lint`
+- `npm run build`
+
+From Kubernetes or policy test areas:
+
+- run the existing Kyverno, manifest validation, or repo-provided policy scripts already present in the repository
+
+Treat these as canonical **when present and still valid in the repo**. If actual scripts differ, follow the repo’s current implementation.
+
+---
+
+## Decision Heuristics
+
+When uncertain, choose the option that is:
+
+1. safer,
+2. smaller in scope,
+3. easier to validate,
+4. easier to review,
+5. easier to revert.
+
+Do not choose a larger or more abstract solution unless it is clearly justified by security, correctness, or maintainability.
