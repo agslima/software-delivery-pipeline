@@ -132,13 +132,13 @@ From `app/server/`:
 
 - `npm test`
 - `npm run lint`
-- `npm run dev` (local behavior checks)
+- `npm run test:int`
 
 From `app/client/`:
 
 - `npm test`
 - `npm run lint`
-- `npm run dev`
+- `npm run build`
 
 From `k8s/tests/` and policy areas (as applicable):
 
