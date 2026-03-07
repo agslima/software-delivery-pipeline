@@ -183,6 +183,9 @@ For more details on how branch protection, code ownership, and release integrity
 
 ## Operational Evidence
 
+<!-- [BEGIN_GENERATED_TABLE] -->
+<!-- [END_GENERATED_TABLE] -->
+
 ### Case Study: Legacy Risk Remediation 🔬
 
 To validate the effectiveness of the delivery control plane, a legacy application with known security debt was intentionally passed through the pipeline.

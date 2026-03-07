@@ -4,6 +4,8 @@ on:
   workflow_dispatch: {}
   schedule:
     - cron: '0 0 * * 0'
+  pull_request:
+    types: [closed]
 
 permissions:
   contents: write
@@ -11,7 +13,7 @@ permissions:
 
 jobs:
   trivy-report:
-    if: github.repository == 'agslima/software-delivery-pipeline'
+    if: github.repository == 'agslima/software-delivery-pipeline' && github.event_name != 'pull_request'
     name: Update Trivy report in README
     runs-on: ubuntu-latest
     steps:
@@ -57,3 +59,23 @@ jobs:
             --head "$pr_branch" \
             --title "docs: weekly Trivy security scan update" \
             --body "Automated PR to update the Trivy vulnerability summary in the README governance evidence section."
+
+  cleanup-trivy-branches:
+    if: >-
+      github.repository == 'agslima/software-delivery-pipeline' &&
+      github.event_name == 'pull_request' &&
+      startsWith(github.event.pull_request.head.ref, 'trivy-update-') &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    name: Cleanup closed Trivy update branches
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete branch for closed Trivy PR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH_NAME: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          echo "Deleting closed PR branch: ${BRANCH_NAME}"
+          gh api -X DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/${BRANCH_NAME}" || {
+            echo "Branch may already be deleted; continuing."
+          }

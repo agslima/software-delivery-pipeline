@@ -16,9 +16,12 @@ if [[ ! -f "$README_FILE" ]]; then
   exit 1
 fi
 
+TRIVY_VERSION="${TRIVY_VERSION:-v0.69.3}"
+
 if ! command -v trivy >/dev/null 2>&1; then
-  echo "Installing Trivy..."
-  curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /tmp/trivy-bin v0.48.3
+  echo "Installing Trivy ${TRIVY_VERSION}..."
+  curl -sfL "https://raw.githubusercontent.com/aquasecurity/trivy/${TRIVY_VERSION}/contrib/install.sh" \
+    | sh -s -- -b /tmp/trivy-bin "${TRIVY_VERSION}"
   export PATH="/tmp/trivy-bin:$PATH"
 fi
 
@@ -27,9 +30,56 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 1
 fi
 
+validate_json_report() {
+  local report_file="$1"
+  local label="$2"
+
+  if [[ ! -s "$report_file" ]]; then
+    echo "Error: ${label} report was not created or is empty: ${report_file}" >&2
+    exit 1
+  fi
+
+  if ! jq empty "$report_file" >/dev/null 2>&1; then
+    echo "Error: ${label} report is not valid JSON: ${report_file}" >&2
+    exit 1
+  fi
+}
+
+run_trivy_scan() {
+  local label="$1"
+  local report_file="$2"
+  shift 2
+
+  local stderr_file
+  stderr_file="$(mktemp)"
+
+  echo "Running ${label} scan..."
+  local exit_code=0
+  if trivy "$@" --format json --output "$report_file" 2>"$stderr_file"; then
+    :
+  else
+    exit_code=$?
+    echo "Error: ${label} scan failed (exit code: ${exit_code})." >&2
+    if [[ -s "$stderr_file" ]]; then
+      echo "Trivy stderr (${label}):" >&2
+      sed "s/^/  /" "$stderr_file" >&2
+    fi
+    rm -f "$stderr_file"
+    exit "$exit_code"
+  fi
+
+  if [[ -s "$stderr_file" ]]; then
+    echo "Trivy stderr (${label}):" >&2
+    sed "s/^/  /" "$stderr_file" >&2
+  fi
+
+  rm -f "$stderr_file"
+  validate_json_report "$report_file" "$label"
+}
+
 echo "Running Trivy scans for app/..."
-trivy fs app --format json --output "$FS_REPORT" --scanners vuln || true
-trivy config app --format json --output "$CONFIG_REPORT" || true
+run_trivy_scan "filesystem vulnerabilities" "$FS_REPORT" fs app --scanners vuln
+run_trivy_scan "configuration" "$CONFIG_REPORT" config app
 
 # get_count counts vulnerabilities or misconfigurations of the specified severity in a Trivy JSON report file and echoes the numeric count (prints `0` if the file is missing or cannot be parsed).
 get_count() {
@@ -73,36 +123,64 @@ EOF_TABLE
 echo "Injecting report into ${README_FILE}..."
 awk -v table_file="$TABLE_FILE" '
   BEGIN {
-    in_block = 0
+    in_operational = 0
     found_operational = 0
     found_verification = 0
+    found_begin_marker = 0
+    found_end_marker = 0
   }
 
   /^## Operational Evidence$/ {
-    print
-    print ""
-    while ((getline line < table_file) > 0) {
-      print line
-    }
-    close(table_file)
-    print ""
-    in_block = 1
+    in_operational = 1
     found_operational = 1
+    print
     next
   }
 
   /^## Verification \(How to Audit\)$/ {
-    in_block = 0
+    if (in_operational && !found_end_marker) {
+      print "Generated table end marker not found before verification section." > "/dev/stderr"
+      exit 1
+    }
+
+    in_operational = 0
     found_verification = 1
     print
     next
   }
 
-  !in_block { print }
+  {
+    if (in_operational && /^<!-- \[BEGIN_GENERATED_TABLE\] -->$/) {
+      found_begin_marker = 1
+      print
+      while ((getline line < table_file) > 0) {
+        print line
+      }
+      close(table_file)
+      next
+    }
+
+    if (in_operational && /^<!-- \[END_GENERATED_TABLE\] -->$/) {
+      found_end_marker = 1
+      print
+      next
+    }
+
+    if (in_operational && found_begin_marker && !found_end_marker) {
+      next
+    }
+
+    print
+  }
 
   END {
     if (!found_operational || !found_verification) {
       print "Required README section headers not found." > "/dev/stderr"
+      exit 1
+    }
+
+    if (!found_begin_marker || !found_end_marker) {
+      print "Required generated table markers not found in Operational Evidence section." > "/dev/stderr"
       exit 1
     }
   }
