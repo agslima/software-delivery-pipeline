@@ -161,7 +161,7 @@ If failures occur, classify them as:
 - secret exposure,
 - broken release integrity,
 - policy bypass,
-- unacknowledged contract breaking change,
+- unacknowledged contract-breaking change,
 - materially unsafe permission/dependency changes.
 
 ### Should fix now when feasible
