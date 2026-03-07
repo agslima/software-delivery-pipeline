@@ -47,5 +47,15 @@ This folder contains the active GitHub Actions workflows that power CI, security
 - Triggers: schedule Mondays at 08:00 UTC, manual
 - Summary: Runs `snyk monitor` for dependencies and Dockerfiles, plus IaC and code scans (both continue-on-error) to report results to Snyk.
 
+**trivy-report.yml**
+- Name: Trivy README Update
+- Triggers: `workflow_dispatch`, weekly schedule (Sundays at 00:00 UTC), and `pull_request` closed events (cleanup path for automation branches only)
+- Summary: Runs `hack/trivy-report.sh` to produce Trivy filesystem/config scan summaries for `app/`, updates the generated marker-delimited block in `README.md`/`readme.md`, and opens a PR when the generated evidence changes. A dedicated cleanup job deletes closed automation branches prefixed with `trivy-update-` to keep branch hygiene healthy.
+- Outputs: Updated README governance evidence table in PR diff; no standalone artifact upload in this workflow.
+- Permissions/Secrets: Uses `GITHUB_TOKEN` with `contents: write` and `pull-requests: write`; no additional secrets required.
+- Maintenance notes: Keep marker strings in `hack/trivy-report.sh` and `readme.md` aligned (`<!-- [BEGIN_GENERATED_TABLE] -->` / `<!-- [END_GENERATED_TABLE] -->`), and review Trivy version pinning when upgrading scanner behavior.
+- Alert routing: Failures are visible in the Actions run and should be triaged by the platform/security maintainers who own CI governance workflows.
+- Expected result example: A weekly run creates a branch `trivy-update-<timestamp>`, opens PR `docs: weekly Trivy security scan update`, and updates only the generated table block under `## Operational Evidence`.
+
 **Notes**
 - `legacy/` contains `ci-cd.txt` and `ci-weekly-dast.txt` as historical references, not active workflows.
