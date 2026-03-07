@@ -31,6 +31,7 @@ echo "Running Trivy scans for app/..."
 trivy fs app --format json --output "$FS_REPORT" --scanners vuln || true
 trivy config app --format json --output "$CONFIG_REPORT" || true
 
+# get_count counts vulnerabilities or misconfigurations of the specified severity in a Trivy JSON report file and echoes the numeric count (prints `0` if the file is missing or cannot be parsed).
 get_count() {
   local file="$1"
   local severity="$2"
