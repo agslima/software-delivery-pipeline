@@ -183,9 +183,9 @@ For more details on how branch protection, code ownership, and release integrity
 
 ## Operational Evidence
 
- <!-- [BEGIN_GENERATED_TABLE] -->
+<!-- [BEGIN_GENERATED_TABLE] -->
 > 📊 **Automated vulnerability report**: This section is automatically updated by the Trivy reporting workflow. Report generation is in progress or scheduled.
- <!-- [END_GENERATED_TABLE] -->
+<!-- [END_GENERATED_TABLE] -->
 
 ### Case Study: Legacy Risk Remediation 🔬
 
