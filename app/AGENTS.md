@@ -22,7 +22,7 @@ Treat this as a security-sensitive workload even though it is a reference implem
 
 ## Runtime & Tooling Constraints
 
-- Use the repo-declared Node runtime: `24.13.0` (`app/client/package.json`, `app/server/package.json`).
+- Use the Node runtime declared in the `package.json` `engines.node` field (`app/client/package.json` or `app/server/package.json`) or the canonical manifest if one is defined.
 - Use **npm** and keep `package-lock.json` in sync when dependencies change.
 - Prefer existing scripts before inventing new commands.
 - Do not switch package managers.
