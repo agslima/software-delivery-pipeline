@@ -6,13 +6,10 @@ readonly FS_REPORT="/tmp/trivy-fs.json"
 readonly CONFIG_REPORT="/tmp/trivy-config.json"
 readonly TABLE_FILE="/tmp/trivy-table.md"
 
-README_FILE="README.md"
-if [[ ! -f "$README_FILE" && -f "readme.md" ]]; then
-  README_FILE="readme.md"
-fi
+README_FILE="readme.md"
 
 if [[ ! -f "$README_FILE" ]]; then
-  echo "README file not found (checked README.md and readme.md)." >&2
+  echo "Error: ${README_FILE} not found." >&2
   exit 1
 fi
 
