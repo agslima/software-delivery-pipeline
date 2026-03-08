@@ -3,4 +3,4 @@ scan:
     - "**/examples/**"
     - "node_modules"
     - "vendor"
-    - "k8s/tests/**"
+    - "k8s/tests"
