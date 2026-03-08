@@ -1,18 +1,14 @@
 apiVersion: kyverno.io/v1alpha1
 kind: Test
 metadata:
-  name: enforce-governed-artifacts
+  name: break-glass-policy-tests
 policies:
-  - ../policies/ci/enforce-governed-artifacts-ci.yaml
+  - ../policies/cluster/break-glass-policy.yaml
 resources:
-  - ../resources/deployment.yaml
-values:
-  - values.yaml
+  - resources/break-glass-invalid.yaml
 results:
-  - policy: enforce-governed-artifacts
-    rule: require-digest-pinning
-    resource: app
+  - policy: break-glass-admission-controls
+    rule: break-glass-requires-metadata
+    resource: break-glass-abuse
     kind: Deployment
-    result: pass
-    
-
+    result: fail

@@ -135,7 +135,7 @@ Tag protection ensures that release creation is not user-driven, but workflow-dr
 
 #### Tag Rule
 
-- Pattern: v*
+- Pattern: v*.*.*
 - Restrictions:
   - Tags initiate the immutable release pipeline. While Admins trigger the tag, the Artifact is only trusted if produced by the workflow triggered by that specific tag.
   - Optional: Repository Administrators (break-glass) 
@@ -156,7 +156,7 @@ Environment: `production`
   - Security Approver (or repository owner)
 - ✅ Deployment branch restrictions:
   - Allowed ref type: Tags
-  - Pattern: v*
+  - Pattern: v*.*.*
 
 This enforces separation of duties:
 
@@ -187,13 +187,15 @@ policies/             @agslima
 docs/security-debt.md @agslima
 
 # 4. Infrastructure State
-k8s/resources/        @agslima
+k8s/base/             @agslima
+k8s/overlays/         @agslima
+k8s/tests/            @agslima
 ```
 
 The `.github/CODEOWNERS` file defines the following enforcement zones:
  * **Anti-Tampering:** A developer cannot disable the trivy-scan job in the CI pipeline to force a bad build through. The PR modifying the .yml file will automatically block merging until the Code Owner approves.
  * **Risk Accountability:** Adding an entry to security-debt.md (to ignore a vulnerability) is treated as a business decision, not a code change. It triggers a mandatory review from the Security Owner.
- * **Infrastructure Stability:** Changes to Kubernetes manifests (k8s/resources) are gated to ensure they comply with cluster capacity and architectural standards.
+ * **Infrastructure Stability:** Changes to Kubernetes manifests (`k8s/base/`, `k8s/overlays/`, `k8s/tests/`) are gated to ensure they comply with cluster capacity and architectural standards.
 
 > Enforcement Note: This control is active only when the "Require review from Code Owners" setting is enabled in the Branch Protection Rules.
 

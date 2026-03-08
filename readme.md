@@ -73,7 +73,7 @@ Every container image is:
 
 Security is treated as **policy-driven**, not “pass/fail everywhere”:
 
-- **Blockers:** Critical & High vulnerabilities
+- **Blockers:** Critical vulnerabilities and High vulnerabilities above policy threshold (`HIGH > 5` per image in the release gate)
 - **Managed Debt:** Medium & Low vulnerabilities tracked explicitly
 - Risk acceptance is versioned and auditable (`docs/security-debt.md`)
 
@@ -210,7 +210,8 @@ To validate the effectiveness of the delivery control plane, a legacy applicatio
   - Manual refactoring to mitigate XSS and Prototype Pollution
 
 - **Risk Acceptance Policy:**
-  - Zero Tolerance: Critical / High vulnerabilities block the pipeline
+  - Zero Tolerance: Critical vulnerabilities block the pipeline
+  - Threshold-based: High vulnerabilities block when they exceed policy threshold (`HIGH > 5` per image)
   - Accepted Risk: Medium / Low vulnerabilities may proceed if no patch exists, prioritizing delivery velocity
 
 ### Metrics & Results
@@ -259,15 +260,24 @@ cosign verify "$IMAGE" \
 
 ### Prerequisites
 
-- **Node.js v18+**
+- **Node.js 24.13.0** (required by `app/server` and `app/client` `engines.node`)
 - **Docker**
 
 ```bash
 git clone https://github.com/agslima/software-delivery-pipeline.git
 cd software-delivery-pipeline
-npm install
+
+# Backend (API)
+cd app/server
+npm ci
 npm test
-npm start
+npm run dev
+
+# Frontend (UI) - run in another terminal
+cd ../client
+npm ci
+npm test
+npm run dev
 ```
 
 ---

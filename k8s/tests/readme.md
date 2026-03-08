@@ -15,12 +15,13 @@ To apply Test-Driven Development (TDD) practices to Infrastructure-as-Code.
 The tests follow a Fixture-based approach:
 | File/Directory | Purpose |
 |---|---|
-| kyverno-test.yaml | The "Test Suite" definition. It maps specific policies to specific resources and defines the expected outcome (pass or fail). |
+| policy-test.yaml | Structural policy test suite (`k8s/policies/ci/structural-policy.yaml`) with pass/fail fixtures. |
+| kyverno-test.yaml | Break-glass admission policy test suite (`k8s/policies/cluster/break-glass-policy.yaml`). |
+| values.yaml | Optional values file placeholder for future tests requiring explicit context/variable injection. |
 | resources/ | Contains the Fixtures (Mock manifests). |
-| ↳ valid-deployment.yaml | A perfect deployment (Signed, Labels present, Non-root) that should pass. |
-| ↳ invalid-root.yaml | A deployment running as Root that should fail. |
-| ↳ invalid-unsigned.yaml | A deployment with an untrusted image that should fail. |
-| ↳ break-glass.yaml | A privileged pod that should pass ONLY if it has specific exemption labels. |
+| ↳ valid-deployment.yaml | A hardened, digest-pinned deployment that should pass structural checks. |
+| ↳ invalid-unsigned.yaml | A `:latest`-tagged deployment that should fail structural checks. |
+| ↳ break-glass-invalid.yaml | Break-glass-labeled deployment missing required annotations; should fail break-glass guardrail. |
 
 ## 🚀 How to Run Tests
 These tests run automatically in the CI pipeline (infra-lint job), but can be run locally:
@@ -28,7 +29,9 @@ These tests run automatically in the CI pipeline (infra-lint job), but can be ru
 * brew install kyverno
 
 * Run the test suite
-kyverno test k8s/tests/
+  ```bash
+  kyverno test k8s/tests/
+  ```
 
 Understanding the Output
  * Pass: The policy behaved as expected (e.g., it blocked a bad resource, or allowed a good one).

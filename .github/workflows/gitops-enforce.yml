@@ -6,12 +6,12 @@ on:
       run_id:
         description: 'Release Run ID to promote'
         required: true
-  # workflow_run:
-  #  workflows: ["Release"]
-  #  types: [completed]
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
 
 concurrency:
-  group: gitops-${{ github.event.workflow_run.id }}
+  group: gitops-${{ github.event.workflow_run.id || github.event.inputs.run_id || github.run_id }}
   cancel-in-progress: false
 
 env:
@@ -61,6 +61,11 @@ jobs:
   # Only runs if 'verify-context' succeeds.
   gitops:
     runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name == github.repository)
     # needs: verify-context
     # if: ${{ github.event.workflow_run.conclusion == 'success' }}
     # environment: production
@@ -75,10 +80,44 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Resolve Release Run Metadata
+        id: release-meta
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_ID: ${{ inputs.run_id || github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          test -n "$RUN_ID" || (echo "::error::Missing release run id."; exit 1)
+
+          API_URL="${{ github.api_url }}/repos/${{ github.repository }}/actions/runs/${RUN_ID}"
+          RUN_JSON="$(curl -fsSL \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "$API_URL")"
+
+          RELEASE_WORKFLOW_NAME="$(echo "$RUN_JSON" | jq -r '.name // empty')"
+          RELEASE_CONCLUSION="$(echo "$RUN_JSON" | jq -r '.conclusion // empty')"
+          RELEASE_SHA="$(echo "$RUN_JSON" | jq -r '.head_sha // empty')"
+
+          if [[ "$RELEASE_WORKFLOW_NAME" != "Release" ]]; then
+            echo "::error::Run ${RUN_ID} is not from workflow 'Release' (found: ${RELEASE_WORKFLOW_NAME:-unknown})."
+            exit 1
+          fi
+
+          if [[ "$RELEASE_CONCLUSION" != "success" ]]; then
+            echo "::error::Release run ${RUN_ID} did not succeed (conclusion: ${RELEASE_CONCLUSION:-unknown})."
+            exit 1
+          fi
+
+          test -n "$RELEASE_SHA" || (echo "::error::Could not resolve head SHA for release run ${RUN_ID}."; exit 1)
+
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+          echo "release_sha=$RELEASE_SHA" >> "$GITHUB_OUTPUT"
+
       - name: Download Digests from Release Workflow
         uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v4.1.8.0.0
         with:
-          run-id: ${{ inputs.run_id || github.event.workflow_run.id }} # ${{ github.event.workflow_run.id }}
+          run-id: ${{ steps.release-meta.outputs.run_id }}
           merge-multiple: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
           pattern: digest-*
@@ -184,63 +223,6 @@ jobs:
             exit 1
           )
 
-      - name: Validate rendered prod manifests against cluster policy (split policies)
-        run: |
-          set -euo pipefail
-          LOG_FILE="kyverno-gitops.log"
-
-          POLICY_DIR="k8s/policies/cluster"
-
-          kustomize build k8s/overlays/prod > /tmp/prod.yaml
-          test -s /tmp/prod.yaml || (echo "::error::Rendered prod.yaml is empty"; exit 1)
-
-          echo "=== Namespaces in rendered YAML ==="
-          yq -r 'select(.metadata != null) | .kind + " " + (.metadata.namespace // "NONE") + " " + .metadata.name' /tmp/prod.yaml | sort | uniq -c
-
-          echo "=== Images in rendered YAML ==="
-          yq -r '
-            select(.kind=="Deployment") |
-            .metadata.name as $n |
-            .spec.template.spec.containers[].image |
-            $n + " => " + .
-          ' /tmp/prod.yaml
-
-          echo "=== Kyverno policy evaluation (split policies) ==="
-
-          # If (and only if) your policies contain variables like {{ OIDC_ISSUER }} etc,
-          # pass them via --set. Otherwise REMOVE this block.
-          KYVERNO_SET_ARGS=(
-            "--set" "OIDC_ISSUER=https://token.actions.githubusercontent.com"
-            "--set" "TRIVY_PREDICATE_TYPE=https://security.sigstore.dev/attestations/vuln/trivy/v1"
-            "--set" "ZAP_PREDICATE_TYPE=https://security.sigstore.dev/attestations/dast/zap/v1"
-            "--set" "SBOM_PREDICATE_TYPE=https://spdx.dev/Document"
-            "--set" "SLSA_PREDICATE_TYPE=https://slsa.dev/provenance/v1"
-          )
-
-          # Apply all policies in the directory at once (cleaner output)
-          kyverno apply "$POLICY_DIR" \
-            --resource /tmp/prod.yaml \
-            --registry \
-            --detailed-results \
-            --audit-warn=false \
-           "${KYVERNO_SET_ARGS[@]}" \
-           > "$LOG_FILE" 2>&1 || true
-  
-          cat "$LOG_FILE"
-
-          # Treat skip as failure (you want hard-gates)
-          if grep -q "Policies Skipped" "$LOG_FILE"; then
-            echo "::error::❌ Kyverno skipped at least one policy (missing variables/context)."
-            exit 1
-          fi
-
-          if grep -qE "fail:[[:space:]]*[1-9]|error:[[:space:]]*[1-9]" "$LOG_FILE"; then
-            echo "::error::❌ Kyverno policy evaluation failed (fail/error > 0)."
-            exit 1
-          fi
-
-          echo "✅ Policy Validation Passed."
-      
       - name: Validate rendered prod manifests against cluster policy
         run: |
           set -euo pipefail
@@ -332,22 +314,23 @@ jobs:
         run: |
           set -euo pipefail
 
-          RUN_ID="${{ github.event.workflow_run.id }}"
+          RUN_ID="${{ steps.release-meta.outputs.run_id }}"
+          RELEASE_SHA="${{ steps.release-meta.outputs.release_sha }}"
           REPO="${{ github.repository }}"
           SERVER_URL="${{ github.server_url }}"
 
           echo "RELEASE_RUN_URL=${SERVER_URL}/${REPO}/actions/runs/${RUN_ID}" >> $GITHUB_ENV
-          echo "RELEASE_SHA=${{ github.event.workflow_run.head_sha }}" >> $GITHUB_ENV
+          echo "RELEASE_SHA=${RELEASE_SHA}" >> $GITHUB_ENV
 
           # Use SHA-based branch name to avoid collisions
-          echo "PR_BRANCH=gitops/deploy-${{ github.event.workflow_run.head_sha }}" >> $GITHUB_ENV
+          echo "PR_BRANCH=gitops/deploy-${RELEASE_SHA}" >> $GITHUB_ENV
 
       - name: Create GitOps PR
         uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 #v8.1.0
         with:
           token: ${{ secrets.TOKEN_GITHUB }}
           commit-message: "deploy: promote ${{ env.RELEASE_SHA }}"
-          title: "Deploy release (${{ github.event.workflow_run.head_sha }})"
+          title: "Deploy release (${{ env.RELEASE_SHA }})"
 
           body: |
             Automated GitOps promotion from a successful Release workflow run.
@@ -370,4 +353,3 @@ jobs:
           branch: ${{ env.PR_BRANCH }}
           base: main
           delete-branch: true
-

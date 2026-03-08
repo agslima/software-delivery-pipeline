@@ -5,11 +5,13 @@ This plan translates the previously identified gaps into concrete, auditable wor
 ## Priority 0 — Governance Integrity (Must Fix)
 
 ### 0.1 Align runtime trust boundary with tag-only releases
+
 **Goal:** Ensure runtime admission only accepts artifacts produced by tag-based release workflows.
 
 **Why it matters:** The current runtime admission policies accept images signed from branch workflows, which conflicts with the documented release governance model and weakens the trust boundary.
 
 **Checklist**
+
 - [ ] Update Kyverno verify policies to accept only tag-based identities.
 - [ ] Confirm policy regex matches `refs/tags/v*` only.
 - [ ] Run Kyverno policy tests (CI or local) against a signed tag-based image.
@@ -19,9 +21,11 @@ This plan translates the previously identified gaps into concrete, auditable wor
 ---
 
 ### 0.2 Align threat model with actual security tooling
+
 **Goal:** Ensure the threat model reflects current scanning tools (Trivy, Gitleaks, ZAP) or add Snyk if required.
 
 **Checklist**
+
 - [ ] Replace Snyk references with Trivy/Gitleaks where applicable.
 - [ ] Confirm CI workflows for SAST/SCA are accurately reflected.
 - [ ] Update residual risk section to reflect current tooling and limits.
@@ -30,6 +34,7 @@ This plan translates the previously identified gaps into concrete, auditable wor
 ---
 
 ### 0.3 Clarify SLSA level claims
+
 **Goal:** Ensure SLSA claims are defensible and traceable to implementation.
 
 **Checklist**
@@ -53,6 +58,7 @@ This plan translates the previously identified gaps into concrete, auditable wor
 ---
 
 ### 1.2 Document required GitHub protections
+
 **Goal:** Make governance enforceable and auditable even when settings are external to the repo.
 
 **Checklist**
@@ -65,12 +71,13 @@ This plan translates the previously identified gaps into concrete, auditable wor
 ## Priority 2 — Maintainability & Efficiency
 
 ### 2.1 Remove redundant Kyverno validation in GitOps
+
 **Goal:** Reduce workflow noise and prevent duplicated policy evaluation.
 
 **Checklist**
-- [ ] Decide whether single-pass or split-pass policy evaluation is preferred.
-- [ ] Remove the unused validation step.
-- [ ] Preserve detailed logs for troubleshooting.
+- [x] Decide whether single-pass or split-pass policy evaluation is preferred.
+- [x] Remove the unused validation step.
+- [x] Preserve detailed logs for troubleshooting.
 
 ---
 
@@ -78,9 +85,11 @@ This plan translates the previously identified gaps into concrete, auditable wor
 **Goal:** Ensure documentation and gating are consistent.
 
 **Checklist**
-- [ ] Decide if High vulnerabilities are always blockers or threshold-based.
-- [ ] Update README and security policy to match the actual gate.
-- [ ] Add a short rationale statement for governance audits.
+- [x] Decide if High vulnerabilities are always blockers or threshold-based.
+- [x] Update README and security policy to match the actual gate.
+- [x] Add a short rationale statement for governance audits.
+
+Rationale: Keep a risk-based Trivy policy (`CRITICAL > 0` blocks; `HIGH > 5` per image blocks) to preserve delivery flow while maintaining explicit, auditable governance thresholds.
 
 ---
 

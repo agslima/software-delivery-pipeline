@@ -384,13 +384,12 @@ docs/adr/002-image-signing-attestation.md
 
 docs/adr/003-policy-enforcement-strategy.md
 
-docs/adr/004-vulnerability-thresholds.md
+docs/adr/004-vulnerability-thresholds-risk-acceptance.md
 
-docs/adr/005-break-glass.md
+docs/adr/005-break-glass-exception-handling.md
 
 docs/adr/006-scanner-failure-degraded-mode.md
 
-docs/adr/007-supply-chain-incident-response.md
-
+docs/adr/007-supply-chain-incident-response-revocation.md
 
 

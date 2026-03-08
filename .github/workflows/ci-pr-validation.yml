@@ -90,6 +90,17 @@ jobs:
           entrypoint: "/kubeconform"
           args: "-summary -output text -ignore-missing-schemas k8s/"
 
+      - name: Install Kyverno CLI
+        if: matrix.service == 'backend'
+        uses: kyverno/action-install-cli@fcee92fca5c883169ef9927acf543e0b5fc58289 # v0.2.0
+        with:
+          release: 'v1.13.2'
+          verify: true
+
+      - name: Run Kyverno Policy Tests
+        if: matrix.service == 'backend'
+        run: kyverno test k8s/tests/
+
   # ==================================================================
   # JOB 3: Security Scan (Code + IaC)
   # ==================================================================
@@ -125,7 +136,10 @@ jobs:
       - name: Set scan skip dirs
         id: vars
         run: |
-          echo "SKIP_DIRS=k8s/tests,node_modules,dist,build,vendor,coverage,.git,.cache,.venv,tmp" >> "$GITHUB_OUTPUT"
+          # Keep policy fixtures in FS dependency scope, but exclude them from config misconfig scans
+          # because test fixtures intentionally include insecure manifests.
+          echo "FS_SKIP_DIRS=node_modules,dist,build,vendor,coverage,.git,.cache,.venv,tmp" >> "$GITHUB_OUTPUT"
+          echo "CONFIG_SKIP_DIRS=k8s/tests,node_modules,dist,build,vendor,coverage,.git,.cache,.venv,tmp" >> "$GITHUB_OUTPUT"
       
       # 4. TRIVY SCAN: Filesystem (Dependencies & Code Secrets)
       - name: Trivy Scan - Root FS
@@ -138,7 +152,7 @@ jobs:
           vuln-type: 'os,library'
           severity: 'HIGH,CRITICAL'
           format: 'table'
-          skip-dirs: ${{ steps.vars.outputs.SKIP_DIRS }}
+          skip-dirs: ${{ steps.vars.outputs.FS_SKIP_DIRS }}
           ignore-unfixed: true
           exit-code: 1
       
@@ -151,7 +165,7 @@ jobs:
           severity: HIGH,CRITICAL
           format: table
           exit-code: "1"
-          skip-dirs: ${{ steps.vars.outputs.SKIP_DIRS }}
+          skip-dirs: ${{ steps.vars.outputs.CONFIG_SKIP_DIRS }}
       
       - name: 🚨 Notify Slack on Failure
         if: failure() && steps.trivy-scan.outcome == 'failure'
@@ -163,4 +177,3 @@ jobs:
           SLACK_MESSAGE: 'Trivy found Critical vulnerabilities. Auto-merge has been aborted.'
           SLACK_USERNAME: 'Security Bot'
           SLACK_ICON: 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png'
-
