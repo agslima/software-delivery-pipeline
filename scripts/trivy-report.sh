@@ -8,6 +8,11 @@ readonly TABLE_FILE="/tmp/trivy-table.md"
 
 README_FILE="readme.md"
 
+if [[ ! -f "$README_FILE" ]]; then
+  echo "Error: ${README_FILE} not found." >&2
+  exit 1
+fi
+
 TRIVY_VERSION="${TRIVY_VERSION:-v0.69.3}"
 
 if ! command -v trivy >/dev/null 2>&1; then
