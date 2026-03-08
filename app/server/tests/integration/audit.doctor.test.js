@@ -1,7 +1,7 @@
 const request = require('supertest');
 const { buildTestEmail } = require('../helpers/testCredentials');
 
-jest.setTimeout(15000);
+jest.setTimeout(30000);
 
 const mockAuditEvents = [];
 

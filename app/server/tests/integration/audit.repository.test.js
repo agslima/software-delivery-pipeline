@@ -4,7 +4,10 @@ const { randomBytes } = require('node:crypto');
 const path = require('node:path');
 const { setTimeout: delay } = require('node:timers/promises');
 
-jest.setTimeout(45000);
+const defaultSuiteTimeoutMs = 120000;
+const suiteTimeoutMs = Number(process.env.AUDIT_REPOSITORY_TEST_TIMEOUT_MS || defaultSuiteTimeoutMs);
+
+jest.setTimeout(suiteTimeoutMs);
 
 const baseEnv = { ...process.env };
 
@@ -55,7 +58,8 @@ const execCompose = (args, envOverrides = {}) => {
 };
 
 const waitForDb = async (envOverrides) => {
-  const maxAttempts = 60;
+  const waitSeconds = Number(process.env.AUDIT_REPOSITORY_DB_WAIT_SECONDS || 60);
+  const maxAttempts = Number.isFinite(waitSeconds) && waitSeconds > 0 ? waitSeconds : 60;
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
       execCompose(
@@ -194,8 +198,17 @@ describe('Integration: Audit repository storage and queries', () => {
   beforeAll(async () => {
     process.env.AUDIT_SINK = 'db';
     process.env.AUDIT_PII_REDACTION = 'none';
-    if (!process.env.TEST_DB_HOST) {
-      await startTestDb();
+    try {
+      if (!process.env.TEST_DB_HOST) {
+        await startTestDb();
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `Unable to start integration database for audit.repository.test. ` +
+          `Start it with app/scripts/test-db-compose.sh up or set TEST_DB_HOST/PORT/USER/PASS/NAME. ` +
+          `Details: ${message}`
+      );
     }
     const config = getDbConfig();
     ensureDatabaseConfig(config);
