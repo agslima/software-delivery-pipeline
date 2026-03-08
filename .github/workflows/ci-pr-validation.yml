@@ -144,7 +144,7 @@ jobs:
       # 4. TRIVY SCAN: Filesystem (Dependencies & Code Secrets)
       - name: Trivy Scan - Root FS
         id: trivy-scan
-        uses: aquasecurity/trivy-action@97e0b3872f55f89b95b2f65b3dbab56962816478
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
         with:
           scan-type: 'fs'
           scan-ref: .
@@ -158,7 +158,7 @@ jobs:
       
       - name: Trivy config scan (misconfig) - gate
         id: trivy-config-scan
-        uses: aquasecurity/trivy-action@97e0b3872f55f89b95b2f65b3dbab56962816478
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
         with:
           scan-type: config
           scan-ref: .
