@@ -3,10 +3,8 @@ name: Trivy README Update
 on:
   workflow_dispatch: {}
   schedule:
-    - cron: '0 0 * * 0' # Runs at 03:00, only on Sunday
-  pull_request:
-    types: [closed]
-
+    - cron: '0 0 * * 0' # Runs at 00:00, only on Sunday.
+    
 permissions:
   contents: write
   pull-requests: write
@@ -19,63 +17,25 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
-
-      - name: Make script executable
-        run: chmod +x ./hack/trivy-report.sh
-
-      - name: Run Trivy and update README
-        run: ./hack/trivy-report.sh
-
       - name: Create pull request
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-
+          make trivy-report
           if [[ -z "$(git status --porcelain -- README.md readme.md)" ]]; then
             echo "No README changes detected. Exiting."
             exit 0
           fi
-
           pr_branch="trivy-update-$(date +%Y%m%d%H%M%S)"
           git checkout -b "$pr_branch"
-
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
-
-          if [[ -f README.md ]]; then
-            git add README.md
-          fi
-
-          if [[ -f readme.md ]]; then
-            git add readme.md
-          fi
-
+          git add -- README.md readme.md
           git commit -m "docs: update Trivy security report in README"
           git push --set-upstream origin "$pr_branch"
-
           gh pr create \
             --base main \
             --head "$pr_branch" \
             --title "docs: weekly Trivy security scan update" \
             --body "Automated PR to update the Trivy vulnerability summary in the README governance evidence section."
-
-  cleanup-trivy-branches:
-    if: >-
-      github.repository == 'agslima/software-delivery-pipeline' &&
-      github.event_name == 'pull_request' &&
-      startsWith(github.event.pull_request.head.ref, 'trivy-update-') &&
-      github.event.pull_request.head.repo.full_name == github.repository
-    name: Cleanup closed Trivy update branches
-    runs-on: ubuntu-latest
-    steps:
-      - name: Delete branch for closed Trivy PR
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BRANCH_NAME: ${{ github.event.pull_request.head.ref }}
-        run: |
-          set -euo pipefail
-          echo "Deleting closed PR branch: ${BRANCH_NAME}"
-          gh api -X DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/${BRANCH_NAME}" || {
-            echo "Branch may already be deleted; continuing."
-          }
