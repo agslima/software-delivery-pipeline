@@ -43,7 +43,7 @@ describe('Unit: requireTls middleware', () => {
     expect(next.mock.calls[0][0]).toBeUndefined();
   });
 
-  it('allows request when x-forwarded-proto is https', () => {
+  it('rejects request when x-forwarded-proto is https but req.secure is false', () => {
     const requireTls = setup({ enforceTls: true });
     const req = { secure: false, headers: { 'x-forwarded-proto': 'https' } };
     const next = jest.fn();
@@ -51,7 +51,10 @@ describe('Unit: requireTls middleware', () => {
     requireTls(req, {}, next);
 
     expect(next).toHaveBeenCalledTimes(1);
-    expect(next.mock.calls[0][0]).toBeUndefined();
+    const err = next.mock.calls[0][0];
+    expect(err).toBeDefined();
+    expect(err.name).toBe('AppError');
+    expect(err.code).toBe('TLS_REQUIRED');
   });
 
   it('rejects request when TLS is required and request is not secure', () => {

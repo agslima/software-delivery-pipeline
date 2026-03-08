@@ -114,7 +114,7 @@ exports.revoke = async (req, res, next) => {
         },
       });
     }
-    return res.status(200).json({ revoked: true });
+    return res.status(200).json({ revoked: payload.revoked });
   } catch (err) {
     const auditContext = buildAuditContext(req);
     await safeAudit(auditService, {

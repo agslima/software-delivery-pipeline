@@ -16,7 +16,8 @@ const v2Routes = require('./routesV2');
 
 module.exports = function createApp() {
   const app = express();
-  app.set('trust proxy', 1);
+  // Trust forwarding headers only from private/loopback proxy hops.
+  app.set('trust proxy', 'loopback, linklocal, uniquelocal');
   app.disable('x-powered-by');
   app.disable('etag');
 

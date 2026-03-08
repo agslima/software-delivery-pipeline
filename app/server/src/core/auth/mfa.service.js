@@ -7,7 +7,6 @@ const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 const normalizeBase32 = (input) =>
   (input || '')
     .toUpperCase()
-    .replace(/=+$/g, '')
     .replace(/[^A-Z2-7]/g, '');
 
 const base32ToBuffer = (input) => {

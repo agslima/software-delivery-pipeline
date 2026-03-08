@@ -42,6 +42,11 @@ jest.mock('../../src/infra/v2/refreshTokens.repository', () => {
         const token = mockRefreshTokens.find((t) => t.id === id);
         if (token) token.revoked_at = revokedAt;
       }
+
+      async revokeByTokenHash(tokenHash, revokedAt) {
+        const token = mockRefreshTokens.find((t) => t.token_hash === tokenHash && !t.revoked_at);
+        if (token) token.revoked_at = revokedAt;
+      }
     },
   };
 });
@@ -98,5 +103,15 @@ describe('Integration: Auth refresh', () => {
     expect(login.body.mfaRequired).toBe(true);
     expect(login.body.mfaToken).toBeDefined();
     expect(login.body.refreshToken).toBeUndefined();
+  });
+
+  it('returns revoked=false for unknown refresh token on logout', async () => {
+    const missingRefreshToken = 'x'.repeat(48);
+    const logout = await request(app)
+      .post('/api/v2/auth/logout')
+      .send({ refreshToken: missingRefreshToken });
+
+    expect(logout.statusCode).toBe(200);
+    expect(logout.body).toEqual({ revoked: false });
   });
 });
