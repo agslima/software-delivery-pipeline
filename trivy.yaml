@@ -1,0 +1,6 @@
+scan:
+  skip-dirs:
+    - "**/examples/**"
+    - "node_modules"
+    - "vendor"
+    - "k8s/tests/**
