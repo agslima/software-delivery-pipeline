@@ -60,16 +60,49 @@ const execCompose = (args, envOverrides = {}) => {
 const waitForDb = async (envOverrides) => {
   const waitSeconds = Number(process.env.AUDIT_REPOSITORY_DB_WAIT_SECONDS || 60);
   const maxAttempts = Number.isFinite(waitSeconds) && waitSeconds > 0 ? waitSeconds : 60;
+  const stableChecks = Number(process.env.AUDIT_REPOSITORY_DB_STABLE_CHECKS || 3);
+  const requiredStableChecks = Number.isFinite(stableChecks) && stableChecks > 0 ? stableChecks : 3;
+  let readyStreak = 0;
+
+  const canConnectFromHost = async () => {
+    const probe = buildDb({
+      host: process.env.TEST_DB_HOST || 'localhost',
+      user: envOverrides.TEST_DB_USER,
+      password: envOverrides.TEST_DB_PASS,
+      database: envOverrides.TEST_DB_NAME,
+      port: envOverrides.TEST_DB_PORT,
+    });
+    try {
+      await probe.raw('select 1');
+      return true;
+    } catch {
+      return false;
+    } finally {
+      await probe.destroy().catch(() => {});
+    }
+  };
+
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
       execCompose(
         ['exec', '-T', 'test-postgres', 'pg_isready', '-U', envOverrides.TEST_DB_USER, '-d', envOverrides.TEST_DB_NAME],
         envOverrides
       );
-      return true;
+      const hostReady = await canConnectFromHost();
+      if (hostReady) {
+        readyStreak += 1;
+        if (readyStreak >= requiredStableChecks) {
+          return true;
+        }
+      } else {
+        readyStreak = 0;
+      }
     } catch {
+      readyStreak = 0;
       await delay(1000);
+      continue;
     }
+    await delay(1000);
   }
   return false;
 };
