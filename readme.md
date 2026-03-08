@@ -184,7 +184,16 @@ For more details on how branch protection, code ownership, and release integrity
 ## Operational Evidence
 
 <!-- [BEGIN_GENERATED_TABLE] -->
-> 📊 **Automated vulnerability report**: This section is automatically updated by the Trivy reporting workflow. Report generation is in progress or scheduled.
+### Automated Trivy Security Posture (app/)
+
+This section is automatically refreshed by CI to provide governance evidence of the current vulnerability and configuration risk posture for the application surface in `app/`.
+
+| Scan Target | Critical | High | Medium | Low |
+| :--- | :---: | :---: | :---: | :---: |
+| **Application Dependencies** (`trivy fs app`) | 0 | 0 | 0 | 0 |
+| **Application Configuration** (`trivy config app`) | 0 | 0 | 0 | 0 |
+
+*Last scanned (UTC): 2026-03-08 01:57*
 <!-- [END_GENERATED_TABLE] -->
 
 ### Case Study: Legacy Risk Remediation 🔬
