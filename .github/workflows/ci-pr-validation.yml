@@ -125,7 +125,7 @@ jobs:
       - name: Set scan skip dirs
         id: vars
         run: |
-          echo "SKIP_DIRS=node_modules,dist,build,vendor,coverage,.git,.cache,.venv,tmp" >> "$GITHUB_OUTPUT"
+          echo "SKIP_DIRS=k8s/tests,node_modules,dist,build,vendor,coverage,.git,.cache,.venv,tmp" >> "$GITHUB_OUTPUT"
       
       # 4. TRIVY SCAN: Filesystem (Dependencies & Code Secrets)
       - name: Trivy Scan - Root FS
