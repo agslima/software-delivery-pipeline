@@ -3,5 +3,3 @@ CVE-2025-12345
 
 # allow-until: 2026-01-30 reason: false positive in transitive dep ticket:#456 owner:@sec
 CVE-2024-99999
-
-trivy config --config trivy.yaml .
