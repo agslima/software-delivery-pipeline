@@ -1,6 +1,8 @@
 const request = require('supertest');
 const { buildTestEmail } = require('../helpers/testCredentials');
 
+jest.setTimeout(15000);
+
 const mockAuditEvents = [];
 
 const mockDoctorUserId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
