@@ -111,11 +111,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Compute Trivy DB cache key
+        id: trivy-db-key
+        run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+
       - name: Cache Trivy DB
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ~/.cache/trivy
-          key: trivy-db-${{ runner.os }}-${{ github.workflow }}
+          key: trivy-db-${{ runner.os }}-${{ github.workflow }}-${{ steps.trivy-db-key.outputs.week }}
           restore-keys: |
             trivy-db-${{ runner.os }}-
       - name: Set scan skip dirs
