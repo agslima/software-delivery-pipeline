@@ -686,6 +686,7 @@ run_snyk_capture \
 run_snyk_capture \
   "snyk-iac" \
   iac test \
+   --all-projects \
   --exclude=tests
 
 # -----------------------------------------------------------------------------
