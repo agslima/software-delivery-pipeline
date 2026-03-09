@@ -7,7 +7,9 @@ set -Eeuo pipefail
 # Scans:
 #   - SCA:        app/server/package.json, app/client/package.json
 #   - SAST:       entire codebase
-#   - Containers: app/docker/Dockerfile.client, app/docker/Dockerfile.server
+#   - Containers: built images from:
+#                   - app/docker/Dockerfile.client
+#                   - app/docker/Dockerfile.server
 #   - IaC:        k8s/ (excluding k8s/tests/)
 #
 # Outputs:
@@ -22,23 +24,20 @@ ROOT_DIR="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 DOCS_DIR="${ROOT_DIR}/docs/snyk"
 RAW_DIR="${DOCS_DIR}/raw"
 HTML_DIR="${DOCS_DIR}/html"
-TMP_DIR="$(mktemp -d)"
-README_FILE="${ROOT_DIR}/readme.md"
+README_FILE="${ROOT_DIR}/README.md"
 
-SNYK_ORG="${7b9d0e67-ed88-4391-8f4c-4272d6090850}"
+SNYK_ORG="${SNYK_ORG:-7b9d0e67}"
 
-# Baseline values must remain unchanged.
+# Built image tags used only for scanning in this script.
+CLIENT_IMAGE_TAG="${CLIENT_IMAGE_TAG:-file-server-client:snyk}"
+SERVER_IMAGE_TAG="${SERVER_IMAGE_TAG:-file-server-server:snyk}"
+
 BASELINE_CRITICAL="${BASELINE_CRITICAL:-27}"
 BASELINE_HIGH="${BASELINE_HIGH:-116}"
 BASELINE_MEDIUM="${BASELINE_MEDIUM:-191}"
 BASELINE_LOW="${BASELINE_LOW:-345}"
 
 mkdir -p "${RAW_DIR}" "${HTML_DIR}"
-
-cleanup() {
-  rm -rf "${TMP_DIR}"
-}
-trap cleanup EXIT
 
 log() {
   printf '[INFO] %s\n' "$*"
@@ -76,13 +75,12 @@ fi
 
 run_snyk_capture() {
   local name="$1"
-  local kind="$2"
-  shift 2
+  shift
 
   local json_out="${RAW_DIR}/${name}.json"
   local sarif_out="${RAW_DIR}/${name}.sarif"
 
-  log "Running ${kind}: ${name}"
+  log "Running Snyk scan: ${name}"
 
   set +e
   snyk "$@" \
@@ -92,10 +90,10 @@ run_snyk_capture() {
   local rc=$?
   set -e
 
-  # Snyk exit codes:
-  # 0 = no vulns/issues
-  # 1 = vulns/issues found
-  # >1 = execution / auth / config error
+  # Snyk:
+  # 0 = no issues
+  # 1 = issues found
+  # >1 = real execution error
   if [[ ${rc} -gt 1 ]]; then
     die "Snyk command failed for ${name} with exit code ${rc}"
   fi
@@ -103,19 +101,25 @@ run_snyk_capture() {
   maybe_html "${json_out}" "${HTML_DIR}/${name}.html"
 
   if [[ ! -s "${json_out}" ]]; then
-    warn "JSON output for ${name} is empty. Creating empty placeholder."
+    warn "Empty JSON output for ${name}; creating placeholder."
     echo '{}' > "${json_out}"
   fi
 }
 
-# -----------------------------------------------------------------------------
-# JSON parsing helpers
-# -----------------------------------------------------------------------------
+build_container_images() {
+  log "Building client image: ${CLIENT_IMAGE_TAG}"
+  docker build \
+    -f "${ROOT_DIR}/app/docker/Dockerfile.client" \
+    -t "${CLIENT_IMAGE_TAG}" \
+    "${ROOT_DIR}"
 
-# Aggregates standard vulnerability-bearing outputs:
-# - SCA
-# - Container
-# Tries to support both single-object and array outputs.
+  log "Building server image: ${SERVER_IMAGE_TAG}"
+  docker build \
+    -f "${ROOT_DIR}/app/docker/Dockerfile.server" \
+    -t "${SERVER_IMAGE_TAG}" \
+    "${ROOT_DIR}"
+}
+
 count_standard_vulns() {
   local json_file="$1"
 
@@ -169,7 +173,6 @@ count_standard_vulns() {
   ' "$json_file"
 }
 
-# Aggregates IaC outputs.
 count_iac_issues() {
   local json_file="$1"
 
@@ -194,7 +197,7 @@ count_iac_issues() {
         // []
       )
       | map({
-          k: ((target_name | tostring) + "::" + ((.id // .issue || .title // "unknown-id") | tostring)),
+          k: ((target_name | tostring) + "::" + ((.id // .title // "unknown-id") | tostring)),
           severity: ((.severity // empty) | tostring | norm)
         });
 
@@ -220,8 +223,6 @@ count_iac_issues() {
   ' "$json_file"
 }
 
-# Aggregates SAST outputs.
-# This parser is intentionally defensive because Snyk Code JSON shape can vary.
 count_sast_issues() {
   local json_file="$1"
 
@@ -239,9 +240,7 @@ count_sast_issues() {
         end;
 
     def rule_index:
-      reduce (
-        .runs[]?.tool.driver.rules[]?
-      ) as $r ({}; . + {
+      reduce (.runs[]?.tool.driver.rules[]?) as $r ({}; . + {
         ($r.id): (
           $r.properties.severity
           // $r.properties["security-severity"]
@@ -279,17 +278,6 @@ count_sast_issues() {
       ]
     | @tsv
   ' "$json_file"
-}
-
-sum_counts() {
-  local a_crit="$1" a_high="$2" a_med="$3" a_low="$4"
-  local b_crit="$5" b_high="$6" b_med="$7" b_low="$8"
-
-  printf '%s\t%s\t%s\t%s\n' \
-    "$((a_crit + b_crit))" \
-    "$((a_high + b_high))" \
-    "$((a_med + b_med))" \
-    "$((a_low + b_low))"
 }
 
 status_for() {
@@ -344,20 +332,20 @@ This directory contains the raw and rendered outputs for the current repository 
 
 | Target | JSON | HTML |
 | :--- | :--- | :--- |
-| app/server/package.json | [snyk-sca.json](raw/snyk-sca.json) | $( [[ -f "${HTML_DIR}/snyk-sca.html" ]] && echo "[snyk-sca.html](html/snyk-sca.html)" || echo "-" ) |
+| repository dependency scan | [snyk-sca.json](raw/snyk-sca.json) | $( [[ -f "${HTML_DIR}/snyk-sca.html" ]] && echo "[snyk-sca.html](html/snyk-sca.html)" || echo "-" ) |
 
 ### SAST
 
 | Target | JSON | HTML |
 | :--- | :--- | :--- |
-| repository | [snyk-code.json](raw/snyk-code.json) | $( [[ -f "${HTML_DIR}/snyk-code.html" ]] && echo "[snyk-code.html](html/snyk-code.html)" || echo "-" ) |
+| repository code scan | [snyk-code.json](raw/snyk-code.json) | $( [[ -f "${HTML_DIR}/snyk-code.html" ]] && echo "[snyk-code.html](html/snyk-code.html)" || echo "-" ) |
 
 ### Containers
 
 | Target | JSON | HTML |
 | :--- | :--- | :--- |
-| app/docker/Dockerfile.client | [snyk-container-client.json](raw/snyk-container-client.json) | $( [[ -f "${HTML_DIR}/snyk-container-client.html" ]] && echo "[snyk-container-client.html](html/snyk-container-client.html)" || echo "-" ) |
-| app/docker/Dockerfile.server | [snyk-container-server.json](raw/snyk-container-server.json) | $( [[ -f "${HTML_DIR}/snyk-container-server.html" ]] && echo "[snyk-container-server.html](html/snyk-container-server.html)" || echo "-" ) |
+| ${CLIENT_IMAGE_TAG} | [snyk-container-client.json](raw/snyk-container-client.json) | $( [[ -f "${HTML_DIR}/snyk-container-client.html" ]] && echo "[snyk-container-client.html](html/snyk-container-client.html)" || echo "-" ) |
+| ${SERVER_IMAGE_TAG} | [snyk-container-server.json](raw/snyk-container-server.json) | $( [[ -f "${HTML_DIR}/snyk-container-server.html" ]] && echo "[snyk-container-server.html](html/snyk-container-server.html)" || echo "-" ) |
 
 ### IaC
 
@@ -368,9 +356,7 @@ This directory contains the raw and rendered outputs for the current repository 
 ## Notes
 
 - Counts are aggregated across SCA, SAST, container, and IaC scans.
-- For dependency/container outputs, duplicate findings are deduplicated by target + issue id.
-- For SAST, findings are deduplicated by rule/result id.
-- For IaC, findings are deduplicated by target + issue id.
+- Container findings come from real built local images, not Dockerfile-only analysis.
 - Generated at: ${timestamp_utc} UTC
 EOF
 }
@@ -387,8 +373,6 @@ update_readme_block() {
   high_status="$(status_for High "${total_high}")"
   med_status="$(status_for Medium "${total_med}")"
   low_status="$(status_for Low "${total_low}")"
-
-  [[ -f "${README_FILE}" ]] || die "README.md not found at ${README_FILE}"
 
   python3 - "$README_FILE" <<PY
 from pathlib import Path
@@ -414,37 +398,33 @@ replacement = f'''{begin}
 *Last scanned (UTC): ${timestamp_utc}*
 {end}'''
 
-pattern = re.compile(
-    re.escape(begin) + r".*?" + re.escape(end),
-    flags=re.DOTALL,
-)
+pattern = re.compile(re.escape(begin) + r".*?" + re.escape(end), re.DOTALL)
 
 if not pattern.search(text):
-    raise SystemExit(
-        "Generated README markers were not found. "
-        "Add BEGIN/END markers under '## Operational Evidence'."
-    )
+    raise SystemExit("README markers not found. Add BEGIN/END markers under '## Operational Evidence'.")
 
 updated = pattern.sub(replacement, text, count=1)
 readme.write_text(updated, encoding="utf-8")
 PY
 }
 
-# -----------------------------------------------------------------------------
-# Preconditions
-# -----------------------------------------------------------------------------
-
 require_cmd snyk
 require_cmd jq
 require_cmd python3
+require_cmd docker
 
 # -----------------------------------------------------------------------------
-# Run scans
+# 1. Build real images
+# -----------------------------------------------------------------------------
+build_container_images
+
+# -----------------------------------------------------------------------------
+# 2. Run scans
 # -----------------------------------------------------------------------------
 
+# Dependency scan
 run_snyk_capture \
   "snyk-sca" \
-  "SCA" \
   test \
   --all-projects \
   --detection-depth=4 \
@@ -454,69 +434,46 @@ run_snyk_capture \
 # SAST
 run_snyk_capture \
   "snyk-code" \
-  "SAST" \
   code test \
   "${ROOT_DIR}"
 
-# Containers
+# Built-image container scans
 run_snyk_capture \
   "snyk-container-client" \
-  "Container" \
   container test \
-  --file="${ROOT_DIR}/app/docker/Dockerfile.client" \
-  "${ROOT_DIR}"
+  "${CLIENT_IMAGE_TAG}"
 
 run_snyk_capture \
   "snyk-container-server" \
-  "Container" \
   container test \
-  --file="${ROOT_DIR}/app/docker/Dockerfile.server" \
-  "${ROOT_DIR}"
+  "${SERVER_IMAGE_TAG}"
 
 # IaC
 run_snyk_capture \
   "snyk-iac" \
-  "IaC" \
   iac test \
   "${ROOT_DIR}/k8s" \
   --exclude=k8s/tests
 
 # -----------------------------------------------------------------------------
-# Parse counts
+# 3. Parse counts
 # -----------------------------------------------------------------------------
-
 read -r sca_crit sca_high sca_med sca_low < <(count_standard_vulns "${RAW_DIR}/snyk-sca.json")
 read -r sast_crit sast_high sast_med sast_low < <(count_sast_issues "${RAW_DIR}/snyk-code.json")
 read -r cc_crit cc_high cc_med cc_low < <(count_standard_vulns "${RAW_DIR}/snyk-container-client.json")
 read -r cs_crit cs_high cs_med cs_low < <(count_standard_vulns "${RAW_DIR}/snyk-container-server.json")
 read -r iac_crit iac_high iac_med iac_low < <(count_iac_issues "${RAW_DIR}/snyk-iac.json")
 
-read -r total_crit total_high total_med total_low < <(
-  sum_counts 0 0 0 0 "${sca_crit}" "${sca_high}" "${sca_med}" "${sca_low}" \
-  | {
-      read -r a b c d
-      sum_counts "$a" "$b" "$c" "$d" "${sast_crit}" "${sast_high}" "${sast_med}" "${sast_low}" \
-      | {
-          read -r e f g h
-          sum_counts "$e" "$f" "$g" "$h" "${cc_crit}" "${cc_high}" "${cc_med}" "${cc_low}" \
-          | {
-              read -r i j k l
-              sum_counts "$i" "$j" "$k" "$l" "${cs_crit}" "${cs_high}" "${cs_med}" "${cs_low}" \
-              | {
-                  read -r m n o p
-                  sum_counts "$m" "$n" "$o" "$p" "${iac_crit}" "${iac_high}" "${iac_med}" "${iac_low}"
-                }
-            }
-        }
-    }
-)
+total_crit=$((sca_crit + sast_crit + cc_crit + cs_crit + iac_crit))
+total_high=$((sca_high + sast_high + cc_high + cs_high + iac_high))
+total_med=$((sca_med + sast_med + cc_med + cs_med + iac_med))
+total_low=$((sca_low + sast_low + cc_low + cs_low + iac_low))
 
 TIMESTAMP_UTC="$(date -u '+%Y-%m-%d %H:%M')"
 
 # -----------------------------------------------------------------------------
-# Write docs + README
+# 4. Write docs + README
 # -----------------------------------------------------------------------------
-
 write_index_md "${total_crit}" "${total_high}" "${total_med}" "${total_low}" "${TIMESTAMP_UTC}"
 update_readme_block "${total_crit}" "${total_high}" "${total_med}" "${total_low}" "${TIMESTAMP_UTC}"
 
@@ -529,6 +486,10 @@ Aggregate totals:
   High:     ${total_high}
   Medium:   ${total_med}
   Low:      ${total_low}
+
+Built images scanned:
+  ${CLIENT_IMAGE_TAG}
+  ${SERVER_IMAGE_TAG}
 
 Artifacts:
   ${DOCS_DIR}/index.md
