@@ -686,7 +686,6 @@ run_snyk_capture \
 run_snyk_capture \
   "snyk-iac" \
   iac test \
-  "${ROOT_DIR}/k8s" \
   --exclude=tests
 
 # -----------------------------------------------------------------------------
