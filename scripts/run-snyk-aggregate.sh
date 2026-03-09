@@ -23,7 +23,7 @@ DOCS_DIR="${ROOT_DIR}/docs/snyk"
 RAW_DIR="${DOCS_DIR}/raw"
 HTML_DIR="${DOCS_DIR}/html"
 TMP_DIR="$(mktemp -d)"
-README_FILE="${ROOT_DIR}/README.md"
+README_FILE="${ROOT_DIR}/readme.md"
 
 SNYK_ORG="${7b9d0e67-ed88-4391-8f4c-4272d6090850}"
 
