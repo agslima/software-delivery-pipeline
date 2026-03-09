@@ -662,7 +662,7 @@ run_snyk_capture \
   test \
   --all-projects \
   --detection-depth=4 \
-  --exclude=tests,node_modules,docs \
+  --exclude=tests,node_modules,docs,tmp \
   "${ROOT_DIR}"
 
 # SAST
@@ -683,24 +683,24 @@ run_snyk_capture \
   "${SERVER_IMAGE_TAG}"
 
 # IaC
-TMP_DIR="$(mktemp -d)"
+TMP_DIR="${ROOT_DIR}/.tmp/snyk"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
 prepare_iac_scan_dir() {
   local src="${ROOT_DIR}/k8s"
-  local dst="${TMP_DIR}/k8s-iac-scan"
+  local dst="${ROOT_DIR}/.tmp/snyk/k8s-iac-scan"
 
+  rm -rf "${dst}"
   mkdir -p "${dst}"
   rsync -a --exclude 'tests/' "${src}/" "${dst}/"
-  printf '%s\n' "${dst}"
 }
 
-IAC_SCAN_DIR="$(prepare_iac_scan_dir)"
+prepare_iac_scan_dir
 
 run_snyk_capture \
   "snyk-iac" \
   iac test \
-  "${IAC_SCAN_DIR}"
+  ".tmp/snyk/k8s-iac-scan"
 
 # -----------------------------------------------------------------------------
 # 3. Parse counts
