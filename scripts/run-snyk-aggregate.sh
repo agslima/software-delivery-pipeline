@@ -13,7 +13,6 @@ set -Eeuo pipefail
 #   - IaC:        k8s/ (excluding k8s/tests/)
 #
 # Outputs:
-#   - docs/snyk/raw/*.json
 #   - docs/snyk/html/*.html (if snyk-to-html is installed)
 #   - docs/snyk/index.md
 #   - README.md generated table between markers
@@ -22,7 +21,6 @@ set -Eeuo pipefail
 ROOT_DIR="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 APP_DIR="${ROOT_DIR}/app"
 DOCS_DIR="${ROOT_DIR}/docs/snyk"
-RAW_DIR="${DOCS_DIR}/raw"
 HTML_DIR="${DOCS_DIR}/html"
 if [[ -f "${ROOT_DIR}/readme.md" ]]; then
   README_FILE="${ROOT_DIR}/readme.md"
@@ -46,7 +44,18 @@ BASELINE_HIGH="${BASELINE_HIGH:-116}"
 BASELINE_MEDIUM="${BASELINE_MEDIUM:-191}"
 BASELINE_LOW="${BASELINE_LOW:-345}"
 
-mkdir -p "${RAW_DIR}" "${HTML_DIR}"
+mkdir -p "${HTML_DIR}"
+
+declare -A SCAN_JSON_FILES=()
+TEMP_FILES=()
+
+cleanup_temp_files() {
+  if [[ ${#TEMP_FILES[@]} -gt 0 ]]; then
+    rm -f "${TEMP_FILES[@]}"
+  fi
+}
+
+trap cleanup_temp_files EXIT
 
 log() {
   printf '[INFO] %s\n' "$*"
@@ -113,8 +122,11 @@ run_snyk_capture() {
   local name="$1"
   shift
 
-  local json_out="${RAW_DIR}/${name}.json"
-  local sarif_out="${RAW_DIR}/${name}.sarif"
+  local json_out
+  local sarif_out
+  json_out="$(mktemp)"
+  sarif_out="$(mktemp)"
+  TEMP_FILES+=("${json_out}" "${sarif_out}")
 
   log "Running Snyk scan: ${name}"
 
@@ -142,6 +154,7 @@ run_snyk_capture() {
   sanitize_report_file "${json_out}"
   sanitize_report_file "${sarif_out}"
   maybe_html "${json_out}" "${HTML_DIR}/${name}.html"
+  SCAN_JSON_FILES["${name}"]="${json_out}"
 }
 
 build_container_images() {
@@ -211,6 +224,63 @@ count_standard_vulns() {
   ' "$json_file"
 }
 
+count_standard_vulns_by_target() {
+  local json_file="$1"
+
+  jq -r '
+    def norm:
+      ascii_downcase
+      | if . == "critical" then "critical"
+        elif . == "high" then "high"
+        elif . == "medium" then "medium"
+        elif . == "low" then "low"
+        else empty
+        end;
+
+    def target_name:
+      .displayTargetFile
+      // .targetFile
+      // .projectName
+      // .docker
+      // .image
+      // "unknown-target";
+
+    def rows_from_result:
+      (.vulnerabilities // [])
+      | map({
+          target: (target_name | tostring),
+          id: ((.id // .packageName // .title // "unknown-id") | tostring),
+          severity: ((.severity // empty) | tostring | norm)
+        });
+
+    (
+      if type == "array" then
+        map(rows_from_result) | add
+      elif type == "object" and has("vulnerabilities") then
+        rows_from_result
+      elif type == "object" and has("results") then
+        [.results[]? | rows_from_result] | add
+      else
+        []
+      end
+    )
+    | map(select(.severity != null and .severity != ""))
+    | unique_by(.target + "::" + .id)
+    | group_by(.target)
+    | map({
+        target: .[0].target,
+        critical: (map(select(.severity == "critical")) | length),
+        high: (map(select(.severity == "high")) | length),
+        medium: (map(select(.severity == "medium")) | length),
+        low: (map(select(.severity == "low")) | length)
+      })
+    | sort_by(.target)
+    | .[]
+    | [.target, (.critical|tostring), (.high|tostring), (.medium|tostring), (.low|tostring)]
+    | @tsv
+  ' "$json_file"
+}
+
 count_iac_issues() {
   local json_file="$1"
 
@@ -258,6 +328,87 @@ count_iac_issues() {
         (map(select(.severity == "low")) | length)
       ]
     | @tsv
+  ' "$json_file"
+}
+
+count_iac_issues_by_target() {
+  local json_file="$1"
+
+  jq -r '
+    def norm:
+      ascii_downcase
+      | if . == "critical" then "critical"
+        elif . == "high" then "high"
+        elif . == "medium" then "medium"
+        elif . == "low" then "low"
+        else empty
+        end;
+
+    def target_name:
+      .path // .targetFile // .displayTargetFile // .projectName // "unknown-target";
+
+    def issues_from_result:
+      (
+        .infrastructureAsCodeIssues
+        // .iacIssues
+        // .issues
+        // []
+      )
+      | map({
+          target: (target_name | tostring),
+          id: ((.id // .title // "unknown-id") | tostring),
+          severity: ((.severity // empty) | tostring | norm)
+        });
+
+    (
+      if type == "array" then
+        map(issues_from_result) | add
+      elif type == "object" and (has("infrastructureAsCodeIssues") or has("iacIssues") or has("issues")) then
+        issues_from_result
+      elif type == "object" and has("results") then
+        [.results[]? | issues_from_result] | add
+      else
+        []
+      end
+    )
+    | map(select(.severity != null and .severity != ""))
+    | unique_by(.target + "::" + .id)
+    | group_by(.target)
+    | map({
+        target: .[0].target,
+        critical: (map(select(.severity == "critical")) | length),
+        high: (map(select(.severity == "high")) | length),
+        medium: (map(select(.severity == "medium")) | length),
+        low: (map(select(.severity == "low")) | length)
+      })
+    | sort_by(.target)
+    | .[]
+    | [.target, (.critical|tostring), (.high|tostring), (.medium|tostring), (.low|tostring)]
+    | @tsv
+  ' "$json_file"
+}
+
+list_iac_targets() {
+  local json_file="$1"
+
+  jq -r '
+    def target_name:
+      .path // .targetFile // .displayTargetFile // .projectName // "unknown-target";
+
+    (
+      if type == "array" then
+        [.[]? | target_name]
+      elif type == "object" and has("results") then
+        [.results[]? | target_name]
+      elif type == "object" then
+        [target_name]
+      else
+        []
+      end
+    )
+    | map(select(. != null and . != ""))
+    | unique
+    | .[]
   ' "$json_file"
 }
 
@@ -349,11 +500,48 @@ write_index_md() {
   local total_med="$3"
   local total_low="$4"
   local timestamp_utc="$5"
+  local tested_at="${timestamp_utc}"
+  local sca_target sca_crit_t sca_high_t sca_med_t sca_low_t
+  local iac_target iac_crit_t iac_high_t iac_med_t iac_low_t
+  local iac_count_row
+  local sca_json="${SCAN_JSON_FILES[snyk-sca]}"
+  local iac_json="${SCAN_JSON_FILES[snyk-iac]}"
+
+  declare -a project_rows=()
+  declare -A iac_counts
+
+  project_rows+=("| [Code analysis](html/snyk-code.html) | ${tested_at} | ${sast_crit} | ${sast_high} | ${sast_med} | ${sast_low} |")
+
+  while IFS=$'\t' read -r iac_target iac_crit_t iac_high_t iac_med_t iac_low_t; do
+    [[ -n "${iac_target}" ]] || continue
+    iac_counts["${iac_target}"]="${iac_crit_t} ${iac_high_t} ${iac_med_t} ${iac_low_t}"
+  done < <(count_iac_issues_by_target "${iac_json}")
+
+  while IFS= read -r iac_target; do
+    [[ -n "${iac_target}" ]] || continue
+    iac_count_row="${iac_counts[${iac_target}]:-0 0 0 0}"
+    read -r iac_crit_t iac_high_t iac_med_t iac_low_t <<<"${iac_count_row}"
+    project_rows+=("| [${iac_target}](html/snyk-iac.html) | ${tested_at} | ${iac_crit_t} | ${iac_high_t} | ${iac_med_t} | ${iac_low_t} |")
+  done < <(list_iac_targets "${iac_json}")
+
+  while IFS=$'\t' read -r sca_target sca_crit_t sca_high_t sca_med_t sca_low_t; do
+    [[ -n "${sca_target}" ]] || continue
+    project_rows+=("| [${sca_target}](html/snyk-sca.html) | ${tested_at} | ${sca_crit_t} | ${sca_high_t} | ${sca_med_t} | ${sca_low_t} |")
+  done < <(count_standard_vulns_by_target "${sca_json}")
+
+  project_rows+=("| [app/docker/Dockerfile.client](html/snyk-container-client.html) | ${tested_at} | ${cc_crit} | ${cc_high} | ${cc_med} | ${cc_low} |")
+  project_rows+=("| [app/docker/Dockerfile.server](html/snyk-container-server.html) | ${tested_at} | ${cs_crit} | ${cs_high} | ${cs_med} | ${cs_low} |")
 
   cat > "${DOCS_DIR}/index.md" <<EOF
 # Snyk Scans
 
-This directory contains the raw and rendered outputs for the current repository security posture.
+This directory contains the latest Snyk scan index for this repository.
+
+## Projects
+
+| Project | Tested | C | H | M | L |
+| :--- | :--- | ---: | ---: | ---: | ---: |
+$(printf '%s\n' "${project_rows[@]}")
 
 ## Aggregate Summary
 
@@ -364,36 +552,19 @@ This directory contains the raw and rendered outputs for the current repository 
 | Medium | ${total_med} |
 | Low | ${total_low} |
 
-## Scan Artifacts
+## Artifacts
 
-### SCA (Dependencies)
-
-| Target | JSON | HTML |
-| :--- | :--- | :--- |
-| repository dependency scan | [snyk-sca.json](raw/snyk-sca.json) | $( [[ -f "${HTML_DIR}/snyk-sca.html" ]] && echo "[snyk-sca.html](html/snyk-sca.html)" || echo "-" ) |
-
-### SAST
-
-| Target | JSON | HTML |
-| :--- | :--- | :--- |
-| repository code scan | [snyk-code.json](raw/snyk-code.json) | $( [[ -f "${HTML_DIR}/snyk-code.html" ]] && echo "[snyk-code.html](html/snyk-code.html)" || echo "-" ) |
-
-### Containers
-
-| Target | JSON | HTML |
-| :--- | :--- | :--- |
-| ${CLIENT_IMAGE_TAG} | [snyk-container-client.json](raw/snyk-container-client.json) | $( [[ -f "${HTML_DIR}/snyk-container-client.html" ]] && echo "[snyk-container-client.html](html/snyk-container-client.html)" || echo "-" ) |
-| ${SERVER_IMAGE_TAG} | [snyk-container-server.json](raw/snyk-container-server.json) | $( [[ -f "${HTML_DIR}/snyk-container-server.html" ]] && echo "[snyk-container-server.html](html/snyk-container-server.html)" || echo "-" ) |
-
-### IaC
-
-| Target | JSON | HTML |
-| :--- | :--- | :--- |
-| k8s/ | [snyk-iac.json](raw/snyk-iac.json) | $( [[ -f "${HTML_DIR}/snyk-iac.html" ]] && echo "[snyk-iac.html](html/snyk-iac.html)" || echo "-" ) |
+| Scan | HTML |
+| :--- | :--- |
+| SCA | $( [[ -f "${HTML_DIR}/snyk-sca.html" ]] && echo "[snyk-sca.html](html/snyk-sca.html)" || echo "-" ) |
+| Code | $( [[ -f "${HTML_DIR}/snyk-code.html" ]] && echo "[snyk-code.html](html/snyk-code.html)" || echo "-" ) |
+| Container (client) | $( [[ -f "${HTML_DIR}/snyk-container-client.html" ]] && echo "[snyk-container-client.html](html/snyk-container-client.html)" || echo "-" ) |
+| Container (server) | $( [[ -f "${HTML_DIR}/snyk-container-server.html" ]] && echo "[snyk-container-server.html](html/snyk-container-server.html)" || echo "-" ) |
+| IaC | $( [[ -f "${HTML_DIR}/snyk-iac.html" ]] && echo "[snyk-iac.html](html/snyk-iac.html)" || echo "-" ) |
 
 ## Notes
 
-- Counts are aggregated across SCA, SAST, container, and IaC scans.
+- Counts are aggregated across SCA, Code, container, and IaC scans.
 - Container findings come from real built local images, not Dockerfile-only analysis.
 - Generated at: ${timestamp_utc} UTC
 EOF
@@ -497,11 +668,11 @@ run_snyk_capture \
 # -----------------------------------------------------------------------------
 # 3. Parse counts
 # -----------------------------------------------------------------------------
-read -r sca_crit sca_high sca_med sca_low < <(count_standard_vulns "${RAW_DIR}/snyk-sca.json")
-read -r sast_crit sast_high sast_med sast_low < <(count_sast_issues "${RAW_DIR}/snyk-code.json")
-read -r cc_crit cc_high cc_med cc_low < <(count_standard_vulns "${RAW_DIR}/snyk-container-client.json")
-read -r cs_crit cs_high cs_med cs_low < <(count_standard_vulns "${RAW_DIR}/snyk-container-server.json")
-read -r iac_crit iac_high iac_med iac_low < <(count_iac_issues "${RAW_DIR}/snyk-iac.json")
+read -r sca_crit sca_high sca_med sca_low < <(count_standard_vulns "${SCAN_JSON_FILES[snyk-sca]}")
+read -r sast_crit sast_high sast_med sast_low < <(count_sast_issues "${SCAN_JSON_FILES[snyk-code]}")
+read -r cc_crit cc_high cc_med cc_low < <(count_standard_vulns "${SCAN_JSON_FILES[snyk-container-client]}")
+read -r cs_crit cs_high cs_med cs_low < <(count_standard_vulns "${SCAN_JSON_FILES[snyk-container-server]}")
+read -r iac_crit iac_high iac_med iac_low < <(count_iac_issues "${SCAN_JSON_FILES[snyk-iac]}")
 
 total_crit=$((sca_crit + sast_crit + cc_crit + cs_crit + iac_crit))
 total_high=$((sca_high + sast_high + cc_high + cs_high + iac_high))
@@ -532,7 +703,6 @@ Built images scanned:
 
 Artifacts:
   ${DOCS_DIR}/index.md
-  ${RAW_DIR}/
   ${HTML_DIR}/
   ${README_FILE}
 EOF

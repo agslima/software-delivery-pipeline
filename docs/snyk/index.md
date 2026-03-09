@@ -1,6 +1,15 @@
 # Snyk Scans
 
-This directory contains the raw and rendered outputs for the current repository security posture.
+This directory contains the latest Snyk scan index for this repository.
+
+## Projects
+
+| Project | Tested | C | H | M | L |
+| :--- | :--- | ---: | ---: | ---: | ---: |
+| [Code analysis](html/snyk-code.html) | 2026-03-09 18:10 | 0 | 1 | 2 | 2 |
+| [/workspaces/software-delivery-pipeline/k8s](html/snyk-iac.html) | 2026-03-09 18:10 | 0 | 0 | 0 | 0 |
+| [app/docker/Dockerfile.client](html/snyk-container-client.html) | 2026-03-09 18:10 | 0 | 0 | 0 | 0 |
+| [app/docker/Dockerfile.server](html/snyk-container-server.html) | 2026-03-09 18:10 | 0 | 0 | 0 | 0 |
 
 ## Aggregate Summary
 
@@ -11,35 +20,18 @@ This directory contains the raw and rendered outputs for the current repository 
 | Medium | 2 |
 | Low | 2 |
 
-## Scan Artifacts
+## Artifacts
 
-### SCA (Dependencies)
-
-| Target | JSON | HTML |
-| :--- | :--- | :--- |
-| repository dependency scan | [snyk-sca.json](raw/snyk-sca.json) | [snyk-sca.html](html/snyk-sca.html) |
-
-### SAST
-
-| Target | JSON | HTML |
-| :--- | :--- | :--- |
-| repository code scan | [snyk-code.json](raw/snyk-code.json) | [snyk-code.html](html/snyk-code.html) |
-
-### Containers
-
-| Target | JSON | HTML |
-| :--- | :--- | :--- |
-| file-server-client:snyk | [snyk-container-client.json](raw/snyk-container-client.json) | [snyk-container-client.html](html/snyk-container-client.html) |
-| file-server-server:snyk | [snyk-container-server.json](raw/snyk-container-server.json) | [snyk-container-server.html](html/snyk-container-server.html) |
-
-### IaC
-
-| Target | JSON | HTML |
-| :--- | :--- | :--- |
-| k8s/ | [snyk-iac.json](raw/snyk-iac.json) | [snyk-iac.html](html/snyk-iac.html) |
+| Scan | HTML |
+| :--- | :--- |
+| SCA | [snyk-sca.html](html/snyk-sca.html) |
+| Code | [snyk-code.html](html/snyk-code.html) |
+| Container (client) | [snyk-container-client.html](html/snyk-container-client.html) |
+| Container (server) | [snyk-container-server.html](html/snyk-container-server.html) |
+| IaC | [snyk-iac.html](html/snyk-iac.html) |
 
 ## Notes
 
-- Counts are aggregated across SCA, SAST, container, and IaC scans.
+- Counts are aggregated across SCA, Code, container, and IaC scans.
 - Container findings come from real built local images, not Dockerfile-only analysis.
-- Generated at: 2026-03-09 16:34 UTC
+- Generated at: 2026-03-09 18:10 UTC

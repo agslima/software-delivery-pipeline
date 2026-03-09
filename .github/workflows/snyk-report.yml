@@ -1,0 +1,59 @@
+name: Snyk Report
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: '0 0 * * 0' # Runs at 00:00, only on Sunday.
+    
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  snyk-report:
+    if: github.repository == 'agslima/software-delivery-pipeline' && github.event_name != 'pull_request'
+    name: Update Snyk report docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          fetch-depth: 0
+      - name: Create pull request
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          set -euo pipefail
+          make snyk-report
+          if [[ -z "$(git status --porcelain -- readme.md docs/snyk)" ]]; then
+            echo "No README/docs changes detected. Exiting."
+            exit 0
+          fi
+          pr_branch="automation/snyk-report"
+          git checkout -B "$pr_branch"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git add readme.md
+          git add docs/snyk
+          git commit -m "docs: update Snyk security report in README"
+          git push --force-with-lease --set-upstream origin "$pr_branch"
+
+          existing_pr_number="$(gh pr list \
+            --state open \
+            --base main \
+            --head "$pr_branch" \
+            --json number \
+            --jq '.[0].number // empty')"
+
+          if [[ -n "$existing_pr_number" ]]; then
+            gh pr edit "$existing_pr_number" \
+              --title "docs: weekly Snyk security scan update" \
+              --body "Automated PR to update Snyk governance evidence in readme.md and docs/snyk artifacts."
+          else
+            gh pr create \
+              --base main \
+              --head "$pr_branch" \
+              --title "docs: weekly Snyk security scan update" \
+              --body "Automated PR to update Snyk governance evidence in readme.md and docs/snyk artifacts."
+          fi

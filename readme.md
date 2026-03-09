@@ -193,7 +193,7 @@ For more details on how branch protection, code ownership, and release integrity
 | **Medium** | 191 | 2 | ℹ️ Managed Debt |
 | **Low** | 345 | 2 | ℹ️ Managed Debt |
 
-*Last scanned (UTC): 2026-03-09 16:34*
+*Last scanned (UTC): 2026-03-09 18:10*
 <!-- [END_GENERATED_TABLE] -->
 
 This table is **automatically generated** by the repository security pipeline and reflects the current **aggregated vulnerability** posture published in [`docs/snyk/`](docs/snyk/index.md).
