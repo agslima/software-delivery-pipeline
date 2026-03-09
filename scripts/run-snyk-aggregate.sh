@@ -683,11 +683,24 @@ run_snyk_capture \
   "${SERVER_IMAGE_TAG}"
 
 # IaC
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "${TMP_DIR}"' EXIT
+
+prepare_iac_scan_dir() {
+  local src="${ROOT_DIR}/k8s"
+  local dst="${TMP_DIR}/k8s-iac-scan"
+
+  mkdir -p "${dst}"
+  rsync -a --exclude 'tests/' "${src}/" "${dst}/"
+  printf '%s\n' "${dst}"
+}
+
+IAC_SCAN_DIR="$(prepare_iac_scan_dir)"
+
 run_snyk_capture \
   "snyk-iac" \
   iac test \
-   --all-projects \
-  --exclude=tests
+  "${IAC_SCAN_DIR}"
 
 # -----------------------------------------------------------------------------
 # 3. Parse counts
