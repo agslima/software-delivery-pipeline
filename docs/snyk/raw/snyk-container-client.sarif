@@ -1,0 +1,24 @@
+{
+  "$schema": "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Snyk Container",
+          "semanticVersion": "1.1303.1",
+          "version": "1.1303.1",
+          "informationUri": "https://docs.snyk.io/",
+          "properties": {
+            "artifactsScanned": 71
+          },
+          "rules": []
+        }
+      },
+      "results": [],
+      "automationDetails": {
+        "id": "Snyk/Container/docker-image|file-server-client/0/2026-03-09T16:34:14.614Z"
+      }
+    }
+  ]
+}

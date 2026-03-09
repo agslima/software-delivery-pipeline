@@ -1,0 +1,29 @@
+{
+  "$schema": "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "originalUriBaseIds": {
+        "PROJECTROOT": {
+          "uri": "file:///workspaces/software-delivery-pipeline/",
+          "description": {
+            "text": "The root directory for all project files."
+          }
+        }
+      },
+      "tool": {
+        "driver": {
+          "name": "Snyk IaC",
+          "fullName": "Snyk Infrastructure as Code",
+          "version": "1.1303.1",
+          "informationUri": "https://docs.snyk.io/products/snyk-infrastructure-as-code",
+          "rules": []
+        }
+      },
+      "automationDetails": {
+        "id": "Snyk/IaC/software-delivery-pipeline/0/2026-03-09T16:34:53.161Z"
+      },
+      "results": []
+    }
+  ]
+}

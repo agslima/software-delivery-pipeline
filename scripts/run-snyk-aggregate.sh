@@ -14,7 +14,6 @@ set -Eeuo pipefail
 #
 # Outputs:
 #   - docs/snyk/raw/*.json
-#   - docs/snyk/raw/*.sarif
 #   - docs/snyk/html/*.html (if snyk-to-html is installed)
 #   - docs/snyk/index.md
 #   - README.md generated table between markers
@@ -34,7 +33,7 @@ else
   exit 1
 fi
 
-SNYK_ORG="${SNYK_ORG:-7b9d0e67}"
+SNYK_ORG="${SNYK_ORG:-a.agnaldosilva}"
 SNYK_VERSION="${SNYK_VERSION:-1.1296.0}"
 SNYK_TO_HTML_VERSION="${SNYK_TO_HTML_VERSION:-2.8.0}"
 
@@ -95,6 +94,16 @@ maybe_html() {
   fi
 }
 
+sanitize_report_file() {
+  local report_file="$1"
+
+  [[ -s "${report_file}" ]] || return 0
+
+  # Snyk Code embeds third-party example credentials in rule metadata.
+  # Redact token-shaped strings to avoid secret-scanning false positives.
+  perl -i -pe 's/SG\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}/SG.REDACTED.REDACTED/g' "${report_file}"
+}
+
 snyk_args_common=()
 if [[ -n "${SNYK_ORG}" ]]; then
   snyk_args_common+=(--org="${SNYK_ORG}")
@@ -125,12 +134,14 @@ run_snyk_capture() {
     die "Snyk command failed for ${name} with exit code ${rc}"
   fi
 
-  maybe_html "${json_out}" "${HTML_DIR}/${name}.html"
-
   if [[ ! -s "${json_out}" ]]; then
     warn "Empty JSON output for ${name}; creating placeholder."
     echo '{}' > "${json_out}"
   fi
+
+  sanitize_report_file "${json_out}"
+  sanitize_report_file "${sarif_out}"
+  maybe_html "${json_out}" "${HTML_DIR}/${name}.html"
 }
 
 build_container_images() {
