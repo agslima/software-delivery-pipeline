@@ -1,0 +1,11 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Ignore Snyk reports"
+paths = [
+  '''docs/snyk/.*''' 
+]
+regexes = [
+  '''__ENV\.TOKEN'''
+]

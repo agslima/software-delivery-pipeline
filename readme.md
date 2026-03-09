@@ -184,54 +184,45 @@ For more details on how branch protection, code ownership, and release integrity
 ## Operational Evidence
 
 <!-- [BEGIN_GENERATED_TABLE] -->
-### Automated Trivy Security Posture (app/)
-
-This section is automatically refreshed by CI to provide governance evidence of the current vulnerability and configuration risk posture for the application surface in `app/`.
-
-| Scan Target | Critical | High | Medium | Low |
-| :--- | :---: | :---: | :---: | :---: |
-| **Application Dependencies** (`trivy fs app`) | 0 | 0 | 0 | 0 |
-| **Application Configuration** (`trivy config app`) | 0 | 0 | 0 | 0 |
-
-*Last scanned (UTC): 2026-03-08 05:36*
-<!-- [END_GENERATED_TABLE] -->
-
-### Case Study: Legacy Risk Remediation 🔬
-
-To validate the effectiveness of the delivery control plane, a legacy application with known security debt was intentionally passed through the pipeline.
-
-### Remediation Workflow
-
-- **Baseline:**
-  - Initial scans detected 27 Critical vulnerabilities
-
-- **Triage:**
-  - Dependency upgrades automated via Dependabot
-  - Manual refactoring to mitigate XSS and Prototype Pollution
-
-- **Risk Acceptance Policy:**
-  - Zero Tolerance: Critical / High vulnerabilities block the pipeline
-  - Accepted Risk: Medium / Low vulnerabilities may proceed if no patch exists, prioritizing delivery velocity
-
-### Metrics & Results
+### Automated Security Posture
 
 | Severity | Initial Count | Current Count | Status |
 | :--- | :---: | :---: | :--- |
 | **Critical** | 27 | 0 | ✅ Fixed |
-| **High** | 116 | 0 | ✅ Fixed |
-| **Medium** | 191 | 0 | ✅ Fixed |
+| **High** | 116 | 1 | ❌ Must fix |
+| **Medium** | 191 | 2 | ℹ️ Managed Debt |
 | **Low** | 345 | 2 | ℹ️ Managed Debt |
 
-> This demonstrates risk-based decision making, not absolute zero-tolerance — a more realistic production posture.
-> Managed debt is tracked in `docs/security-debt.md`, demonstrating risk-based decision making
+*Last scanned (UTC): 2026-03-09 18:10*
+<!-- [END_GENERATED_TABLE] -->
+
+This table is **automatically generated** by the repository security pipeline and reflects the current **aggregated vulnerability** posture published in [`docs/snyk/`](docs/snyk/index.md).
+
+Interpretation:
+- **Critical / High:** release-blocking until remediated.
+- **Medium / Low:** allowed only when tracked as time-bound managed debt in [`docs/security-debt.md`](docs/security-debt.md).
+- **Managed Debt:** displayed when Medium or Low vulnerabilities remain open under approved governance controls.
+
+### Case Study: Risk Remediation 🔬
+
+The application described in [app/readme.md](app/readme.md) was intentionally passed through the pipeline with known security debt to validate vulnerability detection, policy enforcement, and remediation behavior.
+
+### Remediation Workflow
+
+- **Baseline:** Initial scans detected 27 Critical vulnerabilities.
+- **Triage:** Dependabot automated dependency upgrades; manual changes mitigated issues such as XSS and Prototype Pollution.
+- **Policy Enforcement:** Critical and High findings block delivery. Medium and Low findings may proceed only under documented, time-bound exception governance.
 
 ### Evidence
 
-Screenshots below are from a legacy remediation exercise; current workflows use Trivy for scanning.
-
 | Initial Vulnerability Scan | Post-Fix Clean Scan |
 | --- | --- |
-| ![image](https://github.com/agslima/software-delivery-pipeline/blob/main/docs/images/scan-snyk-01.png) | ![image](https://github.com/agslima/software-delivery-pipeline/blob/main/docs/images/scan-snyk-02.png) |
+| ![Initial Snyk vulnerability scan](https://github.com/agslima/software-delivery-pipeline/blob/main/docs/images/scan-snyk-01.png) | ![Post-remediation Snyk clean scan](https://github.com/agslima/software-delivery-pipeline/blob/main/docs/images/scan-snyk-02.png) |
+
+> [!Note]
+> This section reflects current operational truth for the repository.
+> Managed exceptions are governed in `docs/security-debt.md`.
+> Detailed scan evidence is published in `docs/snyk/` for transparency and auditability.
 
 ---
 
