@@ -21,12 +21,22 @@ set -Eeuo pipefail
 # -----------------------------------------------------------------------------
 
 ROOT_DIR="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+APP_DIR="${ROOT_DIR}/app"
 DOCS_DIR="${ROOT_DIR}/docs/snyk"
 RAW_DIR="${DOCS_DIR}/raw"
 HTML_DIR="${DOCS_DIR}/html"
-README_FILE="${ROOT_DIR}/README.md"
+if [[ -f "${ROOT_DIR}/readme.md" ]]; then
+  README_FILE="${ROOT_DIR}/readme.md"
+elif [[ -f "${ROOT_DIR}/README.md" ]]; then
+  README_FILE="${ROOT_DIR}/README.md"
+else
+  printf '[ERROR] Could not find README file (expected readme.md or README.md in repo root).\n' >&2
+  exit 1
+fi
 
 SNYK_ORG="${SNYK_ORG:-7b9d0e67}"
+SNYK_VERSION="${SNYK_VERSION:-1.1296.0}"
+SNYK_TO_HTML_VERSION="${SNYK_TO_HTML_VERSION:-2.8.0}"
 
 # Built image tags used only for scanning in this script.
 CLIENT_IMAGE_TAG="${CLIENT_IMAGE_TAG:-file-server-client:snyk}"
@@ -56,12 +66,29 @@ require_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "Missing required command: $1"
 }
 
+init_snyk_tools() {
+  if command -v snyk >/dev/null 2>&1; then
+    SNYK_CMD=(snyk)
+  else
+    require_cmd npx
+    SNYK_CMD=(npx --yes "snyk@${SNYK_VERSION}")
+  fi
+
+  if command -v snyk-to-html >/dev/null 2>&1; then
+    SNYK_TO_HTML_CMD=(snyk-to-html)
+  elif command -v npx >/dev/null 2>&1; then
+    SNYK_TO_HTML_CMD=(npx --yes "snyk-to-html@${SNYK_TO_HTML_VERSION}")
+  else
+    SNYK_TO_HTML_CMD=()
+  fi
+}
+
 maybe_html() {
   local in_json="$1"
   local out_html="$2"
 
-  if command -v snyk-to-html >/dev/null 2>&1; then
-    snyk-to-html -i "$in_json" -o "$out_html" >/dev/null 2>&1 || \
+  if [[ ${#SNYK_TO_HTML_CMD[@]} -gt 0 ]]; then
+    "${SNYK_TO_HTML_CMD[@]}" -i "$in_json" -o "$out_html" >/dev/null 2>&1 || \
       warn "Failed to render HTML report for ${in_json}"
   else
     warn "snyk-to-html not found; skipping HTML generation for ${in_json}"
@@ -83,7 +110,7 @@ run_snyk_capture() {
   log "Running Snyk scan: ${name}"
 
   set +e
-  snyk "$@" \
+  "${SNYK_CMD[@]}" "$@" \
     "${snyk_args_common[@]}" \
     --json-file-output="${json_out}" \
     --sarif-file-output="${sarif_out}"
@@ -109,15 +136,15 @@ run_snyk_capture() {
 build_container_images() {
   log "Building client image: ${CLIENT_IMAGE_TAG}"
   docker build \
-    -f "${ROOT_DIR}/app/docker/Dockerfile.client" \
+    -f "${APP_DIR}/docker/Dockerfile.client" \
     -t "${CLIENT_IMAGE_TAG}" \
-    "${ROOT_DIR}"
+    "${APP_DIR}"
 
   log "Building server image: ${SERVER_IMAGE_TAG}"
   docker build \
-    -f "${ROOT_DIR}/app/docker/Dockerfile.server" \
+    -f "${APP_DIR}/docker/Dockerfile.server" \
     -t "${SERVER_IMAGE_TAG}" \
-    "${ROOT_DIR}"
+    "${APP_DIR}"
 }
 
 count_standard_vulns() {
@@ -408,10 +435,11 @@ readme.write_text(updated, encoding="utf-8")
 PY
 }
 
-require_cmd snyk
 require_cmd jq
 require_cmd python3
 require_cmd docker
+
+init_snyk_tools
 
 # -----------------------------------------------------------------------------
 # 1. Build real images
@@ -428,7 +456,7 @@ run_snyk_capture \
   test \
   --all-projects \
   --detection-depth=4 \
-  --exclude=test,app/client/test,app/server/test,node_modules,docs/snyk \
+  --exclude=tests,node_modules,docs \
   "${ROOT_DIR}"
 
 # SAST
@@ -453,7 +481,7 @@ run_snyk_capture \
   "snyk-iac" \
   iac test \
   "${ROOT_DIR}/k8s" \
-  --exclude=k8s/tests
+  --exclude=tests
 
 # -----------------------------------------------------------------------------
 # 3. Parse counts
