@@ -49,6 +49,7 @@ mkdir -p "${HTML_DIR}"
 declare -A SCAN_JSON_FILES=()
 TEMP_FILES=()
 
+# cleanup_temp_files removes all filesystem paths recorded in the TEMP_FILES array.
 cleanup_temp_files() {
   if [[ ${#TEMP_FILES[@]} -gt 0 ]]; then
     rm -f "${TEMP_FILES[@]}"
@@ -57,23 +58,28 @@ cleanup_temp_files() {
 
 trap cleanup_temp_files EXIT
 
+# log prints an informational message prefixed with [INFO] to stdout.
 log() {
   printf '[INFO] %s\n' "$*"
 }
 
+# warn prints a warning message to stderr prefixed with "[WARN]".
 warn() {
   printf '[WARN] %s\n' "$*" >&2
 }
 
+# die prints an error message to stderr and exits the script with status 1.
 die() {
   printf '[ERROR] %s\n' "$*" >&2
   exit 1
 }
 
+# require_cmd verifies that a command is available in PATH and exits with an error if it is not found.
 require_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "Missing required command: $1"
 }
 
+# init_snyk_tools sets SNYK_CMD and SNYK_TO_HTML_CMD to command arrays that prefer locally installed `snyk` and `snyk-to-html`, falling back to `npx` with the configured `SNYK_VERSION` and `SNYK_TO_HTML_VERSION`; if neither local nor `npx`-available `snyk-to-html` is found, `SNYK_TO_HTML_CMD` is left empty.
 init_snyk_tools() {
   if command -v snyk >/dev/null 2>&1; then
     SNYK_CMD=(snyk)
@@ -91,6 +97,7 @@ init_snyk_tools() {
   fi
 }
 
+# maybe_html generates an HTML report from a Snyk JSON file using `snyk-to-html` if available, otherwise logs a warning.
 maybe_html() {
   local in_json="$1"
   local out_html="$2"
@@ -103,6 +110,7 @@ maybe_html() {
   fi
 }
 
+# sanitize_report_file redacts token-shaped strings (e.g., SendGrid-like tokens) in the given report file to prevent secret-scanning false positives; a non-existent or empty file is left unchanged.
 sanitize_report_file() {
   local report_file="$1"
 
@@ -118,6 +126,8 @@ if [[ -n "${SNYK_ORG}" ]]; then
   snyk_args_common+=(--org="${SNYK_ORG}")
 fi
 
+# run_snyk_capture runs a Snyk scan named NAME with the given Snyk CLI arguments, captures JSON and SARIF outputs to temporary files, sanitizes/redacts those outputs, optionally generates an HTML report, and records the JSON path in SCAN_JSON_FILES; exits the script if Snyk returns an execution error.
+# NAME is the scan identifier; any additional arguments are forwarded to the Snyk CLI.
 run_snyk_capture() {
   local name="$1"
   shift
@@ -157,6 +167,7 @@ run_snyk_capture() {
   SCAN_JSON_FILES["${name}"]="${json_out}"
 }
 
+# build_container_images builds the client and server Docker images from app/docker/Dockerfile.client and app/docker/Dockerfile.server and tags them with CLIENT_IMAGE_TAG and SERVER_IMAGE_TAG.
 build_container_images() {
   log "Building client image: ${CLIENT_IMAGE_TAG}"
   docker build \
@@ -171,6 +182,8 @@ build_container_images() {
     "${APP_DIR}"
 }
 
+# count_standard_vulns counts unique standard (SCA/container/SAST) vulnerabilities in a Snyk JSON and echoes four tab-separated numbers: critical, high, medium, low.
+# Takes a path to a Snyk JSON file as its sole argument and prints the counts (in that exact order) to stdout.
 count_standard_vulns() {
   local json_file="$1"
 
@@ -224,6 +237,7 @@ count_standard_vulns() {
   ' "$json_file"
 }
 
+# count_standard_vulns_by_target extracts per-target counts of standard vulnerabilities (critical, high, medium, low) from a Snyk JSON file and echoes TSV rows with fields: target, critical, high, medium, low.
 count_standard_vulns_by_target() {
   local json_file="$1"
 
@@ -281,6 +295,7 @@ count_standard_vulns_by_target() {
   ' "$json_file"
 }
 
+# count_iac_issues counts infrastructure-as-code issues in a Snyk JSON file and echoes a TSV with the number of `critical`, `high`, `medium`, and `low` issues (in that order).
 count_iac_issues() {
   local json_file="$1"
 
@@ -331,6 +346,7 @@ count_iac_issues() {
   ' "$json_file"
 }
 
+# count_iac_issues_by_target parses a Snyk IaC JSON file and emits TSV lines with per-target counts of infrastructure-as-code issues by severity (critical, high, medium, low).
 count_iac_issues_by_target() {
   local json_file="$1"
 
@@ -388,6 +404,8 @@ count_iac_issues_by_target() {
   ' "$json_file"
 }
 
+# list_iac_targets outputs unique IaC target names found in a Snyk JSON report file.
+# It accepts a path to a JSON file as its sole argument and writes one unique target name per line to stdout.
 list_iac_targets() {
   local json_file="$1"
 
@@ -412,6 +430,7 @@ list_iac_targets() {
   ' "$json_file"
 }
 
+# count_sast_issues counts SAST issues in the given Snyk/SARIF JSON file and echoes a TSV of counts in the order: critical, high, medium, low.
 count_sast_issues() {
   local json_file="$1"
 
@@ -469,6 +488,8 @@ count_sast_issues() {
   ' "$json_file"
 }
 
+# status_for maps a vulnerability severity and count to a concise textual status.
+# For severity "Critical" or "High" returns "✅ Fixed" when count is 0 or "❌ Must fix" otherwise; for "Medium" or "Low" returns "✅ Fixed" when count is 0 or "ℹ️ Managed Debt" otherwise; for any other severity returns "Unknown".
 status_for() {
   local severity="$1"
   local count="$2"
@@ -494,6 +515,8 @@ status_for() {
   esac
 }
 
+# write_index_md writes the consolidated Snyk index markdown file to "${DOCS_DIR}/index.md", creating per-project rows (SCA, IaC, SAST, container images), an aggregate severity summary, artifact HTML links, and a generated-at timestamp.
+# Arguments: total_crit total_high total_med total_low timestamp_utc — totals used for the aggregate summary and the UTC timestamp written in the Notes section.
 write_index_md() {
   local total_crit="$1"
   local total_high="$2"
@@ -570,6 +593,7 @@ $(printf '%s\n' "${project_rows[@]}")
 EOF
 }
 
+# update_readme_block replaces the README section between <!-- [BEGIN_GENERATED_TABLE] --> and <!-- [END_GENERATED_TABLE] --> with an automated security posture table populated with the supplied critical, high, medium, low totals and the scan UTC timestamp.
 update_readme_block() {
   local total_crit="$1"
   local total_high="$2"
