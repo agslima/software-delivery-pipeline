@@ -189,11 +189,11 @@ For more details on how branch protection, code ownership, and release integrity
 | Severity | Initial Count | Current Count | Status |
 | :--- | :---: | :---: | :--- |
 | **Critical** | 27 | 0 | ✅ Fixed |
-| **High** | 116 | 1 | ❌ Must fix |
-| **Medium** | 191 | 2 | ℹ️ Managed Debt |
-| **Low** | 345 | 2 | ℹ️ Managed Debt |
+| **High** | 116 | 0 | ✅ Fixed |
+| **Medium** | 191 | 0 | ✅ Fixed |
+| **Low** | 345 | 0 | ✅ Fixed |
 
-*Last scanned (UTC): 2026-03-09 18:10*
+*Last scanned (UTC): 2026-03-09 23:33*
 <!-- [END_GENERATED_TABLE] -->
 
 This table is **automatically generated** by the repository security pipeline and reflects the current **aggregated vulnerability** posture published in [`docs/snyk/`](docs/snyk/index.md).
