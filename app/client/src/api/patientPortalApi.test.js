@@ -89,6 +89,19 @@ describe('patientPortalApi', () => {
     fetch.mockResolvedValueOnce({ ok: false, status: 500 });
     await expect(getMyPrescriptions('jwt')).rejects.toMatchObject({ message: 'SERVER_ERROR' });
 
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: vi.fn().mockResolvedValue({ id: 'rx-1' }),
+    });
+    await expect(getMyPrescription('rx-1', 'jwt')).resolves.toEqual({ id: 'rx-1' });
+    expect(fetch).toHaveBeenLastCalledWith(
+      expect.stringContaining('/rx-1'),
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer jwt' }),
+      }),
+    );
+
     fetch.mockResolvedValueOnce({ ok: false, status: 403 });
     await expect(getMyPrescription('rx-1', 'jwt')).rejects.toMatchObject({ message: 'FORBIDDEN' });
 
