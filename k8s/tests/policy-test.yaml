@@ -1,4 +1,4 @@
-apiVersion: kyverno.io/v1alpha1
+apiVersion: cli.kyverno.io/v1alpha1
 kind: Test
 metadata:
   name: ci-structural-policy-tests
@@ -7,51 +7,89 @@ policies:
 resources:
   - resources/valid-deployment.yaml
   - resources/invalid-unsigned.yaml
+  - pod.yaml
+  - resources/invalid-pod-latest.yaml
 results:
   - policy: ci-structural-policy
     rule: require-digest-pinned-images
-    resource: governed-app
+    resources:
+      - production/governed-app
     kind: Deployment
     result: pass
 
   - policy: ci-structural-policy
     rule: ban-latest-tag
-    resource: governed-app
+    resources:
+      - production/governed-app
     kind: Deployment
     result: pass
 
   - policy: ci-structural-policy
     rule: require-container-hardening
-    resource: governed-app
+    resources:
+      - production/governed-app
     kind: Deployment
     result: pass
 
   - policy: ci-structural-policy
     rule: require-resources
-    resource: governed-app
+    resources:
+      - production/governed-app
     kind: Deployment
     result: pass
 
   - policy: ci-structural-policy
     rule: require-digest-pinned-images
-    resource: unsigned-app
+    resources:
+      - production/unsigned-app
     kind: Deployment
     result: fail
 
   - policy: ci-structural-policy
     rule: ban-latest-tag
-    resource: unsigned-app
+    resources:
+      - production/unsigned-app
     kind: Deployment
     result: fail
 
   - policy: ci-structural-policy
     rule: require-container-hardening
-    resource: unsigned-app
+    resources:
+      - production/unsigned-app
     kind: Deployment
     result: fail
 
   - policy: ci-structural-policy
     rule: require-resources
-    resource: unsigned-app
+    resources:
+      - production/unsigned-app
     kind: Deployment
+    result: fail
+
+  - policy: ci-structural-policy
+    rule: require-digest-pinned-images
+    resources:
+      - test-pod
+    kind: Pod
+    result: pass
+
+  - policy: ci-structural-policy
+    rule: ban-latest-tag
+    resources:
+      - test-pod
+    kind: Pod
+    result: pass
+
+  - policy: ci-structural-policy
+    rule: require-digest-pinned-images
+    resources:
+      - production/latest-pod
+    kind: Pod
+    result: fail
+
+  - policy: ci-structural-policy
+    rule: ban-latest-tag
+    resources:
+      - production/latest-pod
+    kind: Pod
     result: fail

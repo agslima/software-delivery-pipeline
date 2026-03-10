@@ -35,3 +35,5 @@ spec:
                         issuer: https://token.actions.githubusercontent.com
                         subjectRegExp: >-
                           ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*$
+                        rekor:
+                          url: https://rekor.sigstore.dev

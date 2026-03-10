@@ -17,12 +17,15 @@ spec:
           kinds: ["Deployment", "Pod"]
       validate:
         message: "Images must be pinned by digest (@sha256:...)"
-        pattern:
-          spec:
-            template:
-              spec:
-                containers:
-                  - image: "*@sha256:*"
+        anyPattern:
+          - spec:
+              template:
+                spec:
+                  containers:
+                    - image: "*@sha256:*"
+          - spec:
+              containers:
+                - image: "*@sha256:*"
 
     # 2) Ban latest tag explicitly
     - name: ban-latest-tag
@@ -31,12 +34,15 @@ spec:
           kinds: ["Deployment", "Pod"]
       validate:
         message: "The ':latest' tag is not allowed"
-        pattern:
-          spec:
-            template:
-              spec:
-                containers:
-                  - image: "!*:latest"
+        anyPattern:
+          - spec:
+              template:
+                spec:
+                  containers:
+                    - image: "!*:latest"
+          - spec:
+              containers:
+                - image: "!*:latest"
 
     # 3) Require basic container hardening
     - name: require-container-hardening

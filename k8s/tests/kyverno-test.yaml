@@ -1,4 +1,4 @@
-apiVersion: kyverno.io/v1alpha1
+apiVersion: cli.kyverno.io/v1alpha1
 kind: Test
 metadata:
   name: break-glass-policy-tests
@@ -6,9 +6,30 @@ policies:
   - ../policies/cluster/break-glass-policy.yaml
 resources:
   - resources/break-glass-invalid.yaml
+  - resources/break-glass-expired.yaml
+  - resources/break-glass-valid.yaml
 results:
   - policy: break-glass-admission-controls
     rule: break-glass-requires-metadata
-    resource: break-glass-abuse
+    resources:
+      - production/break-glass-abuse
     kind: Deployment
     result: fail
+  - policy: break-glass-admission-controls
+    rule: break-glass-must-not-be-expired
+    resources:
+      - production/break-glass-expired
+    kind: Deployment
+    result: fail
+  - policy: break-glass-admission-controls
+    rule: break-glass-requires-metadata
+    resources:
+      - production/break-glass-approved
+    kind: Deployment
+    result: pass
+  - policy: break-glass-admission-controls
+    rule: break-glass-must-not-be-expired
+    resources:
+      - production/break-glass-approved
+    kind: Deployment
+    result: pass

@@ -21,7 +21,11 @@ The tests follow a Fixture-based approach:
 | resources/ | Contains the Fixtures (Mock manifests). |
 | ↳ valid-deployment.yaml | A hardened, digest-pinned deployment that should pass structural checks. |
 | ↳ invalid-unsigned.yaml | A `:latest`-tagged deployment that should fail structural checks. |
+| pod.yaml | A digest-pinned Pod fixture that should pass image policy checks. |
+| ↳ invalid-pod-latest.yaml | A `:latest`-tagged Pod fixture that should fail image policy checks. |
 | ↳ break-glass-invalid.yaml | Break-glass-labeled deployment missing required annotations; should fail break-glass guardrail. |
+| ↳ break-glass-expired.yaml | Break-glass deployment with required annotations but an expired timestamp; should fail expiry validation. |
+| ↳ break-glass-valid.yaml | Break-glass deployment with complete metadata and a far-future expiry; should pass both break-glass rules. |
 
 ## 🚀 How to Run Tests
 These tests run automatically in the CI pipeline (infra-lint job), but can be run locally:

@@ -65,4 +65,4 @@ spec:
             any:
               - key: "{{ time_after(time_now_utc(), request.object.metadata.annotations.\"security.break-glass/expires-at\") }}"
                 operator: Equals
-                value: false
+                value: true

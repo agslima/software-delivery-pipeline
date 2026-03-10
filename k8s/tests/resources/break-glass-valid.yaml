@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: break-glass-approved
+  namespace: production
+  labels:
+    security.break-glass: "true"
+  annotations:
+    security.break-glass/ticket: "INC-2099"
+    security.break-glass/approved-by: "platform-oncall"
+    security.break-glass/expires-at: "2099-12-31T23:59:59Z"
+spec:
+  selector:
+    matchLabels:
+      app: exploit-approved
+  template:
+    metadata:
+      labels:
+        app: exploit-approved
+    spec:
+      serviceAccountName: default
+      containers:
+        - name: app
+          image: docker.io/agslima/software-delivery-pipeline@sha256:GOOD
