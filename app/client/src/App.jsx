@@ -12,11 +12,11 @@ import PatientLogin from './components/PatientLogin';
 import PatientPortal from './components/PatientPortal';
 import './styles/Portal.css';
 
-const SESSION_KEY = 'stayhealthy_patient_session';
+const sessionStorageKey = import.meta.env.VITE_PATIENT_PORTAL_SESSION_STORAGE_KEY || 'patient_portal_session';
 
 const readSession = () => {
   try {
-    const raw = sessionStorage.getItem(SESSION_KEY);
+    const raw = sessionStorage.getItem(sessionStorageKey);
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
@@ -42,9 +42,9 @@ export default function App() {
 
   useEffect(() => {
     if (session) {
-      sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+      sessionStorage.setItem(sessionStorageKey, JSON.stringify(session));
     } else {
-      sessionStorage.removeItem(SESSION_KEY);
+      sessionStorage.removeItem(sessionStorageKey);
     }
   }, [session]);
 

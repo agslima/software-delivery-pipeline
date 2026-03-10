@@ -49,7 +49,7 @@ else
   printf "syft not found; skipping SBOM generation.\n"
 fi
 
-if [ "$SIGN_IMAGES" = "true" ]; then
+if [[ "$SIGN_IMAGES" = "true" ]]; then
   if command -v cosign >/dev/null 2>&1; then
     printf "Signing images...\n"
     cosign sign --yes "$BACKEND_IMAGE"
