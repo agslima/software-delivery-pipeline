@@ -1,8 +1,11 @@
 describe('Unit: infra v2 targeted repositories', () => {
+describe('Unit: infra v2 targeted repositories', () => {
+  const originalFetch = global.fetch;
+
   afterEach(() => {
     jest.resetModules();
     jest.clearAllMocks();
-    delete global.fetch;
+    global.fetch = originalFetch;
   });
 
   describe('OidcTokenService', () => {
