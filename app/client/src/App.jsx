@@ -23,6 +23,15 @@ const readSession = () => {
   }
 };
 
+/**
+ * Root React component for the patient portal application.
+ *
+ * Manages authentication session state, prescription list and detail loading,
+ * and multi-factor authentication (MFA) flows; conditionally renders the
+ * login UI, an access-restricted message, or the patient portal UI.
+ *
+ * @returns {JSX.Element} The rendered application UI based on authentication and user role.
+ */
 export default function App() {
   const [session, setSession] = useState(readSession);
   const [prescriptions, setPrescriptions] = useState([]);

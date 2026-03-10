@@ -15,6 +15,7 @@ DB_PORT="${DB_PORT:-5432}"
 DB_USER="${DB_USER:-postgres}"
 DB_NAME="${DB_NAME:-prescriptions_db}"
 
+# require_command verifies the given command exists in PATH and exits with status 1 after printing an error if it is not found.
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
     echo "Missing required command: $1" >&2
@@ -34,6 +35,7 @@ fi
 
 TEMP_FILE=""
 
+# cleanup removes the temporary file referenced by $TEMP_FILE if it exists.
 cleanup() {
   if [[ -n "$TEMP_FILE" && -f "$TEMP_FILE" ]]; then
     rm -f "$TEMP_FILE"
@@ -63,6 +65,7 @@ fi
 
 require_command pg_restore
 
+# restore_direct restores the PostgreSQL database from BACKUP_FILE to DB_NAME on the local host using pg_restore. It sources DB_PASS from DB_PASS_FILE (or APP_DIR/secrets/db_pass.txt as a fallback) and exits with an error if no DB_PASS is available.
 restore_direct() {
   if [[ -n "${DB_PASS_FILE:-}" && -z "${DB_PASS:-}" ]]; then
     DB_PASS="$(cat "${DB_PASS_FILE}")"

@@ -42,7 +42,7 @@ else
     echo "   -> Secrets directory exists. Skipping."
 fi
 
-# 3. Generate Secret Files (Idempotent: Won't overwrite existing)
+# random_hex generates a hex string of length equal to the given number of bytes, using openssl if available, falling back to /dev/urandom, and finally to a timestamp if neither is available.
 random_hex() {
     local bytes=$1
     if command -v openssl >/dev/null 2>&1; then
@@ -54,6 +54,7 @@ random_hex() {
     fi
 }
 
+# generate_secret writes a random hex secret to SECRETS_DIR/<filename> if that file does not already exist; the optional second argument sets the byte length of the secret (default 32).
 generate_secret() {
     local filename=$1
     local bytes=${2:-32}

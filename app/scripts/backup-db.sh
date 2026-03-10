@@ -29,6 +29,7 @@ mkdir -p "$BACKUP_DIR"
 
 require_command pg_dump
 
+# run_pg_dump_direct performs a PostgreSQL dump over a direct TCP connection, sourcing the password from DB_PASS, DB_PASS_FILE, or APP_DIR/secrets/db_pass.txt, and writes a custom-format dump to BACKUP_PATH.
 run_pg_dump_direct() {
   if [[ -n "${DB_PASS_FILE:-}" ]] && [[ -z "${DB_PASS:-}" ]]; then
     DB_PASS="$(cat "${DB_PASS_FILE}")"

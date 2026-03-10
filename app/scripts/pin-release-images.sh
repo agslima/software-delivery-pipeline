@@ -18,6 +18,7 @@ require_command() {
 
 require_command docker
 
+# resolve_digest resolves a Docker image reference to its repository digest by pulling and inspecting the image and echoes the resolved digest; on failure it prints an error to stderr and exits with status 1.
 resolve_digest() {
   local image=$1
   local digest

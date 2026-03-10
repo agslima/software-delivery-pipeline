@@ -95,6 +95,7 @@ PY
 RESP_BODY=""
 RESP_STATUS=""
 
+# request sends an HTTP request to BASE_URL+path with the given HTTP method, optional JSON body, and optional Bearer token; it sets RESP_BODY to the response body and RESP_STATUS to the HTTP status code.
 request() {
   local method="$1"
   local path="$2"
@@ -115,6 +116,7 @@ request() {
   RESP_BODY=$(echo "$resp" | sed '$d')
 }
 
+# assert_status compares RESP_STATUS to the expected HTTP status and, if they differ, prints an error message and response body then exits with status 1.
 assert_status() {
   local expected="$1"
   if [[ "$RESP_STATUS" != "$expected" ]]; then
