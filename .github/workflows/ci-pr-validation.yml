@@ -94,7 +94,7 @@ jobs:
         if: matrix.service == 'backend'
         uses: kyverno/action-install-cli@fcee92fca5c883169ef9927acf543e0b5fc58289 # v0.2.0
         with:
-          release: 'v1.13.2'
+          release: 'v1.9.5'
           verify: true
 
       - name: Run Kyverno Policy Tests
