@@ -73,6 +73,17 @@ jobs:
 
       - name: Set Variables + Compose Secrets (file-based)
         working-directory: app
+        env:
+          ADMIN_USER_VALUE: ${{ vars.ADMIN_USER }}
+          DB_USER_VALUE: ${{ vars.DB_USER }}
+          DB_NAME_VALUE: ${{ vars.DB_NAME }}
+          ADMIN_PASS_VALUE: ${{ secrets.ADMIN_PASS }}
+          DB_PASS_VALUE: ${{ secrets.DB_PASS }}
+          JWT_SECRET_VALUE: ${{ secrets.JWT_SECRET }}
+          DATA_ENCRYPTION_KEY_VALUE: ${{ secrets.DATA_ENCRYPTION_KEY }}
+          STEP_COMPOSE_PROJECT_NAME: ${{ env.COMPOSE_PROJECT_NAME }}
+          STEP_SEED_ADMIN_EMAIL: ${{ vars.ZAP_LOGIN_EMAIL }}
+          STEP_SEED_DEFAULT_PASSWORD: ${{ secrets.ZAP_LOGIN_PASSWORD }}
         run: |
           set -euo pipefail
 
@@ -83,14 +94,6 @@ jobs:
           rm -f "$ENV_FILE"
           rm -rf "$SECRETS_PATH"
           mkdir -p "$SECRETS_PATH"
-
-          ADMIN_USER_VALUE="${{ vars.ADMIN_USER }}"
-          DB_USER_VALUE="${{ vars.DB_USER }}"
-          DB_NAME_VALUE="${{ vars.DB_NAME }}"
-          ADMIN_PASS_VALUE="${{ secrets.ADMIN_PASS }}"
-          DB_PASS_VALUE="${{ secrets.DB_PASS }}"
-          JWT_SECRET_VALUE="${{ secrets.JWT_SECRET }}"
-          DATA_ENCRYPTION_KEY_VALUE="${{ secrets.DATA_ENCRYPTION_KEY }}"
 
           [ -n "$ADMIN_USER_VALUE" ] || ADMIN_USER_VALUE="admin"
           [ -n "$DB_USER_VALUE" ] || DB_USER_VALUE="postgres"
@@ -113,10 +116,10 @@ jobs:
             echo "DB_PASS=${DB_PASS_VALUE}"
             echo "JWT_SECRET=${JWT_SECRET_VALUE}"
             echo "DATA_ENCRYPTION_KEY=${DATA_ENCRYPTION_KEY_VALUE}"
-            echo "COMPOSE_PROJECT_NAME=${{ env.COMPOSE_PROJECT_NAME }}"
+            echo "COMPOSE_PROJECT_NAME=${STEP_COMPOSE_PROJECT_NAME}"
             echo "SECRETS_PATH=${SECRETS_PATH}"
-            echo "SEED_ADMIN_EMAIL=${{ vars.ZAP_LOGIN_EMAIL }}"
-            echo "SEED_DEFAULT_PASSWORD=${{ secrets.ZAP_LOGIN_PASSWORD }}"
+            echo "SEED_ADMIN_EMAIL=${STEP_SEED_ADMIN_EMAIL}"
+            echo "SEED_DEFAULT_PASSWORD=${STEP_SEED_DEFAULT_PASSWORD}"
           } >> "$ENV_FILE"
           chmod 600 "$ENV_FILE"
 
@@ -269,7 +272,7 @@ jobs:
           AUTH_HTTP_CODE=""
           RESP=""
           for attempt in 1 2 3 4 5; do
-            RESP="$(curl -sS -X POST "${LOGIN_URL}" -H "Content-Type: application/json" --data "$LOGIN_PAYLOAD" -w $'\n%{http_code}')"
+            RESP="$(curl -sS --connect-timeout 5 --max-time 20 -X POST "${LOGIN_URL}" -H "Content-Type: application/json" --data "$LOGIN_PAYLOAD" -w $'\n%{http_code}')"
             AUTH_HTTP_CODE="$(printf '%s' "$RESP" | tail -n 1)"
             RESP="$(printf '%s' "$RESP" | sed '$d')"
 
@@ -315,7 +318,7 @@ jobs:
           echo "DAST_AUTH_ASSERTION_PASSED=0" >> "$GITHUB_ENV"
 
           if [ -n "${AUTH_VERIFY_URL}" ]; then
-            curl -fsS -o /dev/null -H "Authorization: Bearer ${TOKEN}" "${AUTH_VERIFY_URL}"
+            curl -fsS --connect-timeout 5 --max-time 20 -o /dev/null -H "Authorization: Bearer ${TOKEN}" "${AUTH_VERIFY_URL}"
             echo "DAST_AUTH_ASSERTION_PASSED=1" >> "$GITHUB_ENV"
             echo "✅ Auth verification passed"
           else
@@ -449,7 +452,7 @@ jobs:
           AUTH_HTTP_CODE=""
           RESP=""
           for attempt in 1 2 3 4 5; do
-            RESP="$(curl -sS -X POST "${LOGIN_URL}" \
+            RESP="$(curl -sS --connect-timeout 5 --max-time 20 -X POST "${LOGIN_URL}" \
               -H "Content-Type: application/json" \
               --data "$LOGIN_PAYLOAD" \
               -w $'\n%{http_code}')"
@@ -494,7 +497,7 @@ jobs:
           echo "ZAP_AUTH_TOKEN=${TOKEN}" >> "$GITHUB_ENV"
 
           if [ -n "${AUTH_VERIFY_URL}" ]; then
-            curl -fsS -o /dev/null -H "Authorization: Bearer ${TOKEN}" "${AUTH_VERIFY_URL}"
+            curl -fsS --connect-timeout 5 --max-time 20 -o /dev/null -H "Authorization: Bearer ${TOKEN}" "${AUTH_VERIFY_URL}"
             echo "✅ Auth refresh verification passed"
           fi
 
