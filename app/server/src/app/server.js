@@ -1,3 +1,4 @@
+const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const createApp = require('./createApp');
@@ -7,21 +8,32 @@ const db = require('../infra/db/knex');
 
 const app = createApp();
 
-if (!env.TLS_CERT_PATH || !env.TLS_KEY_PATH) {
-  logger.error('TLS_CERT_PATH and TLS_KEY_PATH must be set. Refusing to start without HTTPS.');
-  process.exit(1);
-}
+const shouldUseTls = env.ENFORCE_TLS || (env.TLS_CERT_PATH && env.TLS_KEY_PATH);
 
-const tlsOptions = {
-  // eslint-disable-next-line security/detect-non-literal-fs-filename
-  cert: fs.readFileSync(env.TLS_CERT_PATH),
-  // eslint-disable-next-line security/detect-non-literal-fs-filename
-  key: fs.readFileSync(env.TLS_KEY_PATH),
-  minVersion: 'TLSv1.2',
+const createServer = () => {
+  if (!shouldUseTls) {
+    logger.info({ tls: false }, 'TLS not configured; starting HTTP server');
+    return http.createServer(app);
+  }
+
+  if (!env.TLS_CERT_PATH || !env.TLS_KEY_PATH) {
+    logger.error('TLS_CERT_PATH and TLS_KEY_PATH must be set when TLS is enforced.');
+    process.exit(1);
+  }
+
+  const tlsOptions = {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename
+    cert: fs.readFileSync(env.TLS_CERT_PATH),
+    // eslint-disable-next-line security/detect-non-literal-fs-filename
+    key: fs.readFileSync(env.TLS_KEY_PATH),
+    minVersion: 'TLSv1.2',
+  };
+
+  logger.info({ tls: true }, 'TLS enabled for API server');
+  return https.createServer(tlsOptions, app);
 };
 
-const server = https.createServer(tlsOptions, app);
-logger.info({ tls: true }, 'TLS enabled for API server');
+const server = createServer();
 
 server.listen(env.PORT, '0.0.0.0', () => {
   logger.info({ port: env.PORT, env: env.NODE_ENV }, 'Server started');

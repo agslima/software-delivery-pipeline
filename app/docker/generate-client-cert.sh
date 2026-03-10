@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 
-CERT_DIR="/etc/nginx/certs"
+CERT_DIR="${NGINX_CERT_DIR:-/tmp/nginx-certs}"
 CERT_FILE="${CERT_DIR}/tls.crt"
 KEY_FILE="${CERT_DIR}/tls.key"
 
