@@ -23,7 +23,7 @@ resolve_digest() {
   local digest
   docker pull "$image" >/dev/null
   digest=$(docker inspect --format='{{index .RepoDigests 0}}' "$image")
-  if [ -z "$digest" ]; then
+  if [[ -z "$digest" ]]; then
     echo "Failed to resolve digest for $image" >&2
     exit 1
   fi

@@ -35,7 +35,7 @@ echo "🔧 Initializing Local Development Environment..."
 echo "   -> App Directory detected: ${APP_DIR}"
 
 # 2. Create Secrets Directory
-if [ ! -d "$SECRETS_DIR" ]; then
+if [[ ! -d "$SECRETS_DIR" ]]; then
     echo "   -> Creating secrets directory: secrets/"
     mkdir -p "$SECRETS_DIR"
 else
@@ -47,7 +47,7 @@ random_hex() {
     local bytes=$1
     if command -v openssl >/dev/null 2>&1; then
         openssl rand -hex "$bytes"
-    elif [ -r /dev/urandom ]; then
+    elif [[ -r /dev/urandom ]]; then
         head -c "$bytes" /dev/urandom | od -An -tx1 | tr -d ' \n'
     else
         date +%s%N
@@ -59,7 +59,7 @@ generate_secret() {
     local bytes=${2:-32}
     local filepath="${SECRETS_DIR}/${filename}"
 
-    if [ ! -f "$filepath" ]; then
+    if [[ ! -f "$filepath" ]]; then
         echo "   -> Generating secret: ${filename}"
         printf "%s" "$(random_hex "$bytes")" > "$filepath"
     else
@@ -74,7 +74,7 @@ generate_secret "jwt_secret.txt" 32
 generate_secret "data_encryption_key.txt" 32
 
 # 4. Generate .env File
-if [ ! -f "$ENV_FILE" ]; then
+if [[ ! -f "$ENV_FILE" ]]; then
     echo "   -> Creating default .env file..."
     cat <<EOF > "$ENV_FILE"
 # Local Development Environment Variables
