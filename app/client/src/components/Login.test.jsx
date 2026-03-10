@@ -63,4 +63,44 @@ describe('Login Component', () => {
       expect(screen.getByText(/incorrect username or password/i)).toBeInTheDocument();
     });
   });
+
+  it('shows network error when backend is unreachable', async () => {
+    const user = userEvent.setup();
+    const mockLogin = vi.fn(() => Promise.reject(new Error('NETWORK_ERROR')));
+    render(<Login onLogin={mockLogin} />);
+
+    await user.type(screen.getByLabelText(/username/i), buildTestUser('network-user'));
+    await user.type(screen.getByLabelText(/password/i), buildTestPassword('network-pwd'));
+    await user.click(screen.getByRole('button', { name: /secure login/i }));
+
+    expect(await screen.findByText(/cannot reach the server/i)).toBeInTheDocument();
+  });
+
+  it('shows fallback error for unknown failures', async () => {
+    const user = userEvent.setup();
+    const mockLogin = vi.fn(() => Promise.reject(new Error('SERVER_ERROR')));
+    render(<Login onLogin={mockLogin} />);
+
+    await user.type(screen.getByLabelText(/username/i), buildTestUser('fallback-user'));
+    await user.type(screen.getByLabelText(/password/i), buildTestPassword('fallback-pwd'));
+    await user.click(screen.getByRole('button', { name: /secure login/i }));
+
+    expect(await screen.findByText(/something went wrong/i)).toBeInTheDocument();
+  });
+
+  it('submits credentials to onLogin on success', async () => {
+    const user = userEvent.setup();
+    const mockLogin = vi.fn(() => Promise.resolve());
+    render(<Login onLogin={mockLogin} />);
+    const username = buildTestUser('success');
+    const password = buildTestPassword('success');
+
+    await user.type(screen.getByLabelText(/username/i), username);
+    await user.type(screen.getByLabelText(/password/i), password);
+    await user.click(screen.getByRole('button', { name: /secure login/i }));
+
+    await waitFor(() => {
+      expect(mockLogin).toHaveBeenCalledWith(username, password);
+    });
+  });
 });

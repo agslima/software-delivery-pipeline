@@ -11,14 +11,14 @@ ACTION="${1:-up}"
 generate_secret() {
   if command -v openssl >/dev/null 2>&1; then
     openssl rand -hex 16
-  elif [ -r /dev/urandom ]; then
+  elif [[ -r /dev/urandom ]]; then
     head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n'
   else
     date +%s%N
   fi
 }
 
-if [ -z "${TEST_DB_PASS:-}" ]; then
+if [[ -z "${TEST_DB_PASS:-}" ]]; then
   export TEST_DB_PASS
   TEST_DB_PASS="$(generate_secret)"
 fi

@@ -22,12 +22,12 @@ require_command() {
   fi
 }
 
-if [ -z "$BACKUP_FILE" ]; then
+if [[ -z "$BACKUP_FILE" ]]; then
   echo "Usage: $0 /path/to/backup.dump[.enc]" >&2
   exit 1
 fi
 
-if [ "${CONFIRM_RESTORE:-false}" != "true" ]; then
+if [[ "${CONFIRM_RESTORE:-false}" != "true" ]]; then
   echo "Refusing to restore without CONFIRM_RESTORE=true" >&2
   exit 1
 fi
@@ -35,7 +35,7 @@ fi
 TEMP_FILE=""
 
 cleanup() {
-  if [ -n "$TEMP_FILE" ] && [ -f "$TEMP_FILE" ]; then
+  if [[ -n "$TEMP_FILE" && -f "$TEMP_FILE" ]]; then
     rm -f "$TEMP_FILE"
   fi
 }
@@ -43,11 +43,11 @@ cleanup() {
 trap cleanup EXIT
 
 if [[ "$BACKUP_FILE" == *.enc ]]; then
-  if [ -n "${BACKUP_ENCRYPTION_KEY_FILE:-}" ] && [ -z "${BACKUP_ENCRYPTION_KEY:-}" ]; then
+  if [[ -n "${BACKUP_ENCRYPTION_KEY_FILE:-}" && -z "${BACKUP_ENCRYPTION_KEY:-}" ]]; then
     BACKUP_ENCRYPTION_KEY="$(cat "${BACKUP_ENCRYPTION_KEY_FILE}")"
   fi
 
-  if [ -z "${BACKUP_ENCRYPTION_KEY:-}" ]; then
+  if [[ -z "${BACKUP_ENCRYPTION_KEY:-}" ]]; then
     echo "BACKUP_ENCRYPTION_KEY is required to decrypt backup." >&2
     exit 1
   fi
@@ -64,13 +64,13 @@ fi
 require_command pg_restore
 
 restore_direct() {
-  if [ -n "${DB_PASS_FILE:-}" ] && [ -z "${DB_PASS:-}" ]; then
+  if [[ -n "${DB_PASS_FILE:-}" && -z "${DB_PASS:-}" ]]; then
     DB_PASS="$(cat "${DB_PASS_FILE}")"
-  elif [ -z "${DB_PASS:-}" ] && [ -f "${APP_DIR}/secrets/db_pass.txt" ]; then
+  elif [[ -z "${DB_PASS:-}" && -f "${APP_DIR}/secrets/db_pass.txt" ]]; then
     DB_PASS="$(cat "${APP_DIR}/secrets/db_pass.txt")"
   fi
 
-  if [ -z "${DB_PASS:-}" ]; then
+  if [[ -z "${DB_PASS:-}" ]]; then
     echo "DB_PASS or DB_PASS_FILE is required for direct mode." >&2
     exit 1
   fi
@@ -87,7 +87,7 @@ restore_compose() {
 
 printf "Restoring backup %s into %s...\n" "$BACKUP_FILE" "$DB_NAME"
 
-if [ "$MODE" = "direct" ]; then
+if [[ "$MODE" = "direct" ]]; then
   restore_direct
 else
   restore_compose
