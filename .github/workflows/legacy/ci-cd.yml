@@ -165,7 +165,7 @@ jobs:
       - name: Install Kyverno CLI
         uses: kyverno/action-install-cli@v0.2.0
         with:
-          release: 'v1.13.2'
+          release: 'v1.17.1'
           verify: true        
       
       - name: Kyverno Policy Unit Tests

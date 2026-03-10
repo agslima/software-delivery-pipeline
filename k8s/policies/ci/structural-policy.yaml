@@ -16,16 +16,14 @@ spec:
         resources:
           kinds: ["Deployment", "Pod"]
       validate:
-        message: "Images must be pinned by digest (@sha256:...)"
-        anyPattern:
-          - spec:
-              template:
-                spec:
-                  containers:
-                    - image: "*@sha256:*"
-          - spec:
-              containers:
-                - image: "*@sha256:*"
+        message: "Every container image must be pinned by digest (@sha256:...)"
+        foreach:
+          - list: "request.object.spec.containers || `[]`"
+            pattern:
+              image: "*@sha256:*"
+          - list: "request.object.spec.template.spec.containers || `[]`"
+            pattern:
+              image: "*@sha256:*"
 
     # 2) Ban latest tag explicitly
     - name: ban-latest-tag
@@ -33,16 +31,14 @@ spec:
         resources:
           kinds: ["Deployment", "Pod"]
       validate:
-        message: "The ':latest' tag is not allowed"
-        anyPattern:
-          - spec:
-              template:
-                spec:
-                  containers:
-                    - image: "!*:latest"
-          - spec:
-              containers:
-                - image: "!*:latest"
+        message: "Every container image must not use the ':latest' tag"
+        foreach:
+          - list: "request.object.spec.containers || `[]`"
+            pattern:
+              image: "!*:latest"
+          - list: "request.object.spec.template.spec.containers || `[]`"
+            pattern:
+              image: "!*:latest"
 
     # 3) Require basic container hardening
     - name: require-container-hardening
