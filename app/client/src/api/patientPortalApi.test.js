@@ -107,6 +107,24 @@ describe('patientPortalApi', () => {
 
     fetch.mockResolvedValueOnce({ ok: false, status: 404 });
     await expect(getMyPrescription('rx-1', 'jwt')).rejects.toMatchObject({ message: 'NOT_FOUND' });
+
+    const prescription = {
+      id: 'rx-1',
+      status: 'active',
+      notes: 'Take with meals.',
+    };
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: vi.fn().mockResolvedValue(prescription),
+    });
+    await expect(getMyPrescription('rx-1', 'jwt')).resolves.toEqual(prescription);
+    expect(fetch).toHaveBeenLastCalledWith(
+      expect.stringContaining('/rx-1'),
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer jwt' }),
+      }),
+    );
   });
 
   it('maps MFA status/enroll/disable success and auth failures', async () => {

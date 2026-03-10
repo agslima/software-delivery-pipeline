@@ -8,11 +8,11 @@ const db = require('../infra/db/knex');
 
 const app = createApp();
 
-const shouldUseTls = env.ENFORCE_TLS || (env.TLS_CERT_PATH && env.TLS_KEY_PATH);
+const shouldUseTls = env.ENFORCE_TLS === true || env.ENFORCE_TLS === 'true';
 
 const createServer = () => {
   if (!shouldUseTls) {
-    logger.info({ tls: false }, 'TLS not configured; starting HTTP server');
+    logger.info({ tls: false }, 'TLS not enforced; starting HTTP server');
     return http.createServer(app);
   }
 

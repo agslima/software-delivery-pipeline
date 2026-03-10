@@ -100,20 +100,6 @@ exports.revoke = async (req, res, next) => {
         },
       });
     }
-    if (!payload.revoked) {
-      await safeAudit(auditService, {
-        ...auditContext,
-        actorUserId: payload.userId || null,
-        eventType: 'refresh_token_revoke_failed',
-        subjectType: 'user',
-        subjectId: payload.userId || null,
-        redactionMode: auditConfig.piiRedaction,
-        metadata: {
-          ...auditContext.metadata,
-          reason: payload.reason || 'UNKNOWN',
-        },
-      });
-    }
     return res.status(200).json({ revoked: payload.revoked });
   } catch (err) {
     const auditContext = buildAuditContext(req);

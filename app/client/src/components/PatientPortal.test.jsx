@@ -76,19 +76,41 @@ describe('PatientPortal', () => {
     expect(onLogout).toHaveBeenCalled();
   });
 
-  it('supports MFA enrollment and verification form submission', async () => {
+  it('shows MFA enroll UI and invokes enrollment action when MFA is not configured', async () => {
     const user = userEvent.setup();
     const onEnrollMfa = vi.fn();
+
+    render(
+      <PatientPortal
+        {...baseProps}
+        mfaStatus={{ configured: false, enabled: false }}
+        onEnrollMfa={onEnrollMfa}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: /enable mfa/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /enable mfa/i }));
+    expect(onEnrollMfa).toHaveBeenCalled();
+  });
+
+  it('shows pending MFA verification UI and submits the verification code', async () => {
+    const user = userEvent.setup();
     const onVerifyMfaNow = vi.fn();
 
     render(
       <PatientPortal
         {...baseProps}
         mfaStatus={{ configured: true, enabled: false }}
-        onEnrollMfa={onEnrollMfa}
+        mfaEnrollData={{ qrCodeDataUrl: 'data:image/png;base64,abc', secret: buildFixtureMfaSecret() }}
         onVerifyMfaNow={onVerifyMfaNow}
       />,
     );
+
+    expect(screen.getByAltText(/mfa qr code/i)).toBeInTheDocument();
+    expect(screen.getByText(/^MFA-/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/verification code/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /verify now/i })).toBeInTheDocument();
 
     await user.type(screen.getByLabelText(/verification code/i), '123456');
     await user.click(screen.getByRole('button', { name: /verify now/i }));
@@ -96,7 +118,7 @@ describe('PatientPortal', () => {
     expect(onVerifyMfaNow).toHaveBeenCalledWith('123456');
   });
 
-  it('shows MFA enrollment QR details and disable action when enabled', async () => {
+  it('shows disable MFA action when MFA is enabled', async () => {
     const user = userEvent.setup();
     const onDisableMfa = vi.fn();
 
@@ -104,13 +126,10 @@ describe('PatientPortal', () => {
       <PatientPortal
         {...baseProps}
         mfaStatus={{ configured: true, enabled: true }}
-        mfaEnrollData={{ qrCodeDataUrl: 'data:image/png;base64,abc', secret: buildFixtureMfaSecret() }}
+        mfaEnrollData={null}
         onDisableMfa={onDisableMfa}
       />,
     );
-
-    expect(screen.getByAltText(/mfa qr code/i)).toBeInTheDocument();
-    expect(screen.getByText(/^MFA-/)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /disable mfa/i }));
     expect(onDisableMfa).toHaveBeenCalled();

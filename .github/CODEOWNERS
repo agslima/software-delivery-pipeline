@@ -4,6 +4,8 @@
 
 # 1. Pipeline Integrity
 .github/workflows/    @agslima
+.github/rulesets/     `@agslima`
+.github/CODEOWNERS    `@agslima`
 
 # 2. Policy Definitions
 k8s/policies/         @agslima

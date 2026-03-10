@@ -138,6 +138,14 @@ describe('Unit: core/v2 services', () => {
 
       const result = await service.create({ doctorUserId: 'user-1', patientId: 'pat-1', facilityId: 'fac-1' });
 
+      expect(encountersRepository.findByDoctorPatient).toHaveBeenCalledWith({
+        doctorId: 'doc-1',
+        patientId: 'pat-1',
+        status: 'open',
+      });
+      expect(encountersRepository.findByDoctorPatient.mock.invocationCallOrder[0]).toBeLessThan(
+        encountersRepository.create.mock.invocationCallOrder[0]
+      );
       expect(encountersRepository.create).toHaveBeenCalledWith(
         expect.objectContaining({
           patient_id: 'pat-1',

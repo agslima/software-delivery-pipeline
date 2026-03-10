@@ -276,7 +276,20 @@ describe('Unit: infra v2 targeted repositories', () => {
       ]);
       expect(listQuery.andWhere).toHaveBeenCalledWith('p.doctor_id', 'doc-2');
 
-      jest.spyOn(repo, 'findById').mockResolvedValue({ id: 'rx-new' });
+      const persistedCreate = {
+        id: 'rx-new',
+        notes: 'enc:new-note',
+        items: [{ medicationId: 'med-9', instructions: 'enc:take daily' }],
+      };
+      const persistedUpdate = {
+        id: 'rx-1',
+        notes: 'enc:updated-note',
+        items: [{ medicationId: 'med-9', instructions: 'enc:take daily' }],
+      };
+      const findByIdSpy = jest.spyOn(repo, 'findById')
+        .mockResolvedValueOnce(persistedCreate)
+        .mockResolvedValueOnce(persistedUpdate);
+
       await expect(repo.create({
         patientId: 'pat-3',
         doctorId: 'doc-3',
@@ -284,9 +297,13 @@ describe('Unit: infra v2 targeted repositories', () => {
         status: 'active',
         notes: 'new-note',
         items: [{ medicationId: 'med-9', instructions: 'take daily' }],
-      })).resolves.toEqual({ id: 'rx-new' });
+      })).resolves.toEqual(persistedCreate);
 
-      await expect(repo.update('rx-1', { status: 'cancelled', notes: 'updated-note' })).resolves.toEqual({ id: 'rx-new' });
+      expect(findByIdSpy).toHaveBeenNthCalledWith(1, 'rx-new', { trx: expect.any(Object) });
+
+      await expect(repo.update('rx-1', { status: 'cancelled', notes: 'updated-note' })).resolves.toEqual(persistedUpdate);
+
+      expect(findByIdSpy).toHaveBeenNthCalledWith(2, 'rx-1');
       expect(encrypt).toHaveBeenCalledWith('new-note');
       expect(encrypt).toHaveBeenCalledWith('take daily');
       expect(encrypt).toHaveBeenCalledWith('updated-note');

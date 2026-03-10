@@ -156,12 +156,17 @@ describe('App Integration', () => {
     const user = userEvent.setup();
     const email = buildTestEmail('expired');
     const password = buildTestPassword();
+    const token = 'expired-token';
+    let rejectPrescriptions;
+    const prescriptionsRequest = new Promise((_, reject) => {
+      rejectPrescriptions = reject;
+    });
 
     api.loginPatient.mockResolvedValue({
-      token: 'expired-token',
+      token,
       user: { id: 'patient-3', email, role: 'patient', mfaEnabled: false },
     });
-    api.getMyPrescriptions.mockRejectedValue(new Error('SESSION_EXPIRED'));
+    api.getMyPrescriptions.mockReturnValue(prescriptionsRequest);
 
     render(<App />);
 
@@ -169,7 +174,25 @@ describe('App Integration', () => {
     await user.type(screen.getByLabelText(/password/i), password);
     await user.click(screen.getByRole('button', { name: /secure login/i }));
 
-    expect(await screen.findByText(/patient prescription portal/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(api.loginPatient).toHaveBeenCalledWith(email, password);
+      expect(api.getMyPrescriptions).toHaveBeenCalledWith(token);
+      expect(sessionStorage.getItem('patient_portal_session')).toEqual(
+        JSON.stringify({
+          token,
+          user: { id: 'patient-3', email, role: 'patient', mfaEnabled: false },
+        })
+      );
+    });
+
+    rejectPrescriptions(new Error('SESSION_EXPIRED'));
+
+    await waitFor(() => {
+      expect(sessionStorage.getItem('patient_portal_session')).toBeNull();
+      expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /secure login/i })).toBeInTheDocument();
+    });
   });
 
   it('shows access-only view for non-patient users and supports logout', async () => {

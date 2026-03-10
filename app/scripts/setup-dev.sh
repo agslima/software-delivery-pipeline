@@ -41,6 +41,7 @@ if [[ ! -d "$SECRETS_DIR" ]]; then
 else
     echo "   -> Secrets directory exists. Skipping."
 fi
+chmod 700 "$SECRETS_DIR"
 
 # random_hex generates a hex string of length equal to the given number of bytes, using openssl if available, falling back to /dev/urandom, and finally to a timestamp if neither is available.
 random_hex() {
@@ -66,6 +67,7 @@ generate_secret() {
     else
         echo "   -> Secret exists: ${filename} (Skipping)"
     fi
+    chmod 600 "$filepath"
 }
 
 # Generate random local secrets
@@ -99,6 +101,7 @@ ACCESS_TOKEN_TTL_MINUTES=15
 
 # TLS enforcement (optional)
 ENFORCE_TLS=false
+TRUST_PROXY=
 
 # Encryption key rotation (optional)
 DATA_ENCRYPTION_KEY_ID=v1

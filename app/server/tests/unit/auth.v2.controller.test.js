@@ -142,7 +142,7 @@ describe('Unit: api/v2/auth.controller', () => {
     const error = { code: 'INVALID_CREDENTIALS' };
     const { controller, mocks } = loadController({ loginError: error });
 
-    const req = { body: { email: buildTestEmail('bad') } };
+    const req = { body: { email: buildTestEmail('bad'), password: 'secret' } };
     const next = jest.fn();
 
     await controller.login(req, { status: jest.fn() }, next);
@@ -168,6 +168,19 @@ describe('Unit: api/v2/auth.controller', () => {
       expect.objectContaining({ eventType: 'refresh_token_revoked', subjectId: 'user-1' })
     );
     expect(json).toHaveBeenCalledWith({ revoked: true });
+  });
+
+  it('revoke returns revoked=false without emitting revoke audit event', async () => {
+    const { controller, mocks } = loadController({ revokeResult: { revoked: false, userId: 'user-1' } });
+    const req = { body: { refreshToken: 'refresh-1' }, user: { sub: 'user-1' } };
+    const json = jest.fn();
+    const res = { status: jest.fn(() => ({ json })) };
+
+    await controller.revoke(req, res, jest.fn());
+
+    expect(mocks.revoke).toHaveBeenCalledWith('refresh-1');
+    expect(mocks.safeAudit).not.toHaveBeenCalled();
+    expect(json).toHaveBeenCalledWith({ revoked: false });
   });
 
   it('mfaStatus returns unauthorized when user is missing', async () => {

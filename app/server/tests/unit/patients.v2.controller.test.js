@@ -95,6 +95,11 @@ describe('Unit: api/v2/patients.controller', () => {
       expect.any(Object),
       expect.objectContaining({ eventType: 'patient_search_result', subjectType: 'patient', subjectId: 'pat-1' })
     );
+    expect(mocks.safeAudit).toHaveBeenNthCalledWith(
+      2,
+      expect.any(Object),
+      expect.objectContaining({ eventType: 'patient_search_result', subjectType: 'patient', subjectId: 'pat-2' })
+    );
     expect(json).toHaveBeenCalledWith({ results: searchResult });
   });
 

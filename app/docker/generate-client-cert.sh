@@ -14,5 +14,6 @@ umask 077
 
 openssl req -x509 -nodes -newkey rsa:2048 -days 3650 \
   -subj "/CN=localhost" \
+  -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" \
   -keyout "$KEY_FILE" \
   -out "$CERT_FILE" >/dev/null 2>&1

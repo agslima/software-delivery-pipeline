@@ -42,22 +42,37 @@ const migrateLegacyPrescriptions = async (knex) => {
     const doctor = row.doctor || {};
     const patient = row.patient || {};
 
-    const doctorEmail = doctor.email || `legacy-${randomUUID()}@example.com`;
+    const doctorEmail = doctor.email || null;
     const patientEmail = patient.email || `legacy-${randomUUID()}@example.com`;
-    const doctorLicense = doctor.license || `legacy-${randomUUID()}`;
+    const doctorLicense = doctor.license || null;
     const legacyPasswordHash = await bcrypt.hash(randomUUID(), 10);
 
-    let doctorUser = await v2('users').where({ email: doctorEmail }).first();
+    let doctorRecord = null;
+    if (doctorLicense) {
+      doctorRecord = await v2('doctors').where({ license_number: doctorLicense }).first();
+    }
+    if (!doctorRecord && doctorEmail) {
+      doctorRecord = await v2('doctors').where({ email: doctorEmail }).first();
+    }
+
+    let doctorUser = null;
+    if (doctorRecord?.user_id) {
+      doctorUser = await v2('users').where({ id: doctorRecord.user_id }).first();
+    }
+    if (!doctorUser && doctorEmail) {
+      doctorUser = await v2('users').where({ email: doctorEmail }).first();
+    }
     if (!doctorUser) {
       const doctorUserId = randomUUID();
+      const resolvedDoctorEmail = doctorEmail || `legacy-${randomUUID()}@example.com`;
       await v2('users').insert({
         id: doctorUserId,
-        email: doctorEmail,
+        email: resolvedDoctorEmail,
         password_hash: legacyPasswordHash,
         role: 'doctor',
         mfa_enabled: false,
       });
-      doctorUser = { id: doctorUserId };
+      doctorUser = { id: doctorUserId, email: resolvedDoctorEmail };
     }
 
     let patientUser = await v2('users').where({ email: patientEmail }).first();
@@ -73,20 +88,21 @@ const migrateLegacyPrescriptions = async (knex) => {
       patientUser = { id: patientUserId };
     }
 
-    let doctorRecord = await v2('doctors').where({ license_number: doctorLicense }).first();
     if (!doctorRecord) {
       const doctorId = randomUUID();
+      const resolvedDoctorEmail = doctorEmail || doctorUser.email || `legacy-${randomUUID()}@example.com`;
+      const resolvedDoctorLicense = doctorLicense || `legacy-${randomUUID()}`;
       const doctorName = splitName(doctor.name);
       await v2('doctors').insert({
         id: doctorId,
         user_id: doctorUser.id,
         first_name: doctorName.firstName,
         last_name: doctorName.lastName,
-        license_number: doctorLicense,
+        license_number: resolvedDoctorLicense,
         phone: doctor.phone || null,
-        email: doctorEmail,
+        email: resolvedDoctorEmail,
       });
-      doctorRecord = { id: doctorId };
+      doctorRecord = { id: doctorId, user_id: doctorUser.id };
     }
 
     let patientRecord = await v2('patients').where({ user_id: patientUser.id }).first();

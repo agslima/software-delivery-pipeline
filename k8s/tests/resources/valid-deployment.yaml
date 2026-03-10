@@ -18,6 +18,9 @@ spec:
           image: docker.io/agslima/app-stayheathy-backend@sha256:1111111111111111111111111111111111111111111111111111111111111111
           securityContext:
             allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
             readOnlyRootFilesystem: true
             capabilities:
               drop:

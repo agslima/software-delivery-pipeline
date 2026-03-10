@@ -84,6 +84,9 @@ module.exports = async function auth(req, _res, next) {
       return next();
     } catch (err) {
       if (oidcConfig.required) {
+        if (err instanceof AppError) {
+          return next(err);
+        }
         return next(new AppError({ status: 401, code: 'OIDC_REQUIRED', message: 'Unauthorized' }));
       }
       if (err instanceof AppError && err.code !== 'INVALID_TOKEN') {

@@ -125,4 +125,28 @@ describe('Unit: OIDC auth middleware', () => {
     expect(err.name).toBe('AppError');
     expect(err.code).toBe('MFA_REQUIRED');
   });
+
+  it('preserves AppError codes when OIDC is required', async () => {
+    const email = buildTestEmail('doctor');
+    const userId = buildTestId();
+    const { auth } = setup({
+      envOverrides: {
+        OIDC_REQUIRED: 'true',
+      },
+      payload: { sub: 'oidc-sub', email },
+      user: { id: userId, email, role: 'doctor', mfa_enabled: true },
+    });
+
+    const req = buildReq();
+    const res = {};
+    const next = jest.fn();
+
+    await auth(req, res, next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    const err = next.mock.calls[0][0];
+    expect(err).toBeDefined();
+    expect(err.name).toBe('AppError');
+    expect(err.code).toBe('MFA_REQUIRED');
+  });
 });
