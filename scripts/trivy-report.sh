@@ -17,7 +17,9 @@ TRIVY_VERSION="${TRIVY_VERSION:-v0.69.3}"
 
 if ! command -v trivy >/dev/null 2>&1; then
   echo "Installing Trivy ${TRIVY_VERSION}..."
-  curl -sfL "https://raw.githubusercontent.com/aquasecurity/trivy/${TRIVY_VERSION}/contrib/install.sh" \
+  curl --fail --silent --show-error --location \
+    --proto "=https" --proto-redir "=https" \
+    "https://raw.githubusercontent.com/aquasecurity/trivy/${TRIVY_VERSION}/contrib/install.sh" \
     | sh -s -- -b /tmp/trivy-bin "${TRIVY_VERSION}"
   export PATH="/tmp/trivy-bin:$PATH"
 fi

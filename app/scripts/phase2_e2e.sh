@@ -102,10 +102,10 @@ request() {
   local token="${4:-}"
 
   local args=(-s -S -w "\n%{http_code}" -X "$method" "${BASE_URL}${path}")
-  if [ -n "$token" ]; then
+  if [[ -n "$token" ]]; then
     args+=(-H "Authorization: Bearer ${token}")
   fi
-  if [ -n "$data" ]; then
+  if [[ -n "$data" ]]; then
     args+=(-H "Content-Type: application/json" -d "$data")
   fi
 
@@ -117,7 +117,7 @@ request() {
 
 assert_status() {
   local expected="$1"
-  if [ "$RESP_STATUS" != "$expected" ]; then
+  if [[ "$RESP_STATUS" != "$expected" ]]; then
     echo "Expected HTTP $expected, got $RESP_STATUS"
     echo "$RESP_BODY"
     exit 1
@@ -128,7 +128,7 @@ log "Patient login"
 request POST "/api/v2/auth/login" "{\"email\":\"${PATIENT_EMAIL}\",\"password\":\"${PATIENT_PASSWORD}\"}"
 assert_status 200
 MFA_REQUIRED=$(echo "$RESP_BODY" | json_get mfaRequired || true)
-if [ "$MFA_REQUIRED" = "True" ] || [ "$MFA_REQUIRED" = "true" ]; then
+if [[ "$MFA_REQUIRED" = "True" || "$MFA_REQUIRED" = "true" ]]; then
   echo "Patient login requires MFA. This script cannot proceed without a current TOTP code."
   exit 2
 fi
@@ -138,7 +138,7 @@ log "Patient prescriptions list"
 request GET "/api/v2/patient/me/prescriptions" "" "$PATIENT_TOKEN"
 assert_status 200
 FIRST_PRESCRIPTION_ID=$(echo "$RESP_BODY" | json_get prescriptions.0.id || true)
-if [ -n "$FIRST_PRESCRIPTION_ID" ]; then
+if [[ -n "$FIRST_PRESCRIPTION_ID" ]]; then
   log "Patient prescription detail"
   request GET "/api/v2/patient/me/prescriptions/${FIRST_PRESCRIPTION_ID}" "" "$PATIENT_TOKEN"
   assert_status 200
@@ -150,12 +150,12 @@ log "Patient MFA status"
 request GET "/api/v2/auth/mfa/status" "" "$PATIENT_TOKEN"
 assert_status 200
 
-if [ "$ENROLL_MFA" = "1" ]; then
+if [[ "$ENROLL_MFA" = "1" ]]; then
   log "Enroll MFA"
   request POST "/api/v2/auth/mfa/enroll" "{\"label\":\"${PATIENT_EMAIL}\"}" "$PATIENT_TOKEN"
   assert_status 200
   MFA_SECRET=$(echo "$RESP_BODY" | json_get secret)
-  if [ -n "$MFA_SECRET" ]; then
+  if [[ -n "$MFA_SECRET" ]]; then
     CODE=$(totp_code "$MFA_SECRET")
     log "Verify MFA"
     request POST "/api/v2/auth/mfa/verify" "{\"code\":\"${CODE}\"}" "$PATIENT_TOKEN"
@@ -171,7 +171,7 @@ log "Doctor login"
 request POST "/api/v2/auth/login" "{\"email\":\"${DOCTOR_EMAIL}\",\"password\":\"${DOCTOR_PASSWORD}\"}"
 assert_status 200
 DOC_MFA_REQUIRED=$(echo "$RESP_BODY" | json_get mfaRequired || true)
-if [ "$DOC_MFA_REQUIRED" = "True" ] || [ "$DOC_MFA_REQUIRED" = "true" ]; then
+if [[ "$DOC_MFA_REQUIRED" = "True" || "$DOC_MFA_REQUIRED" = "true" ]]; then
   echo "Doctor login requires MFA. This script cannot proceed without a current TOTP code."
   exit 2
 fi
@@ -185,7 +185,7 @@ log "Patient search"
 request GET "/api/v2/patients/search?name=John" "" "$DOCTOR_TOKEN"
 assert_status 200
 PATIENT_ID=$(echo "$RESP_BODY" | json_get results.0.id || true)
-if [ -z "$PATIENT_ID" ]; then
+if [[ -z "$PATIENT_ID" ]]; then
   PATIENT_ID="$DEFAULT_PATIENT_ID"
 fi
 
@@ -197,7 +197,7 @@ log "Medication search"
 request GET "/api/v2/medications?query=Amox" "" "$DOCTOR_TOKEN"
 assert_status 200
 MEDICATION_ID=$(echo "$RESP_BODY" | json_get results.0.id || true)
-if [ -z "$MEDICATION_ID" ]; then
+if [[ -z "$MEDICATION_ID" ]]; then
   MEDICATION_ID="$DEFAULT_MEDICATION_ID"
 fi
 
@@ -211,7 +211,7 @@ request POST "/api/v2/prescriptions" "{\"patientId\":\"${PATIENT_ID}\",\"encount
 assert_status 201
 PRESCRIPTION_ID=$(echo "$RESP_BODY" | json_get id || true)
 
-if [ -n "$PRESCRIPTION_ID" ]; then
+if [[ -n "$PRESCRIPTION_ID" ]]; then
   log "Update prescription"
   request PATCH "/api/v2/prescriptions/${PRESCRIPTION_ID}" "{\"status\":\"completed\"}" "$DOCTOR_TOKEN"
   assert_status 200
@@ -221,7 +221,7 @@ log "Admin login"
 request POST "/api/v2/auth/login" "{\"email\":\"${ADMIN_EMAIL}\",\"password\":\"${ADMIN_PASSWORD}\"}"
 assert_status 200
 ADMIN_MFA_REQUIRED=$(echo "$RESP_BODY" | json_get mfaRequired || true)
-if [ "$ADMIN_MFA_REQUIRED" = "True" ] || [ "$ADMIN_MFA_REQUIRED" = "true" ]; then
+if [[ "$ADMIN_MFA_REQUIRED" = "True" || "$ADMIN_MFA_REQUIRED" = "true" ]]; then
   echo "Admin login requires MFA. This script cannot proceed without a current TOTP code."
   exit 2
 fi

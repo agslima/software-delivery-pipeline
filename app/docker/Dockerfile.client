@@ -45,14 +45,10 @@ RUN apk update && apk upgrade --no-cache \
                 /tmp/uwsgi_temp \
                 /tmp/scgi_temp \
                 /etc/nginx/certs \
-    && openssl req -x509 -nodes -newkey rsa:2048 -days 3650 \
-        -subj "/CN=localhost" \
-        -keyout /etc/nginx/certs/tls.key \
-        -out /etc/nginx/certs/tls.crt \
-    && chmod 600 /etc/nginx/certs/tls.key \
     && chown -R nginx:nginx /tmp /etc/nginx/certs \
-    && apk del openssl \
     && chmod -R 700 /tmp/*
+
+COPY --chown=nginx:nginx --chmod=755 docker/generate-client-cert.sh /docker-entrypoint.d/50-generate-client-cert.sh
 
 USER nginx
 
