@@ -4,7 +4,6 @@ import userEvent from '@testing-library/user-event';
 import App from './App';
 import * as api from './api/patientPortalApi';
 
-// Mock the API module
 vi.mock('./api/patientPortalApi');
 
 const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
@@ -84,14 +83,12 @@ describe('App Integration', () => {
 
     render(<App />);
 
-    // Perform Login
     await user.type(screen.getByLabelText(/email/i), email);
     await user.type(screen.getByLabelText(/password/i), password);
     await user.click(screen.getByRole('button', { name: /secure login/i }));
 
     expect(await screen.findByText(/prescription history/i)).toBeInTheDocument();
 
-    // Verify Data Rendered
     await waitFor(() => {
       expect(screen.getAllByText('Dr. Emily Johnson').length).toBeGreaterThan(0);
     });
@@ -115,9 +112,59 @@ describe('App Integration', () => {
     await user.type(screen.getByLabelText(/password/i), password);
     await user.click(screen.getByRole('button', { name: /secure login/i }));
 
-    // Wait for the error banner
     await waitFor(() => {
       expect(screen.getByText(/unable to load prescriptions/i)).toBeInTheDocument();
     });
+  });
+
+  it('handles MFA-required login and completes MFA verification', async () => {
+    const user = userEvent.setup();
+    const email = buildTestEmail('mfa');
+    const password = buildTestPassword();
+
+    api.loginPatient.mockResolvedValue({
+      mfaRequired: true,
+      mfaToken: 'mfa-token-1',
+      user: { id: 'patient-2', email, role: 'patient', mfaEnabled: true },
+    });
+    api.verifyMfa.mockResolvedValue({ token: 'token-after-mfa' });
+    api.getMyPrescriptions.mockResolvedValue({ prescriptions: [mockSummary] });
+    api.getMyPrescription.mockResolvedValue(mockDetail);
+
+    render(<App />);
+
+    await user.type(screen.getByLabelText(/email/i), email);
+    await user.type(screen.getByLabelText(/password/i), password);
+    await user.click(screen.getByRole('button', { name: /secure login/i }));
+
+    expect(await screen.findByText(/two-factor verification/i)).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText(/verification code/i), '123456');
+    await user.click(screen.getByRole('button', { name: /^verify$/i }));
+
+    await waitFor(() => {
+      expect(api.verifyMfa).toHaveBeenCalledWith('123456', 'mfa-token-1');
+    });
+    expect(await screen.findByText(/prescription history/i)).toBeInTheDocument();
+  });
+
+  it('returns to login when prescriptions call reports SESSION_EXPIRED', async () => {
+    const user = userEvent.setup();
+    const email = buildTestEmail('expired');
+    const password = buildTestPassword();
+
+    api.loginPatient.mockResolvedValue({
+      token: 'expired-token',
+      user: { id: 'patient-3', email, role: 'patient', mfaEnabled: false },
+    });
+    api.getMyPrescriptions.mockRejectedValue(new Error('SESSION_EXPIRED'));
+
+    render(<App />);
+
+    await user.type(screen.getByLabelText(/email/i), email);
+    await user.type(screen.getByLabelText(/password/i), password);
+    await user.click(screen.getByRole('button', { name: /secure login/i }));
+
+    expect(await screen.findByText(/patient prescription portal/i)).toBeInTheDocument();
   });
 });
