@@ -120,6 +120,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Governance Drift Check (docs/workflow refs)
+        run: ./scripts/check-governance-drift.sh
+
       # 1. Secret Scanning
       - name: Secret Scanning (Gitleaks)
         uses: gitleaks/gitleaks-action@v2

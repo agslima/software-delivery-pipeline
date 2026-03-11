@@ -15,6 +15,11 @@
 <!--[![CodeQL](https://github.com/agslima/software-delivery-pipeline/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/agslima/software-delivery-pipeline/actions/workflows/github-code-scanning/codeql)
 [![release](https://img.shields.io/github/v/release/agslima/software-delivery-pipeline?label=Latest%20Verifiable%20Release&color=success)](https://github.com/agslima/software-delivery-pipeline/releases/latest)--> 
 
+## Governance Metadata
+
+- **Last validated (release cadence):** 2026-03-11
+- **Controls matrix:** [`docs/governance.md#readme-claims--controls-matrix`](docs/governance.md#readme-claims--controls-matrix)
+
 ## TL;DR
 
 This repository demonstrates how to design a **governed software delivery system** where:
@@ -25,7 +30,7 @@ This repository demonstrates how to design a **governed software delivery system
 - Governance **cannot be bypassed**, even by developers with write access
 
 > [!NOTE]
-> The application logic is intentionally simple. The value of this repository lies in the **delivery architecture, security controls, and governance model**. For more details about the application, please see the **[`app/README.md`](https://github.com/agslima/software-delivery-pipeline/tree/main/app)**.
+> The application logic is intentionally simple. The value of this repository lies in the **delivery architecture, security controls, and governance model**. For more details about the application, please see the **[`app/readme.md`](https://github.com/agslima/software-delivery-pipeline/blob/main/app/readme.md)**.
 
 ## Project Overview 🛡️
 

@@ -1,7 +1,7 @@
 # Operational Runbook 📖
 
 This runbook documents common failure scenarios, security gate rejections, and operational incidents in the Governed Software Delivery Pipeline.
-Its goal is to provide clear, repeatable response steps so failures are handled consistently, audibly, and without bypassing governance controls.
+Its goal is to provide clear, repeatable response steps so failures are handled consistently, auditably, and without bypassing governance controls.
 
 
 ---
