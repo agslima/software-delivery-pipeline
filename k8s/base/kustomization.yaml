@@ -8,7 +8,7 @@ resources:
   - secrets.example.yaml
 
 images:
-  - name: docker.io/agslima/app-stayheathy-backend
+  - name: docker.io/agslima/app-stayhealthy-backend
     newTag: latest
-  - name: docker.io/agslima/app-stayheathy-frontend
+  - name: docker.io/agslima/app-stayhealthy-frontend
     newTag: latest

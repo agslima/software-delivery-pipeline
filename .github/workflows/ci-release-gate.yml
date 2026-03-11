@@ -67,11 +67,11 @@ jobs:
           - name: backend
             context: app
             file: app/docker/Dockerfile.server
-            image_repo: app-stayheathy-backend
+            image_repo: app-stayhealthy-backend
           - name: frontend
             context: app
             file: app/docker/Dockerfile.client
-            image_repo: app-stayheathy-frontend
+            image_repo: app-stayhealthy-frontend
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
@@ -129,9 +129,9 @@ jobs:
       matrix:
         include:
           - name: backend
-            image_repo: app-stayheathy-backend
+            image_repo: app-stayhealthy-backend
           - name: frontend
-            image_repo: app-stayheathy-frontend
+            image_repo: app-stayhealthy-frontend
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
@@ -264,8 +264,8 @@ jobs:
           BACKEND_DIGEST="$(cat ../digests/digest-backend)"
           FRONTEND_DIGEST="$(cat ../digests/digest-frontend)"
 
-          export BACKEND_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayheathy-backend@$BACKEND_DIGEST"
-          export FRONTEND_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayheathy-frontend@$FRONTEND_DIGEST"
+          export BACKEND_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-backend@$BACKEND_DIGEST"
+          export FRONTEND_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-frontend@$FRONTEND_DIGEST"
 
           echo "BACKEND_IMAGE=$BACKEND_IMAGE"
           echo "FRONTEND_IMAGE=$FRONTEND_IMAGE"
@@ -382,9 +382,9 @@ jobs:
       matrix:
         include:
           - name: backend
-            image_repo: app-stayheathy-backend
+            image_repo: app-stayhealthy-backend
           - name: frontend
-            image_repo: app-stayheathy-frontend
+            image_repo: app-stayhealthy-frontend
     #env:
       # COSIGN_LOG_LEVEL: debug
       # COSIGN_DOCKER_MEDIA_TYPES: "1"

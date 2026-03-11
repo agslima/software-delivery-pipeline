@@ -175,8 +175,8 @@ jobs:
           echo "BACKEND_DIGEST=$BACKEND_DIGEST" >> $GITHUB_ENV
           echo "FRONTEND_DIGEST=$FRONTEND_DIGEST" >> $GITHUB_ENV
 
-          echo "BACKEND_IMAGE=docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayheathy-backend@$BACKEND_DIGEST" >> $GITHUB_ENV
-          echo "FRONTEND_IMAGE=docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayheathy-frontend@$FRONTEND_DIGEST" >> $GITHUB_ENV
+          echo "BACKEND_IMAGE=docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-backend@$BACKEND_DIGEST" >> $GITHUB_ENV
+          echo "FRONTEND_IMAGE=docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-frontend@$FRONTEND_DIGEST" >> $GITHUB_ENV
 
           echo "✅ Loaded Digests."
 
@@ -243,11 +243,11 @@ jobs:
           test -f "$FILE" || (echo "::error::Missing $FILE"; exit 1)
 
           yq -i '
-            (.images[] | select(.name == "docker.io/agslima/app-stayheathy-backend") | .digest) = strenv(BACKEND_DIGEST)
+            (.images[] | select(.name == "docker.io/agslima/app-stayhealthy-backend") | .digest) = strenv(BACKEND_DIGEST)
           ' "$FILE"
 
           yq -i '
-            (.images[] | select(.name == "docker.io/agslima/app-stayheathy-frontend") | .digest) = strenv(FRONTEND_DIGEST)
+            (.images[] | select(.name == "docker.io/agslima/app-stayhealthy-frontend") | .digest) = strenv(FRONTEND_DIGEST)
           ' "$FILE"
 
           echo "✅ Updated prod overlay:"

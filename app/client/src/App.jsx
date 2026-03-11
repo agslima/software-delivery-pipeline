@@ -23,6 +23,8 @@ const readSession = () => {
   }
 };
 
+const isPatientSession = (session) => Boolean(session?.token && session?.user?.role === 'patient');
+
 /**
  * Root React component for the patient portal application.
  *
@@ -85,7 +87,8 @@ export default function App() {
       });
       throw new Error('MFA_REQUIRED');
     }
-    setLoadingList(true);
+    const patientSession = isPatientSession(result);
+    setLoadingList(patientSession);
     setLoadingDetail(false);
     setPortalError(null);
     setPrescriptions([]);
@@ -99,14 +102,15 @@ export default function App() {
       throw new Error('SERVER_ERROR');
     }
     const result = await verifyMfa(code, mfaChallenge.mfaToken);
+    const nextSession = { token: result.token, user: mfaChallenge.user };
     setMfaChallenge(null);
-    setLoadingList(true);
+    setLoadingList(isPatientSession(nextSession));
     setLoadingDetail(false);
     setPortalError(null);
     setPrescriptions([]);
     setSelectedId(null);
     setPrescriptionDetail(null);
-    setSession({ token: result.token, user: mfaChallenge.user });
+    setSession(nextSession);
   };
 
   const handleCancelMfa = () => {
@@ -128,7 +132,7 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (!session?.token) return;
+    if (!isPatientSession(session)) return;
 
     let isActive = true;
 
@@ -158,7 +162,7 @@ export default function App() {
     return () => {
       isActive = false;
     };
-  }, [session?.token]);
+  }, [session]);
 
   useEffect(() => {
     if (!session?.token) return;
@@ -181,7 +185,7 @@ export default function App() {
   }, [session?.token]);
 
   useEffect(() => {
-    if (!session?.token || !selectedId) return;
+    if (!isPatientSession(session) || !selectedId) return;
 
     let isActive = true;
 
@@ -208,7 +212,7 @@ export default function App() {
     return () => {
       isActive = false;
     };
-  }, [selectedId, session?.token]);
+  }, [selectedId, session]);
 
   const handleEnrollMfa = async () => {
     if (!session?.token) return;

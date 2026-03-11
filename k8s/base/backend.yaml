@@ -39,7 +39,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: backend
-          image: docker.io/agslima/app-stayheathy-backend@sha256:0a99302f729b15adbd7e4e53a262eeab35e4b487bfb9e0b2bcfbf66f6ff60326 
+          image: docker.io/agslima/app-stayhealthy-backend@sha256:0a99302f729b15adbd7e4e53a262eeab35e4b487bfb9e0b2bcfbf66f6ff60326 
           imagePullPolicy: Always
           ports:
             - containerPort: 8080

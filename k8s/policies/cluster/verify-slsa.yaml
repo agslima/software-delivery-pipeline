@@ -27,8 +27,8 @@ spec:
 
       verifyImages:
         - imageReferences:
-            - "docker.io/agslima/app-stayheathy-backend*"
-            - "docker.io/agslima/app-stayheathy-frontend*"
+            - "docker.io/agslima/app-stayhealthy-backend*"
+            - "docker.io/agslima/app-stayhealthy-frontend*"
 
           attestations:
             - predicateType: "https://slsa.dev/provenance/v1"

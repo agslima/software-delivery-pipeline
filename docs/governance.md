@@ -327,7 +327,7 @@ This model explicitly defends against:
 
 ```bash
 # 1. Export a release image digest (backend or frontend)
-export IMAGE="docker.io/agslima/app-stayheathy-backend@sha256:<digest>"
+export IMAGE="docker.io/agslima/app-stayhealthy-backend@sha256:<digest>"
 
 # 2. Verify the signature against the OpenID Connect (OIDC) identity
 cosign verify "$IMAGE" \
