@@ -27,9 +27,10 @@ spec:
 
       verifyImages:
         - imageReferences:
-            - "docker.io/agslima/app-stayhealthy-backend*"
-            - "docker.io/agslima/app-stayhealthy-frontend*"
-
+            - "docker.io/agslima/app-stayhealthy-backend:*"  
+            - "docker.io/agslima/app-stayhealthy-backend@*"  
+            - "docker.io/agslima/app-stayhealthy-frontend:*"  
+            - "docker.io/agslima/app-stayhealthy-frontend@*"
           attestations:
             - predicateType: "https://security.sigstore.dev/attestations/vuln/trivy/v1"
               attestors:

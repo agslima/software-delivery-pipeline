@@ -246,6 +246,23 @@ app.use(helmet());
 
 Re-run DAST after remediation.
 
+Local reproduction
+
+Run the same compose-backed full-scan path locally:
+
+```bash
+make dast-weekly-local
+```
+
+Reports are written to `app/zap-out/`.
+
+Useful overrides:
+
+```bash
+KEEP_DAST_ENV=1 ./scripts/run-local-zap-full-scan.sh
+ZAP_LOGIN_EMAIL=security@example.test ZAP_LOGIN_PASSWORD='change-me' ./scripts/run-local-zap-full-scan.sh
+```
+
 
 ---
 
@@ -395,4 +412,3 @@ docs/adr/005-break-glass-exception-handling.md
 docs/adr/006-scanner-failure-degraded-mode.md
 
 docs/adr/007-supply-chain-incident-response-revocation.md
-

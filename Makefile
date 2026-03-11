@@ -14,3 +14,11 @@ snyk-report:
 governance-drift-check:
 	./scripts/check-governance-drift.sh
 
+# Weekly DAST orchestration
+.PHONY: dast-weekly
+dast-weekly:
+	KEEP_DAST_ENV=1 DAST_ENV_FILE=app/.env ./scripts/run-local-zap-full-scan.sh
+
+.PHONY: dast-weekly-local
+dast-weekly-local:
+	./scripts/run-local-zap-full-scan.sh
