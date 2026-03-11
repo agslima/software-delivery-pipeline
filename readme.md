@@ -112,7 +112,7 @@ graph TD
 
 > This pipeline is intentionally **fail-fast**: artifacts are never built or published unless all required quality gates pass.
 
-For more details on how branch protection, code ownership, and release integrity are enforced, see `docs/governance.md`.
+For more details on how branch protection, code ownership, and release integrity are enforced, see [`docs/governance.md`](docs/governance.md).
 
 ---
 
@@ -127,10 +127,10 @@ For more details on how branch protection, code ownership, and release integrity
 ### Layer 2: Artifact Construction
 
 - **Docker Buildx:** digest-identified builds in the release gate
-- **Hadolint + OPA (Conftest) + Kubeconform:** Dockerfile and Kubernetes manifest validation during PR rev
+- **Hadolint + OPA (Conftest) + Kubeconform:** Dockerfile and Kubernetes manifest validation during PR
 - **OWASP ZAP**: baseline scans in the release path; authenticated scheduled scans for deeper coverage
   
-### Layer 3: Supply Chain Guarantees (SLSA Level 3)
+### Layer 3: Supply Chain Guarantees (SLSA Level 2)
   
 - **Cosign (Keyless):** OIDC-bound image signing
 - **SLSA Provenance:** Verifiable build identity and process
@@ -150,7 +150,7 @@ For more details on how branch protection, code ownership, and release integrity
 - The pipeline utilizes a **Push-based GitOps** model.
 - CI updates Kubernetes manifests with the **immutable image digest** of the newly signed artifact.
 - A Pull Request is automatically opened to `main` with updated digests.
-- **Constraint:** CI cannot commit to main directly; it must pass the same policy checks as a human developer.
+- **Constraint:** CI cannot commit to main directly; it pass the same policy checks as a human developer.
 
 ### Runtime Admission Control
 
@@ -190,7 +190,7 @@ This section summarizes the repository’s current published security posture an
 
 This table is **automatically generated** by the repository security pipeline and reflects the current published vulnerability tracked under [`docs/snyk/`](docs/snyk/index.md).
 
-“Baseline” refers to the intentionally vulnerable starting state used to validate remediation and policy behavior. “Current” reflects the latest published scan snapshot.
+“Baseline / Initial Count” refers to the intentionally vulnerable starting state used to validate remediation and policy behavior. “Current” reflects the latest published scan snapshot.
 
 Interpretation:
 - **Critical / High:** release-blocking until remediated.
