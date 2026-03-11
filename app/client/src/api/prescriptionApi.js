@@ -1,3 +1,10 @@
+/**
+ * Detects whether an error represents a network transport failure.
+ *
+ * Inspects the error's message, cause.message, and cause.code for common network-failure indicators.
+ * @param {unknown} err - The error or value to analyze for network transport failure patterns.
+ * @returns {boolean} `true` if the error appears to be a network transport error (matching common fetch/load messages or known network error codes), `false` otherwise.
+ */
 function isNetworkTransportError(err) {
   const message = typeof err?.message === 'string' ? err.message.toLowerCase() : '';
   const causeMessage =
@@ -21,6 +28,17 @@ function isNetworkTransportError(err) {
   return err instanceof TypeError && combinedMessage.includes('fetch');
 }
 
+/**
+ * Authenticate with the server using username and password and return an authentication token.
+ *
+ * @param {string} username - The user's username.
+ * @param {string} password - The user's password.
+ * @returns {string} The authentication token from the server response.
+ * @throws {Error} 'INCORRECT_CREDENTIALS' if the credentials are invalid (HTTP 401).
+ * @throws {Error} 'SERVER_ERROR' if the server responds with an error status other than 401.
+ * @throws {Error} 'NETWORK_ERROR' if a network transport failure is detected.
+ * @throws {Error} Rethrows other unexpected errors encountered during the request.
+ */
 export async function login(username, password) {
   try {
     const response = await fetch('/api/v1/auth/login', {
@@ -51,6 +69,15 @@ export async function login(username, password) {
   }
 }
 
+/**
+ * Fetches a prescription by ID using the provided bearer token.
+ *
+ * @param {string|number} id - Prescription identifier to fetch.
+ * @param {string} token - Bearer token used for the Authorization header.
+ * @returns {any} The parsed JSON prescription object from the response body.
+ * @throws {Error} Throws `Error('SESSION_EXPIRED')` when the server responds with 401.
+ * @throws {Error} Throws `Error('SERVER_ERROR')` for any other non-successful response status.
+ */
 export async function getPrescription(id, token) {
   const response = await fetch(`/api/v1/prescriptions/${id}`, {
     headers: { 'Authorization': `Bearer ${token}` }

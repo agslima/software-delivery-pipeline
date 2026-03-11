@@ -16,7 +16,7 @@ TEST_DB_PORT="${TEST_DB_PORT:-5433}"
 TEST_DB_USER="${TEST_DB_USER:-postgres}"
 TEST_DB_NAME="${TEST_DB_NAME:-prescriptions_test}"
 
-# generate_secret generates a 16-byte hexadecimal secret using `openssl` if available, falls back to 16 bytes from `/dev/urandom` formatted as hex if readable, and otherwise returns the current timestamp in nanoseconds.
+# generate_secret generates a 16-byte hexadecimal secret, falling back to the current timestamp in nanoseconds if secure randomness is unavailable.
 generate_secret() {
   if command -v openssl >/dev/null 2>&1; then
     openssl rand -hex 16

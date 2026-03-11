@@ -15,7 +15,7 @@ DB_PORT="${DB_PORT:-5432}"
 DB_USER="${DB_USER:-postgres}"
 DB_NAME="${DB_NAME:-prescriptions_db}"
 
-# require_command verifies the given command exists in PATH and exits with status 1 after printing an error if it is not found.
+# require_command checks that a command is available in PATH; if the command is missing it prints "Missing required command: <name>" to stderr and exits with status 1.
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
     echo "Missing required command: $1" >&2
@@ -65,7 +65,9 @@ fi
 
 require_command pg_restore
 
-# restore_direct restores the PostgreSQL database from BACKUP_FILE to DB_NAME on the local host using pg_restore. It sources DB_PASS from DB_PASS_FILE (or APP_DIR/secrets/db_pass.txt as a fallback) and exits with an error if no DB_PASS is available.
+# restore_direct restores the PostgreSQL database from BACKUP_FILE into DB_NAME on the local host using pg_restore.
+# It obtains DB_PASS from DB_PASS_FILE or falls back to APP_DIR/secrets/db_pass.txt and exits with an error if no password is available.
+# Invokes pg_restore with --clean, --if-exists, and --no-owner to apply the backup to the target database.
 restore_direct() {
   if [[ -n "${DB_PASS_FILE:-}" && -z "${DB_PASS:-}" ]]; then
     DB_PASS="$(cat "${DB_PASS_FILE}")"

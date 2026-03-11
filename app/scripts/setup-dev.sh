@@ -43,7 +43,8 @@ else
 fi
 chmod 700 "$SECRETS_DIR"
 
-# random_hex generates a hex string of length equal to the given number of bytes, using openssl if available, falling back to /dev/urandom, and finally to a timestamp if neither is available.
+# random_hex generates a hexadecimal string representing the requested number of random bytes and writes it to stdout.
+# bytes is the number of bytes to generate; output contains 2*bytes hex characters. If secure randomness is unavailable, a non-cryptographic timestamp is used as a fallback.
 random_hex() {
     local bytes=$1
     if command -v openssl >/dev/null 2>&1; then
@@ -55,7 +56,7 @@ random_hex() {
     fi
 }
 
-# generate_secret writes a random hex secret to SECRETS_DIR/<filename> if that file does not already exist; the optional second argument sets the byte length of the secret (default 32).
+# generate_secret writes a random hexadecimal secret to SECRETS_DIR/<filename> if the file does not exist and ensures the file is chmod 600; the optional second argument sets the byte length of the secret (default 32).
 generate_secret() {
     local filename=$1
     local bytes=${2:-32}

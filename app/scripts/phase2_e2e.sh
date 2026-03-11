@@ -116,7 +116,7 @@ request() {
   RESP_BODY=$(echo "$resp" | sed '$d')
 }
 
-# assert_status compares RESP_STATUS to the expected HTTP status and, if they differ, prints an error message and response body then exits with status 1.
+# assert_status compares RESP_STATUS to the expected HTTP status and, if they differ, prints an error message and the response body and exits with status 1.
 assert_status() {
   local expected="$1"
   if [[ "$RESP_STATUS" != "$expected" ]]; then
