@@ -15,8 +15,6 @@
 [![SLSA](https://img.shields.io/badge/SLSA-Level%202-blue?logo=linuxfoundation)](https://github.com/agslima/software-delivery-pipeline/attestations)
 [![License](https://img.shields.io/badge/license-Apache%202-4EB1BA.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
 
-## Governance Metadata
-
 ## TL;DR
 
 This repository demonstrates a **governed software delivery system** in which:
