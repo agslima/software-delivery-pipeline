@@ -1,61 +1,52 @@
-# Governed Software Delivery Pipeline (Full-Stack Reference Implementation)
+# Governed Software Delivery Pipeline
 
-## A Production-Grade CI/CD, Supply Chain & Governance Reference
+[//]: # (owner: Project Maintainers)
+[//]: # (review_cadence: Quarterly)
+[//]: # (last_reviewed: 2026-03-11)
+[//]: # (Controls matrix: docs/governance.md#readme-claims--controls-matrix)
+
+## A Reference Implementation for CI/CD Governance, Supply Chain Security, and Runtime Policy Enforcement
 
 [![CI – PR Validation](https://github.com/agslima/software-delivery-pipeline/actions/workflows/ci-pr-validation.yml/badge.svg)](https://github.com/agslima/software-delivery-pipeline/actions/workflows/ci-pr-validation.yml)
 [![CI – Release Gate](https://github.com/agslima/software-delivery-pipeline/actions/workflows/ci-release-gate.yml/badge.svg)](https://github.com/agslima/software-delivery-pipeline/actions/workflows/ci-release-gate.yml)
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=agslima_software-delivery-pipeline&metric=security_rating&token=fc36aa04e8597e3ef994141f2c98064a72019cd0)](https://sonarcloud.io/summary/new_code?id=agslima_software-delivery-pipeline)
-[![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=agslima_software-delivery-pipeline&metric=reliability_rating&token=fc36aa04e8597e3ef994141f2c98064a72019cd0)](https://sonarcloud.io/summary/new_code?id=agslima_software-delivery-pipeline)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=agslima_software-delivery-pipeline&metric=coverage&token=fc36aa04e8597e3ef994141f2c98064a72019cd0)](https://sonarcloud.io/summary/new_code?id=agslima_software-delivery-pipeline)
-[![SLSA](https://img.shields.io/badge/SLSA-Level%203-blue?logo=linuxfoundation)](https://github.com/agslima/software-delivery-pipeline/attestations)
 [![Infrastructure: Kubernetes](https://img.shields.io/badge/Infra-Kubernetes-326CE5?logo=kubernetes&logoColor=white)](https://github.com/agslima/software-delivery-pipeline/tree/main/k8s)
-[![Security: Trivy](https://img.shields.io/badge/Container-Trivy-0077C2.svg?logo=aquasecurity&logoColor=white)](https://github.com/aquasecurity/trivy)
-[![Security: ZAP](https://img.shields.io/badge/DAST-OWASP%20ZAP-blue?logo=owasp&logoColor=white)](https://www.zaproxy.org/)
+[![SLSA](https://img.shields.io/badge/SLSA-Level%202-blue?logo=linuxfoundation)](https://github.com/agslima/software-delivery-pipeline/attestations)
 [![License](https://img.shields.io/badge/license-Apache%202-4EB1BA.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
-<!--[![CodeQL](https://github.com/agslima/software-delivery-pipeline/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/agslima/software-delivery-pipeline/actions/workflows/github-code-scanning/codeql)
-[![release](https://img.shields.io/github/v/release/agslima/software-delivery-pipeline?label=Latest%20Verifiable%20Release&color=success)](https://github.com/agslima/software-delivery-pipeline/releases/latest)--> 
 
 ## Governance Metadata
 
-- **Last validated (release cadence):** 2026-03-11
-- **Controls matrix:** [`docs/governance.md#readme-claims--controls-matrix`](docs/governance.md#readme-claims--controls-matrix)
-
 ## TL;DR
 
-This repository demonstrates how to design a **governed software delivery system** where:
+This repository demonstrates a **governed software delivery system** in which:
 
-- CI/CD acts as the **primary control plane**
-- Security checks produce **verifiable attestations**, not just logs
-- Container images are **signed, attested, and policy-enforced at runtime**
-- Governance **cannot be bypassed**, even by developers with write access
+- CI/CD is treated as part of the **system’s control plane**
+- Security checks produce **verifiable evidence**, not only workflow logs
+- Container images are **signed, attested, and validated** through policy before deployment
+- The delivery path is designed to make governance bypass **difficult, visible, and auditable**
+
+## Problem Statement 🛡️
+
+While modern projects routinely use tools like Trivy, ZAP, and GitHub Actions, this repository tries to answer a different question: **How do we prevent those controls from being silently bypassed?**
+
+Rather than treating security as a checklist or tooling as the end goal, this repository models **governance as a system property**. It shows how CI/CD, signing, attestations, policy checks, and runtime admission controls can work together to produce **auditable delivery evidence**, not just successful workflow runs.
+
+This is a full-stack reference implementation of a governed delivery pipeline, designed to showcase:
+
+- Governed CI/CD design
+- Software supply-chain integrity controls
+- Risk-based policy enforcement
+- Runtime admission validation tied to build identity
 
 > [!NOTE]
 > The application logic is intentionally simple. The value of this repository lies in the **delivery architecture, security controls, and governance model**. For more details about the application, please see the **[`app/readme.md`](https://github.com/agslima/software-delivery-pipeline/blob/main/app/readme.md)**.
 
-## Project Overview 🛡️
-
-While modern projects routinely use tools like Trivy, ZAP, and GitHub Actions, this repository tries to answer a different question: **How do we prevent those controls from being silently bypassed?**
-
-Instead of focusing on tools alone or treating security as a checkbox, this project serves as a reference implementation for **Governance-as-Code**, demonstrating how to:
-
-- Enforce **security and quality guarantees structurally**
-- Treat CI/CD as **part of the system architecture**
-- Move from “we ran scans” → “**we can prove policy compliance**”
-
-This is a full-stack reference implementation of a governed delivery pipeline, designed to showcase:
-
-- DevOps & Platform Engineering practices
-- Software supply-chain design
-- Risk-based security decision-making
-- Policy-as-Code enforced across CI and runtime
-
-The application exists only to **exercise the pipeline**.
-
 ---
 
-## Engineering Goals
+## Architectural Goals
 
-The architecture was designed to satisfy three core **non-functional requirements**:
+The repository is organized around three core **non-functional goals**:
 
 ### 1. Reliability
 
@@ -65,14 +56,11 @@ The architecture was designed to satisfy three core **non-functional requirement
 
 ### 2. Traceability
 
-Every container image is:
-
-- Built from a specific Git commit
-- Signed using keyless Sigstore (OIDC-bound identity)
-- Attested with:
-  - Build provenance (SLSA Level 3)
-  - SBOM (SPDX)
-  - Vulnerability and DAST results
+Each released container image is tied to a specific Git commit and accompanied by verifiable supply-chain metadata:
+- Keyless Sigstore signature bound to CI identity
+- Build provenance
+- SBOM (SPDX)
+- Attested security evidence from vulnerability and DAST workflows
 
 ### 3. Risk Management (Not Binary Security)
 
@@ -86,16 +74,18 @@ Security is treated as **policy-driven**, not “pass/fail everywhere”:
 
 ## Delivery Architecture (CI/CD as a Control Plane)
 
-GitHub Actions is used intentionally as the **delivery control plane**.
+In this repository, CI/CD is treated as part of the **delivery control plane** rather than as passive automation.
 
 ### Why GitHub Actions?
 
-- Pipeline logic is versioned with the code
-- Branch protection and CODEOWNERS enforce governance before CI runs
-- No external CI trust boundary
+- Pipeline logic is versioned alongside the application and policy code
+- Repository controls such as branch protection and CODEOWNERS are part of the governance model
+- Delivery logic remains repository-native and auditable
 - Clear audit trail from commit → artifact → deployment
 
 ### Pipeline Flow
+
+At a high level, the repository separates governance into three stages: PR validation, release integrity, and delivery enforcement.
 
 ```mermaid
 graph TD
@@ -138,24 +128,21 @@ For more details on how branch protection, code ownership, and release integrity
 
 ### Layer 2: Artifact Construction
 
-- **Docker Buildx** (digest-identified builds in the release gate)
-- **Hadolint + OPA (Conftest) + Kubeconform:** Dockerfile hardening and K8s manifest validation in PRs
-- **OWASP ZAP**
-  - Release gate runs baseline scans against digest-pinned compose
-  - Weekly workflow runs authenticated full scans and uploads SARIF
-  - ZAP results are captured as artifacts; release gate attests results
-
+- **Docker Buildx:** digest-identified builds in the release gate
+- **Hadolint + OPA (Conftest) + Kubeconform:** Dockerfile and Kubernetes manifest validation during PR rev
+- **OWASP ZAP**: baseline scans in the release path; authenticated scheduled scans for deeper coverage
+  
 ### Layer 3: Supply Chain Guarantees (SLSA Level 3)
   
 - **Cosign (Keyless):** OIDC-bound image signing
 - **SLSA Provenance:** Verifiable build identity and process
 - **Syft:** SPDX-formatted SBOM for transparency and future incident response
-- **Typed Attestations:** Cryptographic proof that scans (Trivy/ZAP) actually occurred.
+- **Security attestations:** signed evidence that required scans were executed
 
 ### Layer 4: Delivery (GitOps)
 
-- **Kyverno:** Validates the updated manifests against cluster policies before opening a PR.
-  
+- **Kyverno:** validates deployment manifests against cluster policy expectations before the digest update is proposed for merge
+
 ---
 
 ## Governance & Policy Enforcement
@@ -169,7 +156,7 @@ For more details on how branch protection, code ownership, and release integrity
 
 ### Runtime Admission Control
 
-**Kubernetes** acts as the final gatekeeper using **Kyverno**. The cluster enforces:
+At deployment time, **Kyverno** enforces runtime admission checks inside the cluster.
 
 - ​**Signature Verification:** Is this image signed by our repo?
 - **​Attestation Checks:** Does this image have a SLSA provenance?
@@ -179,14 +166,16 @@ For more details on how branch protection, code ownership, and release integrity
 
 ### Break-Glass (Emergency Access)
 
-- Explicit security.break-glass=true label
-- RBAC-restricted to on-call security role
+- Requires a `security.break-glass=true` label
+- Restricted by RBAC
 - Mandatory justification labels
 - Fully auditable
 
 ---
 
 ## Operational Evidence
+
+This section summarizes the repository’s current published security posture and links to the underlying evidence.
 
 <!-- [BEGIN_GENERATED_TABLE] -->
 ### Automated Security Posture
@@ -201,39 +190,36 @@ For more details on how branch protection, code ownership, and release integrity
 *Last scanned (UTC): 2026-03-09 18:10*
 <!-- [END_GENERATED_TABLE] -->
 
-This table is **automatically generated** by the repository security pipeline and reflects the current **aggregated vulnerability** posture published in [`docs/snyk/`](docs/snyk/index.md).
+This table is **automatically generated** by the repository security pipeline and reflects the current published vulnerability tracked under [`docs/snyk/`](docs/snyk/index.md).
+
+“Baseline” refers to the intentionally vulnerable starting state used to validate remediation and policy behavior. “Current” reflects the latest published scan snapshot.
 
 Interpretation:
 - **Critical / High:** release-blocking until remediated.
 - **Medium / Low:** allowed only when tracked as time-bound managed debt in [`docs/security-debt.md`](docs/security-debt.md).
 - **Managed Debt:** displayed when Medium or Low vulnerabilities remain open under approved governance controls.
 
-### Case Study: Risk Remediation 🔬
+### Case Study 🔬
 
-The application described in [app/readme.md](app/readme.md) was intentionally passed through the pipeline with known security debt to validate vulnerability detection, policy enforcement, and remediation behavior.
+To validate that the governance model works in practice, the application described in [app/readme.md](app/readme.md) was intentionally exercised through the pipeline with known vulnerabilities and security weaknesses. The goal was not to showcase an insecure app, but to demonstrate how the delivery system detects, blocks, tracks, and verifies remediation.
 
 ### Remediation Workflow
 
-- **Baseline:** Initial scans detected 27 Critical vulnerabilities.
+- **Baseline:** initial scans surfaced known dependency and application risks
 - **Triage:** Dependabot automated dependency upgrades; manual changes mitigated issues such as XSS and Prototype Pollution.
-- **Policy Enforcement:** Critical and High findings block delivery. Medium and Low findings may proceed only under documented, time-bound exception governance.
+- **Governance outcome:** Critical and High findings block delivery. Medium and Low findings may proceed only under documented, time-bound exception governance.
 
 ### Evidence
 
-| Initial Vulnerability Scan | Post-Fix Clean Scan |
-| --- | --- |
-| ![Initial Snyk vulnerability scan](https://github.com/agslima/software-delivery-pipeline/blob/main/docs/images/scan-snyk-01.png) | ![Post-remediation Snyk clean scan](https://github.com/agslima/software-delivery-pipeline/blob/main/docs/images/scan-snyk-02.png) |
-
-> [!Note]
-> This section reflects current operational truth for the repository.
-> Managed exceptions are governed in `docs/security-debt.md`.
-> Detailed scan evidence is published in `docs/snyk/` for transparency and auditability.
+| Initial Vulnerability Scan |
+| --- |
+| ![Initial Snyk vulnerability scan](https://github.com/agslima/software-delivery-pipeline/blob/main/docs/images/scan-snyk-01.png) |
 
 ---
 
 ## Verification (How to Audit)
 
-You don't have to trust this documentation. You can cryptographically verify the artifacts yourself.
+You do not need to rely on README claims alone. The release artifacts can be independently verified.
 
 **Prerequisite:** Install [Cosign](https://docs.sigstore.dev/system_config/installation/)
 
@@ -243,7 +229,7 @@ Check that the image was signed by this specific GitHub Repository's CI pipeline
 
 ```bash
 # 1. Export a release image digest (backend or frontend)
-export IMAGE="docker.io/agslima/app-stayheathy-backend@sha256:<digest>"
+export IMAGE="docker.io/agslima/app-stayhealthy-backend@sha256:<digest>"
 
 # 2. Verify the signature against the OpenID Connect (OIDC) identity
 cosign verify "$IMAGE" \
@@ -251,9 +237,10 @@ cosign verify "$IMAGE" \
   --certificate-oidc-issuer "https://token.actions.githubusercontent.com" | jq .
 ```
 
+<!--
 ## Local Development & Testing
 
-### Prerequisites
+### Application Quickstart Prerequisites
 
 - **Node.js 24.13.0** (required by `app/server` and `app/client` `engines.node`)
 - **Docker**
@@ -274,32 +261,36 @@ npm ci
 npm test
 npm run dev
 ```
+### Tooling for Verification
+
+-->
 
 ---
 
-## Technology Stack (Reference)
+## Technology Stack
 
 - **CI/CD:** GitHub Actions
 - **Supply Chain:** Cosign, Syft (SBOM), GitHub build provenance (SLSA)
-- **Security Analysis:** Trivy, OWASP ZAP, Gitleaks
-- **Governance:** Kyverno
-- **Containers:** Docker
-- **Frontend/Backend:** React /Node.js
+- **Security Analysis:** Trivy, Snyk, OWASP ZAP, Gitleaks
+- **Policy enforcement:** Kyverno
+- **Runtime platform:** Docker, Kubernetes 
+- **Application:** React /Node.js
   
 ---
 
 ## What This Repository Demonstrates
 
-- ✅ CI/CD as governance, not automation
-- ✅ Security controls that cannot be silently bypassed
+- ✅ CI/CD treated as governance, not just automation
+- ✅ Security controls designed to be difficult to bypass silently
 - ✅ Policy-driven risk management
 - ✅ Supply-chain guarantees enforced at runtime
-- ✅ Platform-grade GitOps flow
+- ✅ A governed GitOps-style delivery path
 
 ## What This Repository Is Not
 
 - ❌ A framework comparison
 - ❌ A zero-vulnerability application
+- ❌ Not immune to privileged administrative bypass outside the modeled trust boundaries
 
 ---
 
