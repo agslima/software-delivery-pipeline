@@ -6,6 +6,10 @@
 
 This model ensures that no artifact can reach production unless it passes policy-defined quality, security, and provenance requirements, enforced before, during, and after CI execution.
 
+## Governance Metadata
+
+- **Last validated (release cadence):** 2026-03-11
+
 ## Summary
 
 This Branch Protection Model ensures that:
@@ -14,6 +18,102 @@ This Branch Protection Model ensures that:
 - Releases are workflow-controlled
 - Artifacts are provable, auditable, and enforceable
 - Governance failures surface immediately — not after deployment
+
+## README Claims → Controls Matrix
+
+This matrix links README governance claims to exact implementation points so claims remain reviewable and auditable.
+
+| README claim | Workflow enforcement | Policy enforcement | Supporting docs |
+| :--- | :--- | :--- | :--- |
+| CI/CD is the primary control plane | `.github/workflows/ci-pr-validation.yml`, `.github/workflows/ci-release-gate.yml`, `.github/workflows/gitops-enforce.yml` | Branch protection required checks; Kyverno validation in GitOps workflow | `readme.md`, `docs/governance.md` |
+| Security checks produce verifiable attestations | `.github/workflows/ci-release-gate.yml` (`trivy-scan`, `dast-analysis`, `sign-and-attest`) | `k8s/policies/cluster/verify-trivy.yaml`, `verify-zap.yaml`, `verify-sbom.yaml`, `verify-slsa.yaml` | `docs/threat-model.md`, `docs/adr/004-vulnerability-thresholds-risk-acceptance.md` |
+| Images are signed/attested and policy-enforced at runtime | `.github/workflows/ci-release-gate.yml` + `.github/workflows/gitops-enforce.yml` | `k8s/policies/cluster/verify-signature.yaml` and attestation verify policies | `docs/governance.md`, `docs/adr/003-policy-enforcement-strategy.md` |
+| Governance cannot be bypassed via direct merge/promotion | `.github/workflows/ci-pr-validation.yml`, `.github/workflows/gitops-enforce.yml` (`verify-context`) | GitHub branch/tag protections + CODEOWNERS + Kyverno break-glass controls | `docs/governance.md`, `docs/adr/005-break-glass-exception-handling.md` |
+| Vulnerability policy threshold is enforced (`HIGH > 5` blocks release) | `.github/workflows/ci-release-gate.yml` (`Gate (CRITICAL>0 or HIGH>5)`) | Trivy attestation + admission policy verification path | `readme.md`, `docs/governance.md`, `docs/adr/004-vulnerability-thresholds-risk-acceptance.md` |
+
+## GitHub Settings
+
+To keep the governance claims in this document auditable and enforceable, the following repository settings must remain enabled in GitHub:
+
+### Branch protections (`main`)
+
+- ✅ Require pull requests before merging (direct pushes disabled)
+- ✅ Require at least one approving review
+- ✅ Dismiss stale pull request approvals when new commits are pushed
+- ✅ Require branch to be up to date before merging
+- ✅ Require status checks to pass before merging
+- ✅ Restrict required checks to governance-critical jobs only
+- ✅ Disable force pushes
+- ✅ Disable branch deletion
+- ✅ Disable bypass permissions for branch protections
+
+### CODEOWNER enforcement
+
+- ✅ A valid `.github/CODEOWNERS` file is present and maintained
+- ✅ `Require review from Code Owners` is enabled in branch protection
+- ✅ Governance-sensitive paths remain mapped to accountable owners
+
+### Tag protections (release integrity)
+
+- ✅ Protected tag pattern is configured for release tags (`v*.*.*`)
+- ✅ Tag creation is restricted to trusted maintainers / release managers
+- ✅ Release pipeline is triggered from protected tags, not manual artifact uploads
+
+### Controls-to-Workflow Mapping
+
+Use this table during reviews to ensure governance controls remain mapped to active workflows (and to detect drift when workflow names/jobs change).
+
+| Governance Control | Workflow / Job Source | Enforcement Signal |
+| :--- | :--- | :--- |
+| PR lint/test quality gate | `.github/workflows/ci-pr-validation.yml` → `code-quality` | Required PR status check passes before merge |
+| Dockerfile/manifests/policy hygiene | `.github/workflows/ci-pr-validation.yml` → `infra-lint` (Hadolint, Conftest, Kubeconform, Kyverno tests) | Required PR status check passes before merge |
+| Secret + vulnerability + misconfiguration PR gate | `.github/workflows/ci-pr-validation.yml` → `security-scan` (Gitleaks + Trivy FS/config) | Required PR status check passes before merge |
+| Scheduled deep security evidence | `.github/workflows/ci-security-deep.yml` → `security-governance` (Gitleaks + Trivy SARIF/JSON + risk-acceptance gate) | Artifacts/SARIF generated; issue raised on failure |
+| Release vulnerability gate by immutable digest | `.github/workflows/ci-release-gate.yml` → `trivy-scan` | Release blocks on policy thresholds (`CRITICAL>0` or `HIGH>5`) |
+| Release DAST gate | `.github/workflows/ci-release-gate.yml` → `dast-analysis` (OWASP ZAP baseline scans) | Release blocks on DAST gate criteria |
+| Artifact signing, SBOM, and provenance attestations | `.github/workflows/ci-release-gate.yml` signing/attestation jobs | Attestations bound to trusted workflow identity |
+
+## SLSA Level Review and Requirement Mapping
+
+Current documented posture is **SLSA Build L2 with L3-aligned controls in progress** (not a formal certification claim). 
+
+### Why this level statement is defensible
+
+- ✅ Provenance is generated in the trusted release workflow via `actions/attest-build-provenance` and tied to immutable image digests.
+- ✅ Release builds, scanning gates, signing, and attestations run in hosted CI with workflow identity constraints.
+- ✅ Runtime/GitOps verification validates signature and required attestations (including SLSA predicate) before promotion/deployment.
+- ⚠️ Some SLSA L3 expectations (for example independently validated hermetic/reproducible builds) are not yet fully evidenced in this project today.
+
+### SLSA Requirement → Control → Evidence Matrix
+
+| SLSA Requirement (Build Track) | Implemented Control | Evidence Source / Workflow Artifact |
+| :--- | :--- | :--- |
+| Provenance is generated for build outputs | `actions/attest-build-provenance` emits provenance for each release image digest | `.github/workflows/ci-release-gate.yml` (`sign-and-attest` job), registry attestation with predicate `https://slsa.dev/provenance/v1` |
+| Provenance is bound to immutable artifact identity | Build/promotion use digest-pinned images; attestations/signatures reference digest subjects | `digest-*` artifacts from release workflow + digest-based image refs in GitOps promotion |
+| Trusted builder identity | OIDC-based keyless identity restricted to release workflow tag refs | Cosign verify identity regex in release verification and Kyverno `verify-slsa` policy subject regex |
+| Build steps are policy-gated before trust is granted | Trivy and ZAP release gates must pass before `sign-and-attest` runs | `.github/workflows/ci-release-gate.yml` (`trivy-scan`, `dast-analysis`, `sign-and-attest`) |
+| Non-falsifiable evidence retained for audit | Trivy/ZAP outputs, SBOMs, digests, Kyverno logs uploaded as workflow artifacts | Release artifacts (`trivy-results-*`, `zap-results`, `sbom-*`, `digest-*`) and GitOps artifact `kyverno-gitops-log` |
+| Admission/runtime enforces provenance presence | Kyverno policy requires SLSA provenance attestation from trusted issuer/workflow | `k8s/policies/cluster/verify-slsa.yaml` + GitOps `kyverno apply` output/log |
+
+> Governance note: treat this table as the requirement-by-requirement source of truth. Update it whenever workflow jobs, predicate types, or admission policies change.
+
+### Quarterly Verification Checklist (Maintainer Audit)
+
+Run this checklist at least once per quarter and record completion in your governance evidence trail (for example, release notes, audit log, or change ticket):
+
+**Audit owner:** `@<github-handle>`
+**Verification date (UTC):** `YYYY-MM-DD`
+**Evidence link / ticket:** `<url-or-ticket-id>`
+
+- [ ] Confirm `main` still requires pull requests and blocks direct pushes.
+- [ ] Confirm required status checks are still configured and match current governance-critical workflows.
+- [ ] Confirm at least one approval and stale approval dismissal are enforced.
+- [ ] Confirm `Require review from Code Owners` remains enabled.
+- [ ] Confirm `.github/CODEOWNERS` still maps governance-sensitive paths to accountable owners.
+- [ ] Confirm force pushes, deletions, and branch-protection bypass are disabled for `main`.
+- [ ] Confirm protected release tag pattern `v*.*.*` exists and still restricts who can create release tags.
+- [ ] Confirm production deployment environment still restricts deployments to release tags and required reviewers.
+- [ ] Confirm any exceptions (break-glass or temporary override) were documented, approved, and time-bounded.
 
 ## GitHub as the Control Plane
 
@@ -105,8 +205,7 @@ This directly supports the design goal:
 - ✅ Require a pull request before merging
 - ✅ Minimum approvals: 1
 - ✅ Dismiss stale approvals on new commits
-- ⚠️ Require CODEOWNER review
-(Optional, but strongly recommended for governance-sensitive files)
+- ✅ Require CODEOWNER review
 
 **Required Status Checks**
 
@@ -238,7 +337,7 @@ cosign verify "$IMAGE" \
 ### Verify SLSA Provenance
 
 ```bash
-# Verify the attestation (SLSA Level 3)
+# Verify the provenance attestation (SLSA predicate)
 cosign verify-attestation "$IMAGE" \
   --type "https://slsa.dev/provenance/v1" \
   --certificate-identity-regexp "^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\\.yml@refs/tags/v.*" \
