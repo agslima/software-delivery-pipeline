@@ -49,7 +49,7 @@ The repository is organized around three core **non-functional goals**:
 ### 1. Reliability
 
 - Builds are deterministic
-- If code, tests, or policies fail, **no artifact is created**
+- If code, tests, or policies fail, **no artifact is signed, trusted, or promoted**
 - Release jobs are tag-gated and fail-fast
 
 ### 2. Traceability
@@ -110,7 +110,7 @@ graph TD
     end
 ```
 
-> This pipeline is intentionally **fail-fast**: artifacts are never built or published unless all required quality gates pass.
+> This pipeline is intentionally **fail-fast**: artifacts may be built and pushed before later release gates complete, but they are not signed, trusted, or promoted unless all required quality gates pass.
 
 For more details on how branch protection, code ownership, and release integrity are enforced, see [`docs/governance.md`](docs/governance.md).
 
@@ -188,12 +188,15 @@ This section summarizes the repository’s current published security posture an
 *Last scanned (UTC): 2026-03-09 18:10*
 <!-- [END_GENERATED_TABLE] -->
 
-This table is **automatically generated** by the repository security pipeline and reflects the current published vulnerability tracked under [`docs/snyk/`](docs/snyk/index.md).
+This table is **automatically generated** by the repository evidence pipeline and reflects the current published security snapshot tracked under [`docs/snyk/`](docs/snyk/index.md).
+
+It is governance evidence, not the release admission gate itself. Release blocking remains driven by the Trivy and ZAP controls described above and in [`docs/threat-model.md`](docs/threat-model.md).
 
 “Baseline / Initial Count” refers to the intentionally vulnerable starting state used to validate remediation and policy behavior. “Current” reflects the latest published scan snapshot.
 
 Interpretation:
-- **Critical / High:** release-blocking until remediated.
+- **Critical:** release-blocking.
+- **High:** release-blocking when the release gate threshold is exceeded (`HIGH > 5` per image).
 - **Medium / Low:** allowed only when tracked as time-bound managed debt in [`docs/security-debt.md`](docs/security-debt.md).
 - **Managed Debt:** displayed when Medium or Low vulnerabilities remain open under approved governance controls.
 
@@ -205,7 +208,7 @@ To validate that the governance model works in practice, the application describ
 
 - **Baseline:** initial scans surfaced known dependency and application risks
 - **Triage:** Dependabot automated dependency upgrades; manual changes mitigated issues such as XSS and Prototype Pollution.
-- **Governance outcome:** Critical and High findings block delivery. Medium and Low findings may proceed only under documented, time-bound exception governance.
+- **Governance outcome:** Critical findings block release, and High findings block release when they exceed the documented threshold (`HIGH > 5` per image). Medium and Low findings may proceed only under documented, time-bound exception governance.
 
 ### Evidence
 

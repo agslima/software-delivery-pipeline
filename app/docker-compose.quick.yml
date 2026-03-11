@@ -1,22 +1,24 @@
 
-#  This quick setup includes a PostgreSQL database and the backend server. 
+#  This quick setup includes a PostgreSQL database and the backend server.
 #  The frontend is excluded for faster startup
-#  
+#
 # Quick Start:
 #
-#  docker compose -f docker-compose.quick.yml up
-#  docker compose -f docker-compose.quick.yml --profile backend up
+#  ./scripts/setup-dev.sh
+#  docker compose -f docker-compose.quick.yml up --build
 
 
 services:
   postgres:
     image: postgres:15-alpine
     environment:
-      POSTGRES_USER: ${DB_USER:-app}
-      POSTGRES_PASSWORD: ${DB_PASS:?Set DB_PASS}
-      POSTGRES_DB: ${DB_NAME:-app_db}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_pass
+      POSTGRES_DB: ${DB_NAME:-prescriptions_db}
     ports:
       - "5432:5432"
+    secrets:
+      - db_pass
     volumes:
       - pgdata_quick:/var/lib/postgresql/data
     healthcheck:
@@ -26,25 +28,29 @@ services:
       retries: 5
 
   backend:
-    profiles: ["backend"]
-    image: node:24-alpine
+    image: node:24.13.0-alpine
     working_dir: /app
     environment:
       NODE_ENV: development
       PORT: "8080"
       LOG_LEVEL: info
       DB_HOST: postgres
-      DB_USER: ${DB_USER:-app}
-      DB_PASS: ${DB_PASS:?Set DB_PASS}
-      DB_NAME: ${DB_NAME:-app_db}
-      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET}
+      DB_USER: ${DB_USER:-postgres}
+      DB_NAME: ${DB_NAME:-prescriptions_db}
+      DB_PASS_FILE: /run/secrets/db_pass
+      JWT_SECRET_FILE: /run/secrets/jwt_secret
       ADMIN_USER: ${ADMIN_USER:-admin}
-      ADMIN_PASS: ${ADMIN_PASS:?Set ADMIN_PASS}
-      DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:?Set DATA_ENCRYPTION_KEY}
+      ADMIN_PASS_FILE: /run/secrets/admin_pass
+      DATA_ENCRYPTION_KEY_FILE: /run/secrets/data_encryption_key
     volumes:
       - ./server:/app
     ports:
       - "8080:8080"
+    secrets:
+      - db_pass
+      - jwt_secret
+      - admin_pass
+      - data_encryption_key
     depends_on:
       postgres:
         condition: service_healthy
@@ -52,3 +58,13 @@ services:
 
 volumes:
   pgdata_quick:
+
+secrets:
+  db_pass:
+    file: ${SECRETS_PATH:-./secrets}/db_pass.txt
+  admin_pass:
+    file: ${SECRETS_PATH:-./secrets}/admin_pass.txt
+  jwt_secret:
+    file: ${SECRETS_PATH:-./secrets}/jwt_secret.txt
+  data_encryption_key:
+    file: ${SECRETS_PATH:-./secrets}/data_encryption_key.txt

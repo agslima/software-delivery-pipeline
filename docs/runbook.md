@@ -28,14 +28,14 @@ It intentionally focuses on response actions, not tool configuration.
 
 Symptom
 
-CI job security-scan or container-scan fails
+CI job `Security Quality Check` fails on a pull request, or release job `Trivy Scan (Digest Gate)` fails for `backend` or `frontend`.
 
 Exit code: 1
 
 
 Error Message
 
-CRITICAL vulnerabilities found
+`CRITICAL vulnerabilities found` or `⛔ Trivy Gate Failed for <image> (CRIT=<n> HIGH=<n>)`
 
 
 ---
@@ -45,7 +45,10 @@ Triage Steps
 1. Open the GitHub Actions job logs
 
 
-2. Download the trivy-results.json artifact (if available)
+2. Identify which path failed:
+
+- PR path: inspect the `Security Quality Check` logs for the Trivy FS/config step output.
+- Release path: download the relevant artifact (`trivy-results-backend` or `trivy-results-frontend`).
 
 
 3. Review:
@@ -106,6 +109,7 @@ Reference the ticket ID in commit history
 
 
 ⚠️ Critical vulnerabilities must never be ignored without explicit justification.
+⚠️ High vulnerabilities are release-blocking once they exceed the documented gate threshold (`HIGH > 5` per image).
 
 
 ---
@@ -391,5 +395,4 @@ docs/adr/005-break-glass-exception-handling.md
 docs/adr/006-scanner-failure-degraded-mode.md
 
 docs/adr/007-supply-chain-incident-response-revocation.md
-
 

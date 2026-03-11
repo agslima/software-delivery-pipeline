@@ -23,5 +23,4 @@ k8s/tests/            @agslima
 .trivyignore          @agslima
 
 # 6. Scripted Automation
-scripts/run-snyk-aggregate     @agslima
-scripts/check-dependencies     @agslima
+scripts/*.sh                   @agslima

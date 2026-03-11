@@ -35,19 +35,11 @@ jobs:
       - name: Set Release Tag
         id: tag
         env:
-          # 1. Map contexts to Environment Variables
-          EVENT_NAME: ${{ github.event_name }}
-          TAG_INPUT: ${{ inputs.tag }}
           REF_NAME: ${{ github.ref_name }}
         run: |
           set -euo pipefail
 
-          # 2. Reference the Environment Variables using shell syntax ($VAR)
-          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            echo "release_tag=$TAG_INPUT" >> "$GITHUB_OUTPUT"
-          else
-            echo "release_tag=$REF_NAME" >> "$GITHUB_OUTPUT"
-          fi
+          echo "release_tag=$REF_NAME" >> "$GITHUB_OUTPUT"
 
   # ==================================================================
   # JOB 1: Build + Push (Digest is the artifact identity)

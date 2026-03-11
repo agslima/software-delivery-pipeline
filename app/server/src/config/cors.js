@@ -1,21 +1,10 @@
 const env = require('./env');
 
-const allowedOrigins = env.CORS_ORIGIN.split(',')
+const allowlistedOrigins = new Set(
+  env.CORS_ORIGIN.split(',')
   .map((origin) => origin.trim())
-  .filter(Boolean);
-
-const isAlphaNumHyphen = (value) => value.split('').every((char) => (
-  (char >= 'a' && char <= 'z')
-  || (char >= '0' && char <= '9')
-  || char === '-'
-));
-
-const hasTrustedPreviewHostname = (hostname, suffix) => {
-  if (!hostname.endsWith(suffix)) return false;
-
-  const subdomain = hostname.slice(0, -suffix.length);
-  return Boolean(subdomain) && isAlphaNumHyphen(subdomain);
-};
+  .filter(Boolean)
+);
 
 const isAllowedOriginPattern = (origin) => {
   let parsedOrigin;
@@ -34,15 +23,14 @@ const isAllowedOriginPattern = (origin) => {
 
   return hostname === 'localhost'
     || hostname === '127.0.0.1'
-    || hasTrustedPreviewHostname(hostname, '.app.github.dev')
-    || hasTrustedPreviewHostname(hostname, '.githubpreview.dev');
+    || allowlistedOrigins.has(parsedOrigin.origin);
 };
 
 module.exports = {
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
 
-    if (allowedOrigins.includes(origin)) {
+    if (allowlistedOrigins.has(origin)) {
       return callback(null, true);
     }
 

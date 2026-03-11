@@ -12,10 +12,10 @@ This plan translates the previously identified gaps into concrete, auditable wor
 
 **Checklist**
 
-- [ ] Update Kyverno verify policies to accept only tag-based identities.
-- [ ] Confirm policy regex matches `refs/tags/v*` only.
+- [x] Update Kyverno verify policies to accept only tag-based identities.
+- [x] Confirm policy regex matches `refs/tags/v*` only.
 - [ ] Run Kyverno policy tests (CI or local) against a signed tag-based image.
-- [ ] Document the change in `docs/governance.md` under tag protections.
+- [x] Document the change in `docs/governance.md` under tag protections.
 - [ ] Validate that GitOps promotion still passes with tag-signed artifacts.
 
 ---
@@ -26,10 +26,10 @@ This plan translates the previously identified gaps into concrete, auditable wor
 
 **Checklist**
 
-- [ ] Replace Snyk references with Trivy/Gitleaks where applicable.
-- [ ] Confirm CI workflows for SAST/SCA are accurately reflected.
-- [ ] Update residual risk section to reflect current tooling and limits.
-- [ ] Add a “Controls-to-Workflow” mapping table to prevent future drift.
+- [x] Replace Snyk references with Trivy/Gitleaks where applicable.
+- [x] Confirm CI workflows for SAST/SCA are accurately reflected.
+- [x] Update residual risk section to reflect current tooling and limits.
+- [x] Add a “Controls-to-Workflow” mapping table to prevent future drift.
 
 ---
 
@@ -38,9 +38,9 @@ This plan translates the previously identified gaps into concrete, auditable wor
 **Goal:** Ensure SLSA claims are defensible and traceable to implementation.
 
 **Checklist**
-- [ ] Add a SLSA compliance mapping section (requirements → controls).
-- [ ] If not fully compliant, rephrase the README badge or add a “target state” qualifier.
-- [ ] Keep SLSA attestation evidence linked to the release workflow.
+- [x] Add a SLSA compliance mapping section (requirements → controls).
+- [x] If not fully compliant, rephrase the README badge or add a “target state” qualifier.
+- [x] Keep SLSA attestation evidence linked to the release workflow.
 
 ---
 
@@ -50,8 +50,8 @@ This plan translates the previously identified gaps into concrete, auditable wor
 **Goal:** Remove ambiguity between documentation and actual behavior.
 
 **Checklist**
-- [ ] Decide on automatic vs. manual promotion policy.
-- [ ] If automatic: enable `workflow_run` with guardrails (e.g., release-only, same-repo).
+- [x] Decide on automatic vs. manual promotion policy.
+- [x] If automatic: enable `workflow_run` with guardrails (e.g., release-only, same-repo).
 - [ ] If manual: update README to specify manual promotion trigger.
 - [ ] Add a short “Promotion Runbook” section describing when/how to promote.
 
@@ -62,9 +62,9 @@ This plan translates the previously identified gaps into concrete, auditable wor
 **Goal:** Make governance enforceable and auditable even when settings are external to the repo.
 
 **Checklist**
-- [ ] Add a “Required GitHub Settings” section to README or governance doc.
-- [ ] Include branch protection, CODEOWNERS enforcement, and tag protection.
-- [ ] Add a verification checklist for maintainers to audit settings quarterly.
+- [x] Add a “Required GitHub Settings” section to README or governance doc.
+- [x] Include branch protection, CODEOWNERS enforcement, and tag protection.
+- [x] Add a verification checklist for maintainers to audit settings quarterly.
 
 ---
 

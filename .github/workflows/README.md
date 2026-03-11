@@ -14,7 +14,7 @@ This folder contains the active GitHub Actions workflows that power CI, security
 
 **ci-release-gate.yml**
 - Name: Release
-- Triggers: tag push `v*.*.*`, manual with `tag` input
+- Triggers: tag push `v*.*.*`
 - Summary: Resolves the release tag, builds and pushes backend/frontend images, stores digest artifacts, runs Trivy image scans with a gate (CRITICAL > 0 or HIGH > 5), runs ZAP baseline DAST against an ephemeral compose environment, gates on ZAP High findings, then cosign-signs images and publishes Trivy/ZAP/SBOM attestations plus build provenance.
 
 **ci-security-deep.yml**
@@ -42,15 +42,16 @@ This folder contains the active GitHub Actions workflows that power CI, security
 - Triggers: schedule Saturdays at 15:30 UTC, manual
 - Summary: Runs tests with coverage for `server` and `client`, uploads LCOV artifacts, then runs SonarQube/SonarCloud analysis using the downloaded coverage.
 
-**trivy-report.yml**
-- Name: Trivy README Update
+**snyk-report.yml**
+- Name: Snyk Report
 - Triggers: `workflow_dispatch`, weekly schedule (Sundays at 00:00 UTC)
-- Summary: Runs `scripts/trivy-report.sh` (via `make trivy-report`) to produce Trivy filesystem/config scan summaries for `app/`, updates the generated marker-delimited block in `readme.md`, and opens a PR when the generated evidence changes.
-- Outputs: Updated README governance evidence table in PR diff; no standalone artifact upload in this workflow.
-- Permissions/Secrets: Uses `GITHUB_TOKEN` with `contents: write` and `pull-requests: write`; no additional secrets required.
-- Maintenance notes: Keep marker strings in `scripts/trivy-report.sh` and `readme.md` aligned (`<!-- [BEGIN_GENERATED_TABLE] -->` / `<!-- [END_GENERATED_TABLE] -->`), and review Trivy version pinning when upgrading scanner behavior.
+- Summary: Runs `scripts/run-snyk-aggregate.sh` (via `make snyk-report`) to produce the repository security evidence set, updates the generated marker-delimited block in `readme.md`, refreshes `docs/snyk/`, and opens a PR when the evidence changes.
+- Outputs: Updated README governance evidence table in PR diff plus refreshed `docs/snyk/` artifacts.
+- Permissions/Secrets: Uses `GITHUB_TOKEN` with `contents: write` and `pull-requests: write`; requires `SNYK_TOKEN`.
+- Maintenance notes: `scripts/run-snyk-aggregate.sh` is the only automation that should update the README evidence markers (`<!-- [BEGIN_GENERATED_TABLE] -->` / `<!-- [END_GENERATED_TABLE] -->`).
 - Alert routing: Failures are visible in the Actions run and should be triaged by the platform/security maintainers who own CI governance workflows.
-- Expected result example: A weekly run creates a branch `trivy-update-<timestamp>`, opens PR `docs: weekly Trivy security scan update`, and updates only the generated table block under `## Operational Evidence`.
+- Expected result example: A weekly run updates `readme.md` and `docs/snyk/` together in PR `docs: weekly Snyk security scan update`.
 
 **Notes**
 - `legacy/` contains `ci-cd.txt` and `ci-weekly-dast.txt` as historical references, not active workflows.
+- `legacy/trivy-report.yml` is retained only as historical reference; it is not an active workflow and no longer owns the README evidence block.

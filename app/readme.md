@@ -113,7 +113,13 @@ app/scripts/setup-dev.sh
 Run the stack:
 ```bash
 cd app
-docker-compose up --build
+docker compose up --build
+```
+
+Quick backend-only stack:
+```bash
+cd app
+docker compose -f docker-compose.quick.yml up --build
 ```
 
 ---
@@ -327,6 +333,7 @@ Additional security-related configuration:
 
 - Secrets can be sourced via environment variables, `*_FILE`, `/run/secrets/*`, or a JSON blob in `SECRETS_JSON`.
 - `ENFORCE_TLS=true` rejects non-HTTPS requests using `req.secure`; forwarding headers are trusted only when requests traverse trusted private/loopback proxy hops.
+- `ENFORCE_TLS` does not switch the backend listener to HTTPS by itself. To run the API listener with HTTPS directly, set both `TLS_CERT_PATH` and `TLS_KEY_PATH`.
 - Field-level encryption supports key rotation via `DATA_ENCRYPTION_KEY_ID` (primary) and `DATA_ENCRYPTION_KEYS`.
 - Audit logging supports `AUDIT_SINK` (`db` or `console`) and `AUDIT_PII_REDACTION` (`none` or `strict`).
 - Edge security is enforced at the Nginx layer (basic WAF rules, rate limits, hardened headers).

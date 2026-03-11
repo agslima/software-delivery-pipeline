@@ -26,8 +26,8 @@ describe('Unit: server bootstrap', () => {
     };
     const env = {
       ENFORCE_TLS: false,
-      TLS_CERT_PATH: '/tmp/server.crt',
-      TLS_KEY_PATH: '/tmp/server.key',
+      TLS_CERT_PATH: '',
+      TLS_KEY_PATH: '',
       PORT: 8080,
       NODE_ENV: 'test',
       ...envOverrides,
@@ -58,7 +58,21 @@ describe('Unit: server bootstrap', () => {
     return { httpCreateServer, httpsCreateServer, logger, exit, thrown };
   };
 
-  it('starts HTTP when TLS is not explicitly enforced even if cert paths are configured', () => {
+  it('starts HTTP when no TLS listener certs are configured', () => {
+    const { httpCreateServer, httpsCreateServer, logger } = loadServer({
+      envOverrides: {
+        ENFORCE_TLS: true,
+        TLS_CERT_PATH: '',
+        TLS_KEY_PATH: '',
+      },
+    });
+
+    expect(httpCreateServer).toHaveBeenCalledWith('app-instance');
+    expect(httpsCreateServer).not.toHaveBeenCalled();
+    expect(logger.info).toHaveBeenCalledWith({ tls: false }, 'TLS listener not configured; starting HTTP server');
+  });
+
+  it('starts HTTPS when both TLS cert paths are configured', () => {
     const { httpCreateServer, httpsCreateServer, logger } = loadServer({
       envOverrides: {
         ENFORCE_TLS: false,
@@ -67,20 +81,23 @@ describe('Unit: server bootstrap', () => {
       },
     });
 
-    expect(httpCreateServer).toHaveBeenCalledWith('app-instance');
-    expect(httpsCreateServer).not.toHaveBeenCalled();
-    expect(logger.info).toHaveBeenCalledWith({ tls: false }, 'TLS not enforced; starting HTTP server');
+    expect(httpCreateServer).not.toHaveBeenCalled();
+    expect(httpsCreateServer).toHaveBeenCalled();
+    expect(logger.info).toHaveBeenCalledWith({ tls: true }, 'TLS enabled for API server');
   });
 
-  it('starts HTTPS only when TLS is explicitly enforced', () => {
-    const { httpCreateServer, httpsCreateServer, logger } = loadServer({
+  it('fails fast when only one TLS path is configured', () => {
+    const { httpCreateServer, httpsCreateServer, logger, thrown } = loadServer({
       envOverrides: {
-        ENFORCE_TLS: true,
+        TLS_CERT_PATH: '/tmp/server.crt',
+        TLS_KEY_PATH: '',
       },
     });
 
     expect(httpCreateServer).not.toHaveBeenCalled();
-    expect(httpsCreateServer).toHaveBeenCalled();
-    expect(logger.info).toHaveBeenCalledWith({ tls: true }, 'TLS enabled for API server');
+    expect(httpsCreateServer).not.toHaveBeenCalled();
+    expect(logger.error).toHaveBeenCalledWith('TLS_CERT_PATH and TLS_KEY_PATH must both be set to enable HTTPS.');
+    expect(thrown).toBeDefined();
+    expect(thrown.message).toBe('process.exit');
   });
 });
