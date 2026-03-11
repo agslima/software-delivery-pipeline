@@ -79,7 +79,7 @@ export async function login(username, password) {
  * @throws {Error} Throws `Error('SERVER_ERROR')` for any other non-successful response status.
  */
 export async function getPrescription(id, token) {
-  const response = await fetch(`/api/v1/prescriptions/${id}`, {
+  const response = await fetch(`/api/v1/prescriptions/${encodeURIComponent(String(id))}`, {
     headers: { 'Authorization': `Bearer ${token}` }
   });
 
