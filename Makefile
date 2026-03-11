@@ -12,5 +12,5 @@ snyk-report:
 # Governance Drift Check (docs/workflow refs)
 .PHONY: governance-drift-check
 governance-drift-check:
-    ./scripts/check-governance-drift.sh
+	./scripts/check-governance-drift.sh
 
