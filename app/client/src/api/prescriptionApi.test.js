@@ -38,8 +38,20 @@ describe('prescriptionApi', () => {
       await expect(login('admin', 'secret')).rejects.toThrow('SERVER_ERROR');
     });
 
-    it('maps network failures to NETWORK_ERROR', async () => {
-      fetch.mockRejectedValue(new Error('Failed to fetch'));
+    it.each([
+      ['Error', () => new Error('Failed to fetch')],
+      ['TypeError (undici)', () => new TypeError('fetch failed')],
+      ['browser NetworkError', () => new TypeError('NetworkError when attempting to fetch resource')],
+    ])('maps %s network failure messages to NETWORK_ERROR', async (_, createError) => {
+      fetch.mockRejectedValue(createError());
+
+      await expect(login('admin', 'secret')).rejects.toThrow('NETWORK_ERROR');
+    });
+
+    it('maps network errors exposed on error cause to NETWORK_ERROR', async () => {
+      fetch.mockRejectedValue(
+        new TypeError('fetch failed', { cause: { code: 'ECONNREFUSED', message: 'connect ECONNREFUSED' } })
+      );
 
       await expect(login('admin', 'secret')).rejects.toThrow('NETWORK_ERROR');
     });

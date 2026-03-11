@@ -4,8 +4,8 @@
 
 # 1. Pipeline Integrity
 .github/workflows/    @agslima
-.github/rulesets/     `@agslima`
-.github/CODEOWNERS    `@agslima`
+.github/rulesets/     @agslima
+.github/CODEOWNERS    @agslima
 
 # 2. Policy Definitions
 k8s/policies/         @agslima
@@ -21,3 +21,7 @@ k8s/tests/            @agslima
 
 # 5. Trivy allowlist
 .trivyignore          @agslima
+
+# 6. Scripted Automation
+scripts/run-snyk-aggregate     @agslima
+scripts/check-dependencies     @agslima

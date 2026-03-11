@@ -34,7 +34,7 @@ This folder contains the active GitHub Actions workflows that power CI, security
 
 **gitops-enforce.yml**
 - Name: GitOps Enforcement
-- Triggers: automatic on successful `Release` completion (`workflow_run`) and manual `workflow_dispatch` with `run_id`
+- Triggers: automatic on successful `Release` completion from a tag `push` (`workflow_run`) and manual `workflow_dispatch` with `run_id`
 - Summary: Downloads image digests from the Release workflow, verifies cosign signatures and Trivy/ZAP/SBOM attestations, updates prod kustomize image digests, validates rendered manifests against Kyverno policies, uploads Kyverno logs, and opens a GitOps PR to `main`.
 
 **sonar.yml**

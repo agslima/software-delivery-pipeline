@@ -1,3 +1,26 @@
+function isNetworkTransportError(err) {
+  const message = typeof err?.message === 'string' ? err.message.toLowerCase() : '';
+  const causeMessage =
+    typeof err?.cause?.message === 'string' ? err.cause.message.toLowerCase() : '';
+
+  const combinedMessage = `${message} ${causeMessage}`;
+
+  if (
+    /failed to fetch|fetch failed|networkerror|network request failed|load failed/.test(
+      combinedMessage
+    )
+  ) {
+    return true;
+  }
+
+  const causeCode = typeof err?.cause?.code === 'string' ? err.cause.code : '';
+  if (/^(econnrefused|econnreset|enotfound|eai_again|etimedout)$/i.test(causeCode)) {
+    return true;
+  }
+
+  return err instanceof TypeError && combinedMessage.includes('fetch');
+}
+
 export async function login(username, password) {
   try {
     const response = await fetch('/api/v1/auth/login', {
@@ -21,7 +44,7 @@ export async function login(username, password) {
 
   } catch (err) {
     // 3. Handle Network Errors (Server offline / Docker down)
-    if (err.message === 'Failed to fetch' || err.message.includes('NetworkError')) {
+    if (isNetworkTransportError(err)) {
       throw new Error('NETWORK_ERROR');
     }
     throw err;

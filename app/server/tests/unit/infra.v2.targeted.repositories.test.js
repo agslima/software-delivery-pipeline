@@ -1,5 +1,4 @@
 describe('Unit: infra v2 targeted repositories', () => {
-describe('Unit: infra v2 targeted repositories', () => {
   const originalFetch = global.fetch;
 
   afterEach(() => {

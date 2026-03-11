@@ -30,6 +30,11 @@ describe('patientPortalApi', () => {
       token: 'jwt-1',
       user: { id: 'p-1' },
     });
+    expect(fetch).toHaveBeenCalledWith('/api/v2/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'patient@example.test', password: 'Password123!' }),
+    });
   });
 
   it('loginPatient returns MFA challenge and maps failures', async () => {
@@ -43,20 +48,40 @@ describe('patientPortalApi', () => {
       mfaToken: 'mfa-1',
       user: { id: 'p-1' },
     });
+    expect(fetch).toHaveBeenNthCalledWith(1, '/api/v2/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'patient@example.test', password: 'Password123!' }),
+    });
 
     fetch.mockResolvedValueOnce({ ok: false, status: 401 });
     await expect(loginPatient('patient@example.test', 'bad-pass')).rejects.toMatchObject({
       message: 'INCORRECT_CREDENTIALS',
+    });
+    expect(fetch).toHaveBeenNthCalledWith(2, '/api/v2/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'patient@example.test', password: 'bad-pass' }),
     });
 
     fetch.mockResolvedValueOnce({ ok: false, status: 500 });
     await expect(loginPatient('patient@example.test', 'bad-pass')).rejects.toMatchObject({
       message: 'SERVER_ERROR',
     });
+    expect(fetch).toHaveBeenNthCalledWith(3, '/api/v2/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'patient@example.test', password: 'bad-pass' }),
+    });
 
     fetch.mockRejectedValueOnce(new Error('Failed to fetch'));
     await expect(loginPatient('patient@example.test', 'bad-pass')).rejects.toMatchObject({
       message: 'NETWORK_ERROR',
+    });
+    expect(fetch).toHaveBeenNthCalledWith(4, '/api/v2/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'patient@example.test', password: 'bad-pass' }),
     });
   });
 
@@ -71,12 +96,36 @@ describe('patientPortalApi', () => {
       token: 'jwt-2',
       refreshToken: 'r-1',
     });
+    expect(fetch).toHaveBeenNthCalledWith(1, '/api/v2/auth/mfa/verify', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer mfa-token',
+      },
+      body: JSON.stringify({ code: '123456' }),
+    });
 
     fetch.mockResolvedValueOnce({ ok: false, status: 400 });
     await expect(verifyMfa('000000', 'mfa-token')).rejects.toMatchObject({ message: 'INVALID_MFA_CODE' });
+    expect(fetch).toHaveBeenNthCalledWith(2, '/api/v2/auth/mfa/verify', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer mfa-token',
+      },
+      body: JSON.stringify({ code: '000000' }),
+    });
 
     fetch.mockRejectedValueOnce(new Error('NetworkError when attempting to fetch resource'));
     await expect(verifyMfa('000000', 'mfa-token')).rejects.toMatchObject({ message: 'NETWORK_ERROR' });
+    expect(fetch).toHaveBeenNthCalledWith(3, '/api/v2/auth/mfa/verify', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer mfa-token',
+      },
+      body: JSON.stringify({ code: '000000' }),
+    });
   });
 
   it('maps status codes for list/detail endpoints', async () => {
@@ -130,20 +179,50 @@ describe('patientPortalApi', () => {
   it('maps MFA status/enroll/disable success and auth failures', async () => {
     fetch.mockResolvedValueOnce({ ok: true, status: 200, json: vi.fn().mockResolvedValue({ enabled: true }) });
     await expect(getMfaStatus('jwt')).resolves.toEqual({ enabled: true });
+    expect(fetch).toHaveBeenNthCalledWith(1, '/api/v2/auth/mfa/status', {
+      headers: { Authorization: 'Bearer jwt' },
+    });
 
     fetch.mockResolvedValueOnce({ ok: false, status: 401 });
     await expect(getMfaStatus('jwt')).rejects.toMatchObject({ message: 'SESSION_EXPIRED' });
+    expect(fetch).toHaveBeenNthCalledWith(2, '/api/v2/auth/mfa/status', {
+      headers: { Authorization: 'Bearer jwt' },
+    });
 
     fetch.mockResolvedValueOnce({ ok: true, status: 200, json: vi.fn().mockResolvedValue({ secret: 'ABC' }) });
     await expect(enrollMfa('jwt', 'phone')).resolves.toEqual({ secret: 'ABC' });
+    expect(fetch).toHaveBeenNthCalledWith(3, '/api/v2/auth/mfa/enroll', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer jwt',
+      },
+      body: JSON.stringify({ label: 'phone' }),
+    });
 
     fetch.mockResolvedValueOnce({ ok: false, status: 401 });
     await expect(enrollMfa('jwt', 'phone')).rejects.toMatchObject({ message: 'SESSION_EXPIRED' });
+    expect(fetch).toHaveBeenNthCalledWith(4, '/api/v2/auth/mfa/enroll', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer jwt',
+      },
+      body: JSON.stringify({ label: 'phone' }),
+    });
 
     fetch.mockResolvedValueOnce({ ok: true, status: 200, json: vi.fn().mockResolvedValue({ ok: true }) });
     await expect(disableMfa('jwt')).resolves.toEqual({ ok: true });
+    expect(fetch).toHaveBeenNthCalledWith(5, '/api/v2/auth/mfa/disable', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer jwt' },
+    });
 
     fetch.mockResolvedValueOnce({ ok: false, status: 500 });
     await expect(disableMfa('jwt')).rejects.toMatchObject({ message: 'SERVER_ERROR' });
+    expect(fetch).toHaveBeenNthCalledWith(6, '/api/v2/auth/mfa/disable', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer jwt' },
+    });
   });
 });

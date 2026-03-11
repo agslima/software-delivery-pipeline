@@ -51,7 +51,7 @@ The security model follows a zero-trust posture for delivery:
 
 | Threat Scenario | Attack Vector | Mitigation Control | Implementation Details |
 | :--- | :--- | :--- | :--- |
-| Hardcoded secrets in code/history | Token/credential committed to repository | Gitleaks + Trivy secret/config scanning | Gitleaks runs in PR and daily security workflows; Trivy scans filesystem, dependencies, secrets, and infrastructure config in PR/daily workflows. |
+| Hardcoded secrets in code/history | Token/credential committed to repository | Gitleaks + Trivy secret/config scanning | Gitleaks runs in PR and daily security workflows; PR Trivy checks cover vulnerabilities and config/misconfiguration, while Trivy secret scanning runs in the daily/manual deep security workflow. |
 | Runtime information leakage | Missing headers / endpoint misconfig | OWASP ZAP DAST | Release and weekly DAST scans detect exposed attack surface and missing protections. |
 
 ---

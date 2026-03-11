@@ -67,6 +67,7 @@ Use this table during reviews to ensure governance controls remain mapped to act
 | :--- | :--- | :--- |
 | PR lint/test quality gate | `.github/workflows/ci-pr-validation.yml` → `code-quality` | Required PR status check passes before merge |
 | Dockerfile/manifests/policy hygiene | `.github/workflows/ci-pr-validation.yml` → `infra-lint` (Hadolint, Conftest, Kubeconform, Kyverno tests) | Required PR status check passes before merge |
+| Governance Drift Check | `.github/workflows/ci-pr-validation.yml` → `security-scan` (governance drift check) | Required PR status check fails on drift, blocking merge until corrected |
 | Secret + vulnerability + misconfiguration PR gate | `.github/workflows/ci-pr-validation.yml` → `security-scan` (Gitleaks + Trivy FS/config) | Required PR status check passes before merge |
 | Scheduled deep security evidence | `.github/workflows/ci-security-deep.yml` → `security-governance` (Gitleaks + Trivy SARIF/JSON + risk-acceptance gate) | Artifacts/SARIF generated; issue raised on failure |
 | Release vulnerability gate by immutable digest | `.github/workflows/ci-release-gate.yml` → `trivy-scan` | Release blocks on policy thresholds (`CRITICAL>0` or `HIGH>5`) |

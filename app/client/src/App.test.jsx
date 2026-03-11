@@ -212,6 +212,8 @@ describe('App Integration', () => {
     await user.click(screen.getByRole('button', { name: /secure login/i }));
 
     expect(await screen.findByRole('heading', { name: /patient portal access only/i })).toBeInTheDocument();
+    expect(api.getMyPrescriptions).not.toHaveBeenCalled();
+    expect(api.getMyPrescription).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole('button', { name: /sign out/i }));
     expect(await screen.findByText(/patient prescription portal/i)).toBeInTheDocument();
@@ -273,8 +275,19 @@ describe('App Integration', () => {
       expect(api.verifyMfa).toHaveBeenCalledWith('654321', 'token-mfa-manage');
     });
     expect(await screen.findByText(/multi-factor authentication enabled/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(sessionStorage.getItem('patient_portal_session')).toEqual(
+        JSON.stringify({
+          token: 'token-after-enable',
+          user: { id: 'patient-5', email, role: 'patient', mfaEnabled: false },
+        })
+      );
+    });
 
     await user.click(screen.getByRole('button', { name: /disable mfa/i }));
+    await waitFor(() => {
+      expect(api.disableMfa).toHaveBeenCalledWith('token-after-enable');
+    });
     expect(await screen.findByText(/multi-factor authentication disabled/i)).toBeInTheDocument();
   });
 });

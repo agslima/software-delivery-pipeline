@@ -4,12 +4,39 @@ const allowedOrigins = env.CORS_ORIGIN.split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
 
-const allowedOriginPatterns = [
-  /^https?:\/\/localhost(:\d+)?$/,
-  /^https?:\/\/127\.0\.0\.1(:\d+)?$/,
-  /^https?:\/\/[a-z0-9-]+\.app\.github\.dev$/i,
-  /^https?:\/\/[a-z0-9-]+\.githubpreview\.dev$/i,
-];
+const isAlphaNumHyphen = (value) => value.split('').every((char) => (
+  (char >= 'a' && char <= 'z')
+  || (char >= '0' && char <= '9')
+  || char === '-'
+));
+
+const hasTrustedPreviewHostname = (hostname, suffix) => {
+  if (!hostname.endsWith(suffix)) return false;
+
+  const subdomain = hostname.slice(0, -suffix.length);
+  return Boolean(subdomain) && isAlphaNumHyphen(subdomain);
+};
+
+const isAllowedOriginPattern = (origin) => {
+  let parsedOrigin;
+
+  try {
+    parsedOrigin = new URL(origin);
+  } catch {
+    return false;
+  }
+
+  if (!['http:', 'https:'].includes(parsedOrigin.protocol)) {
+    return false;
+  }
+
+  const hostname = parsedOrigin.hostname.toLowerCase();
+
+  return hostname === 'localhost'
+    || hostname === '127.0.0.1'
+    || hasTrustedPreviewHostname(hostname, '.app.github.dev')
+    || hasTrustedPreviewHostname(hostname, '.githubpreview.dev');
+};
 
 module.exports = {
   origin: (origin, callback) => {
@@ -19,7 +46,7 @@ module.exports = {
       return callback(null, true);
     }
 
-    if (allowedOriginPatterns.some((pattern) => pattern.test(origin))) {
+    if (isAllowedOriginPattern(origin)) {
       return callback(null, true);
     }
 

@@ -38,6 +38,8 @@ jobs:
           WR_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
           WR_HEAD_REPO: ${{ github.event.workflow_run.head_repository.full_name }}
           WR_EVENT: ${{ github.event.workflow_run.event }}
+          WR_REF: ${{ github.event.workflow_run.ref }}
+          WR_HEAD_REF: ${{ github.event.workflow_run.head_branch }}
           WR_RUN_ID: ${{ github.event.workflow_run.id }}
         run: |
           set -euo pipefail
@@ -61,8 +63,19 @@ jobs:
             exit 1
           fi
 
-          if [[ "$WR_EVENT" != "push" && "$WR_EVENT" != "workflow_dispatch" ]]; then
-            echo "::error::Unsupported Release trigger event ($WR_EVENT). Expected push or workflow_dispatch."
+          if [[ "$WR_EVENT" != "push" ]]; then
+            echo "::error::Unsupported Release trigger event ($WR_EVENT). Expected push from a release tag."
+            exit 1
+          fi
+
+          WR_EFFECTIVE_REF="${WR_REF:-$WR_HEAD_REF}"
+          if [[ -z "$WR_EFFECTIVE_REF" ]]; then
+            echo "::error::Missing upstream release ref for workflow_run trigger."
+            exit 1
+          fi
+
+          if [[ "$WR_EFFECTIVE_REF" != refs/tags/* ]]; then
+            echo "::error::Upstream Release workflow must originate from a tag push (ref=$WR_EFFECTIVE_REF)."
             exit 1
           fi
 
@@ -101,6 +114,9 @@ jobs:
 
           RELEASE_WORKFLOW_NAME="$(echo "$RUN_JSON" | jq -r '.name // empty')"
           RELEASE_CONCLUSION="$(echo "$RUN_JSON" | jq -r '.conclusion // empty')"
+          RELEASE_EVENT="$(echo "$RUN_JSON" | jq -r '.event // empty')"
+          RELEASE_REF="$(echo "$RUN_JSON" | jq -r '.ref // empty')"
+          RELEASE_HEAD_REF="$(echo "$RUN_JSON" | jq -r '.head_branch // empty')"
           RELEASE_SHA="$(echo "$RUN_JSON" | jq -r '.head_sha // empty')"
 
           if [[ "$RELEASE_WORKFLOW_NAME" != "Release" ]]; then
@@ -110,6 +126,22 @@ jobs:
 
           if [[ "$RELEASE_CONCLUSION" != "success" ]]; then
             echo "::error::Release run ${RUN_ID} did not succeed (conclusion: ${RELEASE_CONCLUSION:-unknown})."
+            exit 1
+          fi
+
+          if [[ "$RELEASE_EVENT" != "push" ]]; then
+            echo "::error::Release run ${RUN_ID} must be triggered by push (event: ${RELEASE_EVENT:-unknown})."
+            exit 1
+          fi
+
+          RELEASE_EFFECTIVE_REF="${RELEASE_REF:-$RELEASE_HEAD_REF}"
+          if [[ -z "$RELEASE_EFFECTIVE_REF" ]]; then
+            echo "::error::Could not resolve release ref for run ${RUN_ID}."
+            exit 1
+          fi
+
+          if [[ "$RELEASE_EFFECTIVE_REF" != refs/tags/* ]]; then
+            echo "::error::Release run ${RUN_ID} must originate from a tag push (ref: ${RELEASE_EFFECTIVE_REF})."
             exit 1
           fi
 
