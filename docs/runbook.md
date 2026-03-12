@@ -28,14 +28,13 @@ It intentionally focuses on response actions, not tool configuration.
 
 Symptom
 
-CI job `Security Quality Check` fails on a pull request, or release job `Trivy Scan (Digest Gate)` fails for `backend` or `frontend`.
+CI job `Security Quality Check` fails on a pull request because Trivy reported `HIGH` or `CRITICAL` findings, or release job `Trivy Scan (Digest Gate)` fails for `backend` or `frontend`.  
 
 Exit code: 1
 
-
 Error Message
 
-`CRITICAL vulnerabilities found` or `⛔ Trivy Gate Failed for <image> (CRIT=<n> HIGH=<n>)`
+`HIGH` or `CRITICAL` vulnerabilities found in the PR scan, or `⛔ Trivy Gate Failed for <image> (CRIT=<n> HIGH=<n>)` in the release digest gate  
 
 
 ---
@@ -47,9 +46,8 @@ Triage Steps
 
 2. Identify which path failed:
 
-- PR path: inspect the `Security Quality Check` logs for the Trivy FS/config step output.
+- PR path: inspect the `Security Quality Check` logs for the Trivy FS/config step output and confirm whether the failing threshold was `HIGH` or `CRITICAL`.
 - Release path: download the relevant artifact (`trivy-results-backend` or `trivy-results-frontend`).
-
 
 3. Review:
 
@@ -60,10 +58,6 @@ Affected package
 Severity
 
 Fix version (if available)
-
-
-
-
 
 ---
 

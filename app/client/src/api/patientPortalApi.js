@@ -24,6 +24,7 @@ export async function loginPatient(email, password) {
     }
     return {
       token: data.accessToken,
+      refreshToken: data.refreshToken,
       user: data.user,
     };
   } catch (err) {

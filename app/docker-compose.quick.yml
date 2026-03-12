@@ -12,7 +12,7 @@ services:
   postgres:
     image: postgres:15-alpine
     environment:
-      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_USER: ${DB_USER:-prescriptions_user}
       POSTGRES_PASSWORD_FILE: /run/secrets/db_pass
       POSTGRES_DB: ${DB_NAME:-prescriptions_db}
     ports:
@@ -35,7 +35,7 @@ services:
       PORT: "8080"
       LOG_LEVEL: info
       DB_HOST: postgres
-      DB_USER: ${DB_USER:-postgres}
+      DB_USER: ${DB_USER:-prescriptions_user}
       DB_NAME: ${DB_NAME:-prescriptions_db}
       DB_PASS_FILE: /run/secrets/db_pass
       JWT_SECRET_FILE: /run/secrets/jwt_secret
@@ -54,7 +54,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: sh -c "npm install && npm run dev"
+    command: sh -c "npm install && npm run db:migrate && npm run db:seed && npm run dev"
 
 volumes:
   pgdata_quick:

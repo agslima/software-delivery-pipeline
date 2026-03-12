@@ -2,7 +2,7 @@
 
 ## Internal engineering reference implementation for a full-stack prescription workflow
 
-![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?logo=node.js&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-24%2B-339933?logo=node.js&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Enabled-2496ED?logo=docker&logoColor=white)
 ![OpenAPI](https://img.shields.io/badge/OpenAPI-3.0-6BA539?logo=openapiinitiative&logoColor=white)
 ![JWT](https://img.shields.io/badge/Auth-JWT-blue?logo=jsonwebtokens)
@@ -151,7 +151,7 @@ This creates:
 
 ```bash
 cd app
-docker compose up -d db
+docker compose up -d postgres
 ```
 
 ### 3. Install dependencies
@@ -218,7 +218,7 @@ npm run dev
 
 - UI: `http://localhost:5173`
 - API health: `http://localhost:8080/health`
-- API docs: `http://localhost:8080/api/v1/api-docs`
+- OpenAPI spec: `app/server/src/docs/openapi.yaml`
 
 Patient portal login (if deterministic seed vars were set):
 
@@ -410,13 +410,14 @@ docker compose -f app/docker-compose.release.yml --env-file app/.env.release up 
 
 ## 7. API Documentation 📡
 
-The backend exposes a documented REST API.
+The backend exposes a documented REST API, and the OpenAPI sources are kept in-repo.
 
 - OpenAPI 3.0 specification
-- Swagger UI available at:
+- OpenAPI source files:
 
 ```text
-  /api/v1/api-docs
+app/server/src/docs/openapi.yaml
+app/server/docs/openapi.yaml
 ```
 
 The API contract is intended to be:
@@ -441,7 +442,7 @@ The system is deployed using **Docker Compose**, enabling reproducible local and
 ### Start All Services
 
 ```bash
-docker-compose up --build
+docker compose up --build
 ```
 
 ### Exposed Services
@@ -450,7 +451,6 @@ docker-compose up --build
 | --- | --- |
 | Web UI | http://localhost:4173 |
 | API | http://localhost:4173/api/v1 |
-| API Docs | http://localhost:4173/api/v1/api-docs |
 
 ---
 

@@ -23,11 +23,12 @@ describe('patientPortalApi', () => {
     fetch.mockResolvedValue({
       ok: true,
       status: 200,
-      json: vi.fn().mockResolvedValue({ accessToken: 'jwt-1', user: { id: 'p-1' } }),
+      json: vi.fn().mockResolvedValue({ accessToken: 'jwt-1', refreshToken: 'refresh-1', user: { id: 'p-1' } }),
     });
 
     await expect(loginPatient('patient@example.test', 'Password123!')).resolves.toEqual({
       token: 'jwt-1',
+      refreshToken: 'refresh-1',
       user: { id: 'p-1' },
     });
     expect(fetch).toHaveBeenCalledWith('/api/v2/auth/login', {

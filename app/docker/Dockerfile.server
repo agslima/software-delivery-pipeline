@@ -2,7 +2,7 @@
 # STAGE 1: Dependencies (prod only)
 # ==========================================
 
-FROM node:25-alpine@sha256:b9b5737eabd423ba73b21fe2e82332c0656d571daf1ebf19b0f89d0dd0d3ca93 AS deps
+FROM node:24.13.0-alpine@sha256:7d047f7917fbfd954d5a74ba2dbc50aa382dc7805cc614c55353bc3a90185ef8 AS deps
 
 WORKDIR /app
 
@@ -17,7 +17,7 @@ RUN npm ci --omit=dev --ignore-scripts
 # ==========================================
 # STAGE 2: Runtime
 # ==========================================
-FROM node:25-alpine@sha256:b9b5737eabd423ba73b21fe2e82332c0656d571daf1ebf19b0f89d0dd0d3ca93 AS runtime
+FROM node:24.13.0-alpine@sha256:7d047f7917fbfd954d5a74ba2dbc50aa382dc7805cc614c55353bc3a90185ef8 AS runtime
 
 ARG BUILD_DATE=unknown
 ARG VCS_REF=unknown

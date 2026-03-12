@@ -102,7 +102,7 @@ export default function App() {
       throw new Error('SERVER_ERROR');
     }
     const result = await verifyMfa(code, mfaChallenge.mfaToken);
-    const nextSession = { token: result.token, user: mfaChallenge.user };
+    const nextSession = { token: result.token, refreshToken: result.refreshToken, user: mfaChallenge.user };
     setMfaChallenge(null);
     setLoadingList(isPatientSession(nextSession));
     setLoadingDetail(false);
@@ -241,7 +241,7 @@ export default function App() {
     setMfaBanner(null);
     try {
       const result = await verifyMfa(code, session.token);
-      setSession({ token: result.token, user: session.user });
+      setSession({ token: result.token, refreshToken: result.refreshToken, user: session.user });
       setMfaStatus({ configured: true, enabled: true });
       setMfaEnrollData(null);
       setMfaBanner('Multi-factor authentication enabled.');
