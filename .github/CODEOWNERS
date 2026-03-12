@@ -6,12 +6,14 @@
 .github/workflows/    @agslima
 .github/rulesets/     @agslima
 .github/CODEOWNERS    @agslima
+.github/governance-settings-audit.json @agslima
 
 # 2. Policy Definitions
 k8s/policies/         @agslima
 policies/             @agslima
 
 # 3. Risk Acceptance
+docs/governance.md    @agslima
 docs/security-debt.md @agslima
 
 # 4. Infrastructure State
