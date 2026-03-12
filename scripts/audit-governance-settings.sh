@@ -29,14 +29,17 @@ EXPECTATIONS_FILE=".github/governance-settings-audit.json"
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --repo)
+      [ "$#" -ge 2 ] || fail "--repo requires an argument"
       REPO="${2:-}"
       shift 2
       ;;
     --fixtures-dir)
+      [ "$#" -ge 2 ] || fail "--fixtures-dir requires an argument"
       FIXTURES_DIR="${2:-}"
       shift 2
       ;;
     --output-dir)
+      [ "$#" -ge 2 ] || fail "--output-dir requires an argument"
       OUTPUT_DIR="${2:-}"
       shift 2
       ;;
