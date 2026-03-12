@@ -106,6 +106,11 @@ Run this checklist at least once per quarter and record completion in your gover
 **Verification date (UTC):** `YYYY-MM-DD`
 **Evidence link / ticket:** `<url-or-ticket-id>`
 
+Automated evidence source:
+- Workflow: `.github/workflows/ci-governance-settings-audit.yml`
+- Artifact: `governance-settings-audit`
+- Files: `summary.md`, `report.json`
+
 - [ ] Confirm `main` still requires pull requests and blocks direct pushes.
 - [ ] Confirm required status checks are still configured and match current governance-critical workflows.
 - [ ] Confirm at least one approval and stale approval dismissal are enforced.
@@ -114,7 +119,27 @@ Run this checklist at least once per quarter and record completion in your gover
 - [ ] Confirm force pushes, deletions, and branch-protection bypass are disabled for `main`.
 - [ ] Confirm protected release tag pattern `v*.*.*` exists and still restricts who can create release tags.
 - [ ] Confirm production deployment environment still restricts deployments to release tags and required reviewers.
+- [ ] Confirm the latest `governance-settings-audit` artifact status is `pass` and attach its `summary.md` or `report.json` to the audit record.
+- [ ] Confirm README claim/control wording still distinguishes posture evidence (for example Snyk snapshots) from release-blocking controls (`trivy-scan` and `dast-analysis`) and remains aligned with `docs/threat-model.md`.
 - [ ] Confirm any exceptions (break-glass or temporary override) were documented, approved, and time-bounded.
+
+### Governance Settings Audit Report Schema
+
+The automated governance settings audit emits `governance-settings-audit/report.json` using this schema:
+
+| Field | Type | Meaning |
+| :--- | :--- | :--- |
+| `schema_version` | string | Version for the audit report format and expectation set |
+| `repository` | string | Audited repository in `owner/name` form |
+| `mode` | string | `live` or `fixture` |
+| `environment` | string | GitHub environment name audited |
+| `generated_at` | string | UTC timestamp when the report was produced |
+| `overall_status` | string | `pass` or `fail` |
+| `summary.passed` | number | Count of passing checks |
+| `summary.failed` | number | Count of failing checks |
+| `checks[]` | array | Per-control results with `id`, `category`, `status`, `severity`, `expected`, `actual`, `source`, and `message` |
+
+Use `summary.md` for quick review and `report.json` for durable quarterly evidence or downstream automation.
 
 ## GitHub as the Control Plane
 

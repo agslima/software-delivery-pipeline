@@ -1,0 +1,43 @@
+{
+  "schema_version": "2026-03-12",
+  "rulesets": {
+    "branch": {
+      "file": ".github/rulesets/branch-protection-main.json",
+      "target_ref": "refs/heads/main"
+    },
+    "tag": {
+      "file": ".github/rulesets/tag-protection-release.json",
+      "target_ref": "refs/tags/v*.*.*"
+    }
+  },
+  "codeowners": {
+    "file": ".github/CODEOWNERS",
+    "required_paths": [
+      ".github/workflows/",
+      ".github/rulesets/",
+      ".github/CODEOWNERS",
+      "k8s/policies/",
+      "policies/",
+      "docs/security-debt.md",
+      "k8s/base/",
+      "k8s/overlays/",
+      "k8s/tests/",
+      ".trivyignore",
+      "scripts/*.sh"
+    ]
+  },
+  "environment": {
+    "name": "production",
+    "required_reviewer_count": 1,
+    "deployment_branch_policy": {
+      "protected_branches": false,
+      "custom_branch_policies": true
+    },
+    "allowed_deployment_refs": [
+      {
+        "name": "v*.*.*",
+        "type": "tag"
+      }
+    ]
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "branch_policies": [
+    {
+      "id": 100,
+      "name": "main",
+      "type": "branch"
+    }
+  ]
+}

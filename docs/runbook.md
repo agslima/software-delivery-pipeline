@@ -257,6 +257,55 @@ KEEP_DAST_ENV=1 ./scripts/run-local-zap-full-scan.sh
 ZAP_LOGIN_EMAIL=security@example.test ZAP_LOGIN_PASSWORD='change-me' ./scripts/run-local-zap-full-scan.sh
 ```
 
+---
+
+## Governance Settings Audit Failure
+
+Symptom
+
+Workflow `Governance Settings Audit` fails, or `scripts/audit-governance-settings.sh` exits non-zero with a drift finding.
+
+Primary evidence
+
+- Workflow artifact: `governance-settings-audit`
+- Summary: `summary.md`
+- Machine-readable report: `report.json`
+
+Triage steps
+
+1. Download the `governance-settings-audit` artifact from the failed run.
+2. Review `summary.md` to identify which control category failed: `branch_protection`, `tag_protection`, `codeowners`, or `environment_protection`.
+3. Open `report.json` and compare each failing check’s `expected` and `actual` values.
+4. Confirm whether the drift is:
+   - an intentional repository settings change that was not yet exported/documented, or
+   - unauthorized / unintended configuration drift in GitHub settings.
+5. If the failure is in live mode, verify the audit token still has read-only Administration access and rerun only after confirming the token itself is not the cause.
+
+Resolution paths
+
+✅ Expected governance change
+
+- Reconcile the repo-tracked expectations first:
+  - update `.github/rulesets/*.json` only from fresh GitHub exports,
+  - update `.github/governance-settings-audit.json` if the approved environment restriction model changed,
+  - update `docs/governance.md` if reviewer-facing claims or checklist language changed.
+- Submit the change through normal review with CODEOWNERS.
+- Rerun the audit and attach the passing artifact to the change record.
+
+🚨 Unintended or unsafe drift
+
+- Restore the GitHub setting to the approved state immediately.
+- Do not bypass branch, tag, or environment protections to “get green.”
+- Record the incident in the governance evidence trail with:
+  - failed artifact link,
+  - remediation action,
+  - approver or incident owner,
+  - follow-up control gap if automation missed part of the drift.
+
+Fixture-based drift proof
+
+Use workflow dispatch mode `fixtures-drift` to verify the audit still detects intentionally introduced drift without changing live repository settings. The run should fail and produce a `governance-settings-audit` artifact showing the mismatched controls.
+
 
 ---
 

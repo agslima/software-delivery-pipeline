@@ -190,7 +190,12 @@ This section summarizes the repository’s current published security posture an
 
 This table is **automatically generated** by the repository evidence pipeline and reflects the current published security snapshot tracked under [`docs/snyk/`](docs/snyk/index.md).
 
-It is governance evidence, not the release admission gate itself. Release blocking remains driven by the Trivy and ZAP controls described above and in [`docs/threat-model.md`](docs/threat-model.md).
+It is governance evidence, not the release admission gate itself. Snyk snapshots document published posture over time, but they do not decide whether a release can proceed.
+
+Release blocking remains driven by the Trivy and ZAP controls described above and enforced in:
+- [`docs/threat-model.md`](docs/threat-model.md)
+- [`.github/workflows/ci-release-gate.yml`](.github/workflows/ci-release-gate.yml) (`trivy-scan`, `dast-analysis`, `sign-and-attest`)
+- [`docs/governance.md`](docs/governance.md#readme-claims--controls-matrix)
 
 “Baseline / Initial Count” refers to the intentionally vulnerable starting state used to validate remediation and policy behavior. “Current” reflects the latest published scan snapshot.
 
@@ -216,6 +221,11 @@ To validate that the governance model works in practice, the application describ
 | --- |
 | ![Initial Snyk vulnerability scan](https://github.com/agslima/software-delivery-pipeline/blob/main/docs/images/scan-snyk-01.png) |
 
+Reviewer traceability:
+- Posture evidence source: [`docs/snyk/index.md`](docs/snyk/index.md)
+- Release gate enforcement source: [`.github/workflows/ci-release-gate.yml`](.github/workflows/ci-release-gate.yml)
+- Runtime/admission control rationale: [`docs/threat-model.md`](docs/threat-model.md)
+
 ---
 
 ## Verification (How to Audit)
@@ -238,33 +248,53 @@ cosign verify "$IMAGE" \
   --certificate-oidc-issuer "https://token.actions.githubusercontent.com" | jq .
 ```
 
-<!--
 ## Local Development & Testing
 
-### Application Quickstart Prerequisites
+Use the root README for the command map, and use [`app/readme.md`](app/readme.md#quickstart-local-development) for the application-specific environment setup, database bootstrap, and local runtime prerequisites.
 
-- **Node.js 24.13.0** (required by `app/server` and `app/client` `engines.node`)
-- **Docker**
+### Prerequisites
+
+- **Node.js 24.13.0** (required by `app/server` and `app/client`)
+- **npm**
+- **Docker / Docker Compose** for the local PostgreSQL dependency described in [`app/readme.md`](app/readme.md#quickstart-local-development)
+
+### Onboarding Flow
+
+1. Initialize local application secrets and `.env` by following [`app/readme.md`](app/readme.md#1-initialize-env-and-local-secrets).
+2. Start the local PostgreSQL dependency by following [`app/readme.md`](app/readme.md#2-start-local-postgres-only).
+3. Run the package-level commands below from the repository root.
+
+### Install Dependencies
 
 ```bash
-git clone https://github.com/agslima/software-delivery-pipeline.git
-cd software-delivery-pipeline
-
-# Backend (API)
-cd app/server
-npm ci
-npm test
-npm run dev
-
-# Frontend (UI) - run in another terminal
-cd ../client
-npm ci
-npm test
-npm run dev
+npm --prefix app/server install
+npm --prefix app/client install
 ```
-### Tooling for Verification
 
--->
+### Lint
+
+```bash
+npm --prefix app/server run lint
+npm --prefix app/client run lint
+```
+
+### Test
+
+```bash
+npm --prefix app/server run test
+npm --prefix app/client run test
+```
+
+### Start
+
+Start commands assume the environment export and database steps from [`app/readme.md`](app/readme.md#4-export-runtime-env-for-local-server-process) and [`app/readme.md`](app/readme.md#6-migrate-and-seed-database) are already complete.
+
+```bash
+npm --prefix app/server run dev
+npm --prefix app/client run dev
+```
+
+The backend package lives in `app/server`; the frontend package lives in `app/client`. The application README remains the detailed source for local credentials, migrations, seed data, and verification URLs.
 
 ---
 

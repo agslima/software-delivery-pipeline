@@ -22,6 +22,14 @@ This folder contains the active GitHub Actions workflows that power CI, security
 - Triggers: schedule daily at 02:00 UTC, manual, PR changes to this workflow file
 - Summary: Runs Gitleaks and Trivy config + code scans (SARIF) plus a full governance JSON scan, uploads SARIF to Code Scanning, uploads artifacts, enforces security debt via `scripts/check-security-debt.sh`, and opens a GitHub issue on failure.
 
+**ci-governance-settings-audit.yml**
+- Name: Governance Settings Audit
+- Triggers: quarterly schedule (January/April/July/October 1st at 06:00 UTC), manual
+- Summary: Runs `scripts/audit-governance-settings.sh` in live mode against repository rulesets, CODEOWNERS parsing, protected tags, and production environment restrictions; supports fixture-based `fixtures-pass` and `fixtures-drift` test modes for evidence and regression checks.
+- Outputs: Artifact `governance-settings-audit` containing `summary.md`, `report.json`, and raw API responses.
+- Permissions/Secrets: Uses `contents: read`; live mode requires `GOVERNANCE_AUDIT_TOKEN` with read-only repository Administration access.
+- Maintenance notes: Keep `.github/rulesets/*.json`, `.github/governance-settings-audit.json`, and `docs/governance.md` aligned when GitHub governance settings intentionally change.
+
 **ci-weekly-dast.yml**
 - Name: DAST Scan
 - Triggers: schedule Sundays at 04:00 UTC, manual
