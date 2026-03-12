@@ -103,7 +103,10 @@ jobs:
 
       - name: Run Kyverno Policy Tests
         if: matrix.service == 'backend'
-        run: kyverno test k8s/tests/
+        run: |
+          kyverno test k8s/tests/
+          kyverno test k8s/tests/ -f policy-test.yaml
+          kyverno test k8s/tests/ -f cluster-verify-test.yaml
 
   # ==================================================================
   # JOB 3: Security Scan (Code + IaC)

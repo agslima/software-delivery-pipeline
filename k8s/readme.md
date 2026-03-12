@@ -69,6 +69,8 @@ Run locally with:
 
 ```bash
 kyverno test k8s/tests/
+kyverno test k8s/tests/ -f policy-test.yaml
+kyverno test k8s/tests/ -f cluster-verify-test.yaml
 ```
 
 ---

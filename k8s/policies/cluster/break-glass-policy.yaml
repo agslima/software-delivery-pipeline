@@ -29,12 +29,15 @@ spec:
       validate:
         message: >
           Break-glass requires annotations:
-          security.break-glass/ticket, security.break-glass/approved-by,
+          security.break-glass/ticket, security.break-glass/requested-by, security.break-glass/approved-by,
           security.break-glass/expires-at (RFC3339).
         deny:
           conditions:
             any:
               - key: "{{ request.object.metadata.annotations.\"security.break-glass/ticket\" || '' }}"
+                operator: Equals
+                value: ""
+              - key: "{{ request.object.metadata.annotations.\"security.break-glass/requested-by\" || '' }}"
                 operator: Equals
                 value: ""
               - key: "{{ request.object.metadata.annotations.\"security.break-glass/approved-by\" || '' }}"
@@ -43,6 +46,35 @@ spec:
               - key: "{{ request.object.metadata.annotations.\"security.break-glass/expires-at\" || '' }}"
                 operator: Equals
                 value: ""
+
+    - name: break-glass-requires-controlled-approval
+      match:
+        any:
+          - resources:
+              kinds: ["Deployment", "Pod"]
+              namespaces: ["prod", "production"]
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.labels.\"security.break-glass\" || '' }}"
+            operator: Equals
+            value: "true"
+      validate:
+        message: >
+          Break-glass requires an incident/change ticket, an allowed approver
+          (platform-oncall or repository-administrator), and the requester must
+          differ from the approver.
+        deny:
+          conditions:
+            any:
+              - key: "{{ regex_match('^(INC|CHG)-[0-9]+$', request.object.metadata.annotations.\"security.break-glass/ticket\" || '') }}"
+                operator: Equals
+                value: false
+              - key: "{{ regex_match('^(platform-oncall|repository-administrator)$', request.object.metadata.annotations.\"security.break-glass/approved-by\" || '') }}"
+                operator: Equals
+                value: false
+              - key: "{{ request.object.metadata.annotations.\"security.break-glass/requested-by\" || '' }}"
+                operator: Equals
+                value: "{{ request.object.metadata.annotations.\"security.break-glass/approved-by\" || '' }}"
 
     - name: break-glass-must-not-be-expired
       match:
@@ -66,3 +98,23 @@ spec:
               - key: "{{ time_after(time_now_utc(), request.object.metadata.annotations.\"security.break-glass/expires-at\") }}"
                 operator: Equals
                 value: true
+
+    - name: break-glass-deployment-must-label-pod-template
+      match:
+        any:
+          - resources:
+              kinds: ["Deployment"]
+              namespaces: ["prod", "production"]
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.labels.\"security.break-glass\" || '' }}"
+            operator: Equals
+            value: "true"
+      validate:
+        message: "Break-glass Deployments must also label the pod template with security.break-glass=true."
+        pattern:
+          spec:
+            template:
+              metadata:
+                labels:
+                  security.break-glass: "true"

@@ -115,11 +115,19 @@ Implementation Details
 
 Break-Glass Label
 
-A standardized label is used to trigger exception handling:
+A standardized label is used to trigger exception handling. For controller-backed
+workloads such as Deployments, the label must exist both on the workload
+metadata and on the pod template so the resulting Pods inherit the exemption:
 
 metadata:
   labels:
     security.break-glass: "true"
+
+spec:
+  template:
+    metadata:
+      labels:
+        security.break-glass: "true"
 
 
 ---
@@ -145,6 +153,13 @@ Exception scope is minimal and explicit
 ---
 
 CI & GitOps Enforcement
+
+Break-glass usage must be committed to Git and carry explicit approval metadata:
+
+- `security.break-glass/ticket` must reference a tracked incident/change (`INC-*` or `CHG-*`)
+- `security.break-glass/requested-by` must identify the requester
+- `security.break-glass/approved-by` must be one of the controlled approver roles (`platform-oncall` or `repository-administrator`)
+- `requested-by` and `approved-by` must differ
 
 Break-glass usage must be committed to Git:
 

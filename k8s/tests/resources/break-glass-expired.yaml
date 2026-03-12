@@ -7,6 +7,7 @@ metadata:
     security.break-glass: "true"
   annotations:
     security.break-glass/ticket: "INC-1001"
+    security.break-glass/requested-by: "application-team"
     security.break-glass/approved-by: "platform-oncall"
     security.break-glass/expires-at: "2000-01-01T00:00:00Z"
 spec:
@@ -17,6 +18,7 @@ spec:
     metadata:
       labels:
         app: exploit-expired
+        security.break-glass: "true"
     spec:
       serviceAccountName: default
       containers:

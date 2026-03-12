@@ -171,6 +171,8 @@ jobs:
       - name: Kyverno Policy Unit Tests
         run: |
           kyverno test k8s/tests/
+          kyverno test k8s/tests/ -f policy-test.yaml
+          kyverno test k8s/tests/ -f cluster-verify-test.yaml
           echo "✅ Kyverno Policy Logic Verified."
           
       - name: CI Policy Validation

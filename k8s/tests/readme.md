@@ -25,16 +25,22 @@ The tests follow a Fixture-based approach:
 | ↳ invalid-pod-latest.yaml | A `:latest`-tagged Pod fixture that should fail image policy checks. |
 | ↳ break-glass-invalid.yaml | Break-glass-labeled deployment missing required annotations; should fail break-glass guardrail. |
 | ↳ break-glass-expired.yaml | Break-glass deployment with required annotations but an expired timestamp; should fail expiry validation. |
+| ↳ break-glass-self-approved.yaml | Break-glass deployment where requester and approver are the same; should fail controlled-approval checks. |
+| ↳ break-glass-missing-pod-label.yaml | Break-glass deployment missing `security.break-glass=true` on the pod template; should fail label propagation checks. |
 | ↳ break-glass-valid.yaml | Break-glass deployment with complete metadata and a far-future expiry; should pass both break-glass rules. |
+| ↳ break-glass-pod.yaml | A direct Pod with valid break-glass metadata and label; used to verify cluster policy exclusions on Pod resources. |
+| cluster-verify-test.yaml | Cluster verification policy suite covering break-glass exclusions across all `verify-*` policies. |
 
 ## 🚀 How to Run Tests
 These tests run automatically in the CI pipeline (infra-lint job), but can be run locally:
 * Install Kyverno CLI (if not installed)
 * brew install kyverno
 
-* Run the test suite
+* Run the test suites
   ```bash
   kyverno test k8s/tests/
+  kyverno test k8s/tests/ -f policy-test.yaml
+  kyverno test k8s/tests/ -f cluster-verify-test.yaml
   ```
 
 Understanding the Output

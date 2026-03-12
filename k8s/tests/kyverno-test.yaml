@@ -8,6 +8,8 @@ resources:
   - resources/break-glass-invalid.yaml
   - resources/break-glass-expired.yaml
   - resources/break-glass-valid.yaml
+  - resources/break-glass-self-approved.yaml
+  - resources/break-glass-missing-pod-label.yaml
 results:
   - policy: break-glass-admission-controls
     rule: break-glass-requires-metadata
@@ -22,7 +24,19 @@ results:
     kind: Deployment
     result: fail
   - policy: break-glass-admission-controls
+    rule: break-glass-requires-controlled-approval
+    resources:
+      - production/break-glass-self-approved
+    kind: Deployment
+    result: fail
+  - policy: break-glass-admission-controls
     rule: break-glass-requires-metadata
+    resources:
+      - production/break-glass-approved
+    kind: Deployment
+    result: pass
+  - policy: break-glass-admission-controls
+    rule: break-glass-requires-controlled-approval
     resources:
       - production/break-glass-approved
     kind: Deployment
@@ -33,3 +47,15 @@ results:
       - production/break-glass-approved
     kind: Deployment
     result: pass
+  - policy: break-glass-admission-controls
+    rule: break-glass-deployment-must-label-pod-template
+    resources:
+      - production/break-glass-approved
+    kind: Deployment
+    result: pass
+  - policy: break-glass-admission-controls
+    rule: break-glass-deployment-must-label-pod-template
+    resources:
+      - production/break-glass-no-pod-label
+    kind: Deployment
+    result: fail

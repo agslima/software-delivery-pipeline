@@ -52,7 +52,8 @@ random_hex() {
     elif [[ -r /dev/urandom ]]; then
         head -c "$bytes" /dev/urandom | od -An -tx1 | tr -d ' \n'
     else
-        date +%s%N
+        echo "No cryptographically secure random source available" >&2  
+        return 1
     fi
 }
 

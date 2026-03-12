@@ -1,24 +1,23 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: break-glass-approved
+  name: break-glass-no-pod-label
   namespace: production
   labels:
     security.break-glass: "true"
   annotations:
-    security.break-glass/ticket: "INC-2099"
+    security.break-glass/ticket: "INC-2001"
     security.break-glass/requested-by: "application-team"
     security.break-glass/approved-by: "platform-oncall"
     security.break-glass/expires-at: "2099-12-31T23:59:59Z"
 spec:
   selector:
     matchLabels:
-      app: exploit-approved
+      app: exploit-no-pod-label
   template:
     metadata:
       labels:
-        app: exploit-approved
-        security.break-glass: "true"
+        app: exploit-no-pod-label
     spec:
       serviceAccountName: default
       containers:
