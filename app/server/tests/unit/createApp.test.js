@@ -33,4 +33,18 @@ describe('Unit: createApp', () => {
 
     expect(app.get('trust proxy')).toBe('loopback');
   });
+
+  it('parses numeric TRUST_PROXY values for single-hop proxy trust', () => {
+    const createApp = loadCreateApp({ trustProxy: '1' });
+    const app = createApp();
+
+    expect(app.get('trust proxy')).toBe(1);
+  });
+
+  it('parses boolean TRUST_PROXY values', () => {
+    const createApp = loadCreateApp({ trustProxy: 'true' });
+    const app = createApp();
+
+    expect(app.get('trust proxy')).toBe(true);
+  });
 });

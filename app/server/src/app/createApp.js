@@ -16,7 +16,17 @@ const v2Routes = require('./routesV2');
 
 module.exports = function createApp() {
   const app = express();
-  const trustProxy = env.TRUST_PROXY || 'loopback, linklocal, uniquelocal';
+
+  const parseTrustProxy = (value) => {
+    if (!value) return 'loopback, linklocal, uniquelocal';
+    const normalized = String(value).trim();
+    if (/^\d+$/.test(normalized)) return Number(normalized);
+    if (normalized === 'true') return true;
+    if (normalized === 'false') return false;
+    return normalized;
+  };
+
+  const trustProxy = parseTrustProxy(env.TRUST_PROXY);
   app.set('trust proxy', trustProxy);
   app.disable('x-powered-by');
   app.disable('etag');
