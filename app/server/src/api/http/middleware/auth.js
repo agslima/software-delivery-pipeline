@@ -76,12 +76,10 @@ module.exports = async function auth(req, _res, next) {
   const token = header.slice('Bearer '.length).trim();
 
   if (oidcConfig.enabled) {
+    let oidcPayload;
+
     try {
-      const payload = await oidcTokenService.verify(token);
-      const user = await resolveOidcUser(payload);
-      enforceOidcMfaClaims(user, payload);
-      req.user = user;
-      return next();
+      oidcPayload = await oidcTokenService.verify(token);
     } catch (err) {
       if (oidcConfig.required) {
         if (err instanceof AppError) {
@@ -89,8 +87,19 @@ module.exports = async function auth(req, _res, next) {
         }
         return next(new AppError({ status: 401, code: 'OIDC_REQUIRED', message: 'Unauthorized' }));
       }
-      if (err instanceof AppError && err.code !== 'INVALID_TOKEN') {
-        return next(err);
+    }
+
+    if (oidcPayload) {
+      try {
+        const user = await resolveOidcUser(oidcPayload);
+        enforceOidcMfaClaims(user, oidcPayload);
+        req.user = user;
+        return next();
+      } catch (err) {
+        if (err instanceof AppError) {
+          return next(err);
+        }
+        return next(new AppError({ status: 401, code: 'OIDC_REQUIRED', message: 'Unauthorized' }));
       }
     }
   }

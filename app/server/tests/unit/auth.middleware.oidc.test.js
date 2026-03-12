@@ -1,8 +1,8 @@
 const baseEnv = { ...process.env };
 const { buildTestEmail, buildTestId } = require('../helpers/testCredentials');
 
-const buildReq = () => ({
-  header: jest.fn().mockReturnValue('Bearer test-token'),
+const buildReq = ({ token = 'test-token' } = {}) => ({
+  header: jest.fn().mockReturnValue(`Bearer ${token}`),
 });
 
 const setup = ({ envOverrides = {}, payload, user } = {}) => {
@@ -46,6 +46,11 @@ const setup = ({ envOverrides = {}, payload, user } = {}) => {
   });
 
   return { auth, usersRepoInstance, jwtToken, oidcToken };
+};
+
+const buildAppError = ({ code, status = 500, message = 'error' }) => {
+  const { AppError } = require('../../src/api/http/errors/AppError');
+  return new AppError({ code, status, message });
 };
 
 describe('Unit: OIDC auth middleware', () => {
@@ -148,5 +153,48 @@ describe('Unit: OIDC auth middleware', () => {
     expect(err).toBeDefined();
     expect(err.name).toBe('AppError');
     expect(err.code).toBe('MFA_REQUIRED');
+  });
+
+  it('falls back to local JWT when optional OIDC verify fails with transient AppError', async () => {
+    const localPayload = { sub: buildTestId(), email: buildTestEmail('jwt'), role: 'doctor', mfa: false };
+    const { auth, oidcToken, jwtToken } = setup({
+      payload: { sub: 'oidc-sub', email: buildTestEmail('oidc') },
+      user: { id: buildTestId(), email: buildTestEmail('oidc'), role: 'doctor', mfa_enabled: true },
+    });
+    oidcToken.verify.mockRejectedValueOnce(buildAppError({ code: 'OIDC_JWKS_FETCH_FAILED' }));
+    jwtToken.verify.mockReturnValue(localPayload);
+
+    const req = buildReq();
+    const res = {};
+    const next = jest.fn();
+
+    await auth(req, res, next);
+
+    expect(oidcToken.verify).toHaveBeenCalledWith('test-token');
+    expect(jwtToken.verify).toHaveBeenCalledWith('test-token');
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next.mock.calls[0][0]).toBeUndefined();
+    expect(req.user).toEqual(localPayload);
+  });
+
+  it('does not fall back when OIDC verify succeeds but claims resolution fails', async () => {
+    const email = buildTestEmail('missing');
+    const { auth, jwtToken } = setup({
+      payload: { sub: 'oidc-sub', email },
+      user: null,
+    });
+
+    const req = buildReq();
+    const res = {};
+    const next = jest.fn();
+
+    await auth(req, res, next);
+
+    expect(jwtToken.verify).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledTimes(1);
+    const err = next.mock.calls[0][0];
+    expect(err).toBeDefined();
+    expect(err.name).toBe('AppError');
+    expect(err.code).toBe('OIDC_USER_NOT_FOUND');
   });
 });
