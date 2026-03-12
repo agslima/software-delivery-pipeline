@@ -36,14 +36,14 @@ The security model follows a zero-trust posture for delivery:
 | :--- | :--- | :--- | :--- |
 | Dependency poisoning / vulnerable transitive packages | Malicious package or critical CVE in dependencies/base image | Trivy image/filesystem scanning with release gating | Trivy runs in PR checks (`fs` vuln + config), daily deep scan (`vuln,secret,config` outputs), and release image gate by digest; release blocks on `CRITICAL > 0` or `HIGH > 5` per image. |
 | Code-level security defects | Vulnerable logic introduced by code change | PR quality gates and DAST in release/weekly workflows | Lint/tests run on PRs; OWASP ZAP baseline scans run in release gate and weekly DAST workflows for dynamic validation. |
-| Artifact mutation in registry | Malicious image pushed to mutable tag | Immutable digests + signing + attestation checks | Deployment uses digest-pinned images; Cosign keyless signatures and attestations are verified before promotion/admission. |
+| Artifact mutation in registry | Malicious image pushed to mutable tag | Immutable digests + signing + attestation checks | Deployment uses digest-pinned images; Cosign keyless signatures and attestations are verified in the GitOps enforcement workflow before promotion and again by admission controls in-cluster. |
 | Dockerfile/manifest hardening regressions | Insecure Dockerfile or weak manifest config | Hadolint + Conftest + Kubeconform | PR validation blocks non-compliant Dockerfiles/manifests before merge. |
 
 ### B. Spoofing / Repudiation (Identity)
 
 | Threat Scenario | Attack Vector | Mitigation Control | Implementation Details |
 | :--- | :--- | :--- | :--- |
-| Rogue container deployment | Untrusted image attempts cluster admission | Kyverno signature and attestation verification | Cluster policies require trusted issuer + release-workflow identity and required attestations. |
+| Rogue container deployment | Untrusted image attempts cluster admission | Kyverno signature and attestation verification | The GitOps enforcement workflow pre-validates rendered manifests with Kyverno CLI, and the cluster admission controller requires trusted issuer + release-workflow identity and required attestations at deployment time. |
 | Signing-key theft model | Long-lived private key compromise | Keyless signing (OIDC) | Cosign keyless uses short-lived certificates bound to GitHub OIDC identity. |
 | Provenance forgery | Local build falsely claimed as CI build | Build provenance attestation | Release workflow emits provenance that is verifiable against trusted workflow identity. |
 

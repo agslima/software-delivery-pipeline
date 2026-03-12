@@ -3,7 +3,7 @@ kind: ClusterPolicy
 metadata:
   name: break-glass-admission-controls
   annotations:
-    policies.kyverno.io/title: Break-glass Admission Controls
+    policies.kyverno.io/title: Break-glass PolicyException Controls
     policies.kyverno.io/category: Supply Chain Security
     policies.kyverno.io/severity: critical
 spec:
@@ -11,26 +11,27 @@ spec:
   background: false
   webhookTimeoutSeconds: 30
   rules:
-    # ============================================================
-    # Break-glass: only allowed with metadata + not expired
-    # (Admission context required; request.* variables)
-    # ============================================================
-    - name: break-glass-requires-metadata
+    - name: policy-exception-must-use-dedicated-namespace
       match:
         any:
           - resources:
-              kinds: ["Deployment", "Pod"]
-              namespaces: ["prod", "production"]
-      preconditions:
-        all:
-          - key: "{{ request.object.metadata.labels.\"security.break-glass\" || '' }}"
-            operator: Equals
-            value: "true"
+              kinds: ["PolicyException"]
+      validate:
+        message: "Break-glass PolicyException objects must live in the policy-exceptions namespace."
+        pattern:
+          metadata:
+            namespace: policy-exceptions
+
+    - name: policy-exception-requires-metadata
+      match:
+        any:
+          - resources:
+              kinds: ["PolicyException"]
       validate:
         message: >
-          Break-glass requires annotations:
-          security.break-glass/ticket, security.break-glass/requested-by, security.break-glass/approved-by,
-          security.break-glass/expires-at (RFC3339).
+          Break-glass PolicyException objects require annotations:
+          security.break-glass/ticket, security.break-glass/requested-by,
+          security.break-glass/approved-by, security.break-glass/expires-at (RFC3339).
         deny:
           conditions:
             any:
@@ -47,22 +48,16 @@ spec:
                 operator: Equals
                 value: ""
 
-    - name: break-glass-requires-controlled-approval
+    - name: policy-exception-requires-controlled-approval
       match:
         any:
           - resources:
-              kinds: ["Deployment", "Pod"]
-              namespaces: ["prod", "production"]
-      preconditions:
-        all:
-          - key: "{{ request.object.metadata.labels.\"security.break-glass\" || '' }}"
-            operator: Equals
-            value: "true"
+              kinds: ["PolicyException"]
       validate:
         message: >
-          Break-glass requires an incident/change ticket, an allowed approver
-          (platform-oncall or repository-administrator), and the requester must
-          differ from the approver.
+          Break-glass PolicyException objects require an incident/change ticket,
+          an allowed approver (platform-oncall or repository-administrator),
+          and the requester must differ from the approver.
         deny:
           conditions:
             any:
@@ -76,22 +71,13 @@ spec:
                 operator: Equals
                 value: "{{ request.object.metadata.annotations.\"security.break-glass/approved-by\" || '' }}"
 
-    - name: break-glass-must-not-be-expired
+    - name: policy-exception-must-not-be-expired
       match:
         any:
           - resources:
-              kinds: ["Deployment", "Pod"]
-              namespaces: ["prod", "production"]
-      preconditions:
-        all:
-          - key: "{{ request.object.metadata.labels.\"security.break-glass\" || '' }}"
-            operator: Equals
-            value: "true"
-          - key: "{{ request.object.metadata.annotations.\"security.break-glass/expires-at\" || '' }}"
-            operator: NotEquals
-            value: ""
+              kinds: ["PolicyException"]
       validate:
-        message: "Break-glass expires-at must be in the future (RFC3339)."
+        message: "Break-glass PolicyException expires-at must be in the future (RFC3339)."
         deny:
           conditions:
             any:
@@ -99,22 +85,31 @@ spec:
                 operator: Equals
                 value: true
 
-    - name: break-glass-deployment-must-label-pod-template
+    - name: policy-exception-must-disable-background
       match:
         any:
           - resources:
-              kinds: ["Deployment"]
-              namespaces: ["prod", "production"]
-      preconditions:
-        all:
-          - key: "{{ request.object.metadata.labels.\"security.break-glass\" || '' }}"
-            operator: Equals
-            value: "true"
+              kinds: ["PolicyException"]
       validate:
-        message: "Break-glass Deployments must also label the pod template with security.break-glass=true."
+        message: "Break-glass PolicyException objects must set spec.background=false."
         pattern:
           spec:
-            template:
-              metadata:
-                labels:
-                  security.break-glass: "true"
+            background: false
+
+    - name: policy-exception-must-target-approved-policies
+      match:
+        any:
+          - resources:
+              kinds: ["PolicyException"]
+      validate:
+        message: >
+          Break-glass PolicyException objects may only target the split cluster
+          verify-* policies.
+        foreach:
+          - list: "request.object.spec.exceptions"
+            deny:
+              conditions:
+                any:
+                  - key: "{{ regex_match('^(verify-signature|verify-trivy|verify-zap|verify-sbom|verify-slsa)$', element.policyName || '') }}"
+                    operator: Equals
+                    value: false

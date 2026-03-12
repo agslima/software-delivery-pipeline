@@ -51,10 +51,11 @@ Temporary
 
 No silent or implicit bypasses are allowed
 
-Break-glass actions require intentional metadata in Kubernetes manifests
+Break-glass actions require a separately managed exception object in Kubernetes
 
 
-Break-glass is implemented using Kyverno policy exclusions based on well-defined labels.
+Break-glass is implemented using separately managed Kyverno `PolicyException`
+objects in a dedicated namespace, not workload labels or annotations.
 
 
 ---
@@ -81,7 +82,7 @@ Untracked security debt
 
 The break-glass path is intentionally frictionful:
 
-Requires explicit labels
+Requires a separate exception object
 
 Requires code changes
 
@@ -113,40 +114,39 @@ Reversible
 
 Implementation Details
 
-Break-Glass Label
+Break-Glass PolicyException
 
-A standardized label is used to trigger exception handling. For controller-backed
-workloads such as Deployments, the label must exist both on the workload
-metadata and on the pod template so the resulting Pods inherit the exemption:
+A standardized `PolicyException` object is used to trigger exception handling:
 
+apiVersion: kyverno.io/v2
+kind: PolicyException
 metadata:
-  labels:
-    security.break-glass: "true"
-
-spec:
-  template:
-    metadata:
-      labels:
-        security.break-glass: "true"
+  namespace: policy-exceptions
+  annotations:
+    security.break-glass/ticket: "INC-1234"
+    security.break-glass/requested-by: "application-team"
+    security.break-glass/approved-by: "platform-oncall"
+    security.break-glass/expires-at: "2026-12-31T23:59:59Z"
 
 
 ---
 
 Kyverno Policy Integration
 
-All enforcement rules explicitly exclude break-glass workloads:
+Cluster verification policies remain fail-closed by default. Exception handling is
+granted only when a matching `PolicyException` exists:
 
-exclude:
-  resources:
-    selector:
-      matchLabels:
-        security.break-glass: "true"
+spec:
+  exceptions:
+    - policyName: verify-signature
+      ruleNames:
+        - require-image-signature
 
 This ensures:
 
 Normal workloads remain fully governed
 
-Exception scope is minimal and explicit
+Exception scope is minimal, explicit, and separately permissioned from workload manifests
 
 
 
@@ -154,14 +154,15 @@ Exception scope is minimal and explicit
 
 CI & GitOps Enforcement
 
-Break-glass usage must be committed to Git and carry explicit approval metadata:
+Break-glass usage must be committed to Git and carry explicit approval metadata on the `PolicyException` object:
 
 - `security.break-glass/ticket` must reference a tracked incident/change (`INC-*` or `CHG-*`)
+- `PolicyException` objects must live in the `policy-exceptions` namespace
 - `security.break-glass/requested-by` must identify the requester
 - `security.break-glass/approved-by` must be one of the controlled approver roles (`platform-oncall` or `repository-administrator`)
 - `requested-by` and `approved-by` must differ
 
-Break-glass usage must be committed to Git:
+Break-glass usage must be committed to Git as a separate exception object:
 
 Manifest changes require a Pull Request
 

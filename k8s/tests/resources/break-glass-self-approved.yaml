@@ -1,26 +1,25 @@
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: kyverno.io/v2
+kind: PolicyException
 metadata:
   name: break-glass-self-approved
-  namespace: production
-  labels:
-    security.break-glass: "true"
+  namespace: policy-exceptions
   annotations:
     security.break-glass/ticket: "INC-2000"
     security.break-glass/requested-by: "platform-oncall"
     security.break-glass/approved-by: "platform-oncall"
     security.break-glass/expires-at: "2099-12-31T23:59:59Z"
 spec:
-  selector:
-    matchLabels:
-      app: exploit-self-approved
-  template:
-    metadata:
-      labels:
-        app: exploit-self-approved
-        security.break-glass: "true"
-    spec:
-      serviceAccountName: default
-      containers:
-        - name: app
-          image: docker.io/agslima/software-delivery-pipeline@sha256:GOOD
+  background: false
+  match:
+    any:
+      - resources:
+          kinds:
+            - Deployment
+          names:
+            - exception-target
+          namespaces:
+            - production
+  exceptions:
+    - policyName: verify-signature
+      ruleNames:
+        - require-image-signature

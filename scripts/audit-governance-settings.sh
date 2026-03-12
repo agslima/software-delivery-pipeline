@@ -228,57 +228,147 @@ record_comparison \
   "$EXPECTED_TAG_FILE" \
   "Tag ruleset enforcement must stay active."
 
-EXPECTED_BRANCH_PR="$(jq -c '
-  (.rules[] | select(.type == "pull_request") | .parameters)
-  | {
-      required_approving_review_count,
-      dismiss_stale_reviews_on_push,
-      require_code_owner_review,
-      required_review_thread_resolution,
-      allowed_merge_methods: ((.allowed_merge_methods // []) | sort)
-    }
+EXPECTED_BRANCH_RULES="$(jq -c '
+  def normalize:
+    if type == "object" then
+      to_entries
+      | sort_by(.key)
+      | map(.value |= normalize)
+      | from_entries
+    elif type == "array" then
+      map(normalize)
+    else
+      .
+    end;
+  (.rules // [])
+  | map(
+      if .type == "pull_request" then
+        .parameters.allowed_merge_methods = ((.parameters.allowed_merge_methods // []) | sort)
+      elif .type == "required_status_checks" then
+        .parameters.required_status_checks = (
+          (.parameters.required_status_checks // [])
+          | map(del(.integration_id))
+          | sort_by(.context)
+        )
+      elif .type == "code_scanning" then
+        .parameters.code_scanning_tools = (
+          (.parameters.code_scanning_tools // [])
+          | sort_by(.tool, .security_alerts_threshold, .alerts_threshold)
+        )
+      elif .type == "copilot_code_review_analysis_tools" then
+        .parameters.tools = ((.parameters.tools // []) | sort_by(.name))
+      else
+        .
+      end
+    )
+  | sort_by(.type)
+  | normalize
 ' <<<"$EXPECTED_BRANCH_RULESET")"
 
-LIVE_BRANCH_PR="$(jq -c '
-  (.rules[]? | select(.type == "pull_request") | .parameters // {})
-  | {
-      required_approving_review_count,
-      dismiss_stale_reviews_on_push,
-      require_code_owner_review,
-      required_review_thread_resolution,
-      allowed_merge_methods: ((.allowed_merge_methods // []) | sort)
-    }
+LIVE_BRANCH_RULES="$(jq -c '
+  def normalize:
+    if type == "object" then
+      to_entries
+      | sort_by(.key)
+      | map(.value |= normalize)
+      | from_entries
+    elif type == "array" then
+      map(normalize)
+    else
+      .
+    end;
+  (.rules // [])
+  | map(
+      if .type == "pull_request" then
+        .parameters.allowed_merge_methods = ((.parameters.allowed_merge_methods // []) | sort)
+      elif .type == "required_status_checks" then
+        .parameters.required_status_checks = (
+          (.parameters.required_status_checks // [])
+          | map(del(.integration_id))
+          | sort_by(.context)
+        )
+      elif .type == "code_scanning" then
+        .parameters.code_scanning_tools = (
+          (.parameters.code_scanning_tools // [])
+          | sort_by(.tool, .security_alerts_threshold, .alerts_threshold)
+        )
+      elif .type == "copilot_code_review_analysis_tools" then
+        .parameters.tools = ((.parameters.tools // []) | sort_by(.name))
+      else
+        .
+      end
+    )
+  | sort_by(.type)
+  | normalize
 ' <<<"$LIVE_BRANCH_RULESET")"
 
 record_comparison \
-  "branch-pull-request-policy" "branch_protection" "high" \
-  "$EXPECTED_BRANCH_PR" "$LIVE_BRANCH_PR" \
+  "branch-rules-payload" "branch_protection" "high" \
+  "$EXPECTED_BRANCH_RULES" "$LIVE_BRANCH_RULES" \
   "$EXPECTED_BRANCH_FILE" \
-  "Pull-request protection settings must match the audited main-branch policy."
+  "Full branch protection rules must match the audited main-branch policy."
 
-EXPECTED_BRANCH_CHECKS="$(jq -c '
-  [.rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks[]?.context]
-  | sort
-' <<<"$EXPECTED_BRANCH_RULESET")"
+EXPECTED_TAG_RULES="$(jq -c '
+  def normalize:
+    if type == "object" then
+      to_entries
+      | sort_by(.key)
+      | map(.value |= normalize)
+      | from_entries
+    elif type == "array" then
+      map(normalize)
+    else
+      .
+    end;
+  (.rules // [])
+  | map(
+      if .type == "required_status_checks" then
+        .parameters.required_status_checks = (
+          (.parameters.required_status_checks // [])
+          | map(del(.integration_id))
+          | sort_by(.context)
+        )
+      else
+        .
+      end
+    )
+  | sort_by(.type)
+  | normalize
+' <<<"$EXPECTED_TAG_RULESET")"
 
-LIVE_BRANCH_CHECKS="$(jq -c '
-  [.rules[]? | select(.type == "required_status_checks") | .parameters.required_status_checks[]?.context]
-  | sort
-' <<<"$LIVE_BRANCH_RULESET")"
+LIVE_TAG_RULES="$(jq -c '
+  def normalize:
+    if type == "object" then
+      to_entries
+      | sort_by(.key)
+      | map(.value |= normalize)
+      | from_entries
+    elif type == "array" then
+      map(normalize)
+    else
+      .
+    end;
+  (.rules // [])
+  | map(
+      if .type == "required_status_checks" then
+        .parameters.required_status_checks = (
+          (.parameters.required_status_checks // [])
+          | map(del(.integration_id))
+          | sort_by(.context)
+        )
+      else
+        .
+      end
+    )
+  | sort_by(.type)
+  | normalize
+' <<<"$LIVE_TAG_RULESET")"
 
 record_comparison \
-  "branch-required-status-checks" "branch_protection" "high" \
-  "$EXPECTED_BRANCH_CHECKS" "$LIVE_BRANCH_CHECKS" \
-  "$EXPECTED_BRANCH_FILE" \
-  "Required status checks must remain aligned with governance-critical workflows."
-
-EXPECTED_TAG_RULE_TYPES="$(jq -c '[.rules[].type] | sort' <<<"$EXPECTED_TAG_RULESET")"
-LIVE_TAG_RULE_TYPES="$(jq -c '[.rules[]?.type] | sort' <<<"$LIVE_TAG_RULESET")"
-record_comparison \
-  "tag-rule-types" "tag_protection" "high" \
-  "$EXPECTED_TAG_RULE_TYPES" "$LIVE_TAG_RULE_TYPES" \
+  "tag-rules-payload" "tag_protection" "high" \
+  "$EXPECTED_TAG_RULES" "$LIVE_TAG_RULES" \
   "$EXPECTED_TAG_FILE" \
-  "Release tag protections must keep creation, deletion, update, signature, and status-check rules."
+  "Full tag protection rules must match the audited release-tag policy."
 
 EXPECTED_BRANCH_BYPASS="$(jq -c '(.bypass_actors // []) | sort_by(.actor_id // 0)' <<<"$EXPECTED_BRANCH_RULESET")"
 LIVE_BRANCH_BYPASS="$(jq -c '(.bypass_actors // []) | sort_by(.actor_id // 0)' <<<"$LIVE_BRANCH_RULESET")"

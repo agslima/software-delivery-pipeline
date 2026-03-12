@@ -19,6 +19,7 @@ docs/security-debt.md @agslima
 # 4. Infrastructure State
 k8s/base/             @agslima
 k8s/overlays/         @agslima
+k8s/exceptions/       @agslima
 k8s/tests/            @agslima
 
 # 5. Trivy allowlist

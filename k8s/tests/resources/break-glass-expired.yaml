@@ -1,26 +1,25 @@
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: kyverno.io/v2
+kind: PolicyException
 metadata:
   name: break-glass-expired
-  namespace: production
-  labels:
-    security.break-glass: "true"
+  namespace: policy-exceptions
   annotations:
     security.break-glass/ticket: "INC-1001"
     security.break-glass/requested-by: "application-team"
     security.break-glass/approved-by: "platform-oncall"
     security.break-glass/expires-at: "2000-01-01T00:00:00Z"
 spec:
-  selector:
-    matchLabels:
-      app: exploit-expired
-  template:
-    metadata:
-      labels:
-        app: exploit-expired
-        security.break-glass: "true"
-    spec:
-      serviceAccountName: default
-      containers:
-        - name: app
-          image: docker.io/agslima/software-delivery-pipeline@sha256:EVIL
+  background: false
+  match:
+    any:
+      - resources:
+          kinds:
+            - Deployment
+          names:
+            - exception-target
+          namespaces:
+            - production
+  exceptions:
+    - policyName: verify-signature
+      ruleNames:
+        - require-image-signature

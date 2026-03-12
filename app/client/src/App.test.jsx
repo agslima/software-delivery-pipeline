@@ -131,7 +131,7 @@ describe('App Integration', () => {
       mfaToken: 'mfa-token-1',
       user: { id: 'patient-2', email, role: 'patient', mfaEnabled: true },
     });
-    api.verifyMfa.mockResolvedValue({ token: 'token-after-mfa', refreshToken: 'refresh-after-mfa' });
+    api.verifyMfa.mockResolvedValue({ token: 'token-after-mfa' });
     api.getMyPrescriptions.mockResolvedValue({ prescriptions: [mockSummary] });
     api.getMyPrescription.mockResolvedValue(mockDetail);
 
@@ -164,7 +164,6 @@ describe('App Integration', () => {
 
     api.loginPatient.mockResolvedValue({
       token,
-      refreshToken: 'refresh-expired',
       user: { id: 'patient-3', email, role: 'patient', mfaEnabled: false },
     });
     api.getMyPrescriptions.mockReturnValue(prescriptionsRequest);
@@ -181,7 +180,6 @@ describe('App Integration', () => {
       expect(sessionStorage.getItem('patient_portal_session')).toEqual(
         JSON.stringify({
           token,
-          refreshToken: 'refresh-expired',
           user: { id: 'patient-3', email, role: 'patient', mfaEnabled: false },
         })
       );
@@ -256,7 +254,7 @@ describe('App Integration', () => {
       .mockResolvedValue({ configured: true, enabled: true });
     api.getMyPrescriptions.mockResolvedValue({ prescriptions: [mockSummary] });
     api.getMyPrescription.mockResolvedValue(mockDetail);
-    api.verifyMfa.mockResolvedValue({ token: 'token-after-enable', refreshToken: 'refresh-after-enable' });
+    api.verifyMfa.mockResolvedValue({ token: 'token-after-enable' });
     api.disableMfa.mockResolvedValue({ success: true });
 
     render(<App />);
@@ -281,7 +279,6 @@ describe('App Integration', () => {
       expect(sessionStorage.getItem('patient_portal_session')).toEqual(
         JSON.stringify({
           token: 'token-after-enable',
-          refreshToken: 'refresh-after-enable',
           user: { id: 'patient-5', email, role: 'patient', mfaEnabled: false },
         })
       );

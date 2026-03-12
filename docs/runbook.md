@@ -412,7 +412,7 @@ Steps:
 1. Document the incident and justification
 
 
-2. Apply temporary policy exception
+2. Create a temporary `PolicyException` in the `policy-exceptions` namespace
 
 
 3. Deploy minimal fix

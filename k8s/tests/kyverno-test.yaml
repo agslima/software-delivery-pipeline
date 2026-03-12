@@ -1,7 +1,7 @@
 apiVersion: cli.kyverno.io/v1alpha1
 kind: Test
 metadata:
-  name: break-glass-policy-tests
+  name: break-glass-policy-exception-tests
 policies:
   - ../policies/cluster/break-glass-policy.yaml
 resources:
@@ -9,53 +9,58 @@ resources:
   - resources/break-glass-expired.yaml
   - resources/break-glass-valid.yaml
   - resources/break-glass-self-approved.yaml
-  - resources/break-glass-missing-pod-label.yaml
 results:
   - policy: break-glass-admission-controls
-    rule: break-glass-requires-metadata
+    rule: policy-exception-requires-metadata
     resources:
-      - production/break-glass-abuse
-    kind: Deployment
+      - policy-exceptions/break-glass-abuse
+    kind: PolicyException
     result: fail
   - policy: break-glass-admission-controls
-    rule: break-glass-must-not-be-expired
+    rule: policy-exception-must-not-be-expired
     resources:
-      - production/break-glass-expired
-    kind: Deployment
+      - policy-exceptions/break-glass-expired
+    kind: PolicyException
     result: fail
   - policy: break-glass-admission-controls
-    rule: break-glass-requires-controlled-approval
+    rule: policy-exception-requires-controlled-approval
     resources:
-      - production/break-glass-self-approved
-    kind: Deployment
+      - policy-exceptions/break-glass-self-approved
+    kind: PolicyException
     result: fail
   - policy: break-glass-admission-controls
-    rule: break-glass-requires-metadata
+    rule: policy-exception-requires-metadata
     resources:
-      - production/break-glass-approved
-    kind: Deployment
+      - policy-exceptions/break-glass-approved
+    kind: PolicyException
     result: pass
   - policy: break-glass-admission-controls
-    rule: break-glass-requires-controlled-approval
+    rule: policy-exception-requires-controlled-approval
     resources:
-      - production/break-glass-approved
-    kind: Deployment
+      - policy-exceptions/break-glass-approved
+    kind: PolicyException
     result: pass
   - policy: break-glass-admission-controls
-    rule: break-glass-must-not-be-expired
+    rule: policy-exception-must-not-be-expired
     resources:
-      - production/break-glass-approved
-    kind: Deployment
+      - policy-exceptions/break-glass-approved
+    kind: PolicyException
     result: pass
   - policy: break-glass-admission-controls
-    rule: break-glass-deployment-must-label-pod-template
+    rule: policy-exception-must-use-dedicated-namespace
     resources:
-      - production/break-glass-approved
-    kind: Deployment
+      - policy-exceptions/break-glass-approved
+    kind: PolicyException
     result: pass
   - policy: break-glass-admission-controls
-    rule: break-glass-deployment-must-label-pod-template
+    rule: policy-exception-must-disable-background
     resources:
-      - production/break-glass-no-pod-label
-    kind: Deployment
-    result: fail
+      - policy-exceptions/break-glass-approved
+    kind: PolicyException
+    result: pass
+  - policy: break-glass-admission-controls
+    rule: policy-exception-must-target-approved-policies
+    resources:
+      - policy-exceptions/break-glass-approved
+    kind: PolicyException
+    result: pass

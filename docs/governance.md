@@ -25,10 +25,10 @@ This matrix links README governance claims to exact implementation points so cla
 
 | README claim | Workflow enforcement | Policy enforcement | Supporting docs |
 | :--- | :--- | :--- | :--- |
-| CI/CD is the primary control plane | `.github/workflows/ci-pr-validation.yml`, `.github/workflows/ci-release-gate.yml`, `.github/workflows/gitops-enforce.yml` | Branch protection required checks; Kyverno validation in GitOps workflow | `readme.md`, `docs/governance.md` |
+| CI/CD is the primary control plane | `.github/workflows/ci-pr-validation.yml`, `.github/workflows/ci-release-gate.yml`, `.github/workflows/gitops-enforce.yml` | Branch protection required checks; Kyverno CLI validation in the GitOps workflow before promotion PR creation; Kyverno admission in-cluster at deployment time | `readme.md`, `docs/governance.md` |
 | Security checks produce verifiable attestations | `.github/workflows/ci-release-gate.yml` (`trivy-scan`, `dast-analysis`, `sign-and-attest`) | `k8s/policies/cluster/verify-trivy.yaml`, `verify-zap.yaml`, `verify-sbom.yaml`, `verify-slsa.yaml` | `docs/threat-model.md`, `docs/adr/004-vulnerability-thresholds-risk-acceptance.md` |
 | Images are signed/attested and policy-enforced at runtime | `.github/workflows/ci-release-gate.yml` + `.github/workflows/gitops-enforce.yml` | `k8s/policies/cluster/verify-signature.yaml` and attestation verify policies | `docs/governance.md`, `docs/adr/003-policy-enforcement-strategy.md` |
-| Governance cannot be bypassed via direct merge/promotion | `.github/workflows/ci-pr-validation.yml`, `.github/workflows/gitops-enforce.yml` (`verify-context`) | GitHub branch/tag protections + CODEOWNERS + Kyverno break-glass controls | `docs/governance.md`, `docs/adr/005-break-glass-exception-handling.md` |
+| Governance cannot be bypassed via direct merge/promotion | `.github/workflows/ci-pr-validation.yml`, `.github/workflows/gitops-enforce.yml` (`verify-context`) | GitHub branch/tag protections + CODEOWNERS + Kyverno CLI promotion validation + Kyverno break-glass controls | `docs/governance.md`, `docs/adr/005-break-glass-exception-handling.md` |
 | Vulnerability policy threshold is enforced (`HIGH > 5` blocks release) | `.github/workflows/ci-release-gate.yml` (`Gate (CRITICAL>0 or HIGH>5)`) | Trivy attestation + admission policy verification path | `readme.md`, `docs/governance.md`, `docs/adr/004-vulnerability-thresholds-risk-acceptance.md` |
 
 ## GitHub Settings
@@ -73,6 +73,7 @@ Use this table during reviews to ensure governance controls remain mapped to act
 | Release vulnerability gate by immutable digest | `.github/workflows/ci-release-gate.yml` → `trivy-scan` | Release blocks on policy thresholds (`CRITICAL>0` or `HIGH>5`) |
 | Release DAST gate | `.github/workflows/ci-release-gate.yml` → `dast-analysis` (OWASP ZAP baseline scans) | Release blocks on DAST gate criteria |
 | Artifact signing, SBOM, and provenance attestations | `.github/workflows/ci-release-gate.yml` signing/attestation jobs | Attestations bound to trusted workflow identity |
+| GitOps promotion manifest validation | `.github/workflows/gitops-enforce.yml` → `Validate rendered prod manifests against cluster policy` | Promotion PR creation stops if Kyverno CLI policy evaluation fails |
 
 ## SLSA Level Review and Requirement Mapping
 

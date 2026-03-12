@@ -6,6 +6,7 @@ It separates:
 
 - CI-time structural validation
 - Runtime admission enforcement
+- Separately managed policy exceptions
 - Policy test fixtures and values
 
 ---
@@ -24,6 +25,8 @@ k8s/
 │   │   └── kustomization.yaml
 │   └── prod/
 │       └── kustomization.yaml
+├── exceptions/
+│   └── break-glass.example.yaml
 ├── policies/
 │   ├── ci/
 │   │   └── structural-policy.yaml
@@ -63,14 +66,14 @@ Consolidated policy variant that captures the same supply-chain requirements in 
 
 ## Test Assets (`k8s/tests/`)
 
-`k8s/tests/` contains Kyverno test definitions, fixtures, and values files used to validate policy behavior.
+`k8s/tests/` contains Kyverno test definitions, fixtures, exceptions, and values files used to validate policy behavior.
 
 Run locally with:
 
 ```bash
 kyverno test k8s/tests/
-kyverno test k8s/tests/ -f policy-test.yaml
-kyverno test k8s/tests/ -f cluster-verify-test.yaml
+kyverno test k8s/tests/ -f k8s/tests/policy-test.yaml  
+kyverno test k8s/tests/ -f k8s/tests/cluster-verify-test.yaml 
 ```
 
 ---

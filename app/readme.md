@@ -92,7 +92,7 @@ graph LR
 
 ## Key Capabilities
 
-- JWT auth with refresh tokens
+- JWT auth with HttpOnly refresh-token cookies
 - Optional OIDC validation with AMR/ACR checks
 - MFA enrollment and verification
 - Audit pipeline (DB or console sinks)
@@ -269,7 +269,7 @@ The application implements **baseline security controls** appropriate for intern
 
 - Legacy admin username/password flow (`/api/v1/auth/login`)
 - Role-aware email/password flow (`/api/v2/auth/login`)
-- JWT access tokens with refresh token rotation
+- JWT access tokens with refresh-token rotation via HttpOnly cookie
 - MFA enrollment and verification flows for v2 users
 
 ### Authorization
@@ -431,7 +431,8 @@ Auth behavior notes:
 - `POST /api/v2/auth/mfa/verify` accepts a valid bearer token context for the user being verified:
   - MFA challenge token from login (`mfaRequired: true` path), or
   - standard authenticated access token (post-enrollment verification path)
-- `POST /api/v2/auth/logout` returns `{ revoked: true|false }` to reflect actual refresh-token revoke outcome.
+- `POST /api/v2/auth/login`, `POST /api/v2/auth/refresh`, and `POST /api/v2/auth/mfa/verify` issue the refresh token as an HttpOnly cookie rather than returning it to JavaScript.
+- `POST /api/v2/auth/logout` revokes the current refresh-token cookie and returns `{ revoked: true|false }` to reflect actual revoke outcome.
 
 ---
 

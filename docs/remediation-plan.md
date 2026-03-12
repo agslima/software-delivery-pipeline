@@ -150,15 +150,15 @@ Convert the alignment review into execution-tracked work packages so maintainers
 
 - **Problem statement:** README posture evidence (Snyk snapshots) can be conflated with release admission controls (Trivy/ZAP gates).
 - **Tasks**
-  - [ ] Add explicit wording in `readme.md` that release blocking is Trivy/ZAP-driven and Snyk is posture evidence.
-  - [ ] Add direct links from README evidence section to `docs/threat-model.md` and release gate workflow jobs.
-  - [ ] Add one reviewer checklist item to verify claim/control wording consistency each quarter.
+  - [x] Add explicit wording in `readme.md` that release blocking is Trivy/ZAP-driven and Snyk is posture evidence.
+  - [x] Add direct links from README evidence section to `docs/threat-model.md` and release gate workflow jobs.
+  - [x] Add one reviewer checklist item to verify claim/control wording consistency each quarter.
 - **Deliverables**
   - Updated README evidence language.
   - Cross-links to enforcement sources of truth.
 - **Acceptance criteria**
-  - [ ] A reviewer can distinguish evidence reporting vs admission gate behavior in under 2 minutes.
-  - [ ] No conflicting wording remains between README and governance/threat-model docs.
+  - [x] A reviewer can distinguish evidence reporting vs admission gate behavior in under 2 minutes.
+  - [x] No conflicting wording remains between README and governance/threat-model docs.
 - **Evidence required**
   - README diff link.
   - PR review note confirming wording check.
@@ -184,13 +184,13 @@ Convert the alignment review into execution-tracked work packages so maintainers
 
 - **Problem statement:** Local development guidance is effectively hidden, reducing reproducibility for new contributors.
 - **Tasks**
-  - [ ] Restore concise root-level onboarding in `readme.md` (or explicit pointer to `app/readme.md`).
-  - [ ] Document multi-package command flow (server/client) without duplicating app-level docs.
-  - [ ] Validate commands still match package scripts.
+  - [x] Restore concise root-level onboarding in `readme.md` (or explicit pointer to `app/readme.md`).
+  - [x] Document multi-package command flow (server/client) without duplicating app-level docs.
+  - [x] Validate commands still match package scripts.
 - **Deliverables**
   - Usable root onboarding section with correct command paths.
 - **Acceptance criteria**
-  - [ ] New contributor can run server/client lint/test/start using only root README plus linked app docs.
+  - [x] New contributor can run server/client lint/test/start using only root README plus linked app docs.
 - **Evidence required**
   - README diff.
   - Command transcript from validation run.
@@ -205,15 +205,15 @@ Convert the alignment review into execution-tracked work packages so maintainers
 
 - **Problem statement:** Branch/tag/environment protections are external to git content and can drift silently.
 - **Tasks**
-  - [ ] Add a read-only audit script/workflow that checks branch protection, CODEOWNERS enforcement, protected tags, and environment restrictions.
-  - [ ] Define pass/fail output schema for quarterly audit evidence.
-  - [ ] Add runbook guidance for handling failed governance audits.
+  - [x] Add a read-only audit script/workflow that checks branch protection, CODEOWNERS enforcement, protected tags, and environment restrictions.
+  - [x] Define pass/fail output schema for quarterly audit evidence.
+  - [x] Add runbook guidance for handling failed governance audits.
 - **Deliverables**
   - Automated governance-settings audit job.
   - Standardized audit report artifact.
 - **Acceptance criteria**
-  - [ ] Audit job can detect at least one intentionally introduced protection drift in test mode.
-  - [ ] Quarterly maintainer checklist references automated output.
+  - [x] Audit job can detect at least one intentionally introduced protection drift in test mode.
+  - [x] Quarterly maintainer checklist references automated output.
 - **Evidence required**
   - Job logs/artifacts.
   - Example failed + passing run evidence.

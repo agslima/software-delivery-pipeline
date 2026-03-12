@@ -80,6 +80,12 @@ JWT_SECRET_VALUE="${JWT_SECRET:-$(random_hex 32)}"
 DATA_ENCRYPTION_KEY_VALUE="${DATA_ENCRYPTION_KEY:-$(random_hex 32)}"
 ZAP_LOGIN_EMAIL="${ZAP_LOGIN_EMAIL:-zap-local@example.test}"
 ZAP_LOGIN_PASSWORD="${ZAP_LOGIN_PASSWORD:-$(random_hex 18)}"
+for secret_var in ADMIN_PASS_VALUE DB_PASS_VALUE JWT_SECRET_VALUE DATA_ENCRYPTION_KEY_VALUE ZAP_LOGIN_PASSWORD; do  
+  if [[ -z "${!secret_var:-}" ]]; then  
+    echo "::error::Failed to generate secret for ${secret_var}" >&2  
+    exit 1  
+  fi  
+done
 
 SECRETS_PATH="${SECRETS_PATH:-$(mktemp -d /tmp/zap-local-secrets.XXXXXX)}"
 OUT_DIR="${APP_DIR}/zap-out"
@@ -239,10 +245,12 @@ assert_url_floor() {
 }
 
 generate_sarif() {
-  python3 - <<'PY'
+  OUT_DIR="$OUT_DIR" python3 - <<'PY'
 import json
 import hashlib
 import datetime
+import os
+from pathlib import Path
 
 def level_from_riskcode(rc: str) -> str:
     rc = str(rc)
@@ -370,16 +378,23 @@ def to_sarif(scan_name: str, json_path: str, out_path: str, url_map: dict):
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(sarif, f, indent=2)
 
-all_alerts = load_alerts("app/zap-out/zap-frontend.json") + load_alerts("app/zap-out/zap-backend.json")
+out_dir = Path(os.environ["OUT_DIR"]).resolve()
+frontend_json = out_dir / "zap-frontend.json"
+backend_json = out_dir / "zap-backend.json"
+targets_txt = out_dir / "targets.txt"
+frontend_sarif = out_dir / "zap-frontend.sarif"
+backend_sarif = out_dir / "zap-backend.sarif"
+
+all_alerts = load_alerts(str(frontend_json)) + load_alerts(str(backend_json))
 urls = sorted(set(collect_urls(all_alerts)))
 url_map = {}
-with open("app/zap-out/targets.txt", "w", encoding="utf-8") as f:
+with open(targets_txt, "w", encoding="utf-8") as f:
     for i, url in enumerate(urls, start=1):
         f.write(url + "\n")
         url_map[url] = i
 
-to_sarif("frontend", "app/zap-out/zap-frontend.json", "app/zap-out/zap-frontend.sarif", url_map)
-to_sarif("backend", "app/zap-out/zap-backend.json", "app/zap-out/zap-backend.sarif", url_map)
+to_sarif("frontend", str(frontend_json), str(frontend_sarif), url_map)
+to_sarif("backend", str(backend_json), str(backend_sarif), url_map)
 PY
 }
 

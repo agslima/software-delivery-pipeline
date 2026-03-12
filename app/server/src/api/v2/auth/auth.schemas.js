@@ -10,13 +10,9 @@ const loginSchema = Joi.object({
   password: Joi.string().min(8).max(128).required(),
 });
 
-const refreshSchema = Joi.object({
-  refreshToken: Joi.string().min(32).required(),
-});
+const refreshSchema = Joi.object({});
 
-const revokeSchema = Joi.object({
-  refreshToken: Joi.string().min(32).required(),
-});
+const revokeSchema = Joi.object({});
 
 const mfaVerifySchema = Joi.object({
   code: Joi.string().pattern(/^\d{6}$/).required(),

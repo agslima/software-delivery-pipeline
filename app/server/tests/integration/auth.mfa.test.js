@@ -107,8 +107,11 @@ describe('Integration: Auth MFA verify', () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toMatchObject({ verified: true });
     expect(res.body.accessToken).toBeDefined();
-    expect(res.body.refreshToken).toBeDefined();
+    expect(res.body.refreshToken).toBeUndefined();
     expect(res.body.tokenType).toBe('Bearer');
+    expect(res.headers['set-cookie']).toEqual(
+      expect.arrayContaining([expect.stringContaining('refresh_token=')])
+    );
     expect(mockUser.mfa_enabled).toBe(true);
     expect(mockAuditEvents.some((evt) => evt.event_type === 'mfa_verified')).toBe(true);
   });
@@ -123,8 +126,11 @@ describe('Integration: Auth MFA verify', () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toMatchObject({ verified: true });
     expect(res.body.accessToken).toBeDefined();
-    expect(res.body.refreshToken).toBeDefined();
+    expect(res.body.refreshToken).toBeUndefined();
     expect(res.body.tokenType).toBe('Bearer');
+    expect(res.headers['set-cookie']).toEqual(
+      expect.arrayContaining([expect.stringContaining('refresh_token=')])
+    );
     expect(mockUser.mfa_enabled).toBe(true);
     expect(mockAuditEvents.some((evt) => evt.event_type === 'mfa_verified')).toBe(true);
   });

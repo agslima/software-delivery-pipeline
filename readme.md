@@ -137,9 +137,10 @@ For more details on how branch protection, code ownership, and release integrity
 - **Syft:** SPDX-formatted SBOM for transparency and future incident response
 - **Security attestations:** signed evidence that required scans were executed
 
-### Layer 4: Delivery (GitOps)
+### Layer 4: GitOps Validation & Runtime Admission
 
-- **Kyverno:** validates deployment manifests against cluster policy expectations before the digest update is proposed for merge
+- **Kyverno CLI in GitOps enforcement:** validates rendered production manifests against the cluster policy set after digest updates are prepared and before the promotion PR is opened
+- **Kyverno admission controller:** enforces the same trust requirements at deployment time inside the cluster
 
 ---
 

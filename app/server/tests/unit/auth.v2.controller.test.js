@@ -13,7 +13,7 @@ const loadController = ({
 
   const login = loginError ? jest.fn().mockRejectedValue(loginError) : jest.fn().mockResolvedValue(loginResult);
   const issue = jest.fn().mockResolvedValue(issueResult);
-  const rotate = jest.fn();
+  const rotate = jest.fn().mockResolvedValue({ accessToken: 'access-2', refreshToken: 'refresh-2', tokenType: 'Bearer' });
   const revoke = jest.fn().mockResolvedValue(revokeResult);
   const revokeAll = jest.fn().mockResolvedValue({ revoked: true });
   const verify = jest.fn().mockResolvedValue(verifyResult);
@@ -65,6 +65,7 @@ const loadController = ({
     mocks: {
       login,
       issue,
+      rotate,
       revoke,
       verify,
       enroll,
@@ -125,17 +126,36 @@ describe('Unit: api/v2/auth.controller', () => {
 
     const req = { body: { email, password: 'secret' } };
     const json = jest.fn();
-    const res = { status: jest.fn(() => ({ json })) };
+    const res = { status: jest.fn(() => ({ json })), setHeader: jest.fn() };
 
     await controller.login(req, res, jest.fn());
 
     expect(mocks.issue).toHaveBeenCalledWith(userId);
+    expect(res.setHeader).toHaveBeenCalledWith(
+      'Set-Cookie',
+      expect.stringContaining('refresh_token=refresh-xyz')
+    );
     expect(json).toHaveBeenCalledWith({
       accessToken: 'access-1',
       tokenType: 'Bearer',
       user: { id: userId, email, role: 'patient', mfaEnabled: false },
-      refreshToken: 'refresh-xyz',
     });
+  });
+
+  it('refresh rotates token from cookie and returns only access token payload', async () => {
+    const { controller, mocks } = loadController();
+    const req = { headers: { cookie: 'refresh_token=refresh-1' } };
+    const json = jest.fn();
+    const res = { status: jest.fn(() => ({ json })), setHeader: jest.fn() };
+
+    await controller.refresh(req, res, jest.fn());
+
+    expect(mocks.rotate).toHaveBeenCalledWith('refresh-1');
+    expect(res.setHeader).toHaveBeenCalledWith(
+      'Set-Cookie',
+      expect.stringContaining('refresh_token=refresh-2')
+    );
+    expect(json).toHaveBeenCalledWith({ accessToken: 'access-2', tokenType: 'Bearer' });
   });
 
   it('login audits invalid credentials failures and forwards error', async () => {
@@ -156,13 +176,17 @@ describe('Unit: api/v2/auth.controller', () => {
 
   it('revoke returns revoked=true and emits revoke audit event', async () => {
     const { controller, mocks } = loadController({ revokeResult: { revoked: true, userId: 'user-1' } });
-    const req = { body: { refreshToken: 'refresh-1' }, user: { sub: 'user-1' } };
+    const req = { headers: { cookie: 'refresh_token=refresh-1' }, user: { sub: 'user-1' } };
     const json = jest.fn();
-    const res = { status: jest.fn(() => ({ json })) };
+    const res = { status: jest.fn(() => ({ json })), setHeader: jest.fn() };
 
     await controller.revoke(req, res, jest.fn());
 
     expect(mocks.revoke).toHaveBeenCalledWith('refresh-1');
+    expect(res.setHeader).toHaveBeenCalledWith(
+      'Set-Cookie',
+      expect.stringContaining('refresh_token=')
+    );
     expect(mocks.safeAudit).toHaveBeenCalledWith(
       expect.any(Object),
       expect.objectContaining({ eventType: 'refresh_token_revoked', subjectId: 'user-1' })
@@ -172,9 +196,9 @@ describe('Unit: api/v2/auth.controller', () => {
 
   it('revoke returns revoked=false without emitting revoke audit event', async () => {
     const { controller, mocks } = loadController({ revokeResult: { revoked: false, userId: 'user-1' } });
-    const req = { body: { refreshToken: 'refresh-1' }, user: { sub: 'user-1' } };
+    const req = { headers: { cookie: 'refresh_token=refresh-1' }, user: { sub: 'user-1' } };
     const json = jest.fn();
-    const res = { status: jest.fn(() => ({ json })) };
+    const res = { status: jest.fn(() => ({ json })), setHeader: jest.fn() };
 
     await controller.revoke(req, res, jest.fn());
 
@@ -196,13 +220,17 @@ describe('Unit: api/v2/auth.controller', () => {
     const { controller, mocks } = loadController({ verifyResult: { verified: true } });
     const req = { user: { sub: 'user-1', email: 'p@example.test', role: 'patient' }, body: { code: '123456' } };
     const json = jest.fn();
-    const res = { status: jest.fn(() => ({ json })) };
+    const res = { status: jest.fn(() => ({ json })), setHeader: jest.fn() };
 
     await controller.verifyMfa(req, res, jest.fn());
 
     expect(mocks.verify).toHaveBeenCalledWith({ userId: 'user-1', code: '123456' });
     expect(mocks.sign).toHaveBeenCalledWith(expect.objectContaining({ sub: 'user-1', mfaEnabled: true }));
     expect(mocks.safeAudit).toHaveBeenCalledWith(expect.any(Object), expect.objectContaining({ eventType: 'mfa_verified' }));
-    expect(json).toHaveBeenCalledWith(expect.objectContaining({ accessToken: 'access-token', refreshToken: 'refresh-1', tokenType: 'Bearer' }));
+    expect(res.setHeader).toHaveBeenCalledWith(
+      'Set-Cookie',
+      expect.stringContaining('refresh_token=refresh-1')
+    );
+    expect(json).toHaveBeenCalledWith(expect.objectContaining({ accessToken: 'access-token', tokenType: 'Bearer' }));
   });
 });

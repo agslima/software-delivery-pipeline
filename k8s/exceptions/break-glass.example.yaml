@@ -1,13 +1,13 @@
 apiVersion: kyverno.io/v2
 kind: PolicyException
 metadata:
-  name: break-glass-approved
+  name: break-glass-example
   namespace: policy-exceptions
   annotations:
-    security.break-glass/ticket: "INC-2099"
+    security.break-glass/ticket: "INC-1234"
     security.break-glass/requested-by: "application-team"
     security.break-glass/approved-by: "platform-oncall"
-    security.break-glass/expires-at: "2099-12-31T23:59:59Z"
+    security.break-glass/expires-at: "2026-12-31T23:59:59Z"
 spec:
   background: false
   match:
@@ -16,14 +16,14 @@ spec:
           kinds:
             - Deployment
           names:
-            - exception-target
+            - my-app
           namespaces:
             - production
       - resources:
           kinds:
             - Pod
           names:
-            - exception-target-*
+            - my-app-*
           namespaces:
             - production
   exceptions:

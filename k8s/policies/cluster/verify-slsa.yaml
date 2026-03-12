@@ -18,13 +18,6 @@ spec:
           - resources:
               kinds: ["Pod", "Deployment"]
               namespaces: ["prod", "production"]
-      exclude:
-        any:
-          - resources:
-              selector:
-                matchLabels:
-                  security.break-glass: "true"
-
       verifyImages:
         - imageReferences:
             - "docker.io/agslima/app-stayhealthy-backend:*"  

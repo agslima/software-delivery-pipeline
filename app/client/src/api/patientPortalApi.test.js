@@ -28,7 +28,6 @@ describe('patientPortalApi', () => {
 
     await expect(loginPatient('patient@example.test', 'Password123!')).resolves.toEqual({
       token: 'jwt-1',
-      refreshToken: 'refresh-1',
       user: { id: 'p-1' },
     });
     expect(fetch).toHaveBeenCalledWith('/api/v2/auth/login', {
@@ -95,7 +94,6 @@ describe('patientPortalApi', () => {
 
     await expect(verifyMfa('123456', 'mfa-token')).resolves.toEqual({
       token: 'jwt-2',
-      refreshToken: 'r-1',
     });
     expect(fetch).toHaveBeenNthCalledWith(1, '/api/v2/auth/mfa/verify', {
       method: 'POST',

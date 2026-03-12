@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: exception-target-0
+  namespace: production
+spec:
+  containers:
+    - name: app
+      image: docker.io/agslima/app-stayhealthy-frontend@sha256:adc8d33f2764db79b74b863f620ad677da28b21eca9c669d79dcee3f4627bae0

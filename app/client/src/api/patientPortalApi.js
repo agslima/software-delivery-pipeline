@@ -24,7 +24,6 @@ export async function loginPatient(email, password) {
     }
     return {
       token: data.accessToken,
-      refreshToken: data.refreshToken,
       user: data.user,
     };
   } catch (err) {
@@ -57,7 +56,6 @@ export async function verifyMfa(code, mfaToken) {
     const data = await response.json();
     return {
       token: data.accessToken,
-      refreshToken: data.refreshToken,
     };
   } catch (err) {
     if (err.message === 'Failed to fetch' || err.message.includes('NetworkError')) {
