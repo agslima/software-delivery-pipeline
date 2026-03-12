@@ -150,8 +150,7 @@ For more details on how branch protection, code ownership, and release integrity
 - The pipeline utilizes a **Push-based GitOps** model.
 - CI updates Kubernetes manifests with the **immutable image digest** of the newly signed artifact.
 - A Pull Request is automatically opened to `main` with updated digests.
-- **Constraint:** CI cannot commit to main directly; it pass the same policy checks as a human developer.
-
+- **Constraint:** CI cannot commit to main directly; it passes the same policy checks as a human developer.
 ### Runtime Admission Control
 
 At deployment time, **Kyverno** enforces runtime admission checks inside the cluster.
