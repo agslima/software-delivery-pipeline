@@ -321,8 +321,7 @@ The backend package lives in `app/server`; the frontend package lives in `app/cl
 
 - ❌ A framework comparison
 - ❌ A zero-vulnerability application
-- ❌ Not immune to privileged administrative bypass outside the modeled trust boundaries
-
+- ❌ Immune to privileged administrative bypass outside the modeled trust boundaries
 ---
 
 ## Role Alignment
