@@ -221,6 +221,10 @@ const env = cleanEnv(process.env, {
     desc: 'Reject non-TLS requests when behind a proxy',
     default: process.env.ENFORCE_TLS ? process.env.ENFORCE_TLS === 'true' : false,
   }),
+  TRUST_PROXY: str({
+    desc: 'Express trust proxy setting for forwarded headers',
+    default: process.env.TRUST_PROXY || '',
+  }),
 
   LOGIN_MAX_FAILURES: num({
     desc: 'Max failed login attempts before temporary lockout',

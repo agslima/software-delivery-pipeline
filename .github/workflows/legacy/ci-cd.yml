@@ -165,12 +165,14 @@ jobs:
       - name: Install Kyverno CLI
         uses: kyverno/action-install-cli@v0.2.0
         with:
-          release: 'v1.13.2'
+          release: 'v1.17.1'
           verify: true        
       
       - name: Kyverno Policy Unit Tests
         run: |
           kyverno test k8s/tests/
+          kyverno test k8s/tests/ -f policy-test.yaml
+          kyverno test k8s/tests/ -f cluster-verify-test.yaml
           echo "✅ Kyverno Policy Logic Verified."
           
       - name: CI Policy Validation

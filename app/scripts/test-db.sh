@@ -16,17 +16,18 @@ TEST_DB_PORT="${TEST_DB_PORT:-5433}"
 TEST_DB_USER="${TEST_DB_USER:-postgres}"
 TEST_DB_NAME="${TEST_DB_NAME:-prescriptions_test}"
 
+# generate_secret generates a 16-byte hexadecimal secret, falling back to the current timestamp in nanoseconds if secure randomness is unavailable.
 generate_secret() {
   if command -v openssl >/dev/null 2>&1; then
     openssl rand -hex 16
-  elif [ -r /dev/urandom ]; then
+  elif [[ -r /dev/urandom ]]; then
     head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n'
   else
     date +%s%N
   fi
 }
 
-if [ -z "${TEST_DB_PASS:-}" ]; then
+if [[ -z "${TEST_DB_PASS:-}" ]]; then
   TEST_DB_PASS="$(generate_secret)"
 fi
 
@@ -56,7 +57,7 @@ for _ in $(seq 1 30); do
   sleep 1
 done
 
-if [ "$READY" -ne 1 ]; then
+if [[ "$READY" -ne 1 ]]; then
   echo "Postgres did not become ready in time." >&2
   exit 1
 fi

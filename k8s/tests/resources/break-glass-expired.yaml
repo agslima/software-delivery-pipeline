@@ -1,0 +1,25 @@
+apiVersion: kyverno.io/v2
+kind: PolicyException
+metadata:
+  name: break-glass-expired
+  namespace: policy-exceptions
+  annotations:
+    security.break-glass/ticket: "INC-1001"
+    security.break-glass/requested-by: "application-team"
+    security.break-glass/approved-by: "platform-oncall"
+    security.break-glass/expires-at: "2000-01-01T00:00:00Z"
+spec:
+  background: false
+  match:
+    any:
+      - resources:
+          kinds:
+            - Deployment
+          names:
+            - exception-target
+          namespaces:
+            - production
+  exceptions:
+    - policyName: verify-signature
+      ruleNames:
+        - require-image-signature

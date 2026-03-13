@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# fail prints an error annotation using the provided message and exits the script with status 1.
+fail() {
+  echo "::error::$1"
+  exit 1
+}
+
+# assert_contains verifies that the specified file contains the given literal string and calls fail with an error annotation and exits if the string is missing.
+assert_contains() {
+  local file="$1"
+  local expected="$2"
+  grep -Fq "$expected" "$file" || fail "Missing expected reference in $file: $expected"
+}
+
+echo "[governance-drift] Markdown structure assertions"
+assert_contains "readme.md" "# Governed Software Delivery Pipeline"
+assert_contains "docs/governance.md" "# Delivery Governance Model"
+assert_contains "docs/threat-model.md" "# Security Controls"
+
+echo "[governance-drift] Reference assertions: workflow names and policy thresholds"
+assert_contains "readme.md" "HIGH > 5"
+
+assert_contains "docs/governance.md" "## README Claims → Controls Matrix"
+assert_contains "readme.md" "docs/governance.md#readme-claims--controls-matrix"
+assert_contains "docs/governance.md" "ci-release-gate.yml"
+assert_contains "docs/governance.md" "ci-pr-validation.yml"
+assert_contains "docs/governance.md" "gitops-enforce.yml"
+
+assert_contains ".github/workflows/ci-release-gate.yml" "Gate (CRITICAL>0 or HIGH>5)"
+assert_contains ".github/workflows/ci-pr-validation.yml" "name: Governance & Security Quality Check"
+assert_contains ".github/workflows/gitops-enforce.yml" "Guardrails - Validate promotion source"
+
+echo "[governance-drift] OK"

@@ -90,26 +90,53 @@ jobs:
           entrypoint: "/kubeconform"
           args: "-summary -output text -ignore-missing-schemas k8s/"
 
+      - name: Install Cosign
+        if: matrix.service == 'backend'
+        uses: sigstore/cosign-installer@ba7bc0a3fef59531c69a25acd34668d6d3fe6f22 #v4.1.0
+        
+      - name: Install Kyverno CLI
+        if: matrix.service == 'backend'
+        uses: kyverno/action-install-cli@fcee92fca5c883169ef9927acf543e0b5fc58289 # v0.2.0
+        with:
+          release: 'v1.17.1'
+          verify: true
+
+      - name: Run Kyverno Policy Tests
+        if: matrix.service == 'backend'
+        run: |
+          kyverno test k8s/tests/
+          kyverno test k8s/tests/ -f k8s/tests/policy-test.yaml
+          kyverno test k8s/tests/ -f k8s/tests/cluster-verify-test.yaml
+
   # ==================================================================
-  # JOB 3: Security Scan (Code + IaC)
+  # JOB 3: Governance & Security Scan (Code + IaC)
   # ==================================================================
-  security-scan:
-    name: Security Quality Check
+  governance-and-security-scan:
+    name: Governance & Security Quality Check
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
       security-events: write
+    env:
+      TRIVY_CACHE_DIR: ${{ github.workspace }}/.trivy-cache
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
           fetch-depth: 0
 
+      - name: Governance Drift Check (docs/workflow refs)
+        run: make governance-drift-check
+
+      - name: Governance Metadata Freshness Check
+        run: make governance-metadata-check
+
       # 1. Secret Scanning
       - name: Secret Scanning (Gitleaks)
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
       - name: Compute Trivy DB cache key
         id: trivy-db-key
@@ -118,16 +145,23 @@ jobs:
       - name: Cache Trivy DB
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
-          path: ~/.cache/trivy
+          path: ${{ env.TRIVY_CACHE_DIR }}
           key: trivy-db-${{ runner.os }}-${{ github.workflow }}-${{ steps.trivy-db-key.outputs.week }}
           restore-keys: |
             trivy-db-${{ runner.os }}-
+      
+      - name: Create Cache Dir
+        run: mkdir -p "${{ env.TRIVY_CACHE_DIR }}"
+        
       - name: Set scan skip dirs
         id: vars
         run: |
-          echo "SKIP_DIRS=k8s/tests,node_modules,dist,build,vendor,coverage,.git,.cache,.venv,tmp" >> "$GITHUB_OUTPUT"
+          # Keep policy fixtures in FS dependency scope, but exclude them from config misconfig scans
+          # because test fixtures intentionally include insecure manifests.
+          echo "FS_SKIP_DIRS=node_modules,dist,build,vendor,coverage,.git,.cache,.venv,tmp" >> "$GITHUB_OUTPUT"
+          echo "CONFIG_SKIP_DIRS=k8s/tests,node_modules,dist,build,vendor,coverage,.git,.cache,.venv,tmp" >> "$GITHUB_OUTPUT"
       
-      # 4. TRIVY SCAN: Filesystem (Dependencies & Code Secrets)
+      # TRIVY SCAN: Filesystem (Dependencies & Code Secrets)
       - name: Trivy Scan - Root FS
         id: trivy-scan
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
@@ -138,7 +172,7 @@ jobs:
           vuln-type: 'os,library'
           severity: 'HIGH,CRITICAL'
           format: 'table'
-          skip-dirs: ${{ steps.vars.outputs.SKIP_DIRS }}
+          skip-dirs: ${{ steps.vars.outputs.FS_SKIP_DIRS }}
           ignore-unfixed: true
           exit-code: 1
       
@@ -151,7 +185,7 @@ jobs:
           severity: HIGH,CRITICAL
           format: table
           exit-code: "1"
-          skip-dirs: ${{ steps.vars.outputs.SKIP_DIRS }}
+          skip-dirs: ${{ steps.vars.outputs.CONFIG_SKIP_DIRS }}
       
       - name: 🚨 Notify Slack on Failure
         if: failure() && steps.trivy-scan.outcome == 'failure'
@@ -163,4 +197,3 @@ jobs:
           SLACK_MESSAGE: 'Trivy found Critical vulnerabilities. Auto-merge has been aborted.'
           SLACK_USERNAME: 'Security Bot'
           SLACK_ICON: 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png'
-

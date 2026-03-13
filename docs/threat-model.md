@@ -1,24 +1,31 @@
 # Security Controls
 
+## Governance Metadata
+
+- **Validation cadence:** Quarterly
+- **Last validated:** 2026-03-11
+
 ## 1. Summary
 
-This document outlines the threat landscape for the **Governed Software Delivery Pipeline**. It identifies potential attack vectors against the **software supply chain** and details the specific engineering controls implemented to mitigate them.
+This document outlines the threat landscape for the **Governed Software Delivery Pipeline**.
+It focuses on software supply-chain risks and the controls implemented in this repository.
 
-The security model assumes a "Zero Trust" approach to the build pipeline:
-- We do not trust the Code (scanned for secrets/bugs).
-- We do not trust the Dependencies (scanned for CVEs).
-- We do not trust the Artifact (must be signed).
-- We do not trust the Runtime (must verify signatures).
+The security model follows a zero-trust posture for delivery:
+
+- Reject source changes by default (PR checks + review gates).
+- Treat code, dependencies, and infrastructure config as untrusted by default (Gitleaks + Trivy scanning with workflow gates).
+- Require artifact verification by default (keyless signatures + attestations).
+- Enforce runtime admission checks by default (Kyverno verification).
 
 ---
 
 ## 2. Assets at Risk
 
-- **Source Code:** Intellectual property and business logic.
-- **Build Environment:** The CI/CD runners that compile the application.
-- **Container Artifacts:** The final deployable units.
-- **Signing Identity:** The OIDC identity used to sign releases.
-- **Production Environment:** The Kubernetes cluster where the app runs.
+- **Source code and workflow definitions** (`app/`, `.github/workflows/`)
+- **Build environment** (GitHub Actions runners)
+- **Container artifacts** (images and digests)
+- **Signing identity** (GitHub OIDC identity used by Cosign)
+- **Runtime environment** (Kubernetes cluster admission boundary)
 
 ---
 
@@ -26,66 +33,62 @@ The security model assumes a "Zero Trust" approach to the build pipeline:
 
 ### A. Tampering (Integrity)
 
-*Definition: Malicious modification of code, dependencies, or artifacts.*
+| Threat Scenario | Attack Vector | Mitigation Control | Implementation Details |
+| :--- | :--- | :--- | :--- |
+| Dependency poisoning / vulnerable transitive packages | Malicious package or critical CVE in dependencies/base image | Trivy image/filesystem scanning with release gating | Trivy runs in PR checks (`fs` vuln + config), daily deep scan (`vuln,secret,config` outputs), and release image gate by digest; release blocks on `CRITICAL > 0` or `HIGH > 5` per image. |
+| Code-level security defects | Vulnerable logic introduced by code change | PR quality gates and DAST in release/weekly workflows | Lint/tests run on PRs; OWASP ZAP baseline scans run in release gate and weekly DAST workflows for dynamic validation. |
+| Artifact mutation in registry | Malicious image pushed to mutable tag | Immutable digests + signing + attestation checks | Deployment uses digest-pinned images; Cosign keyless signatures and attestations are verified in the GitOps enforcement workflow before promotion and again by admission controls in-cluster. |
+| Dockerfile/manifest hardening regressions | Insecure Dockerfile or weak manifest config | Hadolint + Conftest + Kubeconform | PR validation blocks non-compliant Dockerfiles/manifests before merge. |
+
+### B. Spoofing / Repudiation (Identity)
 
 | Threat Scenario | Attack Vector | Mitigation Control | Implementation Details |
 | :--- | :--- | :--- | :--- |
-| **Dependency Confusion / Poisoning** | Attacker injects a malicious package (e.g., `event-stream` attack) or a dependency introduces a Critical CVE. | **SCA (Software Composition Analysis)** | **Snyk** scans `package.json` and lockfiles during CI. Builds fail on High/Critical CVEs. |
-| **Code Injection** | A developer unknowingly commits vulnerable code (XSS, Injection) or logic flaws. | **SAST & Unit Testing** | **Snyk Code** analyzes static source. **Jest** ensures logic acts as expected. |
-| **Artifact Modification** | An attacker gains access to Docker Hub and pushes a malicious image overwriting `v1.0.0`. | **Immutable Digests & Signing** | The pipeline deploys by **SHA Digest**, not mutable tags. **Cosign** signs the image, effectively "freezing" the content. |
-| **Dockerfile Tampering** | A developer changes the base image to an insecure version or runs as root. | **Infrastructure Linting** | **Hadolint** enforces Docker best practices (e.g., pinning versions, avoiding root). |
-
-### B. Spoofing & Repudiation (Identity)
-
-*Definition: Pretending to be a valid publisher or denying that an action took place.*
-
-| Threat Scenario | Attack Vector | Mitigation Control | Implementation Details |
-| :--- | :--- | :--- | :--- |
-| **Rogue Container Deployment** | An attacker creates a valid-looking container and tries to deploy it to the cluster. | **Admission Control & Signature Verification** | **Kyverno** policy blocks any pod that does not contain a valid **Cosign** signature linked to this specific GitHub Repository. |
-| **Stolen Signing Keys** | An attacker steals a private GPG key to sign malicious malware. | **Keyless Signing (OIDC)** | We use **Sigstore/Cosign Keyless**. There are no long-lived private keys to steal. Signing is bound to the ephemeral OIDC identity of the GitHub Action runner. |
-| **Provenance Forgery** | An attacker claims a binary was built by the "Official Pipeline" when it was built on a laptop. | **SLSA Provenance** | **GitHub Attestations** generate unforgeable provenance linking the artifact to the exact Git Commit and Workflow Run ID. |
+| Rogue container deployment | Untrusted image attempts cluster admission | Kyverno signature and attestation verification | The GitOps enforcement workflow pre-validates rendered manifests with Kyverno CLI, and the cluster admission controller requires trusted issuer + release-workflow identity and required attestations at deployment time. |
+| Signing-key theft model | Long-lived private key compromise | Keyless signing (OIDC) | Cosign keyless uses short-lived certificates bound to GitHub OIDC identity. |
+| Provenance forgery | Local build falsely claimed as CI build | Build provenance attestation | Release workflow emits provenance that is verifiable against trusted workflow identity. |
 
 ### C. Information Disclosure (Confidentiality)
 
-*Definition: Leaking sensitive data.*
-
 | Threat Scenario | Attack Vector | Mitigation Control | Implementation Details |
 | :--- | :--- | :--- | :--- |
-| **Hardcoded Secrets** | A developer accidentally commits AWS keys or API tokens to Git. | **Secret Scanning** | **Gitleaks** scans the commit history before the build proceeds. |
-| **Vulnerable Runtime Configuration** | The application leaks stack traces or lacks security headers in production. | **DAST (Dynamic Analysis)** | **OWASP ZAP** scans the running container for missing headers (`HSTS`, `X-Content-Type`) and information leakage. |
+| Hardcoded secrets in code/history | Token/credential committed to repository | Gitleaks + Trivy secret/config scanning | Gitleaks runs in PR and daily security workflows; PR Trivy checks cover vulnerabilities and config/misconfiguration, while Trivy secret scanning runs in the daily/manual deep security workflow. |
+| Runtime information leakage | Missing headers / endpoint misconfig | OWASP ZAP DAST | Release and weekly DAST scans detect exposed attack surface and missing protections. |
 
 ---
 
 ## 4. Defense Against Specific Attacks
 
-### Scenario 1: The "Compromised Registry" Attack
+### Scenario 1: Compromised Registry Push
 
-**The Attack:** A hacker obtains the CI/CD credentials (DOCKER_TOKEN) and pushes a malware-laden image to `agslima/software-delivery-pipeline:latest`.
-**The Defense:**
+**Attack:** An attacker pushes a malicious image to the registry.
 
-1.  **Kyverno** in the cluster sees the new image.
-2.  It attempts to verify the signature using the **Cosign** public key transparency log.
-3.  The hacker *could* push the image, but they **cannot** generate a valid signature because they do not have the GitHub Actions OIDC token.
-4.  **Result:** The cluster **rejects** the deployment.
+**Defense:**
 
-### Scenario 2: The "SolarWinds" Build Injection
+1. Admission policy verifies signature identity and required attestations.
+2. Attacker cannot satisfy trusted OIDC workflow identity for valid signature/attestation chain.
+3. **Result:** Deployment is rejected.
 
-**The Attack:** An attacker modifies the build environment itself to inject code *during* compilation, bypassing source code review.
-**The Defense:**
-1.  **Ephemeral Runners:** Each build runs on a fresh GitHub-hosted VM, destroying any persistence.
-2.  **SLSA Provenance:** The `attest-build-provenance` step records exactly *where* and *how* the binary was built.
-3.  **Verification:** A consumer (or the cluster) verifies the SLSA predicate. If the provenance claims the builder was "My-Laptop" instead of "GitHub-Actions," the artifact is rejected.
+### Scenario 2: Build Environment Injection
+
+**Attack:** Malicious modification during build execution.
+
+**Defense:**
+
+1. Builds run on ephemeral GitHub-hosted runners.
+2. Build provenance ties artifact to workflow/run/commit.
+3. Verification catches provenance mismatch from untrusted build context.
 
 ---
 
-## 5. Residual Risks (Accepted Debt)
+## 5. Residual Risks (Accepted)
 
-*The following risks are acknowledged and managed:*
-
-1.  **Zero-Day Vulnerabilities:** Scanners (Snyk/Trivy) can only detect *known* CVEs. A true Zero-Day exploits a vulnerability before it is public.
-    * *Mitigation:* **Syft SBOM** allows for rapid identification of affected components when a Zero-Day is announced.
-2.  **GitHub Actions Compromise:** If GitHub itself is compromised, the OIDC trust chain could be broken.
-    * *Mitigation:* This is a platform risk accepted by using a SaaS CI provider.
+- **Zero-day vulnerabilities:** Gitleaks/Trivy/ZAP detect known patterns and behaviors only.
+  - Mitigation: SBOM and provenance support faster impact triage and incident response.
+- **CI platform compromise:** Trust chain depends on GitHub and OIDC integrity.
+  - Mitigation: repository governance controls + admission checks + auditable break-glass process.
+- **Scanner availability/outages:** Security tools may fail operationally.
+  - Mitigation: fail-closed release gate + documented degraded-mode and break-glass ADRs.
 
 ---
 
@@ -93,132 +96,23 @@ The security model assumes a "Zero Trust" approach to the build pipeline:
 
 ```mermaid
 flowchart LR
-    subgraph "Development"
-        Code[Source Code] -->|Gitleaks| Commit
+    subgraph Development
+        Code[Source Code] --> PR[PR Governance]
     end
 
-    subgraph "CI Pipeline (Trusted Builder)"
-        Commit -->|Trivy SAST| Build
-        Build -->|Hadolint| Docker[Docker Build]
-        Docker -->|Trivy| Scan[Image Scan]
-        Scan -->|OWASP ZAP| DAST
-        DAST -->|Cosign| Sign[Sign & Attest]
+    subgraph CI[Governed CI/CD]
+        PR --> Q[Lint + Tests]
+        Q --> S1[Gitleaks + Trivy FS/Config]
+        S1 --> Build[Build + Push by Digest]
+        Build --> DAST[OWASP ZAP Baseline]
+        DAST --> SA[Sign + Attest + SBOM + Provenance]
     end
 
-    subgraph "Registry"
-        Sign --> Reg[Docker Registry]
+    SA --> Reg[Container Registry]
+
+    subgraph Runtime[Kubernetes Runtime]
+        Reg --> Adm[Kyverno Admission]
+        Adm --> Workload[Running Workload]
+        Adm -. deny .-> Block[Block Deployment]
     end
-
-    subgraph "Production (Runtime)"
-        Reg -->|Pull| K8s[Kubernetes Cluster]
-        Policy[Kyverno Policy] -- Deny Unsigned --> K8s
-    end
-```
-
----
-
-
-# Security Threat Model (STRIDE)
-
-## 1. Summary
-This document outlines the threat landscape for the Governed Software Delivery Pipeline. It identifies potential attack vectors against the software supply chain and details the specific engineering controls implemented to mitigate them.
-The security model assumes a "Zero Trust" approach to the build pipeline:
- * Trust No Code: Source is scanned for secrets and logic flaws.
- * Trust No Dependency: External libraries are scanned for CVEs.
- * Trust No Artifact: Binaries must be cryptographically signed.
- * Trust No Runtime: The cluster rejects any workload without verified provenance.
-
-## 2. Assets at Risk
- * Source Code: Intellectual property and business logic.
- * Pipeline Configuration: The CI/CD definitions (.github/workflows) that enforce governance.
- * Signing Identity: The OIDC identity provided by GitHub Actions.
- * Production Cluster: The Kubernetes environment hosting the workload.
-
-## 3. Threat Analysis (STRIDE)
-We utilize the STRIDE model to categorize threats against the supply chain.
-S - Spoofing (Identity)
-Definition: Pretending to be a valid publisher.
-| Threat Scenario | Attack Vector | Mitigation Control | Implementation |
-|---|---|---|---|
-| Rogue Container | Attacker pushes a malicious container to the registry. | Admission Control | Kyverno (k8s/policies/cluster) blocks images lacking a valid signature from this specific repo. |
-| Key Theft | Attacker steals a private signing key. | Keyless Signing | Sigstore/Cosign uses ephemeral OIDC tokens. There are no static private keys to steal. |
-T - Tampering (Integrity)
-Definition: Malicious modification of data or artifacts.
-| Threat Scenario | Attack Vector | Mitigation Control | Implementation |
-|---|---|---|---|
-| Dependency Confusion | Attacker injects a malicious package (e.g., event-stream). | SCA | Trivy scans package-lock.json during the build. |
-| Artifact Mutation | Attacker overwrites v1.0 with a malicious image. | Immutable Digests | The pipeline deploys by SHA256 digest (image@sha256:...), not mutable tags. |
-R - Repudiation (Logging)
-Definition: Denying that an action took place.
-| Threat Scenario | Attack Vector | Mitigation Control | Implementation |
-|---|---|---|---|
-| Provenance Forgery | Attacker claims a binary was built by CI, but built it locally. | SLSA Provenance | GitHub Attestations generate unforgeable proof linking the artifact to the specific run_id and commit_sha. |
-I - Information Disclosure (Confidentiality)
-Definition: Leaking sensitive data.
-| Threat Scenario | Attack Vector | Mitigation Control | Implementation |
-|---|---|---|---|
-| Secret Leakage | Committing API keys to Git. | Secret Scanning | Gitleaks runs in the pipeline to detect high-entropy strings. |
-| Runtime Leakage | App leaks stack traces/headers. | DAST | OWASP ZAP scans the running container for missing security headers. |
-D - Denial of Service (Availability)
-Definition: Reducing the ability of the system to serve valid requests.
-| Threat Scenario | Attack Vector | Mitigation Control | Implementation |
-|---|---|---|---|
-| Resource Exhaustion | A container consumes all node CPU/RAM. | Resource Quotas | Kubernetes LimitRanges and Pod definitions enforce hard CPU/Memory limits. |
-| Pipeline Abuse | Malicious PRs mining crypto on runners. | Approval Gates | GitHub "Require approval for outside collaborators" setting is enabled. |
-E - Elevation of Privilege (Authorization)
-Definition: Gaining capabilities beyond those initially granted.
-| Threat Scenario | Attack Vector | Mitigation Control | Implementation |
-|---|---|---|---|
-| Container Escape | Process breaks out of container to Host OS. | Pod Security | Hadolint & Kyverno enforce "Run as Non-Root" and block privileged: true containers. |
-| Policy Bypass | Attacker modifies the CI YAML to skip security scans. | Branch Protection | Main branch is protected. Changes to workflows require Code Owner review. |
-
-## 4. Defense Against Specific Attacks
-Scenario 1: The "Compromised Registry" Attack
-The Attack: A hacker steals DOCKER_TOKEN and overwrites latest with malware.
-The Defense:
- * Kyverno intercepts the deployment request.
- * It checks the image against the Cosign Transparency Log.
- * Result: Verification fails because the hacker's image was not signed by the specific OIDC identity of this GitHub Actions workflow. The cluster rejects the update.
-Scenario 2: The "SolarWinds" Build Injection
-The Attack: An attacker compromises the build server to inject code during compilation, bypassing source review.
-The Defense:
- * Ephemeral Runners: Each build uses a fresh VM, preventing persistent malware.
- * SLSA Provenance: The build generates a signed "birth certificate" (Provenance).
- * Verification: We can cryptographically prove exactly which workflow run produced the binary. If the provenance data (Builder ID) doesn't match "GitHub Actions," the artifact is suspect.
-
-## 5. Residual Risks (Accepted Debt)
-
- * Zero-Day Vulnerabilities: Scanners only find known issues.
-   * Mitigation: Syft SBOM allows us to query our entire fleet for a specific package version instantly when a new CVE is disclosed (Response Speed vs. Prevention).
- * GitHub Account Compromise: If the maintainer's GitHub account is compromised, Branch Protection rules can be disabled.
-   * Mitigation: MFA and Hardware Keys (YubiKey) are required for all maintainers.
-
-## 6. Security Architecture Diagram
-
-```bash
-flowchart TD
-    subgraph Trusted Zone [Trusted Build Zone]
-        Code[Source Code] -->|Gitleaks| SAST[Trivy Code]
-        SAST --> Build[Docker Build]
-        Build -->|Hadolint| Lint[Linting]
-        Lint -->|Cosign| Sign[Sign & Attest]
-        Sign --> Provenance[SLSA Provenance]
-    end
-
-    subgraph Untrusted Zone [External/Runtime]
-        Registry[Docker Registry]
-        Cluster[Kubernetes Cluster]
-    end
-
-    Provenance --> Registry
-    Sign --> Registry
-    
-    Registry -->|Pull Request| Cluster
-    
-    subgraph Governance [Policy Engine]
-        Policy[Kyverno Admission Controller]
-    end
-    
-    Policy -- "Verify Signature & Provenance" --> Cluster
-    Policy -- "Block Unsigned" --> Cluster
 ```

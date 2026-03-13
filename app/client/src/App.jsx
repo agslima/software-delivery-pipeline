@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   loginPatient,
   verifyMfa,
@@ -8,27 +8,28 @@ import {
   enrollMfa,
   disableMfa,
 } from './api/patientPortalApi';
+import { SESSION_STORAGE_KEY, clearStoredSession, readStoredSession, writeStoredSession } from './sessionStorage';
 import PatientLogin from './components/PatientLogin';
 import PatientPortal from './components/PatientPortal';
 import './styles/Portal.css';
 
-const SESSION_KEY = 'stayhealthy_patient_session';
+const isPatientSession = (session) => Boolean(session?.token && session?.user?.role === 'patient');
 
-const readSession = () => {
-  try {
-    const raw = sessionStorage.getItem(SESSION_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-};
-
+/**
+ * Root React component for the patient portal application.
+ *
+ * Manages authentication session state, prescription list and detail loading,
+ * and multi-factor authentication (MFA) flows; conditionally renders the
+ * login UI, an access-restricted message, or the patient portal UI.
+ *
+ * @returns {JSX.Element} The rendered application UI based on authentication and user role.
+ */
 export default function App() {
-  const [session, setSession] = useState(readSession);
+  const [session, setSession] = useState(readStoredSession);
   const [prescriptions, setPrescriptions] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [prescriptionDetail, setPrescriptionDetail] = useState(null);
-  const [loadingList, setLoadingList] = useState(() => Boolean(readSession()?.token));
+  const [loadingList, setLoadingList] = useState(() => Boolean(readStoredSession()?.token));
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [portalError, setPortalError] = useState(null);
   const [mfaChallenge, setMfaChallenge] = useState(null);
@@ -42,11 +43,24 @@ export default function App() {
 
   useEffect(() => {
     if (session) {
-      sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+      writeStoredSession(session);
     } else {
-      sessionStorage.removeItem(SESSION_KEY);
+      clearStoredSession();
     }
   }, [session]);
+
+  const handleTokenRefresh = useCallback((nextToken) => {
+    setSession((currentSession) => {
+      if (!currentSession || currentSession.token === nextToken) {
+        return currentSession;
+      }
+
+      return {
+        ...currentSession,
+        token: nextToken,
+      };
+    });
+  }, []);
 
   const handleLogout = () => {
     setSession(null);
@@ -76,7 +90,8 @@ export default function App() {
       });
       throw new Error('MFA_REQUIRED');
     }
-    setLoadingList(true);
+    const patientSession = isPatientSession(result);
+    setLoadingList(patientSession);
     setLoadingDetail(false);
     setPortalError(null);
     setPrescriptions([]);
@@ -90,14 +105,15 @@ export default function App() {
       throw new Error('SERVER_ERROR');
     }
     const result = await verifyMfa(code, mfaChallenge.mfaToken);
+    const nextSession = { token: result.token, user: mfaChallenge.user };
     setMfaChallenge(null);
-    setLoadingList(true);
+    setLoadingList(isPatientSession(nextSession));
     setLoadingDetail(false);
     setPortalError(null);
     setPrescriptions([]);
     setSelectedId(null);
     setPrescriptionDetail(null);
-    setSession({ token: result.token, user: mfaChallenge.user });
+    setSession(nextSession);
   };
 
   const handleCancelMfa = () => {
@@ -119,11 +135,11 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (!session?.token) return;
+    if (!isPatientSession(session)) return;
 
     let isActive = true;
 
-    getMyPrescriptions(session.token)
+    getMyPrescriptions(session.token, handleTokenRefresh)
       .then((data) => {
         if (!isActive) return;
         const list = data.prescriptions || [];
@@ -149,13 +165,13 @@ export default function App() {
     return () => {
       isActive = false;
     };
-  }, [session?.token]);
+  }, [session, handleTokenRefresh]);
 
   useEffect(() => {
     if (!session?.token) return;
     let isActive = true;
 
-    getMfaStatus(session.token)
+    getMfaStatus(session.token, handleTokenRefresh)
       .then((data) => {
         if (isActive) setMfaStatus(data);
       })
@@ -169,14 +185,14 @@ export default function App() {
     return () => {
       isActive = false;
     };
-  }, [session?.token]);
+  }, [session?.token, handleTokenRefresh]);
 
   useEffect(() => {
-    if (!session?.token || !selectedId) return;
+    if (!isPatientSession(session) || !selectedId) return;
 
     let isActive = true;
 
-    getMyPrescription(selectedId, session.token)
+    getMyPrescription(selectedId, session.token, handleTokenRefresh)
       .then((data) => {
         if (isActive) setPrescriptionDetail(data);
       })
@@ -199,7 +215,7 @@ export default function App() {
     return () => {
       isActive = false;
     };
-  }, [selectedId, session?.token]);
+  }, [selectedId, session, handleTokenRefresh]);
 
   const handleEnrollMfa = async () => {
     if (!session?.token) return;
@@ -207,7 +223,7 @@ export default function App() {
     setMfaEnrollError(null);
     setMfaBanner(null);
     try {
-      const result = await enrollMfa(session.token, session.user?.email || 'StayHealthy');
+      const result = await enrollMfa(session.token, session.user?.email || 'StayHealthy', handleTokenRefresh);
       setMfaEnrollData(result);
       setMfaStatus({ configured: true, enabled: false });
     } catch (err) {
@@ -251,7 +267,7 @@ export default function App() {
     setMfaVerifyError(null);
     setMfaBanner(null);
     try {
-      await disableMfa(session.token);
+      await disableMfa(session.token, handleTokenRefresh);
       setMfaStatus({ configured: false, enabled: false });
       setMfaEnrollData(null);
       setMfaBanner('Multi-factor authentication disabled.');
@@ -315,3 +331,5 @@ export default function App() {
     />
   );
 }
+
+export { SESSION_STORAGE_KEY };

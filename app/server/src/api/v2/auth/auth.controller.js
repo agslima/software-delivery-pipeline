@@ -12,6 +12,11 @@ const tokenService = require('../../../infra/auth/jwtToken.service');
 const { AppError } = require('../../http/errors/AppError');
 const env = require('../../../config/env');
 const { buildAuditContext, safeAudit } = require('../audit/audit.helpers');
+const {
+  clearRefreshTokenCookie,
+  getRefreshTokenFromRequest,
+  setRefreshTokenCookie,
+} = require('./refreshTokenCookie');
 
 const lockout = new LoginLockout({
   maxFailures: env.LOGIN_MAX_FAILURES,
@@ -39,6 +44,7 @@ exports.login = async (req, res, next) => {
   try {
     const payload = await service.login(req.body);
     if (payload.user.mfaEnabled) {
+      clearRefreshTokenCookie(res);
       const mfaToken = tokenService.signWithOptions(
         {
           sub: payload.user.id,
@@ -52,7 +58,8 @@ exports.login = async (req, res, next) => {
     }
 
     const refresh = await refreshTokenService.issue(payload.user.id);
-    return res.status(200).json({ ...payload, refreshToken: refresh.refreshToken });
+    setRefreshTokenCookie(res, refresh.refreshToken);
+    return res.status(200).json(payload);
   } catch (err) {
     if (err?.code === 'INVALID_CREDENTIALS' || err?.code === 'ACCOUNT_LOCKED') {
       const auditContext = buildAuditContext(req);
@@ -74,18 +81,26 @@ exports.login = async (req, res, next) => {
 
 exports.refresh = async (req, res, next) => {
   try {
-    const { refreshToken } = req.body;
+    const refreshToken = getRefreshTokenFromRequest(req);
     const payload = await refreshTokenService.rotate(refreshToken);
-    return res.status(200).json(payload);
+    setRefreshTokenCookie(res, payload.refreshToken);
+    return res.status(200).json({
+      accessToken: payload.accessToken,
+      tokenType: payload.tokenType,
+    });
   } catch (err) {
+    if (err?.code === 'INVALID_REFRESH_TOKEN') {
+      clearRefreshTokenCookie(res);
+    }
     return next(err);
   }
 };
 
 exports.revoke = async (req, res, next) => {
   try {
-    const { refreshToken } = req.body;
+    const refreshToken = getRefreshTokenFromRequest(req);
     const payload = await refreshTokenService.revoke(refreshToken);
+    clearRefreshTokenCookie(res);
     const auditContext = buildAuditContext(req);
     if (payload.revoked && payload.userId) {
       await safeAudit(auditService, {
@@ -100,21 +115,7 @@ exports.revoke = async (req, res, next) => {
         },
       });
     }
-    if (!payload.revoked) {
-      await safeAudit(auditService, {
-        ...auditContext,
-        actorUserId: payload.userId || null,
-        eventType: 'refresh_token_revoke_failed',
-        subjectType: 'user',
-        subjectId: payload.userId || null,
-        redactionMode: auditConfig.piiRedaction,
-        metadata: {
-          ...auditContext.metadata,
-          reason: payload.reason || 'UNKNOWN',
-        },
-      });
-    }
-    return res.status(200).json({ revoked: true });
+    return res.status(200).json({ revoked: payload.revoked });
   } catch (err) {
     const auditContext = buildAuditContext(req);
     await safeAudit(auditService, {
@@ -136,6 +137,7 @@ exports.revoke = async (req, res, next) => {
 exports.revokeAll = async (req, res, next) => {
   try {
     await refreshTokenService.revokeAll(req.user.sub);
+    clearRefreshTokenCookie(res);
     const auditContext = buildAuditContext(req);
     await safeAudit(auditService, {
       ...auditContext,
@@ -177,6 +179,7 @@ exports.verifyMfa = async (req, res, next) => {
       mfaEnabled: true,
     });
     const refresh = await refreshTokenService.issue(req.user.sub);
+    setRefreshTokenCookie(res, refresh.refreshToken);
     const auditContext = buildAuditContext(req);
     await safeAudit(auditService, {
       ...auditContext,
@@ -190,7 +193,6 @@ exports.verifyMfa = async (req, res, next) => {
     return res.status(200).json({
       ...result,
       accessToken,
-      refreshToken: refresh.refreshToken,
       tokenType: 'Bearer',
     });
   } catch (err) {

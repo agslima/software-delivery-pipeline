@@ -4,10 +4,7 @@ const env = require('../../../config/env');
 module.exports = function requireTls(req, _res, next) {
   if (!env.ENFORCE_TLS) return next();
 
-  const forwarded = req.headers['x-forwarded-proto'];
-  const isForwardedSecure = typeof forwarded === 'string' && forwarded.split(',')[0].trim() === 'https';
-
-  if (req.secure || isForwardedSecure) {
+  if (req.secure) {
     return next();
   }
 

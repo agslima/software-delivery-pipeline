@@ -18,18 +18,12 @@ spec:
           - resources:
               kinds: ["Pod", "Deployment"]
               namespaces: ["prod", "production"]
-      exclude:
-        any:
-          - resources:
-              selector:
-                matchLabels:
-                  security.break-glass: "true"
-
       verifyImages:
         - imageReferences:
-            - "docker.io/agslima/app-stayheathy-backend*"
-            - "docker.io/agslima/app-stayheathy-frontend*"
-
+            - "docker.io/agslima/app-stayhealthy-backend:*"  
+            - "docker.io/agslima/app-stayhealthy-backend@*"  
+            - "docker.io/agslima/app-stayhealthy-frontend:*"  
+            - "docker.io/agslima/app-stayhealthy-frontend@*"
           attestations:
             - predicateType: "https://security.sigstore.dev/attestations/vuln/trivy/v1"
               attestors:
@@ -37,4 +31,6 @@ spec:
                     - keyless:
                         issuer: "https://token.actions.githubusercontent.com"
                         subjectRegExp: >-
-                          ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/(tags/v.*|heads/.*)$
+                          ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*$
+                        rekor:
+                          url: https://rekor.sigstore.dev

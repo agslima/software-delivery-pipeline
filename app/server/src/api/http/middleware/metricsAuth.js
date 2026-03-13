@@ -1,5 +1,8 @@
+const { createHash, timingSafeEqual } = require('crypto');
 const { AppError } = require('../errors/AppError');
 const env = require('../../../config/env');
+
+const hashToken = (value) => createHash('sha256').update(value, 'utf8').digest();
 
 module.exports = function metricsAuth(req, _res, next) {
   if (!env.METRICS_AUTH_TOKEN) return next();
@@ -10,7 +13,10 @@ module.exports = function metricsAuth(req, _res, next) {
   }
 
   const token = header.slice('Bearer '.length).trim();
-  if (token !== env.METRICS_AUTH_TOKEN) {
+  const providedTokenHash = hashToken(token);
+  const configuredTokenHash = hashToken(env.METRICS_AUTH_TOKEN);
+
+  if (!timingSafeEqual(providedTokenHash, configuredTokenHash)) {
     return next(new AppError({ status: 403, code: 'FORBIDDEN', message: 'Forbidden' }));
   }
 

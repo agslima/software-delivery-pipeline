@@ -1,0 +1,94 @@
+name: Governance Settings Audit
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Audit source: live GitHub settings or local fixtures"
+        required: true
+        default: live
+        type: choice
+        options:
+          - live
+          - fixtures-pass
+          - fixtures-drift
+  schedule:
+    - cron: '0 6 1 1,4,7,10 *'
+
+permissions:
+  contents: read
+
+jobs:
+  governance-settings-audit:
+    name: Governance Settings Audit
+    runs-on: ubuntu-latest
+    env:
+      AUDIT_MODE: ${{ inputs.mode || 'live' }}
+      GOVERNANCE_AUDIT_REPO: ${{ github.repository }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
+
+      - name: Validate audit token availability
+        if: env.AUDIT_MODE == 'live'
+        env:
+          GH_TOKEN: ${{ secrets.GOVERNANCE_AUDIT_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "${GH_TOKEN}" || {
+            echo "::error::Missing GOVERNANCE_AUDIT_TOKEN secret. Configure a fine-grained token with read-only Administration access for repository settings audit."
+            exit 1
+          }
+
+          ENVIRONMENT_NAME="$(jq -r '.environment.name' .github/governance-settings-audit.json)"
+
+          for API_PATH in \
+            "repos/${GOVERNANCE_AUDIT_REPO}/rulesets?includes_parents=false" \
+            "repos/${GOVERNANCE_AUDIT_REPO}/codeowners/errors" \
+            "repos/${GOVERNANCE_AUDIT_REPO}/environments/${ENVIRONMENT_NAME}" \
+            "repos/${GOVERNANCE_AUDIT_REPO}/environments/${ENVIRONMENT_NAME}/deployment-branch-policies"
+          do
+            if ! gh api -H "Accept: application/vnd.github+json" "${API_PATH}" >/dev/null; then
+              echo "::error::GOVERNANCE_AUDIT_TOKEN cannot read ${API_PATH}. Configure a fine-grained token with repository Administration read permission so the governance settings audit can query rulesets, CODEOWNERS enforcement, environments, and deployment branch policies."
+              exit 1
+            fi
+          done
+
+      - name: Run governance settings audit (live)
+        if: env.AUDIT_MODE == 'live'
+        env:
+          GH_TOKEN: ${{ secrets.GOVERNANCE_AUDIT_TOKEN }}
+        run: |
+          set -euo pipefail
+          chmod +x scripts/audit-governance-settings.sh
+          scripts/audit-governance-settings.sh \
+            --repo "${GOVERNANCE_AUDIT_REPO}" \
+            --output-dir artifacts/governance-settings-audit
+
+      - name: Run governance settings audit (fixtures-pass)
+        if: env.AUDIT_MODE == 'fixtures-pass'
+        run: |
+          set -euo pipefail
+          chmod +x scripts/audit-governance-settings.sh
+          scripts/audit-governance-settings.sh \
+            --repo "${GOVERNANCE_AUDIT_REPO}" \
+            --fixtures-dir scripts/fixtures/governance-audit/pass \
+            --output-dir artifacts/governance-settings-audit
+
+      - name: Run governance settings audit (fixtures-drift)
+        if: env.AUDIT_MODE == 'fixtures-drift'
+        run: |
+          set -euo pipefail
+          chmod +x scripts/audit-governance-settings.sh
+          scripts/audit-governance-settings.sh \
+            --repo "${GOVERNANCE_AUDIT_REPO}" \
+            --fixtures-dir scripts/fixtures/governance-audit/drift \
+            --output-dir artifacts/governance-settings-audit
+
+      - name: Upload governance settings audit artifact
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f #v7.0.0
+        with:
+          name: governance-settings-audit
+          path: artifacts/governance-settings-audit
+          retention-days: 90

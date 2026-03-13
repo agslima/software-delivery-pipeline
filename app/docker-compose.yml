@@ -108,6 +108,8 @@ services:
       - data_encryption_key
       
     depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
     
@@ -130,6 +132,41 @@ services:
       retries: 3
       start_period: 30s
 
+  db-bootstrap:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.server
+
+    networks:
+      - app_network
+
+    environment:
+      NODE_ENV: production
+      LOG_LEVEL: info
+      DB_HOST: postgres
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+      DB_NAME: ${DB_NAME}
+      DB_PASS_FILE: /run/secrets/db_pass
+
+    secrets:
+      - db_pass
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp:uid=1000,gid=1000,mode=1777
+    command:
+      - /bin/sh
+      - -c
+      - >-
+        ./node_modules/.bin/knex migrate:latest --knexfile src/config/knexfile.js &&
+        ./node_modules/.bin/knex seed:run --knexfile src/config/knexfile.js
+
   postgres:
     image: postgres:15-alpine
     
@@ -146,7 +183,6 @@ services:
 
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./database/script/db-init:/docker-entrypoint-initdb.d:ro
     
     # Resource limits apply only in Swarm mode. Keeping out of compose to avoid warnings.
     

@@ -7,9 +7,26 @@ const logger = require('../observability/logger');
 const db = require('../infra/db/knex');
 
 const app = createApp();
-let server;
 
-if (env.TLS_CERT_PATH && env.TLS_KEY_PATH) {
+/**
+ * Create the HTTP or HTTPS server for the API process based on TLS config.
+ *
+ * @returns {import('http').Server|import('https').Server} Configured server instance.
+ */
+const createServer = () => {
+  const hasTlsCert = Boolean(env.TLS_CERT_PATH);
+  const hasTlsKey = Boolean(env.TLS_KEY_PATH);
+
+  if (!hasTlsCert && !hasTlsKey) {
+    logger.info({ tls: false }, 'TLS listener not configured; starting HTTP server');
+    return http.createServer(app);
+  }
+
+  if (!hasTlsCert || !hasTlsKey) {
+    logger.error('TLS_CERT_PATH and TLS_KEY_PATH must both be set to enable HTTPS.');
+    process.exit(1);
+  }
+
   const tlsOptions = {
     // eslint-disable-next-line security/detect-non-literal-fs-filename
     cert: fs.readFileSync(env.TLS_CERT_PATH),
@@ -17,19 +34,23 @@ if (env.TLS_CERT_PATH && env.TLS_KEY_PATH) {
     key: fs.readFileSync(env.TLS_KEY_PATH),
     minVersion: 'TLSv1.2',
   };
-  server = https.createServer(tlsOptions, app);
+
   logger.info({ tls: true }, 'TLS enabled for API server');
-} else {
-  if (env.ENFORCE_TLS) {
-    logger.error('ENFORCE_TLS is enabled but TLS_CERT_PATH/TLS_KEY_PATH are not set.');
-  }
-  server = http.createServer(app);
-}
+  return https.createServer(tlsOptions, app);
+};
+
+const server = createServer();
 
 server.listen(env.PORT, '0.0.0.0', () => {
   logger.info({ port: env.PORT, env: env.NODE_ENV }, 'Server started');
 });
 
+/**
+ * Gracefully stop accepting requests and close process resources.
+ *
+ * @param {string} signal - Process signal that triggered shutdown.
+ * @returns {Promise<void>} Resolves when shutdown work has been scheduled.
+ */
 const shutdown = async (signal) => {
   logger.info({ signal }, 'Shutdown initiated');
 

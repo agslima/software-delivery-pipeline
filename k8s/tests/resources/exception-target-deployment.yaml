@@ -1,0 +1,17 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: exception-target
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      app: exception-target
+  template:
+    metadata:
+      labels:
+        app: exception-target
+    spec:
+      containers:
+        - name: app
+          image: docker.io/agslima/app-stayhealthy-backend@sha256:0a99302f729b15adbd7e4e53a262eeab35e4b487bfb9e0b2bcfbf66f6ff60326

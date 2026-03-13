@@ -1,7 +1,7 @@
 # Operational Runbook 📖
 
 This runbook documents common failure scenarios, security gate rejections, and operational incidents in the Governed Software Delivery Pipeline.
-Its goal is to provide clear, repeatable response steps so failures are handled consistently, audibly, and without bypassing governance controls.
+Its goal is to provide clear, repeatable response steps so failures are handled consistently, auditably, and without bypassing governance controls.
 
 
 ---
@@ -28,14 +28,13 @@ It intentionally focuses on response actions, not tool configuration.
 
 Symptom
 
-CI job security-scan or container-scan fails
+CI job `Security Quality Check` fails on a pull request because Trivy reported `HIGH` or `CRITICAL` findings, or release job `Trivy Scan (Digest Gate)` fails for `backend` or `frontend`.  
 
 Exit code: 1
 
-
 Error Message
 
-CRITICAL vulnerabilities found
+`HIGH` or `CRITICAL` vulnerabilities found in the PR scan, or `⛔ Trivy Gate Failed for <image> (CRIT=<n> HIGH=<n>)` in the release digest gate  
 
 
 ---
@@ -45,8 +44,10 @@ Triage Steps
 1. Open the GitHub Actions job logs
 
 
-2. Download the trivy-results.json artifact (if available)
+2. Identify which path failed:
 
+- PR path: inspect the `Security Quality Check` logs for the Trivy FS/config step output and confirm whether the failing threshold was `HIGH` or `CRITICAL`.
+- Release path: download the relevant artifact (`trivy-results-backend` or `trivy-results-frontend`).
 
 3. Review:
 
@@ -57,10 +58,6 @@ Affected package
 Severity
 
 Fix version (if available)
-
-
-
-
 
 ---
 
@@ -106,6 +103,7 @@ Reference the ticket ID in commit history
 
 
 ⚠️ Critical vulnerabilities must never be ignored without explicit justification.
+⚠️ High vulnerabilities are release-blocking once they exceed the documented gate threshold (`HIGH > 5` per image).
 
 
 ---
@@ -242,6 +240,120 @@ app.use(helmet());
 
 Re-run DAST after remediation.
 
+Local reproduction
+
+Run the same compose-backed full-scan path locally:
+
+```bash
+make dast-weekly-local
+```
+
+Reports are written to `app/zap-out/`.
+
+Useful overrides:
+
+```bash
+KEEP_DAST_ENV=1 ./scripts/run-local-zap-full-scan.sh
+ZAP_LOGIN_EMAIL=security@example.test ZAP_LOGIN_PASSWORD='change-me' ./scripts/run-local-zap-full-scan.sh
+```
+
+---
+
+## Governance Settings Audit Failure
+
+Symptom
+
+Workflow `Governance Settings Audit` fails, or `scripts/audit-governance-settings.sh` exits non-zero with a drift finding.
+
+Primary evidence
+
+- Workflow artifact: `governance-settings-audit`
+- Summary: `summary.md`
+- Machine-readable report: `report.json`
+
+Triage steps
+
+1. Download the `governance-settings-audit` artifact from the failed run.
+2. Review `summary.md` to identify which control category failed: `branch_protection`, `tag_protection`, `codeowners`, or `environment_protection`.
+3. Open `report.json` and compare each failing check’s `expected` and `actual` values.
+4. Confirm whether the drift is:
+   - an intentional repository settings change that was not yet exported/documented, or
+   - unauthorized / unintended configuration drift in GitHub settings.
+5. If the failure is in live mode, verify the audit token still has read-only Administration access and rerun only after confirming the token itself is not the cause.
+
+Resolution paths
+
+✅ Expected governance change
+
+- Reconcile the repo-tracked expectations first:
+  - update `.github/rulesets/*.json` only from fresh GitHub exports,
+  - update `.github/governance-settings-audit.json` if the approved environment restriction model changed,
+  - update `docs/governance.md` if reviewer-facing claims or checklist language changed.
+- Submit the change through normal review with CODEOWNERS.
+- Rerun the audit and attach the passing artifact to the change record.
+
+🚨 Unintended or unsafe drift
+
+- Restore the GitHub setting to the approved state immediately.
+- Do not bypass branch, tag, or environment protections to “get green.”
+- Record the incident in the governance evidence trail with:
+  - failed artifact link,
+  - remediation action,
+  - approver or incident owner,
+  - follow-up control gap if automation missed part of the drift.
+
+Fixture-based drift proof
+
+Use workflow dispatch mode `fixtures-drift` to verify the audit still detects intentionally introduced drift without changing live repository settings. The run should fail and produce a `governance-settings-audit` artifact showing the mismatched controls.
+
+---
+
+## Governance Metadata Freshness Failure
+
+Symptom
+
+Workflow `CI` fails on step `Governance Metadata Freshness Check`, or `scripts/check-governance-metadata-freshness.sh` exits non-zero.
+
+Primary evidence
+
+- Workflow log line showing the stale file and metadata field
+- Policy file: `.github/governance-metadata-policy.json`
+- Override file: `.github/governance-metadata-overrides.json`
+
+Triage steps
+
+1. Identify which file and metadata field failed from the CI error annotation.
+2. Open the document and confirm the current `last_reviewed` or `Last validated` date.
+3. Compare that date to the cadence window defined for the file in `.github/governance-metadata-policy.json`.
+4. Decide whether the correct remediation is:
+   - refreshing the document review/validation date now, or
+   - adding a temporary approved override because the content cannot yet be credibly revalidated.
+
+Resolution paths
+
+✅ Refresh metadata now
+
+- Update the document after completing the required review or validation.
+- Keep the metadata date in `YYYY-MM-DD` UTC form.
+- Rerun CI and confirm `Governance Metadata Freshness Check` passes without an override.
+
+✅ Temporary approved override
+
+- Add one entry to `.github/governance-metadata-overrides.json` with:
+  - `path`
+  - `field`
+  - `approved_by`
+  - `ticket`
+  - `reason`
+  - `allow_stale_until`
+- Keep the override short-lived and tied to a concrete follow-up item.
+- Remove the override once the metadata has been refreshed.
+
+🚨 Do not do this
+
+- Do not suppress the CI step.
+- Do not use empty or open-ended override values.
+- Do not refresh the metadata date without actually completing the review or validation the document claims.
 
 ---
 
@@ -348,7 +460,7 @@ Steps:
 1. Document the incident and justification
 
 
-2. Apply temporary policy exception
+2. Create a temporary `PolicyException` in the `policy-exceptions` namespace
 
 
 3. Deploy minimal fix
@@ -384,13 +496,10 @@ docs/adr/002-image-signing-attestation.md
 
 docs/adr/003-policy-enforcement-strategy.md
 
-docs/adr/004-vulnerability-thresholds.md
+docs/adr/004-vulnerability-thresholds-risk-acceptance.md
 
-docs/adr/005-break-glass.md
+docs/adr/005-break-glass-exception-handling.md
 
 docs/adr/006-scanner-failure-degraded-mode.md
 
-docs/adr/007-supply-chain-incident-response.md
-
-
-
+docs/adr/007-supply-chain-incident-response-revocation.md

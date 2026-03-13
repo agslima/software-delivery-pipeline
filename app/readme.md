@@ -2,7 +2,7 @@
 
 ## Internal engineering reference implementation for a full-stack prescription workflow
 
-![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?logo=node.js&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-24.13.0-339933?logo=node.js&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Enabled-2496ED?logo=docker&logoColor=white)
 ![OpenAPI](https://img.shields.io/badge/OpenAPI-3.0-6BA539?logo=openapiinitiative&logoColor=white)
 ![JWT](https://img.shields.io/badge/Auth-JWT-blue?logo=jsonwebtokens)
@@ -54,7 +54,7 @@ The system is composed of three primary components:
 
 - Stateless Node.js / Express API
 - Handles authentication, request validation, and business logic
-- Exposes REST endpoints under /api/v1
+- Exposes REST endpoints under `/api/v1` and `/api/v2`
 
 ### 3. Database
 
@@ -92,7 +92,7 @@ graph LR
 
 ## Key Capabilities
 
-- JWT auth with refresh tokens
+- JWT auth with HttpOnly refresh-token cookies
 - Optional OIDC validation with AMR/ACR checks
 - MFA enrollment and verification
 - Audit pipeline (DB or console sinks)
@@ -113,28 +113,117 @@ app/scripts/setup-dev.sh
 Run the stack:
 ```bash
 cd app
-docker-compose up --build
+docker compose up --build
+```
+
+Quick backend-only stack:
+```bash
+cd app
+docker compose -f docker-compose.quick.yml up --build
 ```
 
 ---
 
-## Quick Start (Node)
+## Quickstart (Local Development)
 
-Backend:
+This path runs the API and UI locally with npm, and uses Docker only for PostgreSQL.
+
+### Prerequisites
+
+- Node.js `24.13.0` and npm
+- Docker + Docker Compose (for local Postgres)
+
+### 1. Initialize `.env` and local secrets
+
+From repo root:
+
+```bash
+cd app
+./scripts/setup-dev.sh
+```
+
+This creates:
+
+- `app/.env` with non-sensitive defaults
+- `app/secrets/` with `db_pass.txt`, `admin_pass.txt`, `jwt_secret.txt`, and `data_encryption_key.txt`
+
+### 2. Start local Postgres only
+
+```bash
+cd app
+docker compose up -d postgres
+```
+
+### 3. Install dependencies
+
+```bash
+cd app
+npm --prefix server install
+npm --prefix client install
+```
+
+### 4. Export runtime env for local server process
+
+Run these in the same shell before starting API/migrations:
+
+```bash
+cd app
+set -a
+source .env
+set +a
+
+export DB_HOST=localhost
+export DB_PASS_FILE="$(pwd)/secrets/db_pass.txt"
+export ADMIN_PASS_FILE="$(pwd)/secrets/admin_pass.txt"
+export JWT_SECRET_FILE="$(pwd)/secrets/jwt_secret.txt"
+export DATA_ENCRYPTION_KEY_FILE="$(pwd)/secrets/data_encryption_key.txt"
+```
+
+### 5. (Recommended) Set deterministic seed credentials
+
+If you skip this, `db:seed` generates random emails/passwords.
+
+```bash
+export SEED_ADMIN_EMAIL=admin@local.test
+export SEED_DOCTOR_EMAIL=doctor@local.test
+export SEED_PATIENT_EMAIL=patient@local.test
+export SEED_DEFAULT_PASSWORD=ChangeMe123!
+```
+
+### 6. Migrate and seed database
+
 ```bash
 cd app/server
-npm install
-npm run dev
 npm run db:migrate
 npm run db:seed
 ```
 
-Frontend:
+### 7. Start backend and frontend
+
+Terminal 1:
+
 ```bash
-cd app/client
-npm install
+cd app/server
 npm run dev
 ```
+
+Terminal 2:
+
+```bash
+cd app/client
+npm run dev
+```
+
+### 8. Verify locally
+
+- UI: `http://localhost:5173`
+- API health: `http://localhost:8080/health`
+- OpenAPI spec: `app/server/src/docs/openapi.yaml`
+
+Patient portal login (if deterministic seed vars were set):
+
+- Email: `patient@local.test`
+- Password: `ChangeMe123!`
 
 ---
 
@@ -148,7 +237,7 @@ npm run dev
 
 ### Backend
 
-### Node.js (>= 18)
+### Node.js 24.13.0
 
 - Express
 - Knex.js (SQL query builder & migrations)
@@ -178,9 +267,10 @@ The application implements **baseline security controls** appropriate for intern
 
 ### Authentication
 
-- Username/password authentication
-- Credentials validated server-side
-- JWT issued upon successful authentication
+- Legacy admin username/password flow (`/api/v1/auth/login`)
+- Role-aware email/password flow (`/api/v2/auth/login`)
+- JWT access tokens with refresh-token rotation via HttpOnly cookie
+- MFA enrollment and verification flows for v2 users
 
 ### Authorization
 
@@ -196,11 +286,11 @@ The application implements **baseline security controls** appropriate for intern
 ### Abuse Protection
 
 - Rate limiting applied to API endpoints
+- Audit events for login/MFA/token lifecycle actions
+- Brute-force protection with login lockout controls
 - **Out of Scope:**
-  - Role-based access control (RBAC)
-  - Token rotation / refresh flows
-  - Fine-grained audit logging
-  - Compliance certifications
+  - Regulatory compliance guarantees
+  - Enterprise IAM replacement
 
 ---
 
@@ -242,7 +332,8 @@ CORS_ORIGIN=http://localhost:4173
 Additional security-related configuration:
 
 - Secrets can be sourced via environment variables, `*_FILE`, `/run/secrets/*`, or a JSON blob in `SECRETS_JSON`.
-- `ENFORCE_TLS=true` rejects non-HTTPS requests when running behind a TLS-terminating proxy.
+- `ENFORCE_TLS=true` rejects non-HTTPS requests using `req.secure`; forwarding headers are trusted only when requests traverse trusted private/loopback proxy hops.
+- `ENFORCE_TLS` does not switch the backend listener to HTTPS by itself. To run the API listener with HTTPS directly, set both `TLS_CERT_PATH` and `TLS_KEY_PATH`.
 - Field-level encryption supports key rotation via `DATA_ENCRYPTION_KEY_ID` (primary) and `DATA_ENCRYPTION_KEYS`.
 - Audit logging supports `AUDIT_SINK` (`db` or `console`) and `AUDIT_PII_REDACTION` (`none` or `strict`).
 - Edge security is enforced at the Nginx layer (basic WAF rules, rate limits, hardened headers).
@@ -319,13 +410,14 @@ docker compose -f app/docker-compose.release.yml --env-file app/.env.release up 
 
 ## 7. API Documentation 📡
 
-The backend exposes a documented REST API.
+The backend exposes a documented REST API, and the OpenAPI sources are kept in-repo.
 
 - OpenAPI 3.0 specification
-- Swagger UI available at:
+- OpenAPI source files:
 
 ```text
-  /api/v1/api-docs
+app/server/src/docs/openapi.yaml
+app/server/docs/openapi.yaml
 ```
 
 The API contract is intended to be:
@@ -333,6 +425,14 @@ The API contract is intended to be:
 - Predictable
 - Versioned
 - Suitable for internal consumers and automated testing
+
+Auth behavior notes:
+
+- `POST /api/v2/auth/mfa/verify` accepts a valid bearer token context for the user being verified:
+  - MFA challenge token from login (`mfaRequired: true` path), or
+  - standard authenticated access token (post-enrollment verification path)
+- `POST /api/v2/auth/login`, `POST /api/v2/auth/refresh`, and `POST /api/v2/auth/mfa/verify` issue the refresh token as an HttpOnly cookie rather than returning it to JavaScript.
+- `POST /api/v2/auth/logout` revokes the current refresh-token cookie and returns `{ revoked: true|false }` to reflect actual revoke outcome.
 
 ---
 
@@ -343,7 +443,7 @@ The system is deployed using **Docker Compose**, enabling reproducible local and
 ### Start All Services
 
 ```bash
-docker-compose up --build
+docker compose up --build
 ```
 
 ### Exposed Services
@@ -352,7 +452,6 @@ docker-compose up --build
 | --- | --- |
 | Web UI | http://localhost:4173 |
 | API | http://localhost:4173/api/v1 |
-| API Docs | http://localhost:4173/api/v1/api-docs |
 
 ---
 

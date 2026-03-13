@@ -15,6 +15,7 @@ DB_PORT="${DB_PORT:-5432}"
 DB_USER="${DB_USER:-postgres}"
 DB_NAME="${DB_NAME:-prescriptions_db}"
 
+# require_command checks that a command is available in PATH; if the command is missing it prints "Missing required command: <name>" to stderr and exits with status 1.
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
     echo "Missing required command: $1" >&2
@@ -22,20 +23,21 @@ require_command() {
   fi
 }
 
-if [ -z "$BACKUP_FILE" ]; then
+if [[ -z "$BACKUP_FILE" ]]; then
   echo "Usage: $0 /path/to/backup.dump[.enc]" >&2
   exit 1
 fi
 
-if [ "${CONFIRM_RESTORE:-false}" != "true" ]; then
+if [[ "${CONFIRM_RESTORE:-false}" != "true" ]]; then
   echo "Refusing to restore without CONFIRM_RESTORE=true" >&2
   exit 1
 fi
 
 TEMP_FILE=""
 
+# cleanup removes the temporary file referenced by $TEMP_FILE if it exists.
 cleanup() {
-  if [ -n "$TEMP_FILE" ] && [ -f "$TEMP_FILE" ]; then
+  if [[ -n "$TEMP_FILE" && -f "$TEMP_FILE" ]]; then
     rm -f "$TEMP_FILE"
   fi
 }
@@ -43,11 +45,11 @@ cleanup() {
 trap cleanup EXIT
 
 if [[ "$BACKUP_FILE" == *.enc ]]; then
-  if [ -n "${BACKUP_ENCRYPTION_KEY_FILE:-}" ] && [ -z "${BACKUP_ENCRYPTION_KEY:-}" ]; then
+  if [[ -n "${BACKUP_ENCRYPTION_KEY_FILE:-}" && -z "${BACKUP_ENCRYPTION_KEY:-}" ]]; then
     BACKUP_ENCRYPTION_KEY="$(cat "${BACKUP_ENCRYPTION_KEY_FILE}")"
   fi
 
-  if [ -z "${BACKUP_ENCRYPTION_KEY:-}" ]; then
+  if [[ -z "${BACKUP_ENCRYPTION_KEY:-}" ]]; then
     echo "BACKUP_ENCRYPTION_KEY is required to decrypt backup." >&2
     exit 1
   fi
@@ -63,14 +65,17 @@ fi
 
 require_command pg_restore
 
+# restore_direct restores the PostgreSQL database from BACKUP_FILE into DB_NAME on the local host using pg_restore.
+# It obtains DB_PASS from DB_PASS_FILE or falls back to APP_DIR/secrets/db_pass.txt and exits with an error if no password is available.
+# Invokes pg_restore with --clean, --if-exists, and --no-owner to apply the backup to the target database.
 restore_direct() {
-  if [ -n "${DB_PASS_FILE:-}" ] && [ -z "${DB_PASS:-}" ]; then
+  if [[ -n "${DB_PASS_FILE:-}" && -z "${DB_PASS:-}" ]]; then
     DB_PASS="$(cat "${DB_PASS_FILE}")"
-  elif [ -z "${DB_PASS:-}" ] && [ -f "${APP_DIR}/secrets/db_pass.txt" ]; then
+  elif [[ -z "${DB_PASS:-}" && -f "${APP_DIR}/secrets/db_pass.txt" ]]; then
     DB_PASS="$(cat "${APP_DIR}/secrets/db_pass.txt")"
   fi
 
-  if [ -z "${DB_PASS:-}" ]; then
+  if [[ -z "${DB_PASS:-}" ]]; then
     echo "DB_PASS or DB_PASS_FILE is required for direct mode." >&2
     exit 1
   fi
@@ -87,7 +92,7 @@ restore_compose() {
 
 printf "Restoring backup %s into %s...\n" "$BACKUP_FILE" "$DB_NAME"
 
-if [ "$MODE" = "direct" ]; then
+if [[ "$MODE" = "direct" ]]; then
   restore_direct
 else
   restore_compose

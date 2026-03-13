@@ -1,0 +1,76 @@
+apiVersion: cli.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: cluster-verify-policy-exception-tests
+policies:
+  - ../policies/cluster/verify-signature.yaml
+  - ../policies/cluster/verify-trivy.yaml
+  - ../policies/cluster/verify-zap.yaml
+  - ../policies/cluster/verify-sbom.yaml
+  - ../policies/cluster/verify-slsa.yaml
+resources:
+  - resources/exception-target-deployment.yaml
+  - resources/exception-target-pod.yaml
+exceptions:
+  - resources/break-glass-valid.yaml
+results:
+  - policy: verify-signature
+    rule: require-image-signature
+    resources:
+      - production/exception-target
+    kind: Deployment
+    result: skip
+  - policy: verify-signature
+    rule: require-image-signature
+    resources:
+      - production/exception-target-0
+    kind: Pod
+    result: skip
+  - policy: verify-trivy
+    rule: require-trivy-attestation
+    resources:
+      - production/exception-target
+    kind: Deployment
+    result: skip
+  - policy: verify-trivy
+    rule: require-trivy-attestation
+    resources:
+      - production/exception-target-0
+    kind: Pod
+    result: skip
+  - policy: verify-zap
+    rule: require-zap-attestation
+    resources:
+      - production/exception-target
+    kind: Deployment
+    result: skip
+  - policy: verify-zap
+    rule: require-zap-attestation
+    resources:
+      - production/exception-target-0
+    kind: Pod
+    result: skip
+  - policy: verify-sbom
+    rule: require-sbom-spdx
+    resources:
+      - production/exception-target
+    kind: Deployment
+    result: skip
+  - policy: verify-sbom
+    rule: require-sbom-spdx
+    resources:
+      - production/exception-target-0
+    kind: Pod
+    result: skip
+  - policy: verify-slsa
+    rule: require-slsa-provenance
+    resources:
+      - production/exception-target
+    kind: Deployment
+    result: skip
+  - policy: verify-slsa
+    rule: require-slsa-provenance
+    resources:
+      - production/exception-target-0
+    kind: Pod
+    result: skip

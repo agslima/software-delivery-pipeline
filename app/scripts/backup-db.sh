@@ -29,14 +29,15 @@ mkdir -p "$BACKUP_DIR"
 
 require_command pg_dump
 
+# run_pg_dump_direct performs a PostgreSQL dump over a direct TCP connection, sourcing the password from DB_PASS, DB_PASS_FILE, or APP_DIR/secrets/db_pass.txt, and writes a custom-format dump to BACKUP_PATH.
 run_pg_dump_direct() {
-  if [ -n "${DB_PASS_FILE:-}" ] && [ -z "${DB_PASS:-}" ]; then
+  if [[ -n "${DB_PASS_FILE:-}" ]] && [[ -z "${DB_PASS:-}" ]]; then
     DB_PASS="$(cat "${DB_PASS_FILE}")"
-  elif [ -z "${DB_PASS:-}" ] && [ -f "${APP_DIR}/secrets/db_pass.txt" ]; then
+  elif [[ -z "${DB_PASS:-}" ]] && [[ -f "${APP_DIR}/secrets/db_pass.txt" ]]; then
     DB_PASS="$(cat "${APP_DIR}/secrets/db_pass.txt")"
   fi
 
-  if [ -z "${DB_PASS:-}" ]; then
+  if [[ -z "${DB_PASS:-}" ]]; then
     echo "DB_PASS or DB_PASS_FILE is required for direct mode." >&2
     exit 1
   fi
@@ -52,17 +53,17 @@ run_pg_dump_compose() {
 
 printf "Creating backup at %s...\n" "$BACKUP_PATH"
 
-if [ "$MODE" = "direct" ]; then
+if [[ "$MODE" = "direct" ]]; then
   run_pg_dump_direct
 else
   run_pg_dump_compose
 fi
 
-if [ -n "${BACKUP_ENCRYPTION_KEY_FILE:-}" ] && [ -z "${BACKUP_ENCRYPTION_KEY:-}" ]; then
+if [[ -n "${BACKUP_ENCRYPTION_KEY_FILE:-}" ]] && [[ -z "${BACKUP_ENCRYPTION_KEY:-}" ]]; then
   BACKUP_ENCRYPTION_KEY="$(cat "${BACKUP_ENCRYPTION_KEY_FILE}")"
 fi
 
-if [ -n "${BACKUP_ENCRYPTION_KEY:-}" ]; then
+if [[ -n "${BACKUP_ENCRYPTION_KEY:-}" ]]; then
   require_command openssl
   openssl enc -aes-256-gcm -salt -pbkdf2 -iter 100000 \
     -pass "pass:${BACKUP_ENCRYPTION_KEY}" \
@@ -72,7 +73,7 @@ if [ -n "${BACKUP_ENCRYPTION_KEY:-}" ]; then
   BACKUP_PATH="${BACKUP_PATH}.enc"
   printf "Encrypted backup written to %s\n" "$BACKUP_PATH"
 else
-  if [ "${BACKUP_REQUIRE_ENCRYPTION:-false}" = "true" ]; then
+  if [[ "${BACKUP_REQUIRE_ENCRYPTION:-false}" = "true" ]]; then
     echo "BACKUP_REQUIRE_ENCRYPTION=true but no BACKUP_ENCRYPTION_KEY provided." >&2
     exit 1
   fi

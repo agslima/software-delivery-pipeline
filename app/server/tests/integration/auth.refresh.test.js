@@ -42,6 +42,11 @@ jest.mock('../../src/infra/v2/refreshTokens.repository', () => {
         const token = mockRefreshTokens.find((t) => t.id === id);
         if (token) token.revoked_at = revokedAt;
       }
+
+      async revokeByTokenHash(tokenHash, revokedAt) {
+        const token = mockRefreshTokens.find((t) => t.token_hash === tokenHash && !t.revoked_at);
+        if (token) token.revoked_at = revokedAt;
+      }
     },
   };
 });
@@ -75,16 +80,32 @@ describe('Integration: Auth refresh', () => {
 
     expect(login.statusCode).toBe(200);
     expect(login.body.mfaRequired).toBeUndefined();
-    expect(login.body.refreshToken).toBeDefined();
+    expect(login.body.refreshToken).toBeUndefined();
+    expect(login.headers['set-cookie']).toEqual(
+      expect.arrayContaining([expect.stringContaining('refresh_token=')])
+    );
+    const issuedCookieHeader = login.headers['set-cookie'].find((value) => value.startsWith('refresh_token='));
+    const issuedCookie = issuedCookieHeader.split(';')[0];
 
     const refresh = await request(app)
       .post('/api/v2/auth/refresh')
-      .send({ refreshToken: login.body.refreshToken });
+      .set('Cookie', issuedCookie);
 
     expect(refresh.statusCode).toBe(200);
     expect(refresh.body.accessToken).toBeDefined();
-    expect(refresh.body.refreshToken).toBeDefined();
-    expect(refresh.body.refreshToken).not.toBe(login.body.refreshToken);
+    expect(refresh.body.refreshToken).toBeUndefined();
+    expect(refresh.headers['set-cookie']).toEqual(
+      expect.arrayContaining([expect.stringContaining('refresh_token=')])
+    );
+    const rotatedCookieHeader = refresh.headers['set-cookie'].find((value) => value.startsWith('refresh_token='));
+    const rotatedCookie = rotatedCookieHeader.split(';')[0];
+    expect(rotatedCookie).not.toEqual(issuedCookie);
+
+    const replay = await request(app)
+      .post('/api/v2/auth/refresh')
+      .set('Cookie', issuedCookie);
+
+    expect(replay.statusCode).toBe(401);
   });
 
   it('returns mfaRequired when user has MFA enabled', async () => {
@@ -98,5 +119,21 @@ describe('Integration: Auth refresh', () => {
     expect(login.body.mfaRequired).toBe(true);
     expect(login.body.mfaToken).toBeDefined();
     expect(login.body.refreshToken).toBeUndefined();
+    expect(login.headers['set-cookie']).toEqual(
+      expect.arrayContaining([expect.stringContaining('refresh_token=;')])
+    );
+  });
+
+  it('returns revoked=false for unknown refresh token on logout', async () => {
+    const missingRefreshToken = 'x'.repeat(48);
+    const logout = await request(app)
+      .post('/api/v2/auth/logout')
+      .set('Cookie', `refresh_token=${missingRefreshToken}`);
+
+    expect(logout.statusCode).toBe(200);
+    expect(logout.body).toEqual({ revoked: false });
+    expect(logout.headers['set-cookie']).toEqual(
+      expect.arrayContaining([expect.stringContaining('refresh_token=;')])
+    );
   });
 });

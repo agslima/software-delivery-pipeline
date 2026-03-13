@@ -8,7 +8,7 @@ resources:
   - database.yaml
 
 images:
-  - name: docker.io/agslima/app-stayheathy-backend
-    newTag: latest
-  - name: docker.io/agslima/app-stayheathy-frontend
-    newTag: latest
+  - name: docker.io/agslima/app-stayhealthy-backend
+    digest: sha256:0a99302f729b15adbd7e4e53a262eeab35e4b487bfb9e0b2bcfbf66f6ff60326
+  - name: docker.io/agslima/app-stayhealthy-frontend
+    digest: sha256:adc8d33f2764db79b74b863f620ad677da28b21eca9c669d79dcee3f4627bae0

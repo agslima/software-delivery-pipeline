@@ -5,7 +5,7 @@ This folder contains the active GitHub Actions workflows that power CI, security
 **ci-pr-validation.yml**
 - Name: PR Validation
 - Triggers: `workflow_dispatch`, `pull_request` (opened, synchronize, reopened)
-- Summary: Runs Node.js lint and unit tests for `server` and `client`, lints Dockerfiles with Hadolint, validates Dockerfiles with OPA Conftest, validates backend K8s manifests with Kubeconform, and performs secret scanning (Gitleaks) plus Trivy FS scanning (HIGH/CRITICAL). Sends a Slack notification on Trivy failure.
+- Summary: Runs Node.js lint and unit tests for `server` and `client`, lints Dockerfiles with Hadolint, validates Dockerfiles with OPA Conftest, validates backend K8s manifests with Kubeconform, checks governance drift and governance metadata freshness, and performs secret scanning (Gitleaks) plus Trivy FS scanning (HIGH/CRITICAL). Sends a Slack notification on Trivy failure.
 
 **ci-pr-title.yaml**
 - Name: Semantic PR
@@ -14,13 +14,28 @@ This folder contains the active GitHub Actions workflows that power CI, security
 
 **ci-release-gate.yml**
 - Name: Release
-- Triggers: tag push `v*.*.*`, manual with `tag` input
+- Triggers: tag push `v*.*.*`
 - Summary: Resolves the release tag, builds and pushes backend/frontend images, stores digest artifacts, runs Trivy image scans with a gate (CRITICAL > 0 or HIGH > 5), runs ZAP baseline DAST against an ephemeral compose environment, gates on ZAP High findings, then cosign-signs images and publishes Trivy/ZAP/SBOM attestations plus build provenance.
 
 **ci-security-deep.yml**
 - Name: Daily Security Scan
 - Triggers: schedule daily at 02:00 UTC, manual, PR changes to this workflow file
 - Summary: Runs Gitleaks and Trivy config + code scans (SARIF) plus a full governance JSON scan, uploads SARIF to Code Scanning, uploads artifacts, enforces security debt via `scripts/check-security-debt.sh`, and opens a GitHub issue on failure.
+
+**ci-governance-settings-audit.yml**
+- Name: Governance Settings Audit
+- Triggers: quarterly schedule (January/April/July/October 1st at 06:00 UTC), manual
+- Summary: Runs `scripts/audit-governance-settings.sh` in live mode against repository rulesets, CODEOWNERS parsing, protected tags, and production environment restrictions; supports fixture-based `fixtures-pass` and `fixtures-drift` test modes for evidence and regression checks.
+- Outputs: Artifact `governance-settings-audit` containing `summary.md`, `report.json`, and raw API responses.
+- Permissions/Secrets: Uses `contents: read`; live mode requires `GOVERNANCE_AUDIT_TOKEN` with read-only repository Administration access.
+- Maintenance notes: Keep `.github/rulesets/*.json`, `.github/governance-settings-audit.json`, and `docs/governance.md` aligned when GitHub governance settings intentionally change.
+
+**ci-governance-slo-report.yml**
+- Name: Governance SLO Report
+- Triggers: weekly schedule (Mondays at 05:00 UTC), manual
+- Summary: Runs `scripts/report-governance-slos.py` against live GitHub Actions and issue telemetry or deterministic fixtures to produce governance SLO reporting for release-gate reliability, remediation lead time, and policy-test health.
+- Outputs: Artifact `governance-slo-report` containing `summary.md` and `report.json`.
+- Permissions/Secrets: Uses `contents: read`, `actions: read`, and `issues: read`; live mode uses `GITHUB_TOKEN`.
 
 **ci-weekly-dast.yml**
 - Name: DAST Scan
@@ -34,7 +49,7 @@ This folder contains the active GitHub Actions workflows that power CI, security
 
 **gitops-enforce.yml**
 - Name: GitOps Enforcement
-- Triggers: manual `workflow_dispatch` with `run_id` (the `workflow_run` trigger is commented out)
+- Triggers: automatic on successful `Release` completion from a tag `push` (`workflow_run`) and manual `workflow_dispatch` with `run_id`
 - Summary: Downloads image digests from the Release workflow, verifies cosign signatures and Trivy/ZAP/SBOM attestations, updates prod kustomize image digests, validates rendered manifests against Kyverno policies, uploads Kyverno logs, and opens a GitOps PR to `main`.
 
 **sonar.yml**
@@ -42,20 +57,16 @@ This folder contains the active GitHub Actions workflows that power CI, security
 - Triggers: schedule Saturdays at 15:30 UTC, manual
 - Summary: Runs tests with coverage for `server` and `client`, uploads LCOV artifacts, then runs SonarQube/SonarCloud analysis using the downloaded coverage.
 
-**snyk-snapshot.yaml**
-- Name: Snyk Weekly Snapshot
-- Triggers: schedule Mondays at 08:00 UTC, manual
-- Summary: Runs `snyk monitor` for dependencies and Dockerfiles, plus IaC and code scans (both continue-on-error) to report results to Snyk.
-
-**trivy-report.yml**
-- Name: Trivy README Update
-- Triggers: `workflow_dispatch`, weekly schedule (Sundays at 00:00 UTC), and `pull_request` closed events (cleanup path for automation branches only)
-- Summary: Runs `hack/trivy-report.sh` to produce Trivy filesystem/config scan summaries for `app/`, updates the generated marker-delimited block in `README.md`/`readme.md`, and opens a PR when the generated evidence changes. A dedicated cleanup job deletes closed automation branches prefixed with `trivy-update-` to keep branch hygiene healthy.
-- Outputs: Updated README governance evidence table in PR diff; no standalone artifact upload in this workflow.
-- Permissions/Secrets: Uses `GITHUB_TOKEN` with `contents: write` and `pull-requests: write`; no additional secrets required.
-- Maintenance notes: Keep marker strings in `hack/trivy-report.sh` and `readme.md` aligned (`<!-- [BEGIN_GENERATED_TABLE] -->` / `<!-- [END_GENERATED_TABLE] -->`), and review Trivy version pinning when upgrading scanner behavior.
+**snyk-report.yml**
+- Name: Snyk Report
+- Triggers: `workflow_dispatch`, weekly schedule (Sundays at 00:00 UTC)
+- Summary: Runs `scripts/run-snyk-aggregate.sh` (via `make snyk-report`) to produce the repository security evidence set, updates the generated marker-delimited block in `readme.md`, refreshes `docs/snyk/`, and opens a PR when the evidence changes.
+- Outputs: Updated README governance evidence table in PR diff plus refreshed `docs/snyk/` artifacts.
+- Permissions/Secrets: Uses `GITHUB_TOKEN` with `contents: write` and `pull-requests: write`; requires `SNYK_TOKEN`.
+- Maintenance notes: `scripts/run-snyk-aggregate.sh` is the only automation that should update the README evidence markers (`<!-- [BEGIN_GENERATED_TABLE] -->` / `<!-- [END_GENERATED_TABLE] -->`).
 - Alert routing: Failures are visible in the Actions run and should be triaged by the platform/security maintainers who own CI governance workflows.
-- Expected result example: A weekly run creates a branch `trivy-update-<timestamp>`, opens PR `docs: weekly Trivy security scan update`, and updates only the generated table block under `## Operational Evidence`.
+- Expected result example: A weekly run updates `readme.md` and `docs/snyk/` together in PR `docs: weekly Snyk security scan update`.
 
 **Notes**
 - `legacy/` contains `ci-cd.txt` and `ci-weekly-dast.txt` as historical references, not active workflows.
+- `legacy/trivy-report.yml` is retained only as historical reference; it is not an active workflow and no longer owns the README evidence block.

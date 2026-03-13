@@ -1,25 +1,46 @@
 const env = require('./env');
 
-const allowedOrigins = env.CORS_ORIGIN.split(',')
+const allowlistedOrigins = new Set(
+  env.CORS_ORIGIN.split(',')
   .map((origin) => origin.trim())
-  .filter(Boolean);
+  .filter(Boolean)
+);
 
-const allowedOriginPatterns = [
-  /^https?:\/\/localhost(:\d+)?$/,
-  /^https?:\/\/127\.0\.0\.1(:\d+)?$/,
-  /^https?:\/\/[a-z0-9-]+\.app\.github\.dev$/i,
-  /^https?:\/\/[a-z0-9-]+\.githubpreview\.dev$/i,
-];
+/**
+ * Allow loopback origins and exact configured origins after URL validation.
+ *
+ * @param {string} origin - Request origin header value.
+ * @returns {boolean} True when the origin matches an allowed development or configured host.
+ */
+const isAllowedOriginPattern = (origin) => {
+  let parsedOrigin;
+
+  try {
+    parsedOrigin = new URL(origin);
+  } catch {
+    return false;
+  }
+
+  if (!['http:', 'https:'].includes(parsedOrigin.protocol)) {
+    return false;
+  }
+
+  const hostname = parsedOrigin.hostname.toLowerCase();
+
+  return hostname === 'localhost'
+    || hostname === '127.0.0.1'
+    || allowlistedOrigins.has(parsedOrigin.origin);
+};
 
 module.exports = {
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
 
-    if (allowedOrigins.includes(origin)) {
+    if (allowlistedOrigins.has(origin)) {
       return callback(null, true);
     }
 
-    if (allowedOriginPatterns.some((pattern) => pattern.test(origin))) {
+    if (isAllowedOriginPattern(origin)) {
       return callback(null, true);
     }
 

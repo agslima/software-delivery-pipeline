@@ -4,12 +4,6 @@ on:
   push:
     tags:
       - 'v*.*.*'
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Existing tag (e.g., v1.2.3)'
-        required: true
-        type: string
 
 concurrency:
   group: release-${{ github.ref }}
@@ -41,19 +35,11 @@ jobs:
       - name: Set Release Tag
         id: tag
         env:
-          # 1. Map contexts to Environment Variables
-          EVENT_NAME: ${{ github.event_name }}
-          TAG_INPUT: ${{ inputs.tag }}
           REF_NAME: ${{ github.ref_name }}
         run: |
           set -euo pipefail
 
-          # 2. Reference the Environment Variables using shell syntax ($VAR)
-          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            echo "release_tag=$TAG_INPUT" >> "$GITHUB_OUTPUT"
-          else
-            echo "release_tag=$REF_NAME" >> "$GITHUB_OUTPUT"
-          fi
+          echo "release_tag=$REF_NAME" >> "$GITHUB_OUTPUT"
 
   # ==================================================================
   # JOB 1: Build + Push (Digest is the artifact identity)
@@ -73,11 +59,11 @@ jobs:
           - name: backend
             context: app
             file: app/docker/Dockerfile.server
-            image_repo: app-stayheathy-backend
+            image_repo: app-stayhealthy-backend
           - name: frontend
             context: app
             file: app/docker/Dockerfile.client
-            image_repo: app-stayheathy-frontend
+            image_repo: app-stayhealthy-frontend
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
@@ -135,9 +121,9 @@ jobs:
       matrix:
         include:
           - name: backend
-            image_repo: app-stayheathy-backend
+            image_repo: app-stayhealthy-backend
           - name: frontend
-            image_repo: app-stayheathy-frontend
+            image_repo: app-stayhealthy-frontend
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
@@ -270,8 +256,8 @@ jobs:
           BACKEND_DIGEST="$(cat ../digests/digest-backend)"
           FRONTEND_DIGEST="$(cat ../digests/digest-frontend)"
 
-          export BACKEND_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayheathy-backend@$BACKEND_DIGEST"
-          export FRONTEND_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayheathy-frontend@$FRONTEND_DIGEST"
+          export BACKEND_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-backend@$BACKEND_DIGEST"
+          export FRONTEND_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-frontend@$FRONTEND_DIGEST"
 
           echo "BACKEND_IMAGE=$BACKEND_IMAGE"
           echo "FRONTEND_IMAGE=$FRONTEND_IMAGE"
@@ -388,9 +374,9 @@ jobs:
       matrix:
         include:
           - name: backend
-            image_repo: app-stayheathy-backend
+            image_repo: app-stayhealthy-backend
           - name: frontend
-            image_repo: app-stayheathy-frontend
+            image_repo: app-stayhealthy-frontend
     #env:
       # COSIGN_LOG_LEVEL: debug
       # COSIGN_DOCKER_MEDIA_TYPES: "1"
@@ -430,6 +416,7 @@ jobs:
           path: zap-downloads
 
       - name: Create & Push Trivy Attestation (from scan artifact)
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
           set -euo pipefail
           FILE="trivy-${{ matrix.name }}.json"
@@ -452,6 +439,7 @@ jobs:
             "$IMAGE"
 
       - name: Create & Push ZAP Attestation (from DAST artifacts)
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
           set -euo pipefail
           FE="zap-downloads/zap-frontend.json"
@@ -478,6 +466,7 @@ jobs:
             "$IMAGE"
 
       - name: Sign Image
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
           set -euo pipefail
           cosign version
@@ -485,6 +474,7 @@ jobs:
           cosign sign --yes "$IMAGE"
 
       - name: Verify Signature (OIDC identity)
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
           set -euo pipefail
 
@@ -515,6 +505,7 @@ jobs:
           artifact-name: sbom-${{ matrix.name }}.spdx.json
 
       - name: Attest SBOM
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
           cosign attest --yes \
             --predicate "sbom-${{ matrix.name }}.spdx.json" \

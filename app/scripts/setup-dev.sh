@@ -35,36 +35,41 @@ echo "🔧 Initializing Local Development Environment..."
 echo "   -> App Directory detected: ${APP_DIR}"
 
 # 2. Create Secrets Directory
-if [ ! -d "$SECRETS_DIR" ]; then
+if [[ ! -d "$SECRETS_DIR" ]]; then
     echo "   -> Creating secrets directory: secrets/"
     mkdir -p "$SECRETS_DIR"
 else
     echo "   -> Secrets directory exists. Skipping."
 fi
+chmod 700 "$SECRETS_DIR"
 
-# 3. Generate Secret Files (Idempotent: Won't overwrite existing)
+# random_hex generates a hexadecimal string representing the requested number of random bytes and writes it to stdout.
+# bytes is the number of bytes to generate; output contains 2*bytes hex characters. If secure randomness is unavailable, a non-cryptographic timestamp is used as a fallback.
 random_hex() {
     local bytes=$1
     if command -v openssl >/dev/null 2>&1; then
         openssl rand -hex "$bytes"
-    elif [ -r /dev/urandom ]; then
+    elif [[ -r /dev/urandom ]]; then
         head -c "$bytes" /dev/urandom | od -An -tx1 | tr -d ' \n'
     else
-        date +%s%N
+        echo "No cryptographically secure random source available" >&2  
+        return 1
     fi
 }
 
+# generate_secret writes a random hexadecimal secret to SECRETS_DIR/<filename> if the file does not exist and ensures the file is chmod 600; the optional second argument sets the byte length of the secret (default 32).
 generate_secret() {
     local filename=$1
     local bytes=${2:-32}
     local filepath="${SECRETS_DIR}/${filename}"
 
-    if [ ! -f "$filepath" ]; then
+    if [[ ! -f "$filepath" ]]; then
         echo "   -> Generating secret: ${filename}"
         printf "%s" "$(random_hex "$bytes")" > "$filepath"
     else
         echo "   -> Secret exists: ${filename} (Skipping)"
     fi
+    chmod 600 "$filepath"
 }
 
 # Generate random local secrets
@@ -74,7 +79,7 @@ generate_secret "jwt_secret.txt" 32
 generate_secret "data_encryption_key.txt" 32
 
 # 4. Generate .env File
-if [ ! -f "$ENV_FILE" ]; then
+if [[ ! -f "$ENV_FILE" ]]; then
     echo "   -> Creating default .env file..."
     cat <<EOF > "$ENV_FILE"
 # Local Development Environment Variables
@@ -98,6 +103,7 @@ ACCESS_TOKEN_TTL_MINUTES=15
 
 # TLS enforcement (optional)
 ENFORCE_TLS=false
+TRUST_PROXY=
 
 # Encryption key rotation (optional)
 DATA_ENCRYPTION_KEY_ID=v1

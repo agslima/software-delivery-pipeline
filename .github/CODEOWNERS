@@ -1,0 +1,32 @@
+# ==================================
+# GOVERNANCE ENFORCEMENT ZONES
+# ==================================
+
+# 1. Pipeline Integrity
+.github/workflows/    @agslima
+.github/rulesets/     @agslima
+.github/CODEOWNERS    @agslima
+.github/governance-settings-audit.json @agslima
+
+# 2. Policy Definitions
+k8s/policies/         @agslima
+policies/             @agslima
+
+# 3. Risk Acceptance
+docs/governance.md    @agslima
+docs/security-debt.md @agslima
+
+# 4. Infrastructure State
+k8s/base/             @agslima
+k8s/overlays/         @agslima
+k8s/exceptions/       @agslima
+k8s/tests/            @agslima
+
+# 5. Security allowlist
+.trivyignore          @agslima
+.snyk                 @agslima
+.gitleaks.toml        @agslima
+.gitleaksignore       @agslima
+
+# 6. Scripted Automation
+scripts/*.sh          @agslima

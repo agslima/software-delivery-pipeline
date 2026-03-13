@@ -1,0 +1,44 @@
+apiVersion: kyverno.io/v2
+kind: PolicyException
+metadata:
+  name: break-glass-approved
+  namespace: policy-exceptions
+  annotations:
+    security.break-glass/ticket: "INC-2099"
+    security.break-glass/requested-by: "application-team"
+    security.break-glass/approved-by: "platform-oncall"
+    security.break-glass/expires-at: "2099-12-31T23:59:59Z"
+spec:
+  background: false
+  match:
+    any:
+      - resources:
+          kinds:
+            - Deployment
+          names:
+            - exception-target
+          namespaces:
+            - production
+      - resources:
+          kinds:
+            - Pod
+          names:
+            - exception-target-*
+          namespaces:
+            - production
+  exceptions:
+    - policyName: verify-signature
+      ruleNames:
+        - require-image-signature
+    - policyName: verify-trivy
+      ruleNames:
+        - require-trivy-attestation
+    - policyName: verify-zap
+      ruleNames:
+        - require-zap-attestation
+    - policyName: verify-sbom
+      ruleNames:
+        - require-sbom-spdx
+    - policyName: verify-slsa
+      ruleNames:
+        - require-slsa-provenance

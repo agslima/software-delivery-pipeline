@@ -2,7 +2,7 @@
 # STAGE 1: Build the React App
 # ==========================================
 
-FROM node:25-alpine@sha256:b9b5737eabd423ba73b21fe2e82332c0656d571daf1ebf19b0f89d0dd0d3ca93 AS builder
+FROM node:24.13.0-alpine@sha256:7d047f7917fbfd954d5a74ba2dbc50aa382dc7805cc614c55353bc3a90185ef8 AS builder
 
 WORKDIR /app
 
@@ -45,14 +45,10 @@ RUN apk update && apk upgrade --no-cache \
                 /tmp/uwsgi_temp \
                 /tmp/scgi_temp \
                 /etc/nginx/certs \
-    && openssl req -x509 -nodes -newkey rsa:2048 -days 3650 \
-        -subj "/CN=localhost" \
-        -keyout /etc/nginx/certs/tls.key \
-        -out /etc/nginx/certs/tls.crt \
-    && chmod 600 /etc/nginx/certs/tls.key \
     && chown -R nginx:nginx /tmp /etc/nginx/certs \
-    && apk del openssl \
     && chmod -R 700 /tmp/*
+
+COPY --chown=nginx:nginx --chmod=755 docker/generate-client-cert.sh /docker-entrypoint.d/50-generate-client-cert.sh
 
 USER nginx
 

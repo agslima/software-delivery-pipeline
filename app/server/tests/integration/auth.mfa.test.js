@@ -107,8 +107,30 @@ describe('Integration: Auth MFA verify', () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toMatchObject({ verified: true });
     expect(res.body.accessToken).toBeDefined();
-    expect(res.body.refreshToken).toBeDefined();
+    expect(res.body.refreshToken).toBeUndefined();
     expect(res.body.tokenType).toBe('Bearer');
+    expect(res.headers['set-cookie']).toEqual(
+      expect.arrayContaining([expect.stringContaining('refresh_token=')])
+    );
+    expect(mockUser.mfa_enabled).toBe(true);
+    expect(mockAuditEvents.some((evt) => evt.event_type === 'mfa_verified')).toBe(true);
+  });
+
+  it('verifies MFA code with a normal access token (post-enrollment flow)', async () => {
+    const code = generateCode(mockUser.mfa_secret, { time: Date.now() });
+    const res = await request(app)
+      .post('/api/v2/auth/mfa/verify')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ code });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toMatchObject({ verified: true });
+    expect(res.body.accessToken).toBeDefined();
+    expect(res.body.refreshToken).toBeUndefined();
+    expect(res.body.tokenType).toBe('Bearer');
+    expect(res.headers['set-cookie']).toEqual(
+      expect.arrayContaining([expect.stringContaining('refresh_token=')])
+    );
     expect(mockUser.mfa_enabled).toBe(true);
     expect(mockAuditEvents.some((evt) => evt.event_type === 'mfa_verified')).toBe(true);
   });

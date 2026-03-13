@@ -9,6 +9,7 @@ OUTPUT_FILE="${OUTPUT_FILE:-${APP_DIR}/.env.release}"
 BACKEND_IMAGE="${BACKEND_IMAGE:?BACKEND_IMAGE is required (e.g. repo/backend:tag)}"
 FRONTEND_IMAGE="${FRONTEND_IMAGE:?FRONTEND_IMAGE is required (e.g. repo/frontend:tag)}"
 
+# require_command fails fast when a required CLI dependency is unavailable.
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
     echo "Missing required command: $1" >&2
@@ -18,12 +19,14 @@ require_command() {
 
 require_command docker
 
+# resolve_digest resolves a Docker image reference to its repository digest and echoes the resolved digest.
+# It exits with status 1 and prints an error message to stderr if the digest cannot be resolved.
 resolve_digest() {
   local image=$1
   local digest
   docker pull "$image" >/dev/null
   digest=$(docker inspect --format='{{index .RepoDigests 0}}' "$image")
-  if [ -z "$digest" ]; then
+  if [[ -z "$digest" ]]; then
     echo "Failed to resolve digest for $image" >&2
     exit 1
   fi

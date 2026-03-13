@@ -8,17 +8,18 @@ COMPOSE_FILE="${APP_DIR}/docker-compose.test-db.yml"
 
 ACTION="${1:-up}"
 
+# generate_secret generates a 16-byte hexadecimal secret and writes it to stdout, preferring openssl, then /dev/urandom, and falling back to a timestamp if neither is available.
 generate_secret() {
   if command -v openssl >/dev/null 2>&1; then
     openssl rand -hex 16
-  elif [ -r /dev/urandom ]; then
+  elif [[ -r /dev/urandom ]]; then
     head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n'
   else
     date +%s%N
   fi
 }
 
-if [ -z "${TEST_DB_PASS:-}" ]; then
+if [[ -z "${TEST_DB_PASS:-}" ]]; then
   export TEST_DB_PASS
   TEST_DB_PASS="$(generate_secret)"
 fi

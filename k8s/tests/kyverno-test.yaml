@@ -1,18 +1,66 @@
-apiVersion: kyverno.io/v1alpha1
+apiVersion: cli.kyverno.io/v1alpha1
 kind: Test
 metadata:
-  name: enforce-governed-artifacts
+  name: break-glass-policy-exception-tests
 policies:
-  - ../policies/ci/enforce-governed-artifacts-ci.yaml
+  - ../policies/cluster/break-glass-policy.yaml
 resources:
-  - ../resources/deployment.yaml
-values:
-  - values.yaml
+  - resources/break-glass-invalid.yaml
+  - resources/break-glass-expired.yaml
+  - resources/break-glass-valid.yaml
+  - resources/break-glass-self-approved.yaml
 results:
-  - policy: enforce-governed-artifacts
-    rule: require-digest-pinning
-    resource: app
-    kind: Deployment
+  - policy: break-glass-admission-controls
+    rule: policy-exception-requires-metadata
+    resources:
+      - policy-exceptions/break-glass-abuse
+    kind: PolicyException
+    result: fail
+  - policy: break-glass-admission-controls
+    rule: policy-exception-must-not-be-expired
+    resources:
+      - policy-exceptions/break-glass-expired
+    kind: PolicyException
+    result: fail
+  - policy: break-glass-admission-controls
+    rule: policy-exception-requires-controlled-approval
+    resources:
+      - policy-exceptions/break-glass-self-approved
+    kind: PolicyException
+    result: fail
+  - policy: break-glass-admission-controls
+    rule: policy-exception-requires-metadata
+    resources:
+      - policy-exceptions/break-glass-approved
+    kind: PolicyException
     result: pass
-    
-
+  - policy: break-glass-admission-controls
+    rule: policy-exception-requires-controlled-approval
+    resources:
+      - policy-exceptions/break-glass-approved
+    kind: PolicyException
+    result: pass
+  - policy: break-glass-admission-controls
+    rule: policy-exception-must-not-be-expired
+    resources:
+      - policy-exceptions/break-glass-approved
+    kind: PolicyException
+    result: pass
+  - policy: break-glass-admission-controls
+    rule: policy-exception-must-use-dedicated-namespace
+    resources:
+      - policy-exceptions/break-glass-approved
+    kind: PolicyException
+    result: pass
+  - policy: break-glass-admission-controls
+    rule: policy-exception-must-disable-background
+    resources:
+      - policy-exceptions/break-glass-approved
+    kind: PolicyException
+    result: pass
+  - policy: break-glass-admission-controls
+    rule: policy-exception-must-target-approved-policies
+    resources:
+      - policy-exceptions/break-glass-approved
+    kind: PolicyException
+    result: pass

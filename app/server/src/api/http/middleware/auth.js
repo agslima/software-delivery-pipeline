@@ -74,35 +74,33 @@ module.exports = async function auth(req, _res, next) {
   }
 
   const token = header.slice('Bearer '.length).trim();
-  const decoded = tokenService.decode(token);
-  const decodedAudience = decoded?.aud;
-  const audienceMatches = Array.isArray(decodedAudience)
-    ? decodedAudience.includes(oidcConfig.audience)
-    : decodedAudience === oidcConfig.audience;
-  const isOidcToken = Boolean(
-    oidcConfig.enabled &&
-      decoded?.iss &&
-      oidcConfig.issuer &&
-      decoded.iss === oidcConfig.issuer &&
-      audienceMatches
-  );
 
-  if (oidcConfig.required && !isOidcToken) {
-    return next(new AppError({ status: 401, code: 'OIDC_REQUIRED', message: 'Unauthorized' }));
-  }
+  if (oidcConfig.enabled) {
+    let oidcPayload;
 
-  if (isOidcToken) {
     try {
-    const payload = await oidcTokenService.verify(token);
-      const user = await resolveOidcUser(payload);
-      enforceOidcMfaClaims(user, payload);
-      req.user = user;
-      return next();
+      oidcPayload = await oidcTokenService.verify(token);
     } catch (err) {
-      if (err instanceof AppError) {
-        return next(err);
+      if (oidcConfig.required) {
+        if (err instanceof AppError) {
+          return next(err);
+        }
+        return next(new AppError({ status: 401, code: 'OIDC_REQUIRED', message: 'Unauthorized' }));
       }
-      return next(new AppError({ status: 401, code: 'INVALID_TOKEN', message: 'Invalid token' }));
+    }
+
+    if (oidcPayload) {
+      try {
+        const user = await resolveOidcUser(oidcPayload);
+        enforceOidcMfaClaims(user, oidcPayload);
+        req.user = user;
+        return next();
+      } catch (err) {
+        if (err instanceof AppError) {
+          return next(err);
+        }
+        return next(new AppError({ status: 401, code: 'OIDC_REQUIRED', message: 'Unauthorized' }));
+      }
     }
   }
 

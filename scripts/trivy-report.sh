@@ -5,19 +5,15 @@ set -euo pipefail
 readonly FS_REPORT="/tmp/trivy-fs.json"
 readonly CONFIG_REPORT="/tmp/trivy-config.json"
 readonly TABLE_FILE="/tmp/trivy-table.md"
-
-README_FILE="readme.md"
-
-if [[ ! -f "$README_FILE" ]]; then
-  echo "Error: ${README_FILE} not found." >&2
-  exit 1
-fi
+OUTPUT_FILE="${OUTPUT_FILE:-/tmp/trivy-security-posture.md}"
 
 TRIVY_VERSION="${TRIVY_VERSION:-v0.69.3}"
 
 if ! command -v trivy >/dev/null 2>&1; then
   echo "Installing Trivy ${TRIVY_VERSION}..."
-  curl -sfL "https://raw.githubusercontent.com/aquasecurity/trivy/${TRIVY_VERSION}/contrib/install.sh" \
+  curl --fail --silent --show-error --location \
+    --proto "=https" --proto-redir "=https" \
+    "https://raw.githubusercontent.com/aquasecurity/trivy/${TRIVY_VERSION}/contrib/install.sh" \
     | sh -s -- -b /tmp/trivy-bin "${TRIVY_VERSION}"
   export PATH="/tmp/trivy-bin:$PATH"
 fi
@@ -117,71 +113,5 @@ This section is automatically refreshed by CI to provide governance evidence of 
 *Last scanned (UTC): $(date -u +"%Y-%m-%d %H:%M")*
 EOF_TABLE
 
-echo "Injecting report into ${README_FILE}..."
-awk -v table_file="$TABLE_FILE" '
-  BEGIN {
-    in_operational = 0
-    found_operational = 0
-    found_verification = 0
-    found_begin_marker = 0
-    found_end_marker = 0
-  }
-
-  /^## Operational Evidence$/ {
-    in_operational = 1
-    found_operational = 1
-    print
-    next
-  }
-
-  /^## Verification \(How to Audit\)$/ {
-    if (in_operational && !found_end_marker) {
-      print "Generated table end marker not found before verification section." > "/dev/stderr"
-      exit 1
-    }
-
-    in_operational = 0
-    found_verification = 1
-    print
-    next
-  }
-
-  {
-    if (in_operational && /^<!-- \[BEGIN_GENERATED_TABLE\] -->$/) {
-      found_begin_marker = 1
-      print
-      while ((getline line < table_file) > 0) {
-        print line
-      }
-      close(table_file)
-      next
-    }
-
-    if (in_operational && /^<!-- \[END_GENERATED_TABLE\] -->$/) {
-      found_end_marker = 1
-      print
-      next
-    }
-
-    if (in_operational && found_begin_marker && !found_end_marker) {
-      next
-    }
-
-    print
-  }
-
-  END {
-    if (!found_operational || !found_verification) {
-      print "Required README section headers not found." > "/dev/stderr"
-      exit 1
-    }
-
-    if (!found_begin_marker || !found_end_marker) {
-      print "Required generated table markers not found in Operational Evidence section." > "/dev/stderr"
-      exit 1
-    }
-  }
-' "$README_FILE" > "${README_FILE}.tmp"
-
-mv "${README_FILE}.tmp" "$README_FILE"
-echo "${README_FILE} updated successfully."
+cp "$TABLE_FILE" "$OUTPUT_FILE"
+echo "Trivy posture report written to ${OUTPUT_FILE}."

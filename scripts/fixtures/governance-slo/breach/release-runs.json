@@ -1,0 +1,9 @@
+{
+  "workflow_runs": [
+    { "id": 7001, "conclusion": "success", "created_at": "2026-03-01T10:00:00Z" },
+    { "id": 7002, "conclusion": "failure", "created_at": "2026-02-20T10:00:00Z" },
+    { "id": 7003, "conclusion": "success", "created_at": "2026-02-10T10:00:00Z" },
+    { "id": 7004, "conclusion": "failure", "created_at": "2026-01-30T10:00:00Z" },
+    { "id": 7005, "conclusion": "success", "created_at": "2026-01-20T10:00:00Z" }
+  ]
+}

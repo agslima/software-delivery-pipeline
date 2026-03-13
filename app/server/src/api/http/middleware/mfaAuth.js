@@ -10,7 +10,7 @@ module.exports = function mfaAuth(req, _res, next) {
   const token = header.slice('Bearer '.length).trim();
   try {
     const payload = tokenService.verify(token);
-    if (!payload || !payload.mfa) {
+    if (!payload || !payload.sub) {
       return next(new AppError({ status: 401, code: 'UNAUTHORIZED', message: 'Unauthorized' }));
     }
     req.user = payload;

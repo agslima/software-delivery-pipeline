@@ -15,4 +15,20 @@ spec:
     spec:
       containers:
         - name: app
-          image: docker.io/agslima/software-delivery-pipeline@sha256:VALID_DIGEST
+          image: docker.io/agslima/app-stayhealthy-backend@sha256:1111111111111111111111111111111111111111111111111111111111111111
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - "ALL"
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "200m"

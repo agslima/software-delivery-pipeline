@@ -15,16 +15,17 @@ Contains the source code and build definitions for the microservice.
 This is the core of the governance model. Policies are treated as code, versioned, and tested.
  * /policies/*.rego: OPA (Open Policy Agent) rules used for Static Analysis.
    * Example: dockerfile.rego ensures no root users or :latest tags are used during the build.
- * /k8s/policies: Kyverno policies used for Admission Control (Cluster-level governance).
+ * /k8s/policies: Kyverno policies used for delivery validation and admission control.
    * ci/: Policies validated inside the GitHub Actions pipeline (Pre-Commit).
-   * cluster/: Policies enforced by the Kubernetes Admission Controller (Post-Deployment).
+   * cluster/: Policies evaluated by the GitOps enforcement workflow with the Kyverno CLI before promotion PR creation, and enforced again by the Kubernetes Admission Controller at deployment time.
    * pod-hardening.yaml: Baseline security standards (e.g., restricting privilege escalation).
 
 ### 3. Infrastructure as Code (/k8s)
 
 Defines the desired state of the application in Kubernetes.
- * resources/: The actual manifest files (deployment.yaml, pdb.yaml).
-   * Note: The pipeline updates deployment.yaml with the signed image digest automatically (GitOps).
+ * base/: Base manifests (backend, frontend, pdb, and examples).
+ * overlays/: Environment overlays (dev/prod) where release digests are promoted.
+   * Note: GitOps promotion updates `k8s/overlays/prod/kustomization.yaml` with new image digests.
  * tests/: Infrastructure Unit Tests.
    * Contains Kyverno CLI test manifests (kyverno-test.yaml) and mock resources (fixtures) to ensure policies behave as expected before they reach the cluster.
 
@@ -39,11 +40,12 @@ Scripts and documentation that bridge the gap between "Tool Output" and "Busines
 ## 🔄 Data Flow Through the Structure
 
  * Code Change: A commit triggers the pipeline.
- * App Validation: /app is tested (npm test) and scanned (Trivy/Snyk).
+ * App Validation: /app is tested and scanned (Trivy, Gitleaks, ZAP in scheduled/release flows).
  * Policy Check (Build): /app/Dockerfile is checked against /policies/dockerfile.rego.
  * Artifact Creation: A container is built and signed.
- * Policy Check (Infra): The proposed Kubernetes manifests in /k8s/resources are validated against /k8s/policies.
- * GitOps Update: If all gates pass, the pipeline updates /k8s/resources/deployment.yaml with the new image digest.
+ * GitOps Update: If all gates pass, the pipeline updates `/k8s/overlays/prod/kustomization.yaml` with new image digests.
+ * Policy Check (Promotion): The GitOps enforcement workflow renders `/k8s/overlays/prod` and validates the result against `/k8s/policies/cluster` with the Kyverno CLI before opening the promotion PR.
+ * Runtime Admission: The Kubernetes cluster re-applies the Kyverno cluster policies when the promoted manifests are deployed.
 
 ## 🏗️ Design Decisions
 

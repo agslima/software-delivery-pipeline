@@ -1,184 +1,108 @@
-
 # Kubernetes & Policy Architecture
 
-This directory contains all **Kubernetes manifests, Kyverno policies, and policy tests** used to enforce a **governed software supply chain** across CI and runtime environments.
+This directory contains Kubernetes manifests, Kyverno policies, and policy test assets used by the governed delivery pipeline.
 
-The structure separates:
+It separates:
 
-- CI-time validation (fast feedback, non-runtime features)
-- Cluster-time enforcement (cryptographic verification, attestations)
-- Policy unit tests (shift-left validation)
+- CI-time structural validation
+- Runtime admission enforcement
+- Separately managed policy exceptions
+- Policy test fixtures and values
 
 ---
 
-## Directory Structure 🗂
+## Directory Structure
 
 ```text
 k8s/
+├── base/
+│   ├── backend.yaml
+│   ├── frontend.yaml
+│   ├── pdb.yaml
+│   └── kustomization.yaml
+├── overlays/
+│   ├── dev/
+│   │   └── kustomization.yaml
+│   └── prod/
+│       └── kustomization.yaml
+├── exceptions/
+│   └── break-glass.example.yaml
 ├── policies/
 │   ├── ci/
-│   │   └── enforce-governed-artifacts-ci.yaml
-│   └── cluster/
-│       └── enforce-governed-artifacts.yaml
-│
-├── resources/
-│   └── deployment.yaml
-│
-├── tests/
-│   ├── enforce-governed-artifacts-test.yaml
-│   └── values.yaml
+│   │   └── structural-policy.yaml
+│   ├── cluster/
+│   │   ├── verify-signature.yaml
+│   │   ├── verify-trivy.yaml
+│   │   ├── verify-zap.yaml
+│   │   ├── verify-sbom.yaml
+│   │   ├── verify-slsa.yaml
+│   │   └── break-glass-policy.yaml
+│   ├── pod-hardening.yaml
+│   └── supply-chain-policy.yaml
+└── tests/
+    ├── kyverno-test.yaml
+    ├── policy-test.yaml
+    ├── values.yaml
+    ├── cluster-verify-test.yaml
+    └── resources/
 ```
 
 ---
 
-### `policies/` — Kyverno Policies  🔐
+## Policy Scopes
 
-#### `policies/ci/`
+### `k8s/policies/ci/`
 
-Policies executed only in CI pipelines using `kyverno apply` or `kyverno test`.
+CI structural checks only (digest pinning, hardening, baseline config rules).
 
-#### Purpose
+### `k8s/policies/cluster/`
 
-- Validate Kubernetes manifests before merge
-- Enforce structural and metadata rules
-- Avoid runtime-only features
+Admission-time controls for signature and attestation verification in runtime.
 
-#### Key characteristics
+### `k8s/policies/supply-chain-policy.yaml`
 
-- ❌ No `verifyImages`
-- ❌ No signature or attestation verification
-- ✅ Fast, deterministic feedback
-- ✅ GitHub Actions friendly
-
-#### Typical rules
-
-- Image digest pinning (no `:latest`)
-- Required labels / annotations
-- Namespace restrictions
-- SecurityContext validation
-
-#### `policies/cluster/`
-
-Policies enforced **at Kubernetes admission time**.
-
-**Purpose**
-
-- Enforce cryptographic trust
-- Validate supply-chain attestations
-- Protect production clusters
-
-#### Key characteristics
-
-- ✅ `verifyImages`
-- ✅ Cosign signature verification
-- ✅ Trivy & ZAP attestations
-- ✅ Enforced via admission webhook
-
-**Examples**
-
-- Require signed images (keyless GitHub OIDC)
-- Require vulnerability attestations (Trivy)
-- Require DAST attestations (ZAP)
-- Enforce immutable images (digest-pinned)
+Consolidated policy variant that captures the same supply-chain requirements in a single policy file.
 
 ---
 
-## `resources/` — Kubernetes Manifests 📦
+## Test Assets (`k8s/tests/`)
 
-Contains **sample or reference Kubernetes workloads** used for:
+`k8s/tests/` contains Kyverno test definitions, fixtures, exceptions, and values files used to validate policy behavior.
 
-- CI policy validation
-- Kyverno unit tests
-- Documentation examples
-
-These manifests represent **production-like deployments**, including:
-
-- Pod Security Context
-- Non-root containers
-- Read-only root filesystem
-- Digest-pinned images
-
-> These are not Helm-rendered templates — they are concrete manifests for policy evaluation.
-
----
-
-## `tests/` — Kyverno Policy Unit Tests 🧪
-
-This directory enables **shift-left policy testing** using:
+Run locally with:
 
 ```bash
 kyverno test k8s/tests/
+kyverno test k8s/tests/ -f k8s/tests/policy-test.yaml  
+kyverno test k8s/tests/ -f k8s/tests/cluster-verify-test.yaml 
 ```
-
-`enforce-governed-artifacts-test.yaml`
-
-Defines **expected outcomes** when policies are applied to resources.
-
-### What is tested
-
-- Policy logic correctness
-- Rule matching behavior
-- Pass/fail expectations
-- CI-safe policy behavior
-
-`values.yaml`
-
-Provides **mocked runtime context** required by Kyverno CLI:
-
-- Request metadata
-- Image metadata
-- User and service account context
-
-This avoids false skips like:
-
-> “Policies Skipped (as required variables are not provided)”
 
 ---
 
-## Execution Flow 🔄
+## Execution Flow
 
-### CI Pipeline
- 
-* 1. Render Kubernetes manifests
-* 2. Apply CI policies
+### CI-oriented validation example
 
 ```bash
-kyverno apply k8s/policies/ci \
-  --resource k8s/resources/deployment.yaml
+kustomize build k8s/overlays/prod > /tmp/prod.yaml
+kyverno apply k8s/policies/ci/structural-policy.yaml --resource /tmp/prod.yaml
 ```
 
-* 3. Run Kyverno unit tests
+### Runtime enforcement
 
-```bash
-kyverno test k8s/tests/
-```
-
-#### Kubernetes Cluster
-
-* 1. Workload submitted to cluster
-- 2. Admission webhook triggers Kyverno
-- 3. Cluster policies enforce
-  - Image signatures
-  - Supply-chain attestations
-  - Immutable artifacts
-- 4. Non-compliant workloads are rejected
+1. Workload manifest is submitted to the cluster.
+2. Kyverno admission policies verify signatures/attestations.
+3. Non-compliant workloads are denied.
 
 ---
 
-## Design Rationale 🧠
+## Design Rationale
 
-| Concern	| CI | Cluster |
+| Concern | CI | Cluster |
 | --- | --- | --- |
-| Fast  feedback |	✅ |	❌ |
-| Cryptographic verification |	❌ |	✅ |
-| Supply-chain enforcement |	❌ |	✅ |
-| Fail-fast validation |	✅ |	❌ |
-| Production protection |	❌ |	✅ |
+| Fast feedback | ✅ | ❌ |
+| Structural validation | ✅ | ✅ |
+| Signature/attestation verification | ❌ | ✅ |
+| Runtime protection | ❌ | ✅ |
 
-This separation avoids:
-- False negatives in CI
-- Slow pipelines
-- Incomplete security guarantees
-
-
-
+This split keeps CI deterministic while preserving runtime trust enforcement.
