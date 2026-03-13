@@ -209,10 +209,7 @@ def main() -> None:
         fixtures_root = pathlib.Path("fixtures").resolve()
         # Ensure the fixtures directory is normalized and confined within fixtures_root
         user_fixtures_arg = pathlib.Path(args.fixtures_dir)
-        if not user_fixtures_arg.is_absolute():
-            candidate_fixtures_dir = (fixtures_root / user_fixtures_arg).resolve()
-        else:
-            candidate_fixtures_dir = user_fixtures_arg.resolve()
+        candidate_fixtures_dir = (fixtures_root / user_fixtures_arg).resolve()
         try:
             candidate_fixtures_dir.relative_to(fixtures_root)
         except ValueError:
