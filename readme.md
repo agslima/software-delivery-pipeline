@@ -38,7 +38,7 @@ This is a full-stack reference implementation of a governed delivery pipeline, d
 - Runtime admission validation tied to build identity
 
 > [!NOTE]
-> The Single Page Application (SPA) logic is intentionally simple. The value of this repository lies in the **delivery architecture, security controls, and governance model**. For more details about the application, please see the **[`app/readme.md`](https://github.com/agslima/software-delivery-pipeline/tree/main/app).
+> The Single Page Application (SPA) logic is intentionally simple. The value of this repository lies in the **delivery architecture, security controls, and governance model**. For more details about the application, please see the **[`app/readme.md`](https://github.com/agslima/software-delivery-pipeline/tree/main/app)**.
 ---
 
 ## Architectural Goals
