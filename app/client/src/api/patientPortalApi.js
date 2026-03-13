@@ -106,6 +106,22 @@ function withRefreshedToken(payload, originalToken, activeToken) {
   };
 }
 
+let refreshInFlight = null;
+
+/**
+ * Reuse a single in-flight refresh request to avoid concurrent token rotation races.
+ *
+ * @returns {Promise<string>} Promise resolving to the refreshed access token.
+ */
+async function getRefreshedAccessToken() {
+  if (!refreshInFlight) {
+    refreshInFlight = refreshAccessToken().finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
+}
+
 /**
  * Retry one authenticated fetch after refreshing the access token on 401.
  *
@@ -121,18 +137,7 @@ async function fetchWithTokenRefresh(url, token, options = {}, onTokenRefresh) {
    *
    * @param {string} activeToken - Access token to send with the request.
    * @returns {Promise<Response>} Fetch response for the requested resource.
-let refreshInFlight = null;
-
-async function getRefreshedAccessToken() {
-  if (!refreshInFlight) {
-    refreshInFlight = refreshAccessToken().finally(() => {
-      refreshInFlight = null;
-    });
-  }
-  return refreshInFlight;
-}
-
-async function fetchWithTokenRefresh(url, token, options = {}, onTokenRefresh) {
+   */
   const performRequest = async (activeToken) =>
     fetch(url, {
       ...options,
@@ -232,9 +237,6 @@ export async function getMyPrescription(id, token, onTokenRefresh) {
   const { response, token: activeToken } = await fetchWithTokenRefresh(
     `/api/v2/patient/me/prescriptions/${prescriptionId}`,
     token,
-    {},
-    onTokenRefresh,
-  );
     {},
     onTokenRefresh,
   );
