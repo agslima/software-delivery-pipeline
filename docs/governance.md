@@ -8,7 +8,8 @@ This model ensures that no artifact can reach production unless it passes policy
 
 ## Governance Metadata
 
-- **Last validated (release cadence):** 2026-03-11
+- **Validation cadence:** Quarterly
+- **Last validated:** 2026-03-11
 
 ## Summary
 
@@ -21,15 +22,7 @@ This Branch Protection Model ensures that:
 
 ## README Claims → Controls Matrix
 
-This matrix links README governance claims to exact implementation points so claims remain reviewable and auditable.
-
-| README claim | Workflow enforcement | Policy enforcement | Supporting docs |
-| :--- | :--- | :--- | :--- |
-| CI/CD is the primary control plane | `.github/workflows/ci-pr-validation.yml`, `.github/workflows/ci-release-gate.yml`, `.github/workflows/gitops-enforce.yml` | Branch protection required checks; Kyverno CLI validation in the GitOps workflow before promotion PR creation; Kyverno admission in-cluster at deployment time | `readme.md`, `docs/governance.md` |
-| Security checks produce verifiable attestations | `.github/workflows/ci-release-gate.yml` (`trivy-scan`, `dast-analysis`, `sign-and-attest`) | `k8s/policies/cluster/verify-trivy.yaml`, `verify-zap.yaml`, `verify-sbom.yaml`, `verify-slsa.yaml` | `docs/threat-model.md`, `docs/adr/004-vulnerability-thresholds-risk-acceptance.md` |
-| Images are signed/attested and policy-enforced at runtime | `.github/workflows/ci-release-gate.yml` + `.github/workflows/gitops-enforce.yml` | `k8s/policies/cluster/verify-signature.yaml` and attestation verify policies | `docs/governance.md`, `docs/adr/003-policy-enforcement-strategy.md` |
-| Governance cannot be bypassed via direct merge/promotion | `.github/workflows/ci-pr-validation.yml`, `.github/workflows/gitops-enforce.yml` (`verify-context`) | GitHub branch/tag protections + CODEOWNERS + Kyverno CLI promotion validation + Kyverno break-glass controls | `docs/governance.md`, `docs/adr/005-break-glass-exception-handling.md` |
-| Vulnerability policy threshold is enforced (`HIGH > 5` blocks release) | `.github/workflows/ci-release-gate.yml` (`Gate (CRITICAL>0 or HIGH>5)`) | Trivy attestation + admission policy verification path | `readme.md`, `docs/governance.md`, `docs/adr/004-vulnerability-thresholds-risk-acceptance.md` |
+The authoritative claim-to-enforcement index now lives in [`docs/governance-evidence-index.md`](docs/governance-evidence-index.md). Use that page as the single audit surface for README claims, workflow jobs, policy enforcement points, artifact paths, ownership, and review cadence.
 
 ## GitHub Settings
 
@@ -141,6 +134,39 @@ The automated governance settings audit emits `governance-settings-audit/report.
 | `checks[]` | array | Per-control results with `id`, `category`, `status`, `severity`, `expected`, `actual`, `source`, and `message` |
 
 Use `summary.md` for quick review and `report.json` for durable quarterly evidence or downstream automation.
+
+## Governance Metadata Freshness
+
+Governance metadata must remain current enough to support audit credibility. The repository enforces this with:
+
+- Policy file: `.github/governance-metadata-policy.json`
+- Override file: `.github/governance-metadata-overrides.json`
+- CI entrypoint: `scripts/check-governance-metadata-freshness.sh`
+- PR workflow step: `.github/workflows/ci-pr-validation.yml` → `Governance Metadata Freshness Check`
+
+Tracked documents fail CI when their `last_reviewed` or `Last validated` value exceeds the declared cadence window in `.github/governance-metadata-policy.json`.
+
+### Approved Temporary Override Path
+
+Use an override only when the metadata cannot be refreshed before merge and delaying the change would create more risk than carrying a short, explicit exception.
+
+Each override in `.github/governance-metadata-overrides.json` must include:
+
+- `path`
+- `field`
+- `approved_by`
+- `ticket`
+- `reason`
+- `allow_stale_until`
+
+Override expectations:
+
+- time-bound: `allow_stale_until` must be an explicit UTC date
+- justified: `reason` must explain why the metadata update is temporarily deferred
+- approved: `approved_by` must identify the maintainer or governance approver accepting the exception
+- reviewable: `ticket` must link the exception to a tracked work item or audit record
+
+Remove the override as soon as the metadata is refreshed. Do not use recurring or open-ended overrides.
 
 ## GitHub as the Control Plane
 

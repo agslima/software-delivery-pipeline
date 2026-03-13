@@ -1,0 +1,23 @@
+{
+  "schema_version": "1",
+  "tracked_documents": [
+    {
+      "path": "readme.md",
+      "field": "last_reviewed",
+      "cadence": "Quarterly",
+      "max_age_days": 92
+    },
+    {
+      "path": "docs/governance.md",
+      "field": "last_validated",
+      "cadence": "Quarterly",
+      "max_age_days": 92
+    },
+    {
+      "path": "docs/threat-model.md",
+      "field": "last_validated",
+      "cadence": "Quarterly",
+      "max_age_days": 92
+    }
+  ]
+}

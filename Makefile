@@ -14,6 +14,11 @@ snyk-report:
 governance-drift-check:
 	./scripts/check-governance-drift.sh
 
+# Governance Metadata Freshness Check
+.PHONY: governance-metadata-check
+governance-metadata-check:
+	./scripts/check-governance-metadata-freshness.sh
+
 # Weekly DAST orchestration
 .PHONY: dast-weekly
 dast-weekly:

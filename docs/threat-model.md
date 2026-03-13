@@ -2,7 +2,8 @@
 
 ## Governance Metadata
 
-- **Last validated (release cadence):** 2026-03-11
+- **Validation cadence:** Quarterly
+- **Last validated:** 2026-03-11
 
 ## 1. Summary
 

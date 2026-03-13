@@ -306,6 +306,54 @@ Fixture-based drift proof
 
 Use workflow dispatch mode `fixtures-drift` to verify the audit still detects intentionally introduced drift without changing live repository settings. The run should fail and produce a `governance-settings-audit` artifact showing the mismatched controls.
 
+---
+
+## Governance Metadata Freshness Failure
+
+Symptom
+
+Workflow `CI` fails on step `Governance Metadata Freshness Check`, or `scripts/check-governance-metadata-freshness.sh` exits non-zero.
+
+Primary evidence
+
+- Workflow log line showing the stale file and metadata field
+- Policy file: `.github/governance-metadata-policy.json`
+- Override file: `.github/governance-metadata-overrides.json`
+
+Triage steps
+
+1. Identify which file and metadata field failed from the CI error annotation.
+2. Open the document and confirm the current `last_reviewed` or `Last validated` date.
+3. Compare that date to the cadence window defined for the file in `.github/governance-metadata-policy.json`.
+4. Decide whether the correct remediation is:
+   - refreshing the document review/validation date now, or
+   - adding a temporary approved override because the content cannot yet be credibly revalidated.
+
+Resolution paths
+
+✅ Refresh metadata now
+
+- Update the document after completing the required review or validation.
+- Keep the metadata date in `YYYY-MM-DD` UTC form.
+- Rerun CI and confirm `Governance Metadata Freshness Check` passes without an override.
+
+✅ Temporary approved override
+
+- Add one entry to `.github/governance-metadata-overrides.json` with:
+  - `path`
+  - `field`
+  - `approved_by`
+  - `ticket`
+  - `reason`
+  - `allow_stale_until`
+- Keep the override short-lived and tied to a concrete follow-up item.
+- Remove the override once the metadata has been refreshed.
+
+🚨 Do not do this
+
+- Do not suppress the CI step.
+- Do not use empty or open-ended override values.
+- Do not refresh the metadata date without actually completing the review or validation the document claims.
 
 ---
 

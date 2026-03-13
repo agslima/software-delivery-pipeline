@@ -3,7 +3,7 @@
 [//]: # (owner: Project Maintainers)
 [//]: # (review_cadence: Quarterly)
 [//]: # (last_reviewed: 2026-03-11)
-[//]: # (Controls matrix: docs/governance.md#readme-claims--controls-matrix)
+[//]: # (Controls matrix: docs/governance-evidence-index.md)
 
 ## A Reference Implementation for CI/CD Governance, Supply Chain Security, and Runtime Policy Enforcement
 
@@ -23,6 +23,8 @@ This repository demonstrates a **governed software delivery system** in which:
 - Security checks produce **verifiable evidence**, not only workflow logs
 - Container images are **signed, attested, and validated** through policy before deployment
 - The delivery path is designed to make governance bypass **difficult, visible, and auditable**
+
+Trace each claim to enforcement and durable evidence in [`docs/governance-evidence-index.md`](docs/governance-evidence-index.md).
 
 ## Problem Statement 🛡️
 
@@ -112,7 +114,7 @@ graph TD
 
 > This pipeline is intentionally **fail-fast**: artifacts may be built and pushed before later release gates complete, but they are not signed, trusted, or promoted unless all required quality gates pass.
 
-For more details on how branch protection, code ownership, and release integrity are enforced, see [`docs/governance.md`](docs/governance.md).
+For the one-page claim-to-enforcement map, see [`docs/governance-evidence-index.md`](docs/governance-evidence-index.md). For branch protection, code ownership, and governance operating guidance, see [`docs/governance.md`](docs/governance.md).
 
 ---
 
@@ -225,6 +227,7 @@ Reviewer traceability:
 - Posture evidence source: [`docs/snyk/index.md`](docs/snyk/index.md)
 - Release gate enforcement source: [`.github/workflows/ci-release-gate.yml`](.github/workflows/ci-release-gate.yml)
 - Runtime/admission control rationale: [`docs/threat-model.md`](docs/threat-model.md)
+- Single-page claim traceability: [`docs/governance-evidence-index.md`](docs/governance-evidence-index.md)
 
 ---
 

@@ -109,10 +109,10 @@ jobs:
           kyverno test k8s/tests/ -f cluster-verify-test.yaml
 
   # ==================================================================
-  # JOB 3: Security Scan (Code + IaC)
+  # JOB 3: Governance & Security Scan (Code + IaC)
   # ==================================================================
-  security-scan:
-    name: Security Quality Check
+  governance-and-security-scan:
+    name: Governance & Security Quality Check
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -125,6 +125,9 @@ jobs:
 
       - name: Governance Drift Check (docs/workflow refs)
         run: make governance-drift-check
+
+      - name: Governance Metadata Freshness Check
+        run: make governance-metadata-check
 
       # 1. Secret Scanning
       - name: Secret Scanning (Gitleaks)

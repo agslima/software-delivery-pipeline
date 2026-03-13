@@ -5,7 +5,7 @@ This folder contains the active GitHub Actions workflows that power CI, security
 **ci-pr-validation.yml**
 - Name: PR Validation
 - Triggers: `workflow_dispatch`, `pull_request` (opened, synchronize, reopened)
-- Summary: Runs Node.js lint and unit tests for `server` and `client`, lints Dockerfiles with Hadolint, validates Dockerfiles with OPA Conftest, validates backend K8s manifests with Kubeconform, and performs secret scanning (Gitleaks) plus Trivy FS scanning (HIGH/CRITICAL). Sends a Slack notification on Trivy failure.
+- Summary: Runs Node.js lint and unit tests for `server` and `client`, lints Dockerfiles with Hadolint, validates Dockerfiles with OPA Conftest, validates backend K8s manifests with Kubeconform, checks governance drift and governance metadata freshness, and performs secret scanning (Gitleaks) plus Trivy FS scanning (HIGH/CRITICAL). Sends a Slack notification on Trivy failure.
 
 **ci-pr-title.yaml**
 - Name: Semantic PR
