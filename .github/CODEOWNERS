@@ -22,8 +22,11 @@ k8s/overlays/         @agslima
 k8s/exceptions/       @agslima
 k8s/tests/            @agslima
 
-# 5. Trivy allowlist
+# 5. Security allowlist
 .trivyignore          @agslima
+.snyk                 @agslima
+.gitleaks.toml        @agslima
+.gitleaksignore       @agslima
 
 # 6. Scripted Automation
-scripts/*.sh                   @agslima
+scripts/*.sh          @agslima
