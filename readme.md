@@ -38,8 +38,7 @@ This is a full-stack reference implementation of a governed delivery pipeline, d
 - Runtime admission validation tied to build identity
 
 > [!NOTE]
-> The Single Page Application (SPA) logic is intentionally simple. The value of this repository lies in the **delivery architecture, security controls, and governance model**. For more details about the application, please see the **[`app/readme.md`](https://github.com/agslima/software-delivery-pipeline/blob/main/app/readme.md)**.
-
+> The Single Page Application (SPA) logic is intentionally simple. The value of this repository lies in the **delivery architecture, security controls, and governance model**. For more details about the application, please see the **[`app/readme.md`](https://github.com/agslima/software-delivery-pipeline/tree/main/app).
 ---
 
 ## Architectural Goals
@@ -197,7 +196,7 @@ Interpretation:
 - **Managed Debt:** displayed when Medium or Low vulnerabilities remain open under approved governance controls.
 ### Case Study 🔬
 
-To validate that the governance model works in practice, the application described in [app/readme.md](app/readme.md) was intentionally exercised through the pipeline with known vulnerabilities and security weaknesses. The goal was not to showcase an insecure app, but to demonstrate how the delivery system detects, blocks, tracks, and verifies remediation.
+To validate that the governance model works in practice, the application described in [`app/readme.md`](https://github.com/agslima/software-delivery-pipeline/tree/main/app) was intentionally exercised through the pipeline with known vulnerabilities and security weaknesses. The goal was not to showcase an insecure app, but to demonstrate how the delivery system detects, blocks, tracks, and verifies remediation.
 
 ### Remediation Workflow
 
