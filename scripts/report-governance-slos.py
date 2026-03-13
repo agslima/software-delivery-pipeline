@@ -207,13 +207,19 @@ def main() -> None:
 
     if fixtures_mode:
         fixtures_root = pathlib.Path("fixtures").resolve()
-        fixtures_dir = pathlib.Path(args.fixtures_dir).resolve()
+        # Ensure the fixtures directory is normalized and confined within fixtures_root
+        user_fixtures_arg = pathlib.Path(args.fixtures_dir)
+        if not user_fixtures_arg.is_absolute():
+            candidate_fixtures_dir = (fixtures_root / user_fixtures_arg).resolve()
+        else:
+            candidate_fixtures_dir = user_fixtures_arg.resolve()
         try:
-            fixtures_dir.relative_to(fixtures_root)
+            candidate_fixtures_dir.relative_to(fixtures_root)
         except ValueError:
-            fail(f"Fixtures directory must be within {fixtures_root}: {fixtures_dir}")
-        if not fixtures_dir.exists():
-            fail(f"Fixtures directory not found: {fixtures_dir}")
+            fail(f"Fixtures directory must be within {fixtures_root}: {candidate_fixtures_dir}")
+        if not candidate_fixtures_dir.exists():
+            fail(f"Fixtures directory not found: {candidate_fixtures_dir}")
+        fixtures_dir = candidate_fixtures_dir
         release_runs, release_jobs, pr_runs, pr_jobs, issues_cache = collect_fixture_inputs(fixtures_dir)
         mode = "fixture"
         repository_name = repo or "fixtures/software-delivery-pipeline"
