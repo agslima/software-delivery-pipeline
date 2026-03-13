@@ -206,7 +206,12 @@ def main() -> None:
         fail("Repository must be provided via --repo in live mode.")
 
     if fixtures_mode:
-        fixtures_dir = pathlib.Path(args.fixtures_dir)
+        fixtures_root = pathlib.Path("fixtures").resolve()
+        fixtures_dir = pathlib.Path(args.fixtures_dir).resolve()
+        try:
+            fixtures_dir.relative_to(fixtures_root)
+        except ValueError:
+            fail(f"Fixtures directory must be within {fixtures_root}: {fixtures_dir}")
         if not fixtures_dir.exists():
             fail(f"Fixtures directory not found: {fixtures_dir}")
         release_runs, release_jobs, pr_runs, pr_jobs, issues_cache = collect_fixture_inputs(fixtures_dir)
