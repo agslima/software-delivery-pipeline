@@ -388,7 +388,8 @@ record_comparison \
 
 mapfile -t REQUIRED_CODEOWNER_PATHS < <(jq -r '.codeowners.required_paths[]' "$EXPECTATIONS_FILE")
 for path in "${REQUIRED_CODEOWNER_PATHS[@]}"; do
-  if grep -Fq "$path" "$EXPECTED_CODEOWNERS_FILE"; then
+  escaped_path="$(printf '%s' "$path" | sed -e 's/[][(){}.^$*+?|\\/]/\\&/g')"
+  if grep -Eq "^[[:space:]]*${escaped_path}([[:space:]]+|$)" "$EXPECTED_CODEOWNERS_FILE"; then
     add_check \
       "codeowners-path-${path//[^A-Za-z0-9]/-}" \
       "codeowners" \
@@ -430,11 +431,7 @@ record_comparison \
 
 EXPECTED_ENV_REVIEWERS="$(jq -r '.environment.required_reviewer_count' "$EXPECTATIONS_FILE")"
 LIVE_ENV_REVIEWERS="$(jq -r '
-  (
-    [(.protection_rules // [])[]? | select(.type == "required_reviewers") | (.reviewers // [])[]?]
-    +
-    (.reviewers // [])
-  ) | length
+  [(.protection_rules // [])[]? | select(.type == "required_reviewers") | (.reviewers // [])[]?] | length
 ' "$ENVIRONMENT_FILE")"
 record_condition \
   "environment-required-reviewers" "environment_protection" "high" \

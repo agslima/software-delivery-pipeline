@@ -94,7 +94,7 @@ describe('Unit: api/v2/auth.controller', () => {
 
     const req = { body: { email, password: 'secret' } };
     const json = jest.fn();
-    const res = { status: jest.fn(() => ({ json })) };
+    const res = { status: jest.fn(() => ({ json })), setHeader: jest.fn() };
     const next = jest.fn();
 
     await controller.login(req, res, next);
@@ -109,6 +109,10 @@ describe('Unit: api/v2/auth.controller', () => {
       mfaToken: 'mfa-token',
       user: { id: userId, email, role: 'doctor', mfaEnabled: true },
     });
+    expect(res.setHeader).toHaveBeenCalledWith(
+      'Set-Cookie',
+      expect.stringContaining('refresh_token=;')
+    );
     expect(next).not.toHaveBeenCalled();
   });
 

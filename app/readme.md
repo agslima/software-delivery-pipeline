@@ -2,7 +2,7 @@
 
 ## Internal engineering reference implementation for a full-stack prescription workflow
 
-![Node.js](https://img.shields.io/badge/Node.js-24%2B-339933?logo=node.js&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-24.13.0-339933?logo=node.js&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Enabled-2496ED?logo=docker&logoColor=white)
 ![OpenAPI](https://img.shields.io/badge/OpenAPI-3.0-6BA539?logo=openapiinitiative&logoColor=white)
 ![JWT](https://img.shields.io/badge/Auth-JWT-blue?logo=jsonwebtokens)
@@ -237,7 +237,7 @@ Patient portal login (if deterministic seed vars were set):
 
 ### Backend
 
-### Node.js (>= 18)
+### Node.js 24.13.0
 
 - Express
 - Knex.js (SQL query builder & migrations)

@@ -15,6 +15,11 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    refreshCookie:
+      type: apiKey
+      in: cookie
+      name: refresh_token
+      description: HttpOnly refresh token cookie used for rotation and logout.
 
   schemas:
     LoginRequest:
@@ -63,6 +68,7 @@ components:
           type: boolean
 
     LoginResponseV2:
+      description: Successful password login when MFA is not required.
       type: object
       properties:
         accessToken:
@@ -72,10 +78,17 @@ components:
           example: Bearer
         user:
           $ref: '#/components/schemas/UserSummary'
+    MfaChallengeResponseV2:
+      description: MFA challenge response when second-factor verification is required before issuing a refresh cookie.
+      type: object
+      properties:
         mfaRequired:
           type: boolean
+          example: true
         mfaToken:
           type: string
+        user:
+          $ref: '#/components/schemas/UserSummary'
     RefreshResponseV2:
       type: object
       properties:
@@ -443,16 +456,18 @@ paths:
               $ref: '#/components/schemas/LoginRequestV2'
       responses:
         200:
-          description: Successful login
+          description: Successful login. When MFA is not required, the response includes an access token and sets a refresh-token cookie. When MFA is required, the response returns an MFA challenge and clears any existing refresh-token cookie instead of minting a new one.
           headers:
             Set-Cookie:
-              description: HttpOnly refresh token cookie for session renewal.
+              description: Conditionally present. Sets a refresh-token cookie on completed primary-factor login, or expires any existing refresh-token cookie when returning an MFA challenge.
               schema:
                 type: string
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LoginResponseV2'
+                oneOf:
+                  - $ref: '#/components/schemas/LoginResponseV2'
+                  - $ref: '#/components/schemas/MfaChallengeResponseV2'
         401:
           description: Invalid credentials
 
@@ -460,6 +475,9 @@ paths:
     post:
       summary: Refresh access token (v2)
       tags: [Auth]
+      description: Rotates the current refresh token using the incoming `refresh_token` cookie. No JSON request body is accepted.
+      security:
+        - refreshCookie: []
       responses:
         200:
           description: Successful refresh
@@ -479,6 +497,9 @@ paths:
     post:
       summary: Revoke the current refresh token cookie (v2)
       tags: [Auth]
+      description: Revokes the current session using the incoming `refresh_token` cookie and expires that cookie on the response. No JSON request body is accepted.
+      security:
+        - refreshCookie: []
       responses:
         200:
           description: Refresh token revoked

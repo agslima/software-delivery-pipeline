@@ -51,11 +51,11 @@ Temporary
 
 No silent or implicit bypasses are allowed
 
-Break-glass actions require a separately managed exception object in Kubernetes
+Break-glass actions require a separately managed Kyverno `PolicyException`
+object in Kubernetes.
 
-
-Break-glass is implemented using separately managed Kyverno `PolicyException`
-objects in a dedicated namespace, not workload labels or annotations.
+Break-glass is implemented through Kyverno `PolicyException` resources in the
+dedicated `policy-exceptions` namespace, not workload labels or annotations.
 
 
 ---
@@ -159,16 +159,23 @@ Break-glass usage must be committed to Git and carry explicit approval metadata 
 - `security.break-glass/ticket` must reference a tracked incident/change (`INC-*` or `CHG-*`)
 - `PolicyException` objects must live in the `policy-exceptions` namespace
 - `security.break-glass/requested-by` must identify the requester
-- `security.break-glass/approved-by` must be one of the controlled approver roles (`platform-oncall` or `repository-administrator`)
-- `requested-by` and `approved-by` must differ
+- `security.break-glass/approved-by` must identify the controlled approver recorded in the authoritative approval record
+- A separately managed approval record in `policy-exceptions` must exist for the `PolicyException` name and carry verified `ticket`, `requestedBy`, and `approvedBy` fields
+- The authoritative approval record must enforce separation of duties (`requestedBy` and `approvedBy` differ)
 
-Break-glass usage must be committed to Git as a separate exception object:
+Break-glass usage must be committed to Git as a separate exception object with an explicit lifecycle:
+
+- Create a `PolicyException` manifest in the `policy-exceptions` namespace to enable the exception
+- Create or verify the controller-managed approval record for that `PolicyException` in `policy-exceptions`
+- Verify the exception exists in-cluster (`kubectl get policyexception -n policy-exceptions`)
+- Verify the approval record is present and marked verified before relying on the exception
+- Delete or revoke the `PolicyException` object once the blocking condition is resolved to restore enforcement
 
 Manifest changes require a Pull Request
 
 Changes are visible in Git history
 
-Policy exclusions are evaluated during CI validation
+Policy exclusions are evaluated during CI validation and again at admission time
 
 
 No runtime-only overrides are supported.
@@ -183,13 +190,16 @@ Break-glass usage is expected to follow these guidelines:
 1. Justification: The PR description must explain why the exception is required.
 
 
-2. Scope Minimization: Only the affected workload should carry the label.
+2. Scope Minimization: The `PolicyException` should target only the affected policy/rule and workload scope.
 
 
-3. Temporary Nature: The label should be removed once the blocking condition is resolved.
+3. Temporary Nature: Delete or otherwise revoke the `PolicyException` from the `policy-exceptions` namespace once the blocking condition is resolved, and verify its removal.
 
 
-4. Post-Incident Review: Break-glass usage should trigger retrospective analysis.
+4. Operational Verification: Confirm the `PolicyException` is present when break-glass is enabled and absent after enforcement is restored.
+
+
+5. Post-Incident Review: Break-glass usage should trigger retrospective analysis.
 
 
 
@@ -225,7 +235,7 @@ These risks are mitigated by:
 
 Mandatory Git workflows
 
-Clear labeling
+Explicit `PolicyException` objects in `policy-exceptions`
 
 Documentation
 

@@ -26,19 +26,9 @@ spec:
             - my-app-*
           namespaces:
             - production
+  # Narrow break-glass to the smallest specific policy/rule pair required for the incident.
+  # Do not copy a multi-policy exception set unless each entry is explicitly justified.
   exceptions:
     - policyName: verify-signature
       ruleNames:
         - require-image-signature
-    - policyName: verify-trivy
-      ruleNames:
-        - require-trivy-attestation
-    - policyName: verify-zap
-      ruleNames:
-        - require-zap-attestation
-    - policyName: verify-sbom
-      ruleNames:
-        - require-sbom-spdx
-    - policyName: verify-slsa
-      ruleNames:
-        - require-slsa-provenance

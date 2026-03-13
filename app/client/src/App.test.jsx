@@ -58,7 +58,7 @@ describe('App Integration', () => {
     api.getMyPrescriptions.mockResolvedValue({ prescriptions: [] });
     api.getMyPrescription.mockResolvedValue(mockDetail);
     api.verifyMfa.mockResolvedValue({ token: 'token-default' });
-    api.disableMfa.mockResolvedValue({ success: true });
+    api.disableMfa.mockResolvedValue({ ok: true });
     const mfaSecret = buildBase32Secret();
     api.enrollMfa.mockResolvedValue({
       secret: mfaSecret,
@@ -148,6 +148,15 @@ describe('App Integration', () => {
 
     await waitFor(() => {
       expect(api.verifyMfa).toHaveBeenCalledWith('123456', 'mfa-token-1');
+    });
+    await waitFor(() => {
+      expect(api.getMyPrescriptions).toHaveBeenCalledWith('token-after-mfa');
+      expect(sessionStorage.getItem('patient_portal_session')).toEqual(
+        JSON.stringify({
+          token: 'token-after-mfa',
+          user: { id: 'patient-2', email, role: 'patient', mfaEnabled: true },
+        })
+      );
     });
     expect(await screen.findByText(/prescription history/i)).toBeInTheDocument();
   });
@@ -255,7 +264,7 @@ describe('App Integration', () => {
     api.getMyPrescriptions.mockResolvedValue({ prescriptions: [mockSummary] });
     api.getMyPrescription.mockResolvedValue(mockDetail);
     api.verifyMfa.mockResolvedValue({ token: 'token-after-enable' });
-    api.disableMfa.mockResolvedValue({ success: true });
+    api.disableMfa.mockResolvedValue({ ok: true });
 
     render(<App />);
 

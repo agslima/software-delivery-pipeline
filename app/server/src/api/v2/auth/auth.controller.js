@@ -44,6 +44,7 @@ exports.login = async (req, res, next) => {
   try {
     const payload = await service.login(req.body);
     if (payload.user.mfaEnabled) {
+      clearRefreshTokenCookie(res);
       const mfaToken = tokenService.signWithOptions(
         {
           sub: payload.user.id,

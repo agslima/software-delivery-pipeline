@@ -53,23 +53,48 @@ spec:
         any:
           - resources:
               kinds: ["PolicyException"]
+      context:
+        - name: approvalRecords
+          apiCall:
+            urlPath: "/api/v1/namespaces/policy-exceptions/configmaps?labelSelector=security.break-glass%2Fexception-name={{ request.object.metadata.name }}"
+            jmesPath: "items"
       validate:
         message: >
-          Break-glass PolicyException objects require an incident/change ticket,
-          an allowed approver (platform-oncall or repository-administrator),
-          and the requester must differ from the approver.
+          Break-glass PolicyException objects require a matching controller-managed
+          approval record in the policy-exceptions namespace. The verified approval
+          record must match the PolicyException annotations
+          security.break-glass/ticket, security.break-glass/requested-by, and
+          security.break-glass/approved-by.
         deny:
           conditions:
             any:
               - key: "{{ regex_match('^(INC|CHG)-[0-9]+$', request.object.metadata.annotations.\"security.break-glass/ticket\" || '') }}"
                 operator: Equals
                 value: false
-              - key: "{{ regex_match('^(platform-oncall|repository-administrator)$', request.object.metadata.annotations.\"security.break-glass/approved-by\" || '') }}"
+              - key: "{{ approvalRecords | length(@) }}"
+                operator: NotEquals
+                value: 1
+              - key: "{{ approvalRecords[0].metadata.labels.\"security.break-glass/verified\" || '' }}"
+                operator: NotEquals
+                value: "true"
+              - key: "{{ approvalRecords[0].data.exceptionName || '' }}"
+                operator: NotEquals
+                value: "{{ request.object.metadata.name || '' }}"
+              - key: "{{ approvalRecords[0].data.ticket || '' }}"
+                operator: NotEquals
+                value: "{{ request.object.metadata.annotations.\"security.break-glass/ticket\" || '' }}"
+              - key: "{{ approvalRecords[0].data.requestedBy || '' }}"
+                operator: NotEquals
+                value: "{{ request.object.metadata.annotations.\"security.break-glass/requested-by\" || '' }}"
+              - key: "{{ approvalRecords[0].data.approvedBy || '' }}"
+                operator: NotEquals
+                value: "{{ request.object.metadata.annotations.\"security.break-glass/approved-by\" || '' }}"
+              - key: "{{ regex_match('^(platform-oncall|repository-administrator)$', approvalRecords[0].data.approvedBy || '') }}"
                 operator: Equals
                 value: false
-              - key: "{{ request.object.metadata.annotations.\"security.break-glass/requested-by\" || '' }}"
+              - key: "{{ approvalRecords[0].data.requestedBy || '' }}"
                 operator: Equals
-                value: "{{ request.object.metadata.annotations.\"security.break-glass/approved-by\" || '' }}"
+                value: "{{ approvalRecords[0].data.approvedBy || '' }}"
 
     - name: policy-exception-must-not-be-expired
       match:

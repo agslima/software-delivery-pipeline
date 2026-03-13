@@ -43,6 +43,7 @@ k8s/
     ├── kyverno-test.yaml
     ├── policy-test.yaml
     ├── values.yaml
+    ├── cluster-verify-test.yaml
     └── resources/
 ```
 
