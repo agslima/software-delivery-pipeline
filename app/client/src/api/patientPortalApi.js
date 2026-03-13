@@ -64,6 +64,9 @@ export async function refreshAccessToken() {
     }
 
     const data = await response.json();
+    if (!data || typeof data.accessToken !== 'string' || data.accessToken.length === 0) {
+      throw new Error('SERVER_ERROR');
+    }
     return data.accessToken;
   } catch (err) {
     if (err.message === 'Failed to fetch' || err.message.includes('NetworkError')) {
