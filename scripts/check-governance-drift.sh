@@ -16,7 +16,7 @@ assert_contains() {
 
 echo "[governance-drift] Markdown structure assertions"
 assert_contains "readme.md" "# Governed Software Delivery Pipeline"
-assert_contains "docs/governance.md" "# Branch Protection & Governance Model"
+assert_contains "docs/governance.md" "# Delivery Governance Model"
 assert_contains "docs/threat-model.md" "# Security Controls"
 
 echo "[governance-drift] Reference assertions: workflow names and policy thresholds"
