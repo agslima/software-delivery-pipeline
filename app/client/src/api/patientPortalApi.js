@@ -121,7 +121,18 @@ async function fetchWithTokenRefresh(url, token, options = {}, onTokenRefresh) {
    *
    * @param {string} activeToken - Access token to send with the request.
    * @returns {Promise<Response>} Fetch response for the requested resource.
-   */
+let refreshInFlight = null;
+
+async function getRefreshedAccessToken() {
+  if (!refreshInFlight) {
+    refreshInFlight = refreshAccessToken().finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
+}
+
+async function fetchWithTokenRefresh(url, token, options = {}, onTokenRefresh) {
   const performRequest = async (activeToken) =>
     fetch(url, {
       ...options,
@@ -135,7 +146,7 @@ async function fetchWithTokenRefresh(url, token, options = {}, onTokenRefresh) {
     return { response, token: activeToken };
   }
 
-  activeToken = await refreshAccessToken();
+  activeToken = await getRefreshedAccessToken();
   if (typeof onTokenRefresh === 'function') {
     onTokenRefresh(activeToken);
   } else {
