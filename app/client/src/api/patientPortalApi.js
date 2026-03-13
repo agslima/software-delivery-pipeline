@@ -217,9 +217,13 @@ export async function getMyPrescriptions(token, onTokenRefresh) {
  * @returns {Promise<object>} Prescription detail payload.
  */
 export async function getMyPrescription(id, token, onTokenRefresh) {
+  const prescriptionId = encodeURIComponent(String(id));
   const { response, token: activeToken } = await fetchWithTokenRefresh(
-    `/api/v2/patient/me/prescriptions/${id}`,
+    `/api/v2/patient/me/prescriptions/${prescriptionId}`,
     token,
+    {},
+    onTokenRefresh,
+  );
     {},
     onTokenRefresh,
   );
