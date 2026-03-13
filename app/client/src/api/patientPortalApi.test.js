@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   loginPatient,
+  refreshAccessToken,
   verifyMfa,
   getMyPrescriptions,
   getMyPrescription,
@@ -23,7 +24,7 @@ describe('patientPortalApi', () => {
     fetch.mockResolvedValue({
       ok: true,
       status: 200,
-      json: vi.fn().mockResolvedValue({ accessToken: 'jwt-1', refreshToken: 'refresh-1', user: { id: 'p-1' } }),
+      json: vi.fn().mockResolvedValue({ accessToken: 'jwt-1', user: { id: 'p-1' } }),
     });
 
     await expect(loginPatient('patient@example.test', 'Password123!')).resolves.toEqual({
@@ -89,7 +90,7 @@ describe('patientPortalApi', () => {
     fetch.mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: vi.fn().mockResolvedValue({ accessToken: 'jwt-2', refreshToken: 'r-1' }),
+      json: vi.fn().mockResolvedValue({ accessToken: 'jwt-2' }),
     });
 
     await expect(verifyMfa('123456', 'mfa-token')).resolves.toEqual({
@@ -131,6 +132,7 @@ describe('patientPortalApi', () => {
     fetch.mockResolvedValueOnce({ ok: true, status: 200, json: vi.fn().mockResolvedValue({ prescriptions: [] }) });
     await expect(getMyPrescriptions('jwt')).resolves.toEqual({ prescriptions: [] });
 
+    fetch.mockResolvedValueOnce({ ok: false, status: 401 });
     fetch.mockResolvedValueOnce({ ok: false, status: 401 });
     await expect(getMyPrescriptions('jwt')).rejects.toMatchObject({ message: 'SESSION_EXPIRED' });
 
@@ -175,6 +177,59 @@ describe('patientPortalApi', () => {
     );
   });
 
+  it('refreshAccessToken uses the refresh cookie and maps failures', async () => {
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: vi.fn().mockResolvedValue({ accessToken: 'jwt-refresh' }),
+    });
+
+    await expect(refreshAccessToken()).resolves.toEqual('jwt-refresh');
+    expect(fetch).toHaveBeenNthCalledWith(1, '/api/v2/auth/refresh', {
+      method: 'POST',
+      credentials: 'include',
+    });
+
+    fetch.mockResolvedValueOnce({ ok: false, status: 401 });
+    await expect(refreshAccessToken()).rejects.toMatchObject({ message: 'SESSION_EXPIRED' });
+
+    fetch.mockRejectedValueOnce(new Error('Failed to fetch'));
+    await expect(refreshAccessToken()).rejects.toMatchObject({ message: 'NETWORK_ERROR' });
+  });
+
+  it('retries protected requests after refreshing the access token', async () => {
+    const onTokenRefresh = vi.fn();
+    fetch
+      .mockResolvedValueOnce({ ok: false, status: 401 })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue({ accessToken: 'jwt-rotated' }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue({ prescriptions: [] }),
+      });
+
+    await expect(getMyPrescriptions('jwt-old', onTokenRefresh)).resolves.toEqual({
+      prescriptions: [],
+      accessToken: 'jwt-rotated',
+    });
+
+    expect(onTokenRefresh).toHaveBeenCalledWith('jwt-rotated');
+    expect(fetch).toHaveBeenNthCalledWith(1, '/api/v2/patient/me/prescriptions', {
+      headers: { Authorization: 'Bearer jwt-old' },
+    });
+    expect(fetch).toHaveBeenNthCalledWith(2, '/api/v2/auth/refresh', {
+      method: 'POST',
+      credentials: 'include',
+    });
+    expect(fetch).toHaveBeenNthCalledWith(3, '/api/v2/patient/me/prescriptions', {
+      headers: { Authorization: 'Bearer jwt-rotated' },
+    });
+  });
+
   it('maps MFA status/enroll/disable success and auth failures', async () => {
     fetch.mockResolvedValueOnce({ ok: true, status: 200, json: vi.fn().mockResolvedValue({ enabled: true }) });
     await expect(getMfaStatus('jwt')).resolves.toEqual({ enabled: true });
@@ -183,24 +238,18 @@ describe('patientPortalApi', () => {
     });
 
     fetch.mockResolvedValueOnce({ ok: false, status: 401 });
+    fetch.mockResolvedValueOnce({ ok: false, status: 401 });
     await expect(getMfaStatus('jwt')).rejects.toMatchObject({ message: 'SESSION_EXPIRED' });
     expect(fetch).toHaveBeenNthCalledWith(2, '/api/v2/auth/mfa/status', {
       headers: { Authorization: 'Bearer jwt' },
     });
+    expect(fetch).toHaveBeenNthCalledWith(3, '/api/v2/auth/refresh', {
+      method: 'POST',
+      credentials: 'include',
+    });
 
     fetch.mockResolvedValueOnce({ ok: true, status: 200, json: vi.fn().mockResolvedValue({ secret: 'ABC' }) });
     await expect(enrollMfa('jwt', 'phone')).resolves.toEqual({ secret: 'ABC' });
-    expect(fetch).toHaveBeenNthCalledWith(3, '/api/v2/auth/mfa/enroll', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: 'Bearer jwt',
-      },
-      body: JSON.stringify({ label: 'phone' }),
-    });
-
-    fetch.mockResolvedValueOnce({ ok: false, status: 401 });
-    await expect(enrollMfa('jwt', 'phone')).rejects.toMatchObject({ message: 'SESSION_EXPIRED' });
     expect(fetch).toHaveBeenNthCalledWith(4, '/api/v2/auth/mfa/enroll', {
       method: 'POST',
       headers: {
@@ -210,16 +259,32 @@ describe('patientPortalApi', () => {
       body: JSON.stringify({ label: 'phone' }),
     });
 
+    fetch.mockResolvedValueOnce({ ok: false, status: 401 });
+    fetch.mockResolvedValueOnce({ ok: false, status: 401 });
+    await expect(enrollMfa('jwt', 'phone')).rejects.toMatchObject({ message: 'SESSION_EXPIRED' });
+    expect(fetch).toHaveBeenNthCalledWith(5, '/api/v2/auth/mfa/enroll', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer jwt',
+      },
+      body: JSON.stringify({ label: 'phone' }),
+    });
+    expect(fetch).toHaveBeenNthCalledWith(6, '/api/v2/auth/refresh', {
+      method: 'POST',
+      credentials: 'include',
+    });
+
     fetch.mockResolvedValueOnce({ ok: true, status: 200, json: vi.fn().mockResolvedValue({ ok: true }) });
     await expect(disableMfa('jwt')).resolves.toEqual({ ok: true });
-    expect(fetch).toHaveBeenNthCalledWith(5, '/api/v2/auth/mfa/disable', {
+    expect(fetch).toHaveBeenNthCalledWith(7, '/api/v2/auth/mfa/disable', {
       method: 'POST',
       headers: { Authorization: 'Bearer jwt' },
     });
 
     fetch.mockResolvedValueOnce({ ok: false, status: 500 });
     await expect(disableMfa('jwt')).rejects.toMatchObject({ message: 'SERVER_ERROR' });
-    expect(fetch).toHaveBeenNthCalledWith(6, '/api/v2/auth/mfa/disable', {
+    expect(fetch).toHaveBeenNthCalledWith(8, '/api/v2/auth/mfa/disable', {
       method: 'POST',
       headers: { Authorization: 'Bearer jwt' },
     });

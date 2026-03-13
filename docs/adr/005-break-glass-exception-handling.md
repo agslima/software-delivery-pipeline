@@ -121,12 +121,28 @@ A standardized `PolicyException` object is used to trigger exception handling:
 apiVersion: kyverno.io/v2
 kind: PolicyException
 metadata:
+  name: break-glass-example
   namespace: policy-exceptions
   annotations:
     security.break-glass/ticket: "INC-1234"
     security.break-glass/requested-by: "application-team"
     security.break-glass/approved-by: "platform-oncall"
     security.break-glass/expires-at: "2026-12-31T23:59:59Z"
+spec:
+  background: false
+  match:
+    any:
+      - resources:
+          kinds:
+            - Deployment
+          names:
+            - exception-target
+          namespaces:
+            - production
+  exceptions:
+    - policyName: verify-signature
+      ruleNames:
+        - require-image-signature
 
 
 ---
@@ -159,16 +175,14 @@ Break-glass usage must be committed to Git and carry explicit approval metadata 
 - `security.break-glass/ticket` must reference a tracked incident/change (`INC-*` or `CHG-*`)
 - `PolicyException` objects must live in the `policy-exceptions` namespace
 - `security.break-glass/requested-by` must identify the requester
-- `security.break-glass/approved-by` must identify the controlled approver recorded in the authoritative approval record
-- A separately managed approval record in `policy-exceptions` must exist for the `PolicyException` name and carry verified `ticket`, `requestedBy`, and `approvedBy` fields
-- The authoritative approval record must enforce separation of duties (`requestedBy` and `approvedBy` differ)
+- `security.break-glass/approved-by` is the authoritative approval field on the `PolicyException` and must be one of `platform-oncall` or `repository-administrator` (validated against `^(platform-oncall|repository-administrator)$`)
+- The `PolicyException` annotations are the approval record for break-glass review and must preserve separation of duties (`security.break-glass/requested-by` and `security.break-glass/approved-by` differ)
 
 Break-glass usage must be committed to Git as a separate exception object with an explicit lifecycle:
 
 - Create a `PolicyException` manifest in the `policy-exceptions` namespace to enable the exception
-- Create or verify the controller-managed approval record for that `PolicyException` in `policy-exceptions`
 - Verify the exception exists in-cluster (`kubectl get policyexception -n policy-exceptions`)
-- Verify the approval record is present and marked verified before relying on the exception
+- Verify the `PolicyException` annotations carry the ticket, requester, approver, and expiry values required by policy before relying on the exception
 - Delete or revoke the `PolicyException` object once the blocking condition is resolved to restore enforcement
 
 Manifest changes require a Pull Request

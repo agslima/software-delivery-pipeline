@@ -70,6 +70,17 @@ CHECKS_FILE="$OUTPUT_DIR/checks.json"
 RAW_DIR="$OUTPUT_DIR/raw"
 REPORT_JSON="$OUTPUT_DIR/report.json"
 SUMMARY_MD="$OUTPUT_DIR/summary.md"
+NORMALIZE_JQ='def normalize:
+  if type == "object" then
+    to_entries
+    | sort_by(.key)
+    | map(.value |= normalize)
+    | from_entries
+  elif type == "array" then
+    map(normalize)
+  else
+    .
+  end;'
 
 printf '[]\n' > "$CHECKS_FILE"
 
@@ -228,18 +239,7 @@ record_comparison \
   "$EXPECTED_TAG_FILE" \
   "Tag ruleset enforcement must stay active."
 
-EXPECTED_BRANCH_RULES="$(jq -c '
-  def normalize:
-    if type == "object" then
-      to_entries
-      | sort_by(.key)
-      | map(.value |= normalize)
-      | from_entries
-    elif type == "array" then
-      map(normalize)
-    else
-      .
-    end;
+EXPECTED_BRANCH_RULES="$(jq -c "$NORMALIZE_JQ
   (.rules // [])
   | map(
       if .type == "pull_request" then
@@ -263,20 +263,9 @@ EXPECTED_BRANCH_RULES="$(jq -c '
     )
   | sort_by(.type)
   | normalize
-' <<<"$EXPECTED_BRANCH_RULESET")"
+" <<<"$EXPECTED_BRANCH_RULESET")"
 
-LIVE_BRANCH_RULES="$(jq -c '
-  def normalize:
-    if type == "object" then
-      to_entries
-      | sort_by(.key)
-      | map(.value |= normalize)
-      | from_entries
-    elif type == "array" then
-      map(normalize)
-    else
-      .
-    end;
+LIVE_BRANCH_RULES="$(jq -c "$NORMALIZE_JQ
   (.rules // [])
   | map(
       if .type == "pull_request" then
@@ -300,7 +289,7 @@ LIVE_BRANCH_RULES="$(jq -c '
     )
   | sort_by(.type)
   | normalize
-' <<<"$LIVE_BRANCH_RULESET")"
+" <<<"$LIVE_BRANCH_RULESET")"
 
 record_comparison \
   "branch-rules-payload" "branch_protection" "high" \
@@ -308,18 +297,7 @@ record_comparison \
   "$EXPECTED_BRANCH_FILE" \
   "Full branch protection rules must match the audited main-branch policy."
 
-EXPECTED_TAG_RULES="$(jq -c '
-  def normalize:
-    if type == "object" then
-      to_entries
-      | sort_by(.key)
-      | map(.value |= normalize)
-      | from_entries
-    elif type == "array" then
-      map(normalize)
-    else
-      .
-    end;
+EXPECTED_TAG_RULES="$(jq -c "$NORMALIZE_JQ
   (.rules // [])
   | map(
       if .type == "required_status_checks" then
@@ -334,20 +312,9 @@ EXPECTED_TAG_RULES="$(jq -c '
     )
   | sort_by(.type)
   | normalize
-' <<<"$EXPECTED_TAG_RULESET")"
+" <<<"$EXPECTED_TAG_RULESET")"
 
-LIVE_TAG_RULES="$(jq -c '
-  def normalize:
-    if type == "object" then
-      to_entries
-      | sort_by(.key)
-      | map(.value |= normalize)
-      | from_entries
-    elif type == "array" then
-      map(normalize)
-    else
-      .
-    end;
+LIVE_TAG_RULES="$(jq -c "$NORMALIZE_JQ
   (.rules // [])
   | map(
       if .type == "required_status_checks" then
@@ -362,7 +329,7 @@ LIVE_TAG_RULES="$(jq -c '
     )
   | sort_by(.type)
   | normalize
-' <<<"$LIVE_TAG_RULESET")"
+" <<<"$LIVE_TAG_RULESET")"
 
 record_comparison \
   "tag-rules-payload" "tag_protection" "high" \

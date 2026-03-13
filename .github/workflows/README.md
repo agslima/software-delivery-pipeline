@@ -30,6 +30,13 @@ This folder contains the active GitHub Actions workflows that power CI, security
 - Permissions/Secrets: Uses `contents: read`; live mode requires `GOVERNANCE_AUDIT_TOKEN` with read-only repository Administration access.
 - Maintenance notes: Keep `.github/rulesets/*.json`, `.github/governance-settings-audit.json`, and `docs/governance.md` aligned when GitHub governance settings intentionally change.
 
+**ci-governance-slo-report.yml**
+- Name: Governance SLO Report
+- Triggers: weekly schedule (Mondays at 05:00 UTC), manual
+- Summary: Runs `scripts/report-governance-slos.py` against live GitHub Actions and issue telemetry or deterministic fixtures to produce governance SLO reporting for release-gate reliability, remediation lead time, and policy-test health.
+- Outputs: Artifact `governance-slo-report` containing `summary.md` and `report.json`.
+- Permissions/Secrets: Uses `contents: read`, `actions: read`, and `issues: read`; live mode uses `GITHUB_TOKEN`.
+
 **ci-weekly-dast.yml**
 - Name: DAST Scan
 - Triggers: schedule Sundays at 04:00 UTC, manual

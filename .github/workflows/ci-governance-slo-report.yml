@@ -1,0 +1,70 @@
+name: Governance SLO Report
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Report source: live repository telemetry or local fixtures"
+        required: true
+        default: live
+        type: choice
+        options:
+          - live
+          - fixtures-pass
+          - fixtures-breach
+  schedule:
+    - cron: '0 5 * * 1'
+
+permissions:
+  contents: read
+  actions: read
+  issues: read
+
+jobs:
+  governance-slo-report:
+    name: Governance SLO Report
+    runs-on: ubuntu-latest
+    env:
+      SLO_MODE: ${{ inputs.mode || 'live' }}
+      GOVERNANCE_SLO_REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
+
+      - name: Run governance SLO report (live)
+        if: env.SLO_MODE == 'live'
+        run: |
+          set -euo pipefail
+          chmod +x scripts/report-governance-slos.py
+          scripts/report-governance-slos.py \
+            --repo "${GOVERNANCE_SLO_REPO}" \
+            --output-dir artifacts/governance-slo-report
+
+      - name: Run governance SLO report (fixtures-pass)
+        if: env.SLO_MODE == 'fixtures-pass'
+        run: |
+          set -euo pipefail
+          chmod +x scripts/report-governance-slos.py
+          scripts/report-governance-slos.py \
+            --repo "${GOVERNANCE_SLO_REPO}" \
+            --fixtures-dir scripts/fixtures/governance-slo/pass \
+            --output-dir artifacts/governance-slo-report
+
+      - name: Run governance SLO report (fixtures-breach)
+        if: env.SLO_MODE == 'fixtures-breach'
+        run: |
+          set -euo pipefail
+          chmod +x scripts/report-governance-slos.py
+          scripts/report-governance-slos.py \
+            --repo "${GOVERNANCE_SLO_REPO}" \
+            --fixtures-dir scripts/fixtures/governance-slo/breach \
+            --output-dir artifacts/governance-slo-report
+
+      - name: Upload governance SLO report artifact
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f #v7.0.0
+        with:
+          name: governance-slo-report
+          path: artifacts/governance-slo-report
+          retention-days: 90

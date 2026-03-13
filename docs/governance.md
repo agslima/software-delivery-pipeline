@@ -114,6 +114,7 @@ Automated evidence source:
 - [ ] Confirm protected release tag pattern `v*.*.*` exists and still restricts who can create release tags.
 - [ ] Confirm production deployment environment still restricts deployments to release tags and required reviewers.
 - [ ] Confirm the latest `governance-settings-audit` artifact status is `pass` and attach its `summary.md` or `report.json` to the audit record.
+- [ ] Confirm the latest `governance-slo-report` artifact reflects acceptable release-gate reliability, remediation lead time, and policy-test health, and attach `summary.md` or `report.json` to the audit record.
 - [ ] Confirm README claim/control wording still distinguishes posture evidence (for example Snyk snapshots) from release-blocking controls (`trivy-scan` and `dast-analysis`) and remains aligned with `docs/threat-model.md`.
 - [ ] Confirm any exceptions (break-glass or temporary override) were documented, approved, and time-bounded.
 
@@ -167,6 +168,16 @@ Override expectations:
 - reviewable: `ticket` must link the exception to a tracked work item or audit record
 
 Remove the override as soon as the metadata is refreshed. Do not use recurring or open-ended overrides.
+
+## Governance SLOs
+
+Governance operating targets and the weekly report path are defined in [`docs/governance-slos.md`](docs/governance-slos.md).
+
+Automated reporting source:
+
+- Workflow: `.github/workflows/ci-governance-slo-report.yml`
+- Artifact: `governance-slo-report`
+- Files: `summary.md`, `report.json`
 
 ## GitHub as the Control Plane
 

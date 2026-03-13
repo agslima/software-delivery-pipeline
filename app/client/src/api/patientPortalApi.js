@@ -1,3 +1,5 @@
+import { updateStoredSessionToken } from '../sessionStorage';
+
 export async function loginPatient(email, password) {
   try {
     const response = await fetch('/api/v2/auth/login', {
@@ -34,6 +36,74 @@ export async function loginPatient(email, password) {
   }
 }
 
+export async function refreshAccessToken() {
+  try {
+    const response = await fetch('/api/v2/auth/refresh', {
+      method: 'POST',
+      credentials: 'include',
+    });
+
+    if (response.status === 401) {
+      throw new Error('SESSION_EXPIRED');
+    }
+
+    if (!response.ok) {
+      throw new Error('SERVER_ERROR');
+    }
+
+    const data = await response.json();
+    return data.accessToken;
+  } catch (err) {
+    if (err.message === 'Failed to fetch' || err.message.includes('NetworkError')) {
+      throw new Error('NETWORK_ERROR');
+    }
+    throw err;
+  }
+}
+
+function buildAuthHeaders(token, headers = {}) {
+  return {
+    ...headers,
+    Authorization: `Bearer ${token}`,
+  };
+}
+
+function withRefreshedToken(payload, originalToken, activeToken) {
+  if (originalToken === activeToken) {
+    return payload;
+  }
+
+  return {
+    ...payload,
+    accessToken: activeToken,
+  };
+}
+
+async function fetchWithTokenRefresh(url, token, options = {}, onTokenRefresh) {
+  const performRequest = async (activeToken) =>
+    fetch(url, {
+      ...options,
+      headers: buildAuthHeaders(activeToken, options.headers),
+    });
+
+  let activeToken = token;
+  let response = await performRequest(activeToken);
+
+  if (response.status !== 401) {
+    return { response, token: activeToken };
+  }
+
+  activeToken = await refreshAccessToken();
+  if (typeof onTokenRefresh === 'function') {
+    onTokenRefresh(activeToken);
+  } else {
+    updateStoredSessionToken(activeToken);
+  }
+
+  response = await performRequest(activeToken);
+  return { response, token: activeToken };
+}
+
 export async function verifyMfa(code, mfaToken) {
   try {
     const response = await fetch('/api/v2/auth/mfa/verify', {
@@ -65,23 +135,30 @@ export async function verifyMfa(code, mfaToken) {
   }
 }
 
-export async function getMyPrescriptions(token) {
-  const response = await fetch('/api/v2/patient/me/prescriptions', {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export async function getMyPrescriptions(token, onTokenRefresh) {
+  const { response, token: activeToken } = await fetchWithTokenRefresh(
+    '/api/v2/patient/me/prescriptions',
+    token,
+    {},
+    onTokenRefresh,
+  );
 
   if (!response.ok) {
     if (response.status === 401) throw new Error('SESSION_EXPIRED');
     throw new Error('SERVER_ERROR');
   }
 
-  return response.json();
+  const data = await response.json();
+  return withRefreshedToken(data, token, activeToken);
 }
 
-export async function getMyPrescription(id, token) {
-  const response = await fetch(`/api/v2/patient/me/prescriptions/${id}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export async function getMyPrescription(id, token, onTokenRefresh) {
+  const { response, token: activeToken } = await fetchWithTokenRefresh(
+    `/api/v2/patient/me/prescriptions/${id}`,
+    token,
+    {},
+    onTokenRefresh,
+  );
 
   if (!response.ok) {
     if (response.status === 401) throw new Error('SESSION_EXPIRED');
@@ -90,50 +167,63 @@ export async function getMyPrescription(id, token) {
     throw new Error('SERVER_ERROR');
   }
 
-  return response.json();
+  const data = await response.json();
+  return withRefreshedToken(data, token, activeToken);
 }
 
-export async function getMfaStatus(token) {
-  const response = await fetch('/api/v2/auth/mfa/status', {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export async function getMfaStatus(token, onTokenRefresh) {
+  const { response, token: activeToken } = await fetchWithTokenRefresh(
+    '/api/v2/auth/mfa/status',
+    token,
+    {},
+    onTokenRefresh,
+  );
 
   if (!response.ok) {
     if (response.status === 401) throw new Error('SESSION_EXPIRED');
     throw new Error('SERVER_ERROR');
   }
 
-  return response.json();
+  const data = await response.json();
+  return withRefreshedToken(data, token, activeToken);
 }
 
-export async function enrollMfa(token, label) {
-  const response = await fetch('/api/v2/auth/mfa/enroll', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
+export async function enrollMfa(token, label, onTokenRefresh) {
+  const { response, token: activeToken } = await fetchWithTokenRefresh(
+    '/api/v2/auth/mfa/enroll',
+    token,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label }),
     },
-    body: JSON.stringify({ label }),
-  });
+    onTokenRefresh,
+  );
 
   if (!response.ok) {
     if (response.status === 401) throw new Error('SESSION_EXPIRED');
     throw new Error('SERVER_ERROR');
   }
 
-  return response.json();
+  const data = await response.json();
+  return withRefreshedToken(data, token, activeToken);
 }
 
-export async function disableMfa(token) {
-  const response = await fetch('/api/v2/auth/mfa/disable', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export async function disableMfa(token, onTokenRefresh) {
+  const { response, token: activeToken } = await fetchWithTokenRefresh(
+    '/api/v2/auth/mfa/disable',
+    token,
+    {
+      method: 'POST',
+    },
+    onTokenRefresh,
+  );
 
   if (!response.ok) {
     if (response.status === 401) throw new Error('SESSION_EXPIRED');
     throw new Error('SERVER_ERROR');
   }
 
-  return response.json();
+  const data = await response.json();
+  return withRefreshedToken(data, token, activeToken);
 }

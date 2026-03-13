@@ -12,10 +12,10 @@ It focuses on software supply-chain risks and the controls implemented in this r
 
 The security model follows a zero-trust posture for delivery:
 
-- We do not trust source changes by default (PR checks + review gates).
-- We do not trust code, dependencies, or infrastructure config by default (Gitleaks + Trivy scanning with workflow gates).
-- We do not trust artifacts by default (keyless signatures + attestations).
-- We do not trust runtime admission by default (Kyverno verification).
+- Reject source changes by default (PR checks + review gates).
+- Treat code, dependencies, and infrastructure config as untrusted by default (Gitleaks + Trivy scanning with workflow gates).
+- Require artifact verification by default (keyless signatures + attestations).
+- Enforce runtime admission checks by default (Kyverno verification).
 
 ---
 

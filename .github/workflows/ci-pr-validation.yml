@@ -105,8 +105,8 @@ jobs:
         if: matrix.service == 'backend'
         run: |
           kyverno test k8s/tests/
-          kyverno test k8s/tests/ -f policy-test.yaml
-          kyverno test k8s/tests/ -f cluster-verify-test.yaml
+          kyverno test k8s/tests/ -f k8s/tests/policy-test.yaml
+          kyverno test k8s/tests/ -f k8s/tests/cluster-verify-test.yaml
 
   # ==================================================================
   # JOB 3: Governance & Security Scan (Code + IaC)
@@ -151,7 +151,7 @@ jobs:
             trivy-db-${{ runner.os }}-
       
       - name: Create Cache Dir
-        run: mkdir -p ${{ env.TRIVY_CACHE_DIR }}
+        run: mkdir -p "${{ env.TRIVY_CACHE_DIR }}"
         
       - name: Set scan skip dirs
         id: vars

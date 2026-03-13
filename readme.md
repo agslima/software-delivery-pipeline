@@ -116,6 +116,8 @@ graph TD
 
 For the one-page claim-to-enforcement map, see [`docs/governance-evidence-index.md`](docs/governance-evidence-index.md). For branch protection, code ownership, and governance operating guidance, see [`docs/governance.md`](docs/governance.md).
 
+Governance operating targets and weekly reporting are defined in [`docs/governance-slos.md`](docs/governance-slos.md).
+
 ---
 
 ## Quality & Risk Controls

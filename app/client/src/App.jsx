@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   loginPatient,
   verifyMfa,
@@ -8,20 +8,10 @@ import {
   enrollMfa,
   disableMfa,
 } from './api/patientPortalApi';
+import { SESSION_STORAGE_KEY, clearStoredSession, readStoredSession, writeStoredSession } from './sessionStorage';
 import PatientLogin from './components/PatientLogin';
 import PatientPortal from './components/PatientPortal';
 import './styles/Portal.css';
-
-const sessionStorageKey = import.meta.env.VITE_PATIENT_PORTAL_SESSION_STORAGE_KEY || 'patient_portal_session';
-
-const readSession = () => {
-  try {
-    const raw = sessionStorage.getItem(sessionStorageKey);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-};
 
 const isPatientSession = (session) => Boolean(session?.token && session?.user?.role === 'patient');
 
@@ -35,11 +25,11 @@ const isPatientSession = (session) => Boolean(session?.token && session?.user?.r
  * @returns {JSX.Element} The rendered application UI based on authentication and user role.
  */
 export default function App() {
-  const [session, setSession] = useState(readSession);
+  const [session, setSession] = useState(readStoredSession);
   const [prescriptions, setPrescriptions] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [prescriptionDetail, setPrescriptionDetail] = useState(null);
-  const [loadingList, setLoadingList] = useState(() => Boolean(readSession()?.token));
+  const [loadingList, setLoadingList] = useState(() => Boolean(readStoredSession()?.token));
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [portalError, setPortalError] = useState(null);
   const [mfaChallenge, setMfaChallenge] = useState(null);
@@ -53,11 +43,24 @@ export default function App() {
 
   useEffect(() => {
     if (session) {
-      sessionStorage.setItem(sessionStorageKey, JSON.stringify(session));
+      writeStoredSession(session);
     } else {
-      sessionStorage.removeItem(sessionStorageKey);
+      clearStoredSession();
     }
   }, [session]);
+
+  const handleTokenRefresh = useCallback((nextToken) => {
+    setSession((currentSession) => {
+      if (!currentSession || currentSession.token === nextToken) {
+        return currentSession;
+      }
+
+      return {
+        ...currentSession,
+        token: nextToken,
+      };
+    });
+  }, []);
 
   const handleLogout = () => {
     setSession(null);
@@ -136,7 +139,7 @@ export default function App() {
 
     let isActive = true;
 
-    getMyPrescriptions(session.token)
+    getMyPrescriptions(session.token, handleTokenRefresh)
       .then((data) => {
         if (!isActive) return;
         const list = data.prescriptions || [];
@@ -162,13 +165,13 @@ export default function App() {
     return () => {
       isActive = false;
     };
-  }, [session]);
+  }, [session, handleTokenRefresh]);
 
   useEffect(() => {
     if (!session?.token) return;
     let isActive = true;
 
-    getMfaStatus(session.token)
+    getMfaStatus(session.token, handleTokenRefresh)
       .then((data) => {
         if (isActive) setMfaStatus(data);
       })
@@ -182,14 +185,14 @@ export default function App() {
     return () => {
       isActive = false;
     };
-  }, [session?.token]);
+  }, [session?.token, handleTokenRefresh]);
 
   useEffect(() => {
     if (!isPatientSession(session) || !selectedId) return;
 
     let isActive = true;
 
-    getMyPrescription(selectedId, session.token)
+    getMyPrescription(selectedId, session.token, handleTokenRefresh)
       .then((data) => {
         if (isActive) setPrescriptionDetail(data);
       })
@@ -212,7 +215,7 @@ export default function App() {
     return () => {
       isActive = false;
     };
-  }, [selectedId, session]);
+  }, [selectedId, session, handleTokenRefresh]);
 
   const handleEnrollMfa = async () => {
     if (!session?.token) return;
@@ -220,7 +223,7 @@ export default function App() {
     setMfaEnrollError(null);
     setMfaBanner(null);
     try {
-      const result = await enrollMfa(session.token, session.user?.email || 'StayHealthy');
+      const result = await enrollMfa(session.token, session.user?.email || 'StayHealthy', handleTokenRefresh);
       setMfaEnrollData(result);
       setMfaStatus({ configured: true, enabled: false });
     } catch (err) {
@@ -264,7 +267,7 @@ export default function App() {
     setMfaVerifyError(null);
     setMfaBanner(null);
     try {
-      await disableMfa(session.token);
+      await disableMfa(session.token, handleTokenRefresh);
       setMfaStatus({ configured: false, enabled: false });
       setMfaEnrollData(null);
       setMfaBanner('Multi-factor authentication disabled.');
@@ -328,3 +331,5 @@ export default function App() {
     />
   );
 }
+
+export { SESSION_STORAGE_KEY };

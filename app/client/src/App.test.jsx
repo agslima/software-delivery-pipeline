@@ -3,6 +3,7 @@ import { render, screen, waitFor } from './test-utils';
 import userEvent from '@testing-library/user-event';
 import App from './App';
 import * as api from './api/patientPortalApi';
+import { SESSION_STORAGE_KEY } from './sessionStorage';
 
 vi.mock('./api/patientPortalApi');
 
@@ -150,8 +151,8 @@ describe('App Integration', () => {
       expect(api.verifyMfa).toHaveBeenCalledWith('123456', 'mfa-token-1');
     });
     await waitFor(() => {
-      expect(api.getMyPrescriptions).toHaveBeenCalledWith('token-after-mfa');
-      expect(sessionStorage.getItem('patient_portal_session')).toEqual(
+      expect(api.getMyPrescriptions).toHaveBeenCalledWith('token-after-mfa', expect.any(Function));
+      expect(sessionStorage.getItem(SESSION_STORAGE_KEY)).toEqual(
         JSON.stringify({
           token: 'token-after-mfa',
           user: { id: 'patient-2', email, role: 'patient', mfaEnabled: true },
@@ -185,8 +186,8 @@ describe('App Integration', () => {
 
     await waitFor(() => {
       expect(api.loginPatient).toHaveBeenCalledWith(email, password);
-      expect(api.getMyPrescriptions).toHaveBeenCalledWith(token);
-      expect(sessionStorage.getItem('patient_portal_session')).toEqual(
+      expect(api.getMyPrescriptions).toHaveBeenCalledWith(token, expect.any(Function));
+      expect(sessionStorage.getItem(SESSION_STORAGE_KEY)).toEqual(
         JSON.stringify({
           token,
           user: { id: 'patient-3', email, role: 'patient', mfaEnabled: false },
@@ -197,7 +198,7 @@ describe('App Integration', () => {
     rejectPrescriptions(new Error('SESSION_EXPIRED'));
 
     await waitFor(() => {
-      expect(sessionStorage.getItem('patient_portal_session')).toBeNull();
+      expect(sessionStorage.getItem(SESSION_STORAGE_KEY)).toBeNull();
       expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /secure login/i })).toBeInTheDocument();
@@ -285,7 +286,7 @@ describe('App Integration', () => {
     });
     expect(await screen.findByText(/multi-factor authentication enabled/i)).toBeInTheDocument();
     await waitFor(() => {
-      expect(sessionStorage.getItem('patient_portal_session')).toEqual(
+      expect(sessionStorage.getItem(SESSION_STORAGE_KEY)).toEqual(
         JSON.stringify({
           token: 'token-after-enable',
           user: { id: 'patient-5', email, role: 'patient', mfaEnabled: false },
@@ -295,7 +296,7 @@ describe('App Integration', () => {
 
     await user.click(screen.getByRole('button', { name: /disable mfa/i }));
     await waitFor(() => {
-      expect(api.disableMfa).toHaveBeenCalledWith('token-after-enable');
+      expect(api.disableMfa).toHaveBeenCalledWith('token-after-enable', expect.any(Function));
     });
     expect(await screen.findByText(/multi-factor authentication disabled/i)).toBeInTheDocument();
   });

@@ -257,13 +257,13 @@ Convert the alignment review into execution-tracked work packages so maintainers
 
 - **Problem statement:** Governance performance is described qualitatively; operational targets are not yet formalized.
 - **Tasks**
-  - [ ] Define SLOs for release-gate reliability, remediation lead time, and policy-test health.
-  - [ ] Add periodic reporting mechanism (dashboard/report artifact).
-  - [ ] Define breach response and ownership.
+  - [x] Define SLOs for release-gate reliability, remediation lead time, and policy-test health.
+  - [x] Add periodic reporting mechanism (dashboard/report artifact).
+  - [x] Define breach response and ownership.
 - **Deliverables**
   - Governance SLO definition doc + reporting path.
 - **Acceptance criteria**
-  - [ ] SLOs are measurable from existing telemetry/artifacts.
+  - [x] SLOs are measurable from existing telemetry/artifacts.
 - **Evidence required**
   - SLO doc.
   - Sample report output.
