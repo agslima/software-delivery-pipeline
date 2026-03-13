@@ -118,6 +118,8 @@ jobs:
       contents: read
       pull-requests: write
       security-events: write
+    env:
+      TRIVY_CACHE_DIR: ${{ github.workspace }}/.trivy-cache
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
@@ -131,7 +133,7 @@ jobs:
 
       # 1. Secret Scanning
       - name: Secret Scanning (Gitleaks)
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v2.3.9
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -146,6 +148,10 @@ jobs:
           key: trivy-db-${{ runner.os }}-${{ github.workflow }}-${{ steps.trivy-db-key.outputs.week }}
           restore-keys: |
             trivy-db-${{ runner.os }}-
+      
+      - name: Create Cache Dir
+        run: mkdir -p ${{ env.TRIVY_CACHE_DIR }}
+        
       - name: Set scan skip dirs
         id: vars
         run: |
@@ -154,7 +160,7 @@ jobs:
           echo "FS_SKIP_DIRS=node_modules,dist,build,vendor,coverage,.git,.cache,.venv,tmp" >> "$GITHUB_OUTPUT"
           echo "CONFIG_SKIP_DIRS=k8s/tests,node_modules,dist,build,vendor,coverage,.git,.cache,.venv,tmp" >> "$GITHUB_OUTPUT"
       
-      # 4. TRIVY SCAN: Filesystem (Dependencies & Code Secrets)
+      # TRIVY SCAN: Filesystem (Dependencies & Code Secrets)
       - name: Trivy Scan - Root FS
         id: trivy-scan
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
