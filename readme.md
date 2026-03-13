@@ -38,7 +38,7 @@ This is a full-stack reference implementation of a governed delivery pipeline, d
 - Runtime admission validation tied to build identity
 
 > [!NOTE]
-> The application logic is intentionally simple. The value of this repository lies in the **delivery architecture, security controls, and governance model**. For more details about the application, please see the **[`app/readme.md`](https://github.com/agslima/software-delivery-pipeline/blob/main/app/readme.md)**.
+> The Single Page Application (SPA) logic is intentionally simple. The value of this repository lies in the **delivery architecture, security controls, and governance model**. For more details about the application, please see the **[`app/readme.md`](https://github.com/agslima/software-delivery-pipeline/blob/main/app/readme.md)**.
 
 ---
 
@@ -111,10 +111,6 @@ graph TD
 ```
 
 > This pipeline is intentionally **fail-fast**: artifacts may be built and pushed before later release gates complete, but they are not signed, trusted, or promoted unless all required quality gates pass.
-
-For the one-page claim-to-enforcement map, see [`docs/governance-evidence-index.md`](docs/governance-evidence-index.md). For branch protection, code ownership, and governance operating guidance, see [`docs/governance.md`](docs/governance.md).
-
-Governance operating targets and weekly reporting are defined in [`docs/governance-slos.md`](docs/governance-slos.md).
 
 ---
 
