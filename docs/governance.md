@@ -1,10 +1,12 @@
-# Branch Protection & Governance Model
+# Delivery Governance Model
 
 > [!NOTE]
-> **Objective**: Make governance controls non-bypassable, even for contributors with write access.
-> This turns GitHub itself into part of the control plane.
+> Objective: Make governance controls difficult to bypass silently for standard contributors with write access, and ensure that trusted release and deployment paths remain policy-constrained, auditable, and verifiable.
+> 
+> In this model, GitHub provides the repository governance layer, trusted CI workflows extend governance into artifact creation, and Kubernetes admission policy extends governance into deployment acceptance
 
-This model ensures that no artifact can reach production unless it passes policy-defined quality, security, and provenance requirements, enforced before, during, and after CI execution.
+This document defines the repository’s delivery governance model: how changes are controlled, how releases become trusted, and how runtime policy validates that only governed artifacts are eligible for deployment.
+Within the trust boundaries described below, promotion toward production depends on policy-defined quality, security, and provenance controls enforced across repository protections, trusted CI workflows, and runtime admission checks.
 
 ## Governance Metadata
 
@@ -13,18 +15,96 @@ This model ensures that no artifact can reach production unless it passes policy
 
 ## Summary
 
-This Branch Protection Model ensures that:
+This governance model is designed so that:
+- pull requests are constrained by required quality and security checks
+- trusted releases originate from protected tags and governed workflows
+- promoted artifacts carry verifiable identity, provenance, and security evidence
+- deployment depends on repository and runtime policy alignment
+- governance drift is intended to surface through failed checks, blocked promotion, denied admission, or audit review
 
-- CI pipelines are policy-constrained
-- Releases are workflow-controlled
-- Artifacts are provable, auditable, and enforceable
-- Governance failures surface immediately — not after deployment
+---
+
+## GitHub as the Control Plane
+
+The flow below shows the normal governed path for pull requests, release creation, and runtime verification, along with the existence of a privileged emergency path that must remain explicit and auditable.
+
+```mermaid
+flowchart TB
+    %% Actors
+    Dev[Developer]
+    Admin[Admin / Release Manager]
+
+    %% GitHub Control Plane
+    subgraph GitHub["GitHub Control Plane (Governance Layer)"]
+        direction TB
+        BR[Branch Protection Rules]
+        PR[Pull Request Workflow]
+        TAG_RULE[Tag Protection Rules]
+        
+        subgraph CI["Governed CI/CD (Actions)"]
+            Check["PR Checks<br/>(Tests/Security/Lint)"]
+            Build["Release Pipeline<br/>(Build/Sign/Attest)"]
+        end
+    end
+
+    %% Standard Flow (Happy Path)
+    Dev -->|Push Code| PR
+    PR -->|Triggers| Check
+    Check -->|Status: PASS| BR
+    BR -->|Squash Merge| Main[Main Branch]
+    
+    %% Release Flow
+    Admin -->|Push Tag v1.0| TAG_RULE
+    TAG_RULE -->|Triggers| Build
+
+    %% 🚨 BREAK-GLASS FLOW 🚨
+    Admin -.->|"EMERGENCY BYPASS<br/>(Audit Logged)"| Main
+
+    %% Artifact Flow
+    Build -->|1. Sign & Attest| IMG["Signed Artifact"]
+    IMG -->|2. Push w/ Provenance| REG[Container Registry]
+
+    %% Runtime
+    subgraph RUNTIME["Runtime (Kubernetes)"]
+        ADM["Admission Controller<br/>(Kyverno)"]
+        POD[Running Workload]
+    end
+
+    REG -->|GitOps Sync| ADM
+    ADM -->|3. Verify Signature & Repo| POD
+    ADM -.->|Fail Verification| BLOCK[Block Deployment]
+
+    %% Styles
+    style Admin fill:#f96,stroke:#333,stroke-width:2px
+    style ADM fill:#f9f,stroke:#333,stroke-width:2px
+    style BLOCK fill:#ff9999,stroke:#333,stroke-width:1px
+    
+    %% Highlight the Emergency Link in Red
+    linkStyle 5 stroke:red,stroke-width:3px,stroke-dasharray: 5 5;
+```
+
+> Key Principle:
+> Governance is enforced before code merges, during artifact creation, and at runtime admission, ensuring that CI pipelines cannot be weakened without detection or enforcement failure.
+
+---
+## Trust Boundaries and Assumptions
+
+This document describes governance within the normal repository-to-release-to-deployment path. It assumes:
+- GitHub branch, tag, and environment protections remain enabled and correctly configured
+- `.github/CODEOWNERS` is present and enforced
+- GitHub OIDC identity issuance is trusted for workflow identity
+- the target container registry stores signatures and attestations correctly
+- the target Kubernetes environment enforces Kyverno validation policies
+- privileged administrative actions outside the standard delivery path are separately governed and auditable
+
+This model is intended to prevent or expose silent bypass by standard contributors with write access. It does not claim immunity to every privileged action outside the documented trust boundaries.
+
 
 ## README Claims → Controls Matrix
 
 The authoritative claim-to-enforcement index now lives in [`docs/governance-evidence-index.md`](docs/governance-evidence-index.md). Use that page as the single audit surface for README claims, workflow jobs, policy enforcement points, artifact paths, ownership, and review cadence.
 
-## GitHub Settings
+## Required Repository Settings
 
 To keep the governance claims in this document auditable and enforceable, the following repository settings must remain enabled in GitHub:
 
@@ -68,6 +148,15 @@ Use this table during reviews to ensure governance controls remain mapped to act
 | Artifact signing, SBOM, and provenance attestations | `.github/workflows/ci-release-gate.yml` signing/attestation jobs | Attestations bound to trusted workflow identity |
 | GitOps promotion manifest validation | `.github/workflows/gitops-enforce.yml` → `Validate rendered prod manifests against cluster policy` | Promotion PR creation stops if Kyverno CLI policy evaluation fails |
 
+## Prevention, Detection, and Enforcement Semantics
+
+This model uses three kinds of control:
+- **Preventive controls:** branch protection, required checks, CODEOWNERS review, protected tags, environment reviewers
+- **Detective controls:** scheduled deep scans, artifacts, SARIF outputs, audit logs, quarterly verification
+- **Enforcing controls:** release gates and runtime admission policies that validate signature and attestation requirements
+
+Not every failure mode is blocked at the same layer. Some are prevented before merge, some at release time, and some only at deployment admission or audit review.
+
 ## SLSA Level Review and Requirement Mapping
 
 Current documented posture is **SLSA Build L2 with L3-aligned controls in progress** (not a formal certification claim). 
@@ -91,32 +180,6 @@ Current documented posture is **SLSA Build L2 with L3-aligned controls in progre
 | Admission/runtime enforces provenance presence | Kyverno policy requires SLSA provenance attestation from trusted issuer/workflow | `k8s/policies/cluster/verify-slsa.yaml` + GitOps `kyverno apply` output/log |
 
 > Governance note: treat this table as the requirement-by-requirement source of truth. Update it whenever workflow jobs, predicate types, or admission policies change.
-
-### Quarterly Verification Checklist (Maintainer Audit)
-
-Run this checklist at least once per quarter and record completion in your governance evidence trail (for example, release notes, audit log, or change ticket):
-
-**Audit owner:** `@<github-handle>`
-**Verification date (UTC):** `YYYY-MM-DD`
-**Evidence link / ticket:** `<url-or-ticket-id>`
-
-Automated evidence source:
-- Workflow: `.github/workflows/ci-governance-settings-audit.yml`
-- Artifact: `governance-settings-audit`
-- Files: `summary.md`, `report.json`
-
-- [ ] Confirm `main` still requires pull requests and blocks direct pushes.
-- [ ] Confirm required status checks are still configured and match current governance-critical workflows.
-- [ ] Confirm at least one approval and stale approval dismissal are enforced.
-- [ ] Confirm `Require review from Code Owners` remains enabled.
-- [ ] Confirm `.github/CODEOWNERS` still maps governance-sensitive paths to accountable owners.
-- [ ] Confirm force pushes, deletions, and branch-protection bypass are disabled for `main`.
-- [ ] Confirm protected release tag pattern `v*.*.*` exists and still restricts who can create release tags.
-- [ ] Confirm production deployment environment still restricts deployments to release tags and required reviewers.
-- [ ] Confirm the latest `governance-settings-audit` artifact status is `pass` and attach its `summary.md` or `report.json` to the audit record.
-- [ ] Confirm the latest `governance-slo-report` artifact reflects acceptable release-gate reliability, remediation lead time, and policy-test health, and attach `summary.md` or `report.json` to the audit record.
-- [ ] Confirm README claim/control wording still distinguishes posture evidence (for example Snyk snapshots) from release-blocking controls (`trivy-scan` and `dast-analysis`) and remains aligned with `docs/threat-model.md`.
-- [ ] Confirm any exceptions (break-glass or temporary override) were documented, approved, and time-bounded.
 
 ### Governance Settings Audit Report Schema
 
@@ -178,66 +241,6 @@ Automated reporting source:
 - Workflow: `.github/workflows/ci-governance-slo-report.yml`
 - Artifact: `governance-slo-report`
 - Files: `summary.md`, `report.json`
-
-## GitHub as the Control Plane
-
-```mermaid
-flowchart TB
-    %% Actors
-    Dev[Developer]
-    Admin[Admin / Release Manager]
-
-    %% GitHub Control Plane
-    subgraph GitHub["GitHub Control Plane (Governance Layer)"]
-        direction TB
-        BR[Branch Protection Rules]
-        PR[Pull Request Workflow]
-        TAG_RULE[Tag Protection Rules]
-        
-        subgraph CI["Governed CI/CD (Actions)"]
-            Check["PR Checks<br/>(Tests/Security/Lint)"]
-            Build["Release Pipeline<br/>(Build/Sign/Attest)"]
-        end
-    end
-
-    %% Standard Flow (Happy Path)
-    Dev -->|Push Code| PR
-    PR -->|Triggers| Check
-    Check -->|Status: PASS| BR
-    BR -->|Squash Merge| Main[Main Branch]
-    
-    %% Release Flow
-    Admin -->|Push Tag v1.0| TAG_RULE
-    TAG_RULE -->|Triggers| Build
-
-    %% 🚨 BREAK-GLASS FLOW 🚨
-    Admin -.->|"EMERGENCY BYPASS<br/>(Audit Logged)"| Main
-
-    %% Artifact Flow
-    Build -->|1. Sign & Attest| IMG["Signed Artifact"]
-    IMG -->|2. Push w/ Provenance| REG[Container Registry]
-
-    %% Runtime
-    subgraph RUNTIME["Runtime (Kubernetes)"]
-        ADM["Admission Controller<br/>(Kyverno)"]
-        POD[Running Workload]
-    end
-
-    REG -->|GitOps Sync| ADM
-    ADM -->|3. Verify Signature & Repo| POD
-    ADM -.->|Fail Verification| BLOCK[Block Deployment]
-
-    %% Styles
-    style Admin fill:#f96,stroke:#333,stroke-width:2px
-    style ADM fill:#f9f,stroke:#333,stroke-width:2px
-    style BLOCK fill:#ff9999,stroke:#333,stroke-width:1px
-    
-    %% Highlight the Emergency Link in Red
-    linkStyle 5 stroke:red,stroke-width:3px,stroke-dasharray: 5 5;
-```
-
-> Key Principle:
-> Governance is enforced before code merges, during artifact creation, and at runtime admission, ensuring that CI pipelines cannot be weakened without detection or enforcement failure.
 
 ---
 
@@ -429,3 +432,29 @@ Deploy an image built locally (not by CI) to the cluster.
   kubectl apply -f k8s/tests/resources/invalid-unsigned.yaml
   # Expected: Error from server: admission webhook "validate.kyverno.svc" denied the request
 ```
+
+## Quarterly Verification Checklist (Maintainer Audit)
+
+Run this checklist at least once per quarter and record completion in your governance evidence trail (for example, release notes, audit log, or change ticket):
+
+**Audit owner:** `@<github-handle>`
+**Verification date (UTC):** `YYYY-MM-DD`
+**Evidence link / ticket:** `<url-or-ticket-id>`
+
+Automated evidence source:
+- Workflow: `.github/workflows/ci-governance-settings-audit.yml`
+- Artifact: `governance-settings-audit`
+- Files: `summary.md`, `report.json`
+
+- [ ] Confirm `main` still requires pull requests and blocks direct pushes.
+- [ ] Confirm required status checks are still configured and match current governance-critical workflows.
+- [ ] Confirm at least one approval and stale approval dismissal are enforced.
+- [ ] Confirm `Require review from Code Owners` remains enabled.
+- [ ] Confirm `.github/CODEOWNERS` still maps governance-sensitive paths to accountable owners.
+- [ ] Confirm force pushes, deletions, and branch-protection bypass are disabled for `main`.
+- [ ] Confirm protected release tag pattern `v*.*.*` exists and still restricts who can create release tags.
+- [ ] Confirm production deployment environment still restricts deployments to release tags and required reviewers.
+- [ ] Confirm the latest `governance-settings-audit` artifact status is `pass` and attach its `summary.md` or `report.json` to the audit record.
+- [ ] Confirm the latest `governance-slo-report` artifact reflects acceptable release-gate reliability, remediation lead time, and policy-test health, and attach `summary.md` or `report.json` to the audit record.
+- [ ] Confirm README claim/control wording still distinguishes posture evidence (for example Snyk snapshots) from release-blocking controls (`trivy-scan` and `dast-analysis`) and remains aligned with `docs/threat-model.md`.
+- [ ] Confirm any exceptions (break-glass or temporary override) were documented, approved, and time-bounded.
