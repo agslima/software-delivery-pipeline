@@ -5,11 +5,13 @@ POLICY_FILE="${GOVERNANCE_METADATA_POLICY_FILE:-.github/governance-metadata-poli
 OVERRIDES_FILE="${GOVERNANCE_METADATA_OVERRIDES_FILE:-.github/governance-metadata-overrides.json}"
 TODAY="${GOVERNANCE_METADATA_TODAY:-$(date -u +%F)}"
 
+# fail emits a GitHub Actions error annotation and exits the script.
 fail() {
   echo "::error::$1"
   exit 1
 }
 
+# extract_metadata_value reads a supported freshness field from a tracked document.
 extract_metadata_value() {
   local path="$1"
   local field="$2"
@@ -27,18 +29,21 @@ extract_metadata_value() {
   esac
 }
 
+# ensure_json_file verifies that a required JSON file exists and parses cleanly.
 ensure_json_file() {
   local file="$1"
   [[ -f "$file" ]] || fail "Missing required JSON file: $file"
   jq -e . "$file" >/dev/null || fail "Invalid JSON in $file"
 }
 
+# ensure_date validates that a value uses the repository's YYYY-MM-DD date format.
 ensure_date() {
   local value="$1"
   local context="$2"
   [[ "$value" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || fail "Invalid date '$value' for $context. Expected YYYY-MM-DD."
 }
 
+# lookup_override returns the active override JSON for a document field, if one exists.
 lookup_override() {
   local path="$1"
   local field="$2"
@@ -53,6 +58,7 @@ lookup_override() {
   ' "$OVERRIDES_FILE"
 }
 
+# ensure_override_shape validates the required fields on an approved freshness override.
 ensure_override_shape() {
   local override_json="$1"
   local path="$2"
@@ -70,6 +76,7 @@ ensure_override_shape() {
   [[ -n "$reason" ]] || fail "Override for $path $field is missing reason in $OVERRIDES_FILE"
 }
 
+# ensure_single_override_match enforces one active override per document field.
 ensure_single_override_match() {
   local path="$1"
   local field="$2"
@@ -86,10 +93,12 @@ ensure_single_override_match() {
   [[ "$count" == "0" || "$count" == "1" ]] || fail "Found $count active overrides for $path $field in $OVERRIDES_FILE. Keep at most one active override per metadata field."
 }
 
+# ensure_override_file_shape verifies the override file exposes the expected top-level array.
 ensure_override_file_shape() {
   jq -e '.overrides? | type == "array"' "$OVERRIDES_FILE" >/dev/null || fail "Expected .overrides array in $OVERRIDES_FILE"
 }
 
+# main evaluates tracked governance metadata freshness and reports pass/fail status.
 main() {
   command -v jq >/dev/null || fail "jq is required for governance metadata freshness checks"
 

@@ -9,6 +9,7 @@ OUTPUT_FILE="${OUTPUT_FILE:-${APP_DIR}/.env.release}"
 BACKEND_IMAGE="${BACKEND_IMAGE:?BACKEND_IMAGE is required (e.g. repo/backend:tag)}"
 FRONTEND_IMAGE="${FRONTEND_IMAGE:?FRONTEND_IMAGE is required (e.g. repo/frontend:tag)}"
 
+# require_command fails fast when a required CLI dependency is unavailable.
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
     echo "Missing required command: $1" >&2

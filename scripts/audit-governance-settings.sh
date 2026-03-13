@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# usage prints CLI help for the governance settings audit.
 usage() {
   cat <<'EOF'
 Usage: scripts/audit-governance-settings.sh [--repo owner/name] [--fixtures-dir path] [--output-dir path]
@@ -16,6 +17,7 @@ Options:
 EOF
 }
 
+# fail emits a GitHub Actions error annotation and exits the audit.
 fail() {
   echo "::error::$1" >&2
   exit 1
@@ -84,6 +86,7 @@ NORMALIZE_JQ='def normalize:
 
 printf '[]\n' > "$CHECKS_FILE"
 
+# fetch_json reads an expected API payload from fixtures or GitHub and stores it on disk.
 fetch_json() {
   local basename="$1"
   local api_path="$2"
@@ -98,10 +101,12 @@ fetch_json() {
   fi
 }
 
+# json_compact normalizes JSON text to a compact single-line representation.
 json_compact() {
   jq -c '.' <<<"$1"
 }
 
+# add_check appends one audit result entry to the machine-readable checks file.
 add_check() {
   local id="$1"
   local category="$2"
@@ -136,6 +141,7 @@ add_check() {
   mv "$tmp" "$CHECKS_FILE"
 }
 
+# record_comparison records a pass/fail check based on exact expected vs actual values.
 record_comparison() {
   local id="$1"
   local category="$2"
@@ -152,6 +158,7 @@ record_comparison() {
   fi
 }
 
+# record_condition records a pass/fail check from an already-evaluated boolean condition.
 record_condition() {
   local id="$1"
   local category="$2"

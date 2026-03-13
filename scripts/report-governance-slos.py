@@ -15,11 +15,13 @@ from typing import Any
 
 
 def fail(message: str) -> None:
+    """Emit a GitHub Actions error annotation and exit."""
     print(f"::error::{message}", file=sys.stderr)
     raise SystemExit(1)
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse CLI arguments for live and fixture-backed report generation."""
     parser = argparse.ArgumentParser(
         description="Generate governance SLO summary.md and report.json from workflow telemetry.",
     )
@@ -39,11 +41,13 @@ def parse_args() -> argparse.Namespace:
 
 
 def load_json(path: pathlib.Path) -> Any:
+    """Load and return JSON content from a file path."""
     with path.open(encoding="utf-8") as handle:
         return json.load(handle)
 
 
 def gh_api(repo: str, path: str) -> Any:
+    """Fetch and decode a JSON response from the GitHub CLI API wrapper."""
     try:
         result = subprocess.run(
             ["gh", "api", "-H", "Accept: application/vnd.github+json", path],
@@ -57,14 +61,17 @@ def gh_api(repo: str, path: str) -> Any:
 
 
 def iso_to_date(value: str) -> dt.date:
+    """Convert an ISO 8601 timestamp string into a UTC date."""
     return dt.datetime.fromisoformat(value.replace("Z", "+00:00")).date()
 
 
 def markdown_table_row(row: list[str]) -> str:
+    """Render a list of cells as a Markdown table row."""
     return "| " + " | ".join(row) + " |"
 
 
 def percentile(values: list[int], p: float) -> float:
+    """Calculate a linear-interpolated percentile for integer samples."""
     if not values:
         return math.nan
     ordered = sorted(values)
@@ -79,6 +86,7 @@ def percentile(values: list[int], p: float) -> float:
 
 
 def read_resolved_debt_entries(path: pathlib.Path) -> list[dict[str, str]]:
+    """Extract resolved security debt table entries from the governance document."""
     text = path.read_text(encoding="utf-8")
     match = re.search(
         r"## Resolved Debt \(Historical\)\n\n(\|.*(?:\n\|.*)*)",
@@ -98,11 +106,12 @@ def read_resolved_debt_entries(path: pathlib.Path) -> list[dict[str, str]]:
         cells = [cell.strip() for cell in line.strip("|").split("|")]
         if len(cells) != len(headers):
             continue
-        entries.append(dict(zip(headers, cells)))
+        entries.append(dict(zip(headers, cells, strict=True)))
     return entries
 
 
 def count_success_conclusions(runs: list[dict[str, Any]]) -> tuple[int, int]:
+    """Count successful workflow or job runs among completed, relevant entries."""
     relevant = [
         run for run in runs
         if run.get("conclusion") not in {"cancelled", "skipped", None}
@@ -112,6 +121,7 @@ def count_success_conclusions(runs: list[dict[str, Any]]) -> tuple[int, int]:
 
 
 def get_backend_infra_jobs(jobs_by_run: dict[int, list[dict[str, Any]]]) -> list[dict[str, Any]]:
+    """Select backend Infra Hygiene jobs from CI workflow job listings."""
     selected: list[dict[str, Any]] = []
     for jobs in jobs_by_run.values():
         for job in jobs:
@@ -122,6 +132,7 @@ def get_backend_infra_jobs(jobs_by_run: dict[int, list[dict[str, Any]]]) -> list
 
 
 def build_status(actual: float, target: float, comparator: str, samples: int) -> str:
+    """Classify an SLO measurement against its objective and comparator."""
     if samples == 0:
         return "insufficient_data"
     if comparator == "gte":
@@ -132,22 +143,25 @@ def build_status(actual: float, target: float, comparator: str, samples: int) ->
 
 
 def collect_live_inputs(repo: str) -> tuple[list[dict[str, Any]], dict[int, list[dict[str, Any]]], list[dict[str, Any]], dict[int, list[dict[str, Any]]], dict[str, Any]]:
+    """Fetch workflow runs and job data for live GitHub-backed reporting."""
     release_runs = gh_api(repo, f"repos/{repo}/actions/workflows/ci-release-gate.yml/runs?per_page=20&status=completed").get("workflow_runs", [])
     pr_runs = gh_api(repo, f"repos/{repo}/actions/workflows/ci-pr-validation.yml/runs?per_page=20&status=completed").get("workflow_runs", [])
 
     release_jobs: dict[int, list[dict[str, Any]]] = {}
-    for run in release_runs:
-      release_jobs[int(run["id"])] = gh_api(repo, f"repos/{repo}/actions/runs/{run['id']}/jobs?per_page=100").get("jobs", [])
 
     pr_jobs: dict[int, list[dict[str, Any]]] = {}
     for run in pr_runs:
-      pr_jobs[int(run["id"])] = gh_api(repo, f"repos/{repo}/actions/runs/{run['id']}/jobs?per_page=100").get("jobs", [])
+        pr_jobs[int(run["id"])] = gh_api(
+            repo,
+            f"repos/{repo}/actions/runs/{run['id']}/jobs?per_page=100",
+        ).get("jobs", [])
 
     issues_cache: dict[str, Any] = {}
     return release_runs, release_jobs, pr_runs, pr_jobs, issues_cache
 
 
 def collect_fixture_inputs(fixtures_dir: pathlib.Path) -> tuple[list[dict[str, Any]], dict[int, list[dict[str, Any]]], list[dict[str, Any]], dict[int, list[dict[str, Any]]], dict[str, Any]]:
+    """Load workflow runs, jobs, and issue data from fixture files."""
     release_runs = load_json(fixtures_dir / "release-runs.json").get("workflow_runs", [])
     pr_runs = load_json(fixtures_dir / "pr-runs.json").get("workflow_runs", [])
     issues_cache = load_json(fixtures_dir / "issues.json")
@@ -164,6 +178,7 @@ def collect_fixture_inputs(fixtures_dir: pathlib.Path) -> tuple[list[dict[str, A
 
 
 def get_issue(repo: str, issue_ref: str, issues_cache: dict[str, Any], fixtures: bool) -> dict[str, Any] | None:
+    """Resolve a GitHub issue reference from fixtures or the live API cache."""
     match = re.fullmatch(r"#(\d+)", issue_ref.strip())
     if not match:
         return None
@@ -176,6 +191,7 @@ def get_issue(repo: str, issue_ref: str, issues_cache: dict[str, Any], fixtures:
 
 
 def main() -> None:
+    """Generate the governance SLO report and fail on measured breaches."""
     args = parse_args()
     output_dir = pathlib.Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)

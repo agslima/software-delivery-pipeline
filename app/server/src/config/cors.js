@@ -6,6 +6,12 @@ const allowlistedOrigins = new Set(
   .filter(Boolean)
 );
 
+/**
+ * Allow loopback origins and exact configured origins after URL validation.
+ *
+ * @param {string} origin - Request origin header value.
+ * @returns {boolean} True when the origin matches an allowed development or configured host.
+ */
 const isAllowedOriginPattern = (origin) => {
   let parsedOrigin;
 

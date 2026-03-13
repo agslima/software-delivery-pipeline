@@ -14,17 +14,28 @@ const metricsRoutes = require('../api/http/routes/metrics.routes');
 const v1Routes = require('./routes');
 const v2Routes = require('./routesV2');
 
+/**
+ * Normalize TRUST_PROXY configuration into the shape Express expects.
+ *
+ * @param {string|number|boolean|undefined|null} value - Raw trust proxy configuration.
+ * @returns {string|number|boolean} Parsed trust proxy setting.
+ */
+const parseTrustProxy = (value) => {
+  if (!value) return 'loopback, linklocal, uniquelocal';
+  const normalized = String(value).trim();
+  if (/^\d+$/.test(normalized)) return Number(normalized);
+  if (normalized === 'true') return true;
+  if (normalized === 'false') return false;
+  return normalized;
+};
+
+/**
+ * Build and configure the Express application with security middleware and routes.
+ *
+ * @returns {import('express').Express} Configured Express application.
+ */
 module.exports = function createApp() {
   const app = express();
-
-  const parseTrustProxy = (value) => {
-    if (!value) return 'loopback, linklocal, uniquelocal';
-    const normalized = String(value).trim();
-    if (/^\d+$/.test(normalized)) return Number(normalized);
-    if (normalized === 'true') return true;
-    if (normalized === 'false') return false;
-    return normalized;
-  };
 
   const trustProxy = parseTrustProxy(env.TRUST_PROXY);
   app.set('trust proxy', trustProxy);

@@ -8,6 +8,11 @@ const db = require('../infra/db/knex');
 
 const app = createApp();
 
+/**
+ * Create the HTTP or HTTPS server for the API process based on TLS config.
+ *
+ * @returns {import('http').Server|import('https').Server} Configured server instance.
+ */
 const createServer = () => {
   const hasTlsCert = Boolean(env.TLS_CERT_PATH);
   const hasTlsKey = Boolean(env.TLS_KEY_PATH);
@@ -40,6 +45,12 @@ server.listen(env.PORT, '0.0.0.0', () => {
   logger.info({ port: env.PORT, env: env.NODE_ENV }, 'Server started');
 });
 
+/**
+ * Gracefully stop accepting requests and close process resources.
+ *
+ * @param {string} signal - Process signal that triggered shutdown.
+ * @returns {Promise<void>} Resolves when shutdown work has been scheduled.
+ */
 const shutdown = async (signal) => {
   logger.info({ signal }, 'Shutdown initiated');
 
