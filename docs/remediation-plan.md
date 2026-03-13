@@ -222,13 +222,13 @@ Convert the alignment review into execution-tracked work packages so maintainers
 
 - **Problem statement:** `last_reviewed`/`last validated` metadata can become stale, weakening governance credibility.
 - **Tasks**
-  - [ ] Add CI check for stale governance metadata beyond declared cadence.
-  - [ ] Define approved override path for exceptions (time-bound, justified).
-  - [ ] Surface failures with actionable remediation hints.
+  - [x] Add CI check for stale governance metadata beyond declared cadence.
+  - [x] Define approved override path for exceptions (time-bound, justified).
+  - [x] Surface failures with actionable remediation hints.
 - **Deliverables**
   - Metadata freshness check integrated into CI.
 - **Acceptance criteria**
-  - [ ] Stale doc metadata causes deterministic, understandable CI failure.
+  - [x] Stale doc metadata causes deterministic, understandable CI failure.
 - **Evidence required**
   - CI job output showing pass/fail behavior.
 
@@ -236,13 +236,13 @@ Convert the alignment review into execution-tracked work packages so maintainers
 
 - **Problem statement:** Evidence is fragmented across docs and workflow artifacts, increasing audit friction.
 - **Tasks**
-  - [ ] Create a single evidence index mapping each README claim to workflow job, policy, and artifact path.
-  - [ ] Add ownership + review cadence metadata for each mapping row.
-  - [ ] Link index from README and `docs/governance.md`.
+  - [x] Create a single evidence index mapping each README claim to workflow job, policy, and artifact path.
+  - [x] Add ownership + review cadence metadata for each mapping row.
+  - [x] Link index from README and `docs/governance.md`.
 - **Deliverables**
   - Governance evidence index page.
 - **Acceptance criteria**
-  - [ ] Auditor can trace any top-level README claim to enforcement + evidence within one page.
+  - [x] Auditor can trace any top-level README claim to enforcement + evidence within one page.
 - **Evidence required**
   - Index doc link.
   - Reviewer sign-off.
