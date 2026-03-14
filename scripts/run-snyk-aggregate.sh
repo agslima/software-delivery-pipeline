@@ -47,6 +47,7 @@ BASELINE_LOW="${BASELINE_LOW:-345}"
 mkdir -p "${HTML_DIR}"
 
 declare -A SCAN_JSON_FILES=()
+declare -A SCAN_SARIF_FILES=()
 TEMP_FILES=()
 
 # cleanup_temp_files removes all filesystem paths recorded in the TEMP_FILES array.
@@ -165,6 +166,7 @@ run_snyk_capture() {
   sanitize_report_file "${sarif_out}"
   maybe_html "${json_out}" "${HTML_DIR}/${name}.html"
   SCAN_JSON_FILES["${name}"]="${json_out}"
+  SCAN_SARIF_FILES["${name}"]="${sarif_out}"
 }
 
 # build_container_images builds the client and server Docker images from app/docker/Dockerfile.client and app/docker/Dockerfile.server and tags them with CLIENT_IMAGE_TAG and SERVER_IMAGE_TAG.
@@ -259,7 +261,7 @@ count_standard_vulns_by_target() {
       // .image
       // "unknown-target";
 
-    def rows_from_result:
+    def vuln_rows_from_result:
       (.vulnerabilities // [])
       | map({
           target: (target_name | tostring),
@@ -267,18 +269,35 @@ count_standard_vulns_by_target() {
           severity: ((.severity // empty) | tostring | norm)
         });
 
+    def target_rows:
+      (
+        if type == "array" then
+          [.[]? | target_name]
+        elif type == "object" and has("results") then
+          [.results[]? | target_name]
+        elif type == "object" then
+          [target_name]
+        else
+          []
+        end
+      )
+      | map(select(. != null and . != ""))
+      | unique
+      | map({ target: (.|tostring), id: "__target__", severity: "none" });
+
     (
       if type == "array" then
-        map(rows_from_result) | add
+        map(vuln_rows_from_result) | add
       elif type == "object" and has("vulnerabilities") then
-        rows_from_result
+        vuln_rows_from_result
       elif type == "object" and has("results") then
-        [.results[]? | rows_from_result] | add
+        [.results[]? | vuln_rows_from_result] | add
       else
         []
       end
     )
-    | map(select(.severity != null and .severity != ""))
+    + target_rows
+    | map(select(.severity != null and .severity != "" and .severity != "none"))
     | unique_by(.target + "::" + .id)
     | group_by(.target)
     | map({
@@ -430,6 +449,36 @@ list_iac_targets() {
   ' "$json_file"
 }
 
+# list_standard_targets outputs unique project/target names found in a standard Snyk JSON report file.
+list_standard_targets() {
+  local json_file="$1"
+
+  jq -r '
+    def target_name:
+      .displayTargetFile
+      // .targetFile
+      // .projectName
+      // .docker
+      // .image
+      // "unknown-target";
+
+    (
+      if type == "array" then
+        [.[]? | target_name]
+      elif type == "object" and has("results") then
+        [.results[]? | target_name]
+      elif type == "object" then
+        [target_name]
+      else
+        []
+      end
+    )
+    | map(select(. != null and . != ""))
+    | unique
+    | .[]
+  ' "$json_file"
+}
+
 # count_sast_issues counts SAST issues in the given Snyk/SARIF JSON file and echoes a TSV of counts in the order: critical, high, medium, low.
 count_sast_issues() {
   local json_file="$1"
@@ -527,11 +576,13 @@ write_index_md() {
   local sca_target sca_crit_t sca_high_t sca_med_t sca_low_t
   local iac_target iac_crit_t iac_high_t iac_med_t iac_low_t
   local iac_count_row
+  local sca_count_row
   local sca_json="${SCAN_JSON_FILES[snyk-sca]}"
   local iac_json="${SCAN_JSON_FILES[snyk-iac]}"
 
   declare -a project_rows=()
   declare -A iac_counts
+  declare -A sca_counts
 
   project_rows+=("| [Code analysis](html/snyk-code.html) | ${tested_at} | ${sast_crit} | ${sast_high} | ${sast_med} | ${sast_low} |")
 
@@ -549,11 +600,18 @@ write_index_md() {
 
   while IFS=$'\t' read -r sca_target sca_crit_t sca_high_t sca_med_t sca_low_t; do
     [[ -n "${sca_target}" ]] || continue
-    project_rows+=("| [${sca_target}](html/snyk-sca.html) | ${tested_at} | ${sca_crit_t} | ${sca_high_t} | ${sca_med_t} | ${sca_low_t} |")
+    sca_counts["${sca_target}"]="${sca_crit_t} ${sca_high_t} ${sca_med_t} ${sca_low_t}"
   done < <(count_standard_vulns_by_target "${sca_json}")
 
-  project_rows+=("| [app/docker/Dockerfile.client](html/snyk-container-client.html) | ${tested_at} | ${cc_crit} | ${cc_high} | ${cc_med} | ${cc_low} |")
-  project_rows+=("| [app/docker/Dockerfile.server](html/snyk-container-server.html) | ${tested_at} | ${cs_crit} | ${cs_high} | ${cs_med} | ${cs_low} |")
+  while IFS= read -r sca_target; do
+    [[ -n "${sca_target}" ]] || continue
+    sca_count_row="${sca_counts[${sca_target}]:-0 0 0 0}"
+    read -r sca_crit_t sca_high_t sca_med_t sca_low_t <<<"${sca_count_row}"
+    project_rows+=("| [npm dependencies: ${sca_target}](html/snyk-sca.html) | ${tested_at} | ${sca_crit_t} | ${sca_high_t} | ${sca_med_t} | ${sca_low_t} |")
+  done < <(list_standard_targets "${sca_json}")
+
+  project_rows+=("| [Container: app/docker/Dockerfile.client](html/snyk-container-client.html) | ${tested_at} | ${cc_crit} | ${cc_high} | ${cc_med} | ${cc_low} |")
+  project_rows+=("| [Container: app/docker/Dockerfile.server](html/snyk-container-server.html) | ${tested_at} | ${cs_crit} | ${cs_high} | ${cs_med} | ${cs_low} |")
 
   cat > "${DOCS_DIR}/index.md" <<EOF
 # Snyk Scans
@@ -706,7 +764,7 @@ run_snyk_capture \
 # 3. Parse counts
 # -----------------------------------------------------------------------------
 read -r sca_crit sca_high sca_med sca_low < <(count_standard_vulns "${SCAN_JSON_FILES[snyk-sca]}")
-read -r sast_crit sast_high sast_med sast_low < <(count_sast_issues "${SCAN_JSON_FILES[snyk-code]}")
+read -r sast_crit sast_high sast_med sast_low < <(count_sast_issues "${SCAN_SARIF_FILES[snyk-code]}")
 read -r cc_crit cc_high cc_med cc_low < <(count_standard_vulns "${SCAN_JSON_FILES[snyk-container-client]}")
 read -r cs_crit cs_high cs_med cs_low < <(count_standard_vulns "${SCAN_JSON_FILES[snyk-container-server]}")
 read -r iac_crit iac_high iac_med iac_low < <(count_iac_issues "${SCAN_JSON_FILES[snyk-iac]}")
