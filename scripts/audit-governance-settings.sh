@@ -82,6 +82,16 @@ NORMALIZE_JQ='def normalize:
     map(normalize)
   else
     .
+  end;
+def normalize_ref_pattern:
+  if type != "string" then
+    .
+  elif startswith("refs/heads/") then
+    .[11:]
+  elif startswith("refs/tags/") then
+    .[10:]
+  else
+    .
   end;'
 
 printf '[]\n' > "$CHECKS_FILE"
@@ -198,16 +208,36 @@ EXPECTED_BRANCH_REF="$(jq -r '.rulesets.branch.target_ref' "$EXPECTATIONS_FILE")
 EXPECTED_TAG_REF="$(jq -r '.rulesets.tag.target_ref' "$EXPECTATIONS_FILE")"
 
 LIVE_BRANCH_RULESETS="$(jq -c --arg ref "$EXPECTED_BRANCH_REF" '
+  def normalize_ref_pattern:
+    if type != "string" then
+      .
+    elif startswith("refs/heads/") then
+      .[11:]
+    elif startswith("refs/tags/") then
+      .[10:]
+    else
+      .
+    end;
   (if type == "array" then . else .rulesets // [] end)
   | map(select(.target == "branch"))
-  | map(select(any(.conditions.ref_name.include[]?; . == $ref)))
+  | map(select(any(.conditions.ref_name.include[]?; (normalize_ref_pattern == ($ref | normalize_ref_pattern)))))
   | .
 ' "$RULESETS_FILE")"
 
 LIVE_TAG_RULESETS="$(jq -c --arg ref "$EXPECTED_TAG_REF" '
+  def normalize_ref_pattern:
+    if type != "string" then
+      .
+    elif startswith("refs/heads/") then
+      .[11:]
+    elif startswith("refs/tags/") then
+      .[10:]
+    else
+      .
+    end;
   (if type == "array" then . else .rulesets // [] end)
   | map(select(.target == "tag"))
-  | map(select(any(.conditions.ref_name.include[]?; . == $ref)))
+  | map(select(any(.conditions.ref_name.include[]?; (normalize_ref_pattern == ($ref | normalize_ref_pattern)))))
   | .
 ' "$RULESETS_FILE")"
 
@@ -269,10 +299,22 @@ record_comparison \
 
 EXPECTED_BRANCH_CONDITIONS="$(jq -c "$NORMALIZE_JQ
   (.conditions // {})
+  | if .ref_name? then
+      .ref_name.include = ((.ref_name.include // []) | map(normalize_ref_pattern) | sort)
+      | .ref_name.exclude = ((.ref_name.exclude // []) | map(normalize_ref_pattern) | sort)
+    else
+      .
+    end
   | normalize
 " <<<"$EXPECTED_BRANCH_RULESET")"
 LIVE_BRANCH_CONDITIONS="$(jq -c "$NORMALIZE_JQ
   (.conditions // {})
+  | if .ref_name? then
+      .ref_name.include = ((.ref_name.include // []) | map(normalize_ref_pattern) | sort)
+      | .ref_name.exclude = ((.ref_name.exclude // []) | map(normalize_ref_pattern) | sort)
+    else
+      .
+    end
   | normalize
 " <<<"$LIVE_BRANCH_RULESET")"
 record_comparison \
@@ -283,10 +325,22 @@ record_comparison \
 
 EXPECTED_TAG_CONDITIONS="$(jq -c "$NORMALIZE_JQ
   (.conditions // {})
+  | if .ref_name? then
+      .ref_name.include = ((.ref_name.include // []) | map(normalize_ref_pattern) | sort)
+      | .ref_name.exclude = ((.ref_name.exclude // []) | map(normalize_ref_pattern) | sort)
+    else
+      .
+    end
   | normalize
 " <<<"$EXPECTED_TAG_RULESET")"
 LIVE_TAG_CONDITIONS="$(jq -c "$NORMALIZE_JQ
   (.conditions // {})
+  | if .ref_name? then
+      .ref_name.include = ((.ref_name.include // []) | map(normalize_ref_pattern) | sort)
+      | .ref_name.exclude = ((.ref_name.exclude // []) | map(normalize_ref_pattern) | sort)
+    else
+      .
+    end
   | normalize
 " <<<"$LIVE_TAG_RULESET")"
 record_comparison \
