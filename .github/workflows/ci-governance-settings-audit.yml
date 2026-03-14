@@ -39,9 +39,7 @@ jobs:
             echo "::error::Missing PAT_GITHUB secret. Configure a fine-grained token with read-only Administration access for repository settings audit."
             exit 1
           }
-
           ENVIRONMENT_NAME="$(jq -r '.environment.name' .github/governance-settings-audit.json)"
-
           for API_PATH in \
             "repos/${GOVERNANCE_AUDIT_REPO}/rulesets?includes_parents=false" \
             "repos/${GOVERNANCE_AUDIT_REPO}/codeowners/errors" \
