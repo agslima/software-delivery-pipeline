@@ -111,6 +111,23 @@ fetch_json() {
   fi
 }
 
+# fetch_ruleset_detail_json loads a detailed ruleset payload by id when the summary list omits conditions/rules.
+fetch_ruleset_detail_json() {
+  local ruleset_id="$1"
+
+  if [ "$MODE" = "fixture" ]; then
+    jq -c --argjson id "$ruleset_id" '
+      (if type == "array" then . else .rulesets // [] end)
+      | map(select(.id == $id))
+      | .[0] // {}
+    ' "$RULESETS_FILE"
+  else
+    gh api \
+      -H "Accept: application/vnd.github+json" \
+      "repos/$REPO/rulesets/$ruleset_id"
+  fi
+}
+
 # json_compact normalizes JSON text to a compact single-line representation.
 json_compact() {
   jq -c '.' <<<"$1"
@@ -207,24 +224,31 @@ ENVIRONMENT_POLICIES_FILE="$RAW_DIR/environment-${ENVIRONMENT_NAME}-deployment-b
 EXPECTED_BRANCH_REF="$(jq -r '.rulesets.branch.target_ref' "$EXPECTATIONS_FILE")"
 EXPECTED_TAG_REF="$(jq -r '.rulesets.tag.target_ref' "$EXPECTATIONS_FILE")"
 
-LIVE_BRANCH_RULESETS="$(jq -c --arg ref "$EXPECTED_BRANCH_REF" '
-  def normalize_ref_pattern:
-    if type != "string" then
-      .
-    elif startswith("refs/heads/") then
-      .[11:]
-    elif startswith("refs/tags/") then
-      .[10:]
-    else
-      .
-    end;
+LIVE_BRANCH_RULESET_IDS="$(jq -r '
   (if type == "array" then . else .rulesets // [] end)
   | map(select(.target == "branch"))
-  | map(select(any(.conditions.ref_name.include[]?; (normalize_ref_pattern == ($ref | normalize_ref_pattern)))))
-  | .
+  | .[].id
+' "$RULESETS_FILE")"
+LIVE_TAG_RULESET_IDS="$(jq -r '
+  (if type == "array" then . else .rulesets // [] end)
+  | map(select(.target == "tag"))
+  | .[].id
 ' "$RULESETS_FILE")"
 
-LIVE_TAG_RULESETS="$(jq -c --arg ref "$EXPECTED_TAG_REF" '
+LIVE_BRANCH_RULESETS="$(
+  while IFS= read -r ruleset_id; do
+    [ -n "$ruleset_id" ] || continue
+    fetch_ruleset_detail_json "$ruleset_id"
+  done <<<"$LIVE_BRANCH_RULESET_IDS" | jq -sc .
+)"
+LIVE_TAG_RULESETS="$(
+  while IFS= read -r ruleset_id; do
+    [ -n "$ruleset_id" ] || continue
+    fetch_ruleset_detail_json "$ruleset_id"
+  done <<<"$LIVE_TAG_RULESET_IDS" | jq -sc .
+)"
+
+MATCHING_BRANCH_RULESETS="$(jq -c --arg ref "$EXPECTED_BRANCH_REF" '
   def normalize_ref_pattern:
     if type != "string" then
       .
@@ -235,16 +259,31 @@ LIVE_TAG_RULESETS="$(jq -c --arg ref "$EXPECTED_TAG_REF" '
     else
       .
     end;
-  (if type == "array" then . else .rulesets // [] end)
-  | map(select(.target == "tag"))
-  | map(select(any(.conditions.ref_name.include[]?; (normalize_ref_pattern == ($ref | normalize_ref_pattern)))))
+  ($ref | normalize_ref_pattern) as $normalized_ref
+  | map(select(any(.conditions.ref_name.include[]?; (. | normalize_ref_pattern) == $normalized_ref)))
   | .
-' "$RULESETS_FILE")"
+' <<<"$LIVE_BRANCH_RULESETS")"
 
-LIVE_BRANCH_RULESET_COUNT="$(jq -r 'length' <<<"$LIVE_BRANCH_RULESETS")"
-LIVE_TAG_RULESET_COUNT="$(jq -r 'length' <<<"$LIVE_TAG_RULESETS")"
-LIVE_BRANCH_RULESET="$(jq -c '.[0] // {}' <<<"$LIVE_BRANCH_RULESETS")"
-LIVE_TAG_RULESET="$(jq -c '.[0] // {}' <<<"$LIVE_TAG_RULESETS")"
+MATCHING_TAG_RULESETS="$(jq -c --arg ref "$EXPECTED_TAG_REF" '
+  def normalize_ref_pattern:
+    if type != "string" then
+      .
+    elif startswith("refs/heads/") then
+      .[11:]
+    elif startswith("refs/tags/") then
+      .[10:]
+    else
+      .
+    end;
+  ($ref | normalize_ref_pattern) as $normalized_ref
+  | map(select(any(.conditions.ref_name.include[]?; (. | normalize_ref_pattern) == $normalized_ref)))
+  | .
+' <<<"$LIVE_TAG_RULESETS")"
+
+LIVE_BRANCH_RULESET_COUNT="$(jq -r 'length' <<<"$MATCHING_BRANCH_RULESETS")"
+LIVE_TAG_RULESET_COUNT="$(jq -r 'length' <<<"$MATCHING_TAG_RULESETS")"
+LIVE_BRANCH_RULESET="$(jq -c '.[0] // {}' <<<"$MATCHING_BRANCH_RULESETS")"
+LIVE_TAG_RULESET="$(jq -c '.[0] // {}' <<<"$MATCHING_TAG_RULESETS")"
 
 EXPECTED_BRANCH_RULESET="$(jq -c '.' "$EXPECTED_BRANCH_FILE")"
 EXPECTED_TAG_RULESET="$(jq -c '.' "$EXPECTED_TAG_FILE")"
@@ -519,13 +558,19 @@ record_condition \
   "$( [ "$LIVE_ENV_REVIEWERS" -ge "$EXPECTED_ENV_REVIEWERS" ] && echo true || echo false )"
 
 EXPECTED_ENV_REFS="$(jq -c '.environment.allowed_deployment_refs | sort_by(.type, .name)' "$EXPECTATIONS_FILE")"
-LIVE_ENV_REFS="$(jq -c '
+LIVE_ENV_REFS="$(jq -c --argjson expected "$EXPECTED_ENV_REFS" '
   (
     if type == "array" then .
     else (.branch_policies // .policies // [])
     end
   )
-  | map({name: .name, type: (.type // "branch")})
+  | map(. as $policy | {
+      name: $policy.name,
+      type: (
+        ($expected | map(select(.name == $policy.name)) | .[0].type)
+        // ($policy.type // "branch")
+      )
+    })
   | sort_by(.type, .name)
 ' "$ENVIRONMENT_POLICIES_FILE")"
 record_comparison \

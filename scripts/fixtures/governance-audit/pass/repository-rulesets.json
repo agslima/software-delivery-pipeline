@@ -24,7 +24,7 @@
       {
         "type": "pull_request",
         "parameters": {
-          "required_approving_review_count": 1,
+          "required_approving_review_count": 0,
           "dismiss_stale_reviews_on_push": true,
           "required_reviewers": [],
           "require_code_owner_review": true,
@@ -61,17 +61,10 @@
         }
       },
       {
-        "type": "copilot_code_review_analysis_tools",
-        "parameters": {
-          "tools": [
-            {
-              "name": "CodeQL"
-            }
-          ]
-        }
+        "type": "required_linear_history"
       },
       {
-        "type": "required_linear_history"
+        "type": "required_signatures"
       },
       {
         "type": "required_status_checks",
@@ -96,7 +89,11 @@
               "integration_id": 15368
             },
             {
-              "context": "Security Quality Check",
+              "context": "Governance & Security Quality Check",
+              "integration_id": 15368
+            },
+            {
+              "context": "CodeQL",
               "integration_id": 15368
             }
           ]
