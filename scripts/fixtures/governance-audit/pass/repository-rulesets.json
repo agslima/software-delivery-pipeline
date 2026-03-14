@@ -24,10 +24,10 @@
       {
         "type": "pull_request",
         "parameters": {
-          "required_approving_review_count": 0,
+          "required_approving_review_count": 1,
           "dismiss_stale_reviews_on_push": true,
           "required_reviewers": [],
-          "require_code_owner_review": true,
+          "require_code_owner_review": false,
           "require_last_push_approval": false,
           "required_review_thread_resolution": true,
           "allowed_merge_methods": [
@@ -36,35 +36,7 @@
         }
       },
       {
-        "type": "code_scanning",
-        "parameters": {
-          "code_scanning_tools": [
-            {
-              "tool": "CodeQL",
-              "security_alerts_threshold": "medium_or_higher",
-              "alerts_threshold": "errors"
-            }
-          ]
-        }
-      },
-      {
-        "type": "code_quality",
-        "parameters": {
-          "severity": "errors"
-        }
-      },
-      {
-        "type": "copilot_code_review",
-        "parameters": {
-          "review_on_push": true,
-          "review_draft_pull_requests": false
-        }
-      },
-      {
         "type": "required_linear_history"
-      },
-      {
-        "type": "required_signatures"
       },
       {
         "type": "required_status_checks",
@@ -86,14 +58,6 @@
             },
             {
               "context": "Infra Hygiene (frontend)",
-              "integration_id": 15368
-            },
-            {
-              "context": "Governance & Security Quality Check",
-              "integration_id": 15368
-            },
-            {
-              "context": "CodeQL",
               "integration_id": 15368
             }
           ]
