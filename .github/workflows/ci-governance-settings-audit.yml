@@ -49,7 +49,7 @@ jobs:
             "repos/${GOVERNANCE_AUDIT_REPO}/environments/${ENVIRONMENT_NAME}/deployment-branch-policies"
           do
             if ! gh api -H "Accept: application/vnd.github+json" "${API_PATH}" >/dev/null; then
-              echo "::error::GOVERNANCE_AUDIT_TOKEN cannot read ${API_PATH}. Configure a fine-grained token with repository Administration read permission so the governance settings audit can query rulesets, CODEOWNERS enforcement, environments, and deployment branch policies."
+              echo "::error::PAT_GITHUB cannot read ${API_PATH}. Configure a fine-grained token with repository Administration read permission so the governance settings audit can query rulesets, CODEOWNERS enforcement, environments, and deployment branch policies."
               exit 1
             fi
           done
@@ -57,7 +57,7 @@ jobs:
       - name: Run governance settings audit (live)
         if: env.AUDIT_MODE == 'live'
         env:
-          GH_TOKEN: ${{ secrets.GOVERNANCE_AUDIT_TOKEN }}
+          GH_TOKEN: ${{ secrets.PAT_GITHUB }}
         run: |
           set -euo pipefail
           chmod +x scripts/audit-governance-settings.sh
