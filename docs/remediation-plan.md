@@ -1,312 +1,243 @@
-# Governance Remediation Plan
+# Project Alignment & Remediation Plan
 
-This plan translates the previously identified gaps into concrete, auditable work items. It prioritizes governance integrity (policy enforcement, trust boundaries), then operational alignment, and finally maintainability and efficiency. Each item includes a checklist that can be copied into issues or used during reviews.
+[//]: # (owner: Project Maintainers)
+[//]: # (review_cadence: Quarterly)
+[//]: # (last_reviewed: 2026-03-14)
 
-## Priority 0 — Governance Integrity (Must Fix)
+This plan is a critical, implementation-aware review of repository alignment against the commitments in `readme.md`, the documented governance model, and active CI/CD controls.
 
-### 0.1 Align runtime trust boundary with tag-only releases
-
-**Goal:** Ensure runtime admission only accepts artifacts produced by tag-based release workflows.
-
-**Why it matters:** The current runtime admission policies accept images signed from branch workflows, which conflicts with the documented release governance model and weakens the trust boundary.
-
-**Checklist**
-
-- [x] Update Kyverno verify policies to accept only tag-based identities.
-- [x] Confirm policy regex matches `refs/tags/v*` only.
-- [ ] Run Kyverno policy tests (CI or local) against a signed tag-based image.
-- [x] Document the change in `docs/governance.md` under tag protections.
-- [ ] Validate that GitOps promotion still passes with tag-signed artifacts.
+It is intentionally task-oriented (epics/milestones) so maintainers can execute and audit remediation incrementally.
 
 ---
 
-### 0.2 Align threat model with actual security tooling
+## 1) Alignment Review (README Claims vs Current State)
 
-**Goal:** Ensure the threat model reflects current scanning tools (Trivy, Gitleaks, ZAP) or add Snyk if required.
+### Objective A — Documentation Alignment & Validation
 
-**Checklist**
+| Area | Current state | Alignment verdict | Why this verdict matters |
+| :--- | :--- | :--- | :--- |
+| README governance claims are mapped to enforcement points | Claim-to-control mapping exists in `docs/governance-evidence-index.md` and is linked from governance docs | **Mostly aligned** | The repository can trace claims to workflows/policies, but the audit burden remains high when workflows/artifacts evolve. |
+| Governance model reflects trusted-path assumptions | `docs/governance.md` clearly defines trust boundaries and required GitHub settings | **Aligned** | This is strong governance evidence and supports auditability of external (non-git) controls. |
+| Runtime policy claims for signed/attested deployment | README + governance + Kyverno policy set document and enforce signature/attestation checks | **Aligned** | This is the project’s strongest integrity boundary and should remain fail-closed. |
+| Operational evidence narrative | README posture table is generated from Snyk evidence, while release enforcement is Trivy/ZAP | **Partially aligned (clarified but fragile)** | Boundary is documented, but multi-source evidence can still confuse contributors/reviewers without stronger guardrails. |
+| Local developer onboarding promises | Root README includes command map + pointer to `app/readme.md` and package-level flow | **Aligned** | Onboarding is significantly improved and reproducible for core local tasks. |
 
-- [x] Replace Snyk references with Trivy/Gitleaks where applicable.
-- [x] Confirm CI workflows for SAST/SCA are accurately reflected.
-- [x] Update residual risk section to reflect current tooling and limits.
-- [x] Add a “Controls-to-Workflow” mapping table to prevent future drift.
+### Objective B — Critical Project Analysis
 
----
+#### Architecture Integrity
 
-### 0.3 Clarify SLSA level claims
+- **Strengths**
+  - Clear control-plane separation: PR gate, release gate, GitOps enforcement, runtime admission.
+  - Supply-chain controls are layered (digest pinning, signatures, attestations, policy verification).
+  - Governance assumptions and required settings are explicitly documented.
 
-**Goal:** Ensure SLSA claims are defensible and traceable to implementation.
+- **Primary integrity risks**
+  - Some controls depend on external GitHub configuration and secrets (e.g., governance settings audit token), creating drift risk if not continuously validated.
+  - Durable retention of attestation-verification outcomes remains incomplete; evidence is still too workflow-log-centric for long-horizon audits.
 
-**Checklist**
-- [x] Add a SLSA compliance mapping section (requirements → controls).
-- [x] If not fully compliant, rephrase the README badge or add a “target state” qualifier.
-- [x] Keep SLSA attestation evidence linked to the release workflow.
+#### Process Efficiency
 
----
+- **Strengths**
+  - Good fail-fast sequencing across release and promotion.
+  - Existing automation for governance drift, metadata freshness, and SLO reporting.
 
-## Priority 1 — Operational Alignment
+- **Primary efficiency risks**
+  - Overlapping security evidence channels (Trivy/ZAP release gates + Snyk posture stream + deep scans) increase review overhead.
+  - Remediation tracking is spread across docs/workflows/issues and can be hard to prioritize operationally.
 
-### 1.1 Make GitOps promotion automatic (or document it as manual)
-**Goal:** Remove ambiguity between documentation and actual behavior.
+#### Sustainability
 
-**Checklist**
-- [x] Decide on automatic vs. manual promotion policy.
-- [x] If automatic: enable `workflow_run` with guardrails (e.g., release-only, same-repo).
-- [ ] If manual: update README to specify manual promotion trigger.
-- [ ] Add a short “Promotion Runbook” section describing when/how to promote.
+- **Strengths**
+  - Quarterly metadata cadence and evidence index establish governance hygiene.
+  - SLO framework provides a path to measurable program health.
 
----
+- **Primary sustainability risks**
+  - Ownership fields in remediation/governance program artifacts are still under-specified in places.
+  - Long-term roadmap items (durable evidence storage, SLSA L3 sequencing) are known but not yet execution-ready.
 
-### 1.2 Document required GitHub protections
+### Objective C — Scope Fit (Deficient vs Exceeds)
 
-**Goal:** Make governance enforceable and auditable even when settings are external to the repo.
+- **Deficient / needs remediation now**
+  1. Durable, queryable storage for signature/attestation verification outcomes.
+  2. Stronger anti-drift automation between README claims, governance index rows, and workflow/job names.
+  3. Clear owner/accountability mapping for unresolved strategic epics.
 
-**Checklist**
-- [x] Add a “Required GitHub Settings” section to README or governance doc.
-- [x] Include branch protection, CODEOWNERS enforcement, and tag protection.
-- [x] Add a verification checklist for maintainers to audit settings quarterly.
-
----
-
-## Priority 2 — Maintainability & Efficiency
-
-### 2.1 Remove redundant Kyverno validation in GitOps
-
-**Goal:** Reduce workflow noise and prevent duplicated policy evaluation.
-
-**Checklist**
-- [x] Decide whether single-pass or split-pass policy evaluation is preferred.
-- [x] Remove the unused validation step.
-- [x] Preserve detailed logs for troubleshooting.
+- **Exceeds baseline expectations (retain as strengths)**
+  1. Governance-settings audit workflow for external GitHub controls.
+  2. Governance metadata freshness checks integrated in CI.
+  3. Governance SLO reporting automation with fixture modes for deterministic validation.
 
 ---
 
-### 2.2 Align Trivy gate thresholds with governance policy
-**Goal:** Ensure documentation and gating are consistent.
+## 2) Prioritized Execution Plan (Epics & Milestones)
 
-**Checklist**
-- [x] Decide if High vulnerabilities are always blockers or threshold-based.
-- [x] Update README and security policy to match the actual gate.
-- [x] Add a short rationale statement for governance audits.
+## Milestone M0 (0-30 days): Close High-Confidence Governance Gaps
 
-Rationale: Keep a risk-based Trivy policy (`CRITICAL > 0` blocks; `HIGH > 5` per image blocks) to preserve delivery flow while maintaining explicit, auditable governance thresholds.
+**Goal:** Remove the highest residual ambiguity between documented governance commitments and auditable implementation evidence.
 
----
+### Epic M0-E1 — Harden README claim drift detection
 
-### 2.3 Fix local development instructions
-**Goal:** Ensure onboarding is accurate and reproducible.
-
-**Checklist**
-- [ ] Update root README to point to `app/` for install/test/start.
-- [ ] Add a root-level `npm` script or a short note on multi-package setup if needed.
-
----
-
-## Governance-Centric Issue Template (Copy/Paste)
-
-Use this when filing each remediation item.
-
-```
-## Summary
-<Concise description of the governance gap>
-
-## Governance Impact
-- [ ] Prevents bypass of release controls
-- [ ] Eliminates documentation-to-implementation drift
-- [ ] Improves auditability
-
-## Scope
-- Affected docs:
-- Affected workflows/policies:
-- Affected runtime enforcement:
-
-## Acceptance Criteria
-- [ ] Documentation updated and consistent
-- [ ] Policies/workflows updated and tested
-- [ ] Evidence/links captured (logs, attestations, screenshots)
-
-## Checklist
-- [ ] Implementation
-- [ ] Tests/validation
-- [ ] Documentation updates
-- [ ] Stakeholder review (Security/Release)
-
-## Evidence
-- Links to workflow runs / logs:
-- Artifacts (attestations, reports):
-```
-
----
-
-## Project Alignment Review Backlog (Epics & Milestones) — 2026-03-12
-
-Convert the alignment review into execution-tracked work packages so maintainers can plan, assign, and audit outcomes.
-
-### Milestone M0 (0-30 days): Documentation-to-Control Alignment
-
-**Objective:** Close immediate drift and evidence-clarity gaps between `readme.md`, governance docs, and enforced workflows.
-
-#### Epic M0-E1 — Clarify README claims vs enforcement boundaries
-
-- **Problem statement:** README posture evidence (Snyk snapshots) can be conflated with release admission controls (Trivy/ZAP gates).
+- **Priority:** P0
+- **Problem:** Claim mapping exists, but verification remains reviewer-heavy and susceptible to silent drift when workflow/job names change.
 - **Tasks**
-  - [x] Add explicit wording in `readme.md` that release blocking is Trivy/ZAP-driven and Snyk is posture evidence.
-  - [x] Add direct links from README evidence section to `docs/threat-model.md` and release gate workflow jobs.
-  - [x] Add one reviewer checklist item to verify claim/control wording consistency each quarter.
+  - [ ] Add an automated check that validates all top-level README governance claims have corresponding rows in `docs/governance-evidence-index.md`.
+  - [ ] Add a CI check for broken references to workflow files/jobs used in the evidence index.
+  - [ ] Fail with actionable guidance (which claim/row is missing or stale).
 - **Deliverables**
-  - Updated README evidence language.
-  - Cross-links to enforcement sources of truth.
+  - Drift-check script and CI integration.
+  - Runbook update for handling failures.
 - **Acceptance criteria**
-  - [x] A reviewer can distinguish evidence reporting vs admission gate behavior in under 2 minutes.
-  - [x] No conflicting wording remains between README and governance/threat-model docs.
+  - [ ] A renamed/deleted workflow job causes deterministic CI failure with clear remediation text.
+  - [ ] Quarterly governance review includes automated drift-check output.
 - **Evidence required**
-  - README diff link.
-  - PR review note confirming wording check.
+  - Workflow run link showing pass/fail examples.
+  - Drift-check script reference.
 
-#### Epic M0-E2 — Complete open validation gaps from Priority 0/1 items
+### Epic M0-E2 — Finalize trust-boundary validation evidence
 
-- **Problem statement:** Critical remediation items are marked implemented, but key validation checkboxes remain open.
+- **Priority:** P0
+- **Problem:** Tag-only trust boundary is documented and implemented, but end-to-end evidence closure is still incomplete in remediation history.
 - **Tasks**
-  - [ ] Execute Kyverno policy tests against a signed **tag-based** image path.
-  - [ ] Execute/verify GitOps promotion with tag-signed artifacts and capture logs.
-  - [ ] Update checklist states in this file with links to concrete evidence.
+  - [ ] Execute a full tag-triggered release + GitOps enforcement cycle and archive evidence links in this document.
+  - [ ] Capture Kyverno policy-test evidence for tag-signed images (positive and negative path).
+  - [ ] Close remaining open validation checkboxes inherited from earlier remediation items.
 - **Deliverables**
-  - Closed validation checkboxes for 0.1 and related 1.x dependencies.
-  - Linked workflow run evidence.
+  - Evidence appendix with immutable run/artifact references.
 - **Acceptance criteria**
-  - [ ] All validation-related unchecked boxes under Priority 0 are either completed or explicitly deferred with rationale.
-  - [ ] Evidence links are durable and auditable.
+  - [ ] Auditor can follow one complete governed release path without ambiguity.
 - **Evidence required**
-  - Workflow run URLs.
-  - Artifact/log references.
+  - Release run URL, GitOps run URL, Kyverno logs/artifacts.
 
-#### Epic M0-E3 — Fix onboarding/documentation usability debt
+### Epic M0-E3 — Define accountable ownership for governance backlog
 
-- **Problem statement:** Local development guidance is effectively hidden, reducing reproducibility for new contributors.
+- **Priority:** P0
+- **Problem:** Program-level placeholders reduce operational accountability.
 - **Tasks**
-  - [x] Restore concise root-level onboarding in `readme.md` (or explicit pointer to `app/readme.md`).
-  - [x] Document multi-package command flow (server/client) without duplicating app-level docs.
-  - [x] Validate commands still match package scripts.
+  - [ ] Assign named role/owner for each open epic (not `_TBD_`).
+  - [ ] Add escalation contact for policy bypass or release integrity incidents.
+  - [ ] Add owner review SLA for unresolved P0/P1 remediation items.
 - **Deliverables**
-  - Usable root onboarding section with correct command paths.
+  - Updated ownership metadata block in this plan.
 - **Acceptance criteria**
-  - [x] New contributor can run server/client lint/test/start using only root README plus linked app docs.
+  - [ ] Every open epic has owner + review date + escalation path.
 - **Evidence required**
-  - README diff.
-  - Command transcript from validation run.
+  - PR review acknowledgement by assigned owners.
 
 ---
 
-### Milestone M1 (30-90 days): Governance Auditability Automation
+## Milestone M1 (30-90 days): Reduce Audit Friction and Evidence Ambiguity
 
-**Objective:** Reduce manual governance drift by automating verification of external controls and document freshness.
+**Goal:** Improve evidence usability and reduce operational overhead without weakening controls.
 
-#### Epic M1-E1 — Automate GitHub settings conformance checks
+### Epic M1-E1 — Normalize security evidence narratives across docs
 
-- **Problem statement:** Branch/tag/environment protections are external to git content and can drift silently.
+- **Priority:** P1
+- **Problem:** Multiple scanners serve different purposes (admission gate vs posture), but this distinction is easy to misread.
 - **Tasks**
-  - [x] Add a read-only audit script/workflow that checks branch protection, CODEOWNERS enforcement, protected tags, and environment restrictions.
-  - [x] Define pass/fail output schema for quarterly audit evidence.
-  - [x] Add runbook guidance for handling failed governance audits.
+  - [ ] Add a canonical “control intent matrix” (Preventive/Detective/Enforcing) reused by README, governance, and threat-model docs.
+  - [ ] Add an automated docs consistency check for key control terms (`release-blocking`, `managed debt`, `posture evidence`).
+  - [ ] Ensure Snyk section language consistently points to Trivy/ZAP for admission decisions.
 - **Deliverables**
-  - Automated governance-settings audit job.
-  - Standardized audit report artifact.
+  - Shared control-intent matrix and consistency guardrail.
 - **Acceptance criteria**
-  - [x] Audit job can detect at least one intentionally introduced protection drift in test mode.
-  - [x] Quarterly maintainer checklist references automated output.
+  - [ ] No conflicting scanner-role wording across README/governance/threat model in CI checks.
 - **Evidence required**
-  - Job logs/artifacts.
-  - Example failed + passing run evidence.
+  - Docs consistency check output.
 
-#### Epic M1-E2 — Add documentation freshness controls
+### Epic M1-E2 — Improve remediation program operability
 
-- **Problem statement:** `last_reviewed`/`last validated` metadata can become stale, weakening governance credibility.
+- **Priority:** P1
+- **Problem:** Current plan mixes completed historical items with future work, making execution tracking noisy.
 - **Tasks**
-  - [x] Add CI check for stale governance metadata beyond declared cadence.
-  - [x] Define approved override path for exceptions (time-bound, justified).
-  - [x] Surface failures with actionable remediation hints.
+  - [ ] Split historical-completed epics into an archived changelog section.
+  - [ ] Keep active epics in a concise “current execution board” format (status, owner, due date, dependency).
+  - [ ] Add dependency mapping for cross-epic blockers (e.g., durable evidence storage prerequisite for audit readiness).
 - **Deliverables**
-  - Metadata freshness check integrated into CI.
+  - Cleaner remediation tracking structure optimized for execution.
 - **Acceptance criteria**
-  - [x] Stale doc metadata causes deterministic, understandable CI failure.
+  - [ ] Maintainers can identify active priorities in under 5 minutes.
 - **Evidence required**
-  - CI job output showing pass/fail behavior.
+  - Updated remediation board format committed in docs.
 
-#### Epic M1-E3 — Consolidate governance evidence index
+### Epic M1-E3 — Expand governance-settings audit coverage
 
-- **Problem statement:** Evidence is fragmented across docs and workflow artifacts, increasing audit friction.
+- **Priority:** P1
+- **Problem:** External control drift detection exists, but drift scenarios and expected responses can be broadened.
 - **Tasks**
-  - [x] Create a single evidence index mapping each README claim to workflow job, policy, and artifact path.
-  - [x] Add ownership + review cadence metadata for each mapping row.
-  - [x] Link index from README and `docs/governance.md`.
+  - [ ] Add additional fixture scenarios (e.g., CODEOWNERS enforcement off, tag pattern drift, environment reviewer drift).
+  - [ ] Map each drift scenario to explicit response steps and severity.
+  - [ ] Add quarterly trend summary output (count by drift type).
 - **Deliverables**
-  - Governance evidence index page.
+  - Enhanced fixtures and drift response taxonomy.
 - **Acceptance criteria**
-  - [x] Auditor can trace any top-level README claim to enforcement + evidence within one page.
+  - [ ] Audit workflow can classify drift by category and severity.
 - **Evidence required**
-  - Index doc link.
-  - Reviewer sign-off.
+  - Fixture run artifacts and summary sample.
 
 ---
 
-### Milestone M2 (90+ days): Strategic Resilience & Maturity
+## Milestone M2 (90+ days): Strategic Trust Maturity
 
-**Objective:** Improve measurable governance outcomes and strengthen long-term trust assurances.
+**Goal:** Strengthen long-term resilience, audit durability, and maturity toward higher-assurance supply-chain posture.
 
-#### Epic M2-E1 — Define governance SLOs and reporting
+### Epic M2-E1 — Durable attestation-verification evidence pipeline
 
-- **Problem statement:** Governance performance is described qualitatively; operational targets are not yet formalized.
+- **Priority:** P1
+- **Problem:** Verification outcomes are mostly ephemeral workflow artifacts/logs.
 - **Tasks**
-  - [x] Define SLOs for release-gate reliability, remediation lead time, and policy-test health.
-  - [x] Add periodic reporting mechanism (dashboard/report artifact).
-  - [x] Define breach response and ownership.
+  - [ ] Define durable evidence store and retention policy for signature/attestation verification results.
+  - [ ] Implement signed or tamper-evident export of verification summaries per release.
+  - [ ] Add retrieval/query runbook for audits and incident response.
 - **Deliverables**
-  - Governance SLO definition doc + reporting path.
+  - Durable verification evidence architecture + implementation.
 - **Acceptance criteria**
-  - [x] SLOs are measurable from existing telemetry/artifacts.
+  - [ ] Auditors can query verification outcomes across historical releases without replaying old workflow runs.
 - **Evidence required**
-  - SLO doc.
-  - Sample report output.
+  - Storage design doc and sample query output.
 
-#### Epic M2-E2 — Improve trust-boundary observability
+### Epic M2-E2 — SLSA L3-aligned sequencing plan with pilots
 
-- **Problem statement:** Critical attestation verification outcomes are mostly in workflow logs and not centrally retained.
+- **Priority:** P2
+- **Problem:** L3-aligned posture is acknowledged, but control sequencing and rollback strategy are not formalized.
 - **Tasks**
-  - [ ] Export signature/attestation verification outcomes to durable audit storage.
-  - [ ] Define retention and integrity requirements for audit records.
-  - [ ] Update incident-response references to consume this trail.
+  - [ ] Build a gap matrix for hermeticity, reproducibility, build isolation, and dependency provenance.
+  - [ ] Prioritize controls by risk reduction vs operational cost.
+  - [ ] Run one pilot control with explicit success/failure rollback criteria.
 - **Deliverables**
-  - Durable verification audit trail design + implementation.
+  - Time-phased roadmap and pilot report.
 - **Acceptance criteria**
-  - [ ] Verification history is queryable across releases without replaying workflow logs.
+  - [ ] Each control has owner, dependency, validation method, and rollback path.
 - **Evidence required**
-  - Storage location and sample query/report.
+  - Approved roadmap + pilot retrospective.
 
-#### Epic M2-E3 — Progress SLSA L3-aligned hardening roadmap
+### Epic M2-E3 — Governance SLO operationalization
 
-- **Problem statement:** Current posture is defensible at L2 with L3-aligned elements; roadmap needs explicit sequencing.
+- **Priority:** P2
+- **Problem:** SLO definitions exist, but operational response loops can be tightened.
 - **Tasks**
-  - [ ] Document L3 gap matrix (hermeticity, reproducibility, isolation, dependencies).
-  - [ ] Prioritize incremental controls by risk reduction vs operational cost.
-  - [ ] Define pilot milestones with rollback criteria.
+  - [ ] Add alert thresholds and owner paging/escalation for SLO breaches.
+  - [ ] Add quarterly trend review template (breach reasons, corrective action, closure status).
+  - [ ] Link SLO breach outcomes to remediation backlog updates.
 - **Deliverables**
-  - Time-phased SLSA hardening roadmap.
+  - Closed-loop SLO operations process.
 - **Acceptance criteria**
-  - [ ] Each proposed L3-aligned control has owner, risk impact, and validation method.
+  - [ ] Every SLO breach generates traceable corrective action within the same review cycle.
 - **Evidence required**
-  - Gap matrix.
-  - Approved roadmap artifact.
+  - Quarterly SLO review record with linked remediation updates.
 
 ---
 
-## Program Governance Metadata (for all epics above)
+## 3) Execution Metadata (Active Program)
 
-- **Program owner:** _TBD_
-- **Security reviewer:** _TBD_
-- **Target review cadence:** Quarterly
-- **Tracking convention:** one issue per epic + linked checklist task IDs
-- **Definition of done (global):**
-  - [ ] Implementation complete
-  - [ ] Validation evidence attached
-  - [ ] Documentation updated
-  - [ ] Governance reviewer approval recorded
+- **Program owner:** _TBD (assign in M0-E3)_
+- **Security reviewer:** _TBD (assign in M0-E3)_
+- **Review cadence:** Quarterly
+- **Tracking convention:** one issue per epic + linked task checklist + evidence links
+
+### Global Definition of Done
+
+- [ ] Implementation merged
+- [ ] Validation evidence attached
+- [ ] Documentation synchronized (`readme.md`, governance docs, this plan as applicable)
+- [ ] Security/governance reviewer approval recorded
+
