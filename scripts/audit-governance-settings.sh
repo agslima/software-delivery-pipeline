@@ -197,19 +197,24 @@ ENVIRONMENT_POLICIES_FILE="$RAW_DIR/environment-${ENVIRONMENT_NAME}-deployment-b
 EXPECTED_BRANCH_REF="$(jq -r '.rulesets.branch.target_ref' "$EXPECTATIONS_FILE")"
 EXPECTED_TAG_REF="$(jq -r '.rulesets.tag.target_ref' "$EXPECTATIONS_FILE")"
 
-LIVE_BRANCH_RULESET="$(jq -c --arg ref "$EXPECTED_BRANCH_REF" '
+LIVE_BRANCH_RULESETS="$(jq -c --arg ref "$EXPECTED_BRANCH_REF" '
   (if type == "array" then . else .rulesets // [] end)
   | map(select(.target == "branch"))
   | map(select(any(.conditions.ref_name.include[]?; . == $ref)))
-  | .[0] // {}
+  | .
 ' "$RULESETS_FILE")"
 
-LIVE_TAG_RULESET="$(jq -c --arg ref "$EXPECTED_TAG_REF" '
+LIVE_TAG_RULESETS="$(jq -c --arg ref "$EXPECTED_TAG_REF" '
   (if type == "array" then . else .rulesets // [] end)
   | map(select(.target == "tag"))
   | map(select(any(.conditions.ref_name.include[]?; . == $ref)))
-  | .[0] // {}
+  | .
 ' "$RULESETS_FILE")"
+
+LIVE_BRANCH_RULESET_COUNT="$(jq -r 'length' <<<"$LIVE_BRANCH_RULESETS")"
+LIVE_TAG_RULESET_COUNT="$(jq -r 'length' <<<"$LIVE_TAG_RULESETS")"
+LIVE_BRANCH_RULESET="$(jq -c '.[0] // {}' <<<"$LIVE_BRANCH_RULESETS")"
+LIVE_TAG_RULESET="$(jq -c '.[0] // {}' <<<"$LIVE_TAG_RULESETS")"
 
 EXPECTED_BRANCH_RULESET="$(jq -c '.' "$EXPECTED_BRANCH_FILE")"
 EXPECTED_TAG_RULESET="$(jq -c '.' "$EXPECTED_TAG_FILE")"
@@ -223,12 +228,28 @@ record_condition \
   "$(jq -r 'if . == {} then "false" else "true" end' <<<"$LIVE_BRANCH_RULESET")"
 
 record_condition \
+  "branch-ruleset-unique" "branch_protection" "high" \
+  "exactly 1 ruleset for ${EXPECTED_BRANCH_REF}" \
+  "${LIVE_BRANCH_RULESET_COUNT} matching ruleset(s)" \
+  "GitHub rulesets API" \
+  "Repository must not accumulate overlapping branch rulesets for the audited main ref." \
+  "$( [ "$LIVE_BRANCH_RULESET_COUNT" -eq 1 ] && echo true || echo false )"
+
+record_condition \
   "tag-ruleset-present" "tag_protection" "high" \
   "ruleset for ${EXPECTED_TAG_REF} exists" \
   "$(jq -r 'if . == {} then "missing" else (.name // "present") end' <<<"$LIVE_TAG_RULESET")" \
   "GitHub rulesets API" \
   "Repository must keep an active release tag ruleset." \
   "$(jq -r 'if . == {} then "false" else "true" end' <<<"$LIVE_TAG_RULESET")"
+
+record_condition \
+  "tag-ruleset-unique" "tag_protection" "high" \
+  "exactly 1 ruleset for ${EXPECTED_TAG_REF}" \
+  "${LIVE_TAG_RULESET_COUNT} matching ruleset(s)" \
+  "GitHub rulesets API" \
+  "Repository must not accumulate overlapping tag rulesets for the audited release ref." \
+  "$( [ "$LIVE_TAG_RULESET_COUNT" -eq 1 ] && echo true || echo false )"
 
 EXPECTED_BRANCH_ENFORCEMENT="$(jq -r '.enforcement' <<<"$EXPECTED_BRANCH_RULESET")"
 LIVE_BRANCH_ENFORCEMENT="$(jq -r '.enforcement // "missing"' <<<"$LIVE_BRANCH_RULESET")"
@@ -245,6 +266,34 @@ record_comparison \
   "$EXPECTED_TAG_ENFORCEMENT" "$LIVE_TAG_ENFORCEMENT" \
   "$EXPECTED_TAG_FILE" \
   "Tag ruleset enforcement must stay active."
+
+EXPECTED_BRANCH_CONDITIONS="$(jq -c "$NORMALIZE_JQ
+  (.conditions // {})
+  | normalize
+" <<<"$EXPECTED_BRANCH_RULESET")"
+LIVE_BRANCH_CONDITIONS="$(jq -c "$NORMALIZE_JQ
+  (.conditions // {})
+  | normalize
+" <<<"$LIVE_BRANCH_RULESET")"
+record_comparison \
+  "branch-ruleset-conditions" "branch_protection" "high" \
+  "$EXPECTED_BRANCH_CONDITIONS" "$LIVE_BRANCH_CONDITIONS" \
+  "$EXPECTED_BRANCH_FILE" \
+  "Branch ruleset conditions must stay aligned with the audited main-branch scope."
+
+EXPECTED_TAG_CONDITIONS="$(jq -c "$NORMALIZE_JQ
+  (.conditions // {})
+  | normalize
+" <<<"$EXPECTED_TAG_RULESET")"
+LIVE_TAG_CONDITIONS="$(jq -c "$NORMALIZE_JQ
+  (.conditions // {})
+  | normalize
+" <<<"$LIVE_TAG_RULESET")"
+record_comparison \
+  "tag-ruleset-conditions" "tag_protection" "high" \
+  "$EXPECTED_TAG_CONDITIONS" "$LIVE_TAG_CONDITIONS" \
+  "$EXPECTED_TAG_FILE" \
+  "Tag ruleset conditions must stay aligned with the audited release-tag scope."
 
 EXPECTED_BRANCH_RULES="$(jq -c "$NORMALIZE_JQ
   (.rules // [])
