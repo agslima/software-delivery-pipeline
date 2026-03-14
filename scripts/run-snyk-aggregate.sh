@@ -510,7 +510,31 @@ count_sast_issues() {
       [
         .runs[]?.results[]?
         | {
-            id: (.ruleId // .fingerprints.primaryLocationLineHash // .message.text // "unknown-id"),
+            id: (
+              .fingerprints.primaryLocationLineHash
+              // (
+                (
+                  (
+                    .locations[0]?.physicalLocation?.artifactLocation?.uri
+                    // "unknown-file"
+                  )
+                  + ":"
+                  + (
+                    (
+                      .locations[0]?.physicalLocation?.region?.startLine
+                      // 0
+                    )
+                    | tostring
+                  )
+                )
+                + "::"
+                + (
+                  .ruleId
+                  // .message.text
+                  // "unknown-id"
+                )
+              )
+            ),
             severity: (
               .properties.severity
               // .level
@@ -526,6 +550,7 @@ count_sast_issues() {
         k: (.id | tostring),
         severity: norm_level(.severity)
       })
+    | map(select(.severity != null and .severity != ""))
     | unique_by(.k)
     | [
         (map(select(.severity == "critical")) | length),
