@@ -6,18 +6,18 @@ This directory contains the latest Snyk scan index for this repository.
 
 | Project | Tested | C | H | M | L |
 | :--- | :--- | ---: | ---: | ---: | ---: |
-| [Code analysis](html/snyk-code.html) | 2026-03-09 18:10 | 0 | 1 | 2 | 2 |
-| [/workspaces/software-delivery-pipeline/k8s](html/snyk-iac.html) | 2026-03-09 18:10 | 0 | 0 | 0 | 0 |
-| [app/docker/Dockerfile.client](html/snyk-container-client.html) | 2026-03-09 18:10 | 0 | 0 | 0 | 0 |
-| [app/docker/Dockerfile.server](html/snyk-container-server.html) | 2026-03-09 18:10 | 0 | 0 | 0 | 0 |
+| [Code analysis](html/snyk-code.html) | 2026-03-14 18:41 | 0 | 0 | 0 | 0 |
+| [.tmp/snyk/k8s-iac-scan](html/snyk-iac.html) | 2026-03-14 18:41 | 0 | 0 | 0 | 0 |
+| [app/docker/Dockerfile.client](html/snyk-container-client.html) | 2026-03-14 18:41 | 0 | 0 | 0 | 0 |
+| [app/docker/Dockerfile.server](html/snyk-container-server.html) | 2026-03-14 18:41 | 0 | 0 | 0 | 0 |
 
 ## Aggregate Summary
 
 | Severity | Count |
 | :--- | ---: |
 | Critical | 0 |
-| High | 1 |
-| Medium | 2 |
+| High | 0 |
+| Medium | 0 |
 | Low | 2 |
 
 ## Artifacts
@@ -34,4 +34,4 @@ This directory contains the latest Snyk scan index for this repository.
 
 - Counts are aggregated across SCA, Code, container, and IaC scans.
 - Container findings come from real built local images, not Dockerfile-only analysis.
-- Generated at: 2026-03-09 18:10 UTC
+- Generated at: 2026-03-14 18:41 UTC
