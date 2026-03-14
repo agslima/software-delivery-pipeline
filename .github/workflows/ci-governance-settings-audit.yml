@@ -85,6 +85,12 @@ jobs:
             --fixtures-dir scripts/fixtures/governance-audit/drift \
             --output-dir artifacts/governance-settings-audit
 
+      - name: Publish summary to workflow run
+        if: always()
+        shell: bash
+        run: |
+          cat artifacts/governance-settings-audit/summary.md >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload governance settings audit artifact
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f #v7.0.0
