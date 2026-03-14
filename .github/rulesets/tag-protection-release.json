@@ -1,6 +1,6 @@
 {
   "id": 13900848,
-  "name": "Tag Protection",
+  "name": "tag_protection",
   "target": "tag",
   "source_type": "Repository",
   "source": "agslima/software-delivery-pipeline",
