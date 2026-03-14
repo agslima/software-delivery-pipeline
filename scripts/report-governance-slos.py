@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import datetime as dt
 import json
 import math
@@ -12,6 +13,16 @@ import re
 import subprocess
 import sys
 from typing import Any
+
+
+@dataclasses.dataclass
+class TelemetryData:
+    """Container for workflow and issue telemetry data."""
+    release_runs: list[dict[str, Any]]
+    release_jobs: dict[int, list[dict[str, Any]]]
+    pr_runs: list[dict[str, Any]]
+    pr_jobs: dict[int, list[dict[str, Any]]]
+    issues_cache: dict[str, Any]
 
 
 def fail(message: str) -> None:
@@ -142,12 +153,10 @@ def build_status(actual: float, target: float, comparator: str, samples: int) ->
     raise ValueError(f"Unknown comparator {comparator}")
 
 
-def collect_live_inputs(repo: str) -> tuple[list[dict[str, Any]], dict[int, list[dict[str, Any]]], list[dict[str, Any]], dict[int, list[dict[str, Any]]], dict[str, Any]]:
+def collect_live_inputs(repo: str) -> TelemetryData:
     """Fetch workflow runs and job data for live GitHub-backed reporting."""
     release_runs = gh_api(repo, f"repos/{repo}/actions/workflows/ci-release-gate.yml/runs?per_page=20&status=completed").get("workflow_runs", [])
     pr_runs = gh_api(repo, f"repos/{repo}/actions/workflows/ci-pr-validation.yml/runs?per_page=20&status=completed").get("workflow_runs", [])
-
-    release_jobs: dict[int, list[dict[str, Any]]] = {}
 
     pr_jobs: dict[int, list[dict[str, Any]]] = {}
     for run in pr_runs:
@@ -156,11 +165,16 @@ def collect_live_inputs(repo: str) -> tuple[list[dict[str, Any]], dict[int, list
             f"repos/{repo}/actions/runs/{run['id']}/jobs?per_page=100",
         ).get("jobs", [])
 
-    issues_cache: dict[str, Any] = {}
-    return release_runs, release_jobs, pr_runs, pr_jobs, issues_cache
+    return TelemetryData(
+        release_runs=release_runs,
+        release_jobs={},
+        pr_runs=pr_runs,
+        pr_jobs=pr_jobs,
+        issues_cache={}
+    )
 
 
-def collect_fixture_inputs(fixtures_dir: pathlib.Path) -> tuple[list[dict[str, Any]], dict[int, list[dict[str, Any]]], list[dict[str, Any]], dict[int, list[dict[str, Any]]], dict[str, Any]]:
+def collect_fixture_inputs(fixtures_dir: pathlib.Path) -> TelemetryData:
     """Load workflow runs, jobs, and issue data from fixture files."""
     release_runs = load_json(fixtures_dir / "release-runs.json").get("workflow_runs", [])
     pr_runs = load_json(fixtures_dir / "pr-runs.json").get("workflow_runs", [])
@@ -174,7 +188,13 @@ def collect_fixture_inputs(fixtures_dir: pathlib.Path) -> tuple[list[dict[str, A
     for run in pr_runs:
         pr_jobs[int(run["id"])] = load_json(fixtures_dir / f"jobs-pr-{run['id']}.json").get("jobs", [])
 
-    return release_runs, release_jobs, pr_runs, pr_jobs, issues_cache
+    return TelemetryData(
+        release_runs=release_runs,
+        release_jobs=release_jobs,
+        pr_runs=pr_runs,
+        pr_jobs=pr_jobs,
+        issues_cache=issues_cache
+    )
 
 
 def get_issue(repo: str, issue_ref: str, issues_cache: dict[str, Any], fixtures: bool) -> dict[str, Any] | None:
@@ -190,64 +210,21 @@ def get_issue(repo: str, issue_ref: str, issues_cache: dict[str, Any], fixtures:
     return issues_cache[issue_number]
 
 
-def main() -> None:
-    """Generate the governance SLO report and fail on measured breaches."""
-    args = parse_args()
-    output_dir = pathlib.Path(args.output_dir)	
-    # Normalize and constrain the output directory to be within the current working directory.
-    base_dir = pathlib.Path.cwd().resolve()
-    output_dir_raw = pathlib.Path(args.output_dir)
-    if output_dir_raw.is_absolute():
-        output_dir = output_dir_raw.resolve()
-    else:
-        output_dir = (base_dir / output_dir_raw).resolve()
+def safe_resolve_dir(base_dir: pathlib.Path, target: str) -> pathlib.Path:
+    """Ensure a target directory is securely contained within the base directory."""
+    target_path = pathlib.Path(target).resolve()
+    if not target_path.is_relative_to(base_dir):
+        fail(f"Refusing to write or read outside of base directory {base_dir}: {target_path}")
+    return target_path
 
-    # Ensure the resolved output directory is contained within the base directory.
-    try:
-        # Python 3.9+: prefer is_relative_to when available.
-        is_relative = getattr(output_dir, "is_relative_to", None)
-        if callable(is_relative):
-            if not output_dir.is_relative_to(base_dir):
-                fail(f"Refusing to write outside of base directory {base_dir}: {output_dir}")
-        else:
-            # Fallback for older Python versions.
-            output_dir.relative_to(base_dir)
-    except ValueError:
-        fail(f"Refusing to write outside of base directory {base_dir}: {output_dir}")
 
-    output_dir.mkdir(parents=True, exist_ok=True)	    output_dir.mkdir(parents=True, exist_ok=True)
-    debt_file = pathlib.Path(args.debt_file)
-    if not debt_file.exists():
-        fail(f"Missing security debt registry: {debt_file}")
-
-    fixtures_mode = bool(args.fixtures_dir)
-    repo = args.repo or ""
-    if not fixtures_mode and not repo:
-        fail("Repository must be provided via --repo in live mode.")
-
-    if fixtures_mode:
-        fixtures_root = pathlib.Path("fixtures").resolve()
-        fixtures_dir = pathlib.Path(args.fixtures_dir).resolve()
-        try:
-            fixtures_dir.relative_to(fixtures_root)
-        except ValueError:
-            fail(f"Fixtures directory must be within {fixtures_root}: {fixtures_dir}")
-        if not fixtures_dir.exists():
-            fail(f"Fixtures directory not found: {fixtures_dir}")
-        release_runs, release_jobs, pr_runs, pr_jobs, issues_cache = collect_fixture_inputs(fixtures_dir)
-        mode = "fixture"
-        repository_name = repo or "fixtures/software-delivery-pipeline"
-    else:
-        if subprocess.run(["which", "gh"], capture_output=True).returncode != 0:
-            fail("gh CLI is required in live mode.")
-        release_runs, release_jobs, pr_runs, pr_jobs, issues_cache = collect_live_inputs(repo)
-        mode = "live"
-        repository_name = repo
-
+def generate_slos(data: TelemetryData, repository_name: str, fixtures_mode: bool, debt_file: pathlib.Path) -> list[dict[str, Any]]:
+    """Calculate metrics and construct the SLO reporting dictionaries."""
     resolved_entries = read_resolved_debt_entries(debt_file)
     remediation_days: list[int] = []
+    
     for entry in resolved_entries:
-        issue = get_issue(repository_name, entry.get("Ticket/Link", ""), issues_cache, fixtures_mode)
+        issue = get_issue(repository_name, entry.get("Ticket/Link", ""), data.issues_cache, fixtures_mode)
         if not issue:
             continue
         try:
@@ -257,10 +234,10 @@ def main() -> None:
             continue
         remediation_days.append((resolved_on - created_on).days)
 
-    release_successes, release_samples = count_success_conclusions(release_runs)
+    release_successes, release_samples = count_success_conclusions(data.release_runs)
     release_rate = round((release_successes / release_samples) * 100, 1) if release_samples else math.nan
 
-    backend_policy_jobs = get_backend_infra_jobs(pr_jobs)
+    backend_policy_jobs = get_backend_infra_jobs(data.pr_jobs)
     policy_successes, policy_samples = count_success_conclusions(backend_policy_jobs)
     policy_rate = round((policy_successes / policy_samples) * 100, 1) if policy_samples else math.nan
 
@@ -323,27 +300,14 @@ def main() -> None:
         },
     ]
 
-    overall_status = "pass"
     for slo in slos:
         slo["status"] = build_status(float(slo["actual"]), float(slo["objective"]), slo["comparator"], int(slo["samples"]))
-        if slo["status"] == "breach":
-            overall_status = "breach"
-        elif slo["status"] == "insufficient_data" and overall_status != "breach":
-            overall_status = "insufficient_data"
 
-    generated_at = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-    report = {
-        "schema_version": "1",
-        "repository": repository_name,
-        "mode": mode,
-        "generated_at": generated_at,
-        "overall_status": overall_status,
-        "slos": slos,
-    }
+    return slos
 
-    report_path = output_dir / "report.json"
-    report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
 
+def create_markdown_summary(repository_name: str, mode: str, generated_at: str, overall_status: str, slos: list[dict[str, Any]]) -> str:
+    """Format the calculated SLOs into a Markdown report."""
     summary_lines = [
         "# Governance SLO Report",
         "",
@@ -370,13 +334,7 @@ def main() -> None:
             )
         )
 
-    summary_lines.extend(
-        [
-            "",
-            "## Breach Response",
-            "",
-        ]
-    )
+    summary_lines.extend(["", "## Breach Response", ""])
     for slo in slos:
         summary_lines.extend(
             [
@@ -388,11 +346,76 @@ def main() -> None:
             ]
         )
 
+    return "\n".join(summary_lines)
+
+
+def main() -> None:
+    """Generate the governance SLO report and fail on measured breaches."""
+    args = parse_args()
+    base_dir = pathlib.Path.cwd().resolve()
+    
+    output_dir = safe_resolve_dir(base_dir, args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    debt_file = pathlib.Path(args.debt_file)
+    if not debt_file.exists():
+        fail(f"Missing security debt registry: {debt_file}")
+
+    fixtures_mode = bool(args.fixtures_dir)
+    repo = args.repo or ""
+    if not fixtures_mode and not repo:
+        fail("Repository must be provided via --repo in live mode.")
+
+    # Data Collection Phase
+    if fixtures_mode:
+        fixtures_root = pathlib.Path("fixtures").resolve()
+        fixtures_dir = safe_resolve_dir(fixtures_root, args.fixtures_dir)
+        if not fixtures_dir.exists():
+            fail(f"Fixtures directory not found: {fixtures_dir}")
+            
+        data = collect_fixture_inputs(fixtures_dir)
+        mode = "fixture"
+        repository_name = repo or "fixtures/software-delivery-pipeline"
+    else:
+        if subprocess.run(["which", "gh"], capture_output=True).returncode != 0:
+            fail("gh CLI is required in live mode.")
+            
+        data = collect_live_inputs(repo)
+        mode = "live"
+        repository_name = repo
+
+    # Processing Phase
+    slos = generate_slos(data, repository_name, fixtures_mode, debt_file)
+
+    overall_status = "pass"
+    for slo in slos:
+        if slo["status"] == "breach":
+            overall_status = "breach"
+        elif slo["status"] == "insufficient_data" and overall_status != "breach":
+            overall_status = "insufficient_data"
+
+    generated_at = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+    # Artifact Generation Phase
+    report = {
+        "schema_version": "1",
+        "repository": repository_name,
+        "mode": mode,
+        "generated_at": generated_at,
+        "overall_status": overall_status,
+        "slos": slos,
+    }
+
+    report_path = output_dir / "report.json"
+    report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+
     summary_path = output_dir / "summary.md"
-    summary_path.write_text("\n".join(summary_lines), encoding="utf-8")
+    markdown_content = create_markdown_summary(repository_name, mode, generated_at, overall_status, slos)
+    summary_path.write_text(markdown_content, encoding="utf-8")
 
     print(f"[governance-slo-report] report: {report_path}")
     print(f"[governance-slo-report] summary: {summary_path}")
+    
     if overall_status == "breach":
         raise SystemExit(1)
 
