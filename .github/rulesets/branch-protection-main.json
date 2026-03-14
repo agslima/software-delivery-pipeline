@@ -60,16 +60,6 @@
       }
     },
     {
-      "type": "copilot_code_review_analysis_tools",
-      "parameters": {
-        "tools": [
-          {
-            "name": "CodeQL"
-          }
-        ]
-      }
-    },
-    {
       "type": "required_linear_history"
     },
     {
