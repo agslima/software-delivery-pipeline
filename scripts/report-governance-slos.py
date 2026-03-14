@@ -206,7 +206,14 @@ def get_issue(repo: str, issue_ref: str, issues_cache: dict[str, Any], fixtures:
     if fixtures:
         return issues_cache.get(issue_number)
     if issue_number not in issues_cache:
-        issues_cache[issue_number] = gh_api(repo, f"repos/{repo}/issues/{issue_number}")
+        try:
+            issues_cache[issue_number] = gh_api(repo, f"repos/{repo}/issues/{issue_number}")
+        except SystemExit:
+            print(
+                f"::warning::Skipping unresolved issue reference {issue_ref} in docs/security-debt.md for repository {repo}.",
+                file=sys.stderr,
+            )
+            issues_cache[issue_number] = None
     return issues_cache[issue_number]
 
 
