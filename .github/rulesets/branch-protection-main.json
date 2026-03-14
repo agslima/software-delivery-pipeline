@@ -1,6 +1,6 @@
 {
   "id": 12766668,
-  "name": "branch-protection",
+  "name": "branch_protection",
   "target": "branch",
   "source_type": "Repository",
   "source": "agslima/software-delivery-pipeline",
