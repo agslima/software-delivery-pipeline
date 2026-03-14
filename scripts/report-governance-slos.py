@@ -193,9 +193,29 @@ def get_issue(repo: str, issue_ref: str, issues_cache: dict[str, Any], fixtures:
 def main() -> None:
     """Generate the governance SLO report and fail on measured breaches."""
     args = parse_args()
-    output_dir = pathlib.Path(args.output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
+    output_dir = pathlib.Path(args.output_dir)	
+    # Normalize and constrain the output directory to be within the current working directory.
+    base_dir = pathlib.Path.cwd().resolve()
+    output_dir_raw = pathlib.Path(args.output_dir)
+    if output_dir_raw.is_absolute():
+        output_dir = output_dir_raw.resolve()
+    else:
+        output_dir = (base_dir / output_dir_raw).resolve()
 
+    # Ensure the resolved output directory is contained within the base directory.
+    try:
+        # Python 3.9+: prefer is_relative_to when available.
+        is_relative = getattr(output_dir, "is_relative_to", None)
+        if callable(is_relative):
+            if not output_dir.is_relative_to(base_dir):
+                fail(f"Refusing to write outside of base directory {base_dir}: {output_dir}")
+        else:
+            # Fallback for older Python versions.
+            output_dir.relative_to(base_dir)
+    except ValueError:
+        fail(f"Refusing to write outside of base directory {base_dir}: {output_dir}")
+
+    output_dir.mkdir(parents=True, exist_ok=True)	    output_dir.mkdir(parents=True, exist_ok=True)
     debt_file = pathlib.Path(args.debt_file)
     if not debt_file.exists():
         fail(f"Missing security debt registry: {debt_file}")
@@ -206,7 +226,12 @@ def main() -> None:
         fail("Repository must be provided via --repo in live mode.")
 
     if fixtures_mode:
-        fixtures_dir = pathlib.Path(args.fixtures_dir)
+        fixtures_root = pathlib.Path("fixtures").resolve()
+        fixtures_dir = pathlib.Path(args.fixtures_dir).resolve()
+        try:
+            fixtures_dir.relative_to(fixtures_root)
+        except ValueError:
+            fail(f"Fixtures directory must be within {fixtures_root}: {fixtures_dir}")
         if not fixtures_dir.exists():
             fail(f"Fixtures directory not found: {fixtures_dir}")
         release_runs, release_jobs, pr_runs, pr_jobs, issues_cache = collect_fixture_inputs(fixtures_dir)
