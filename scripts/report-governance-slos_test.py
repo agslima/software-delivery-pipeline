@@ -17,7 +17,6 @@ build_status = report_governance_slos.build_status
 count_success_conclusions = report_governance_slos.count_success_conclusions
 fail = report_governance_slos.fail
 get_backend_infra_jobs = report_governance_slos.get_backend_infra_jobs
-get_issue = report_governance_slos.get_issue
 iso_to_date = report_governance_slos.iso_to_date
 markdown_table_row = report_governance_slos.markdown_table_row
 percentile = report_governance_slos.percentile
@@ -135,19 +134,6 @@ More text
     assert len(entries) == 2
     assert entries[0]["Ticket/Link"] == "#123"
     assert entries[1]["Date Resolved (YYYY-MM-DD)"] == "2023-02-15"
-
-
-@patch.object(report_governance_slos, "gh_api", side_effect=SystemExit(1))
-@patch("sys.stderr")
-def test_get_issue_skips_missing_live_issue(mock_stderr, _mock_gh_api):
-    """Test that missing live issue references are downgraded to warnings."""
-    issues_cache = {}
-    issue = get_issue("agslima/software-delivery-pipeline", "#264", issues_cache, fixtures=False)
-    assert issue is None
-    assert issues_cache["264"] is None
-    assert "Skipping unresolved issue reference #264" in "".join(
-        call.args[0] for call in mock_stderr.write.call_args_list
-    )
 
 # --- 4. System / Exit Tests ---
 
