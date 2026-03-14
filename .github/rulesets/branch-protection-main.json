@@ -1,5 +1,5 @@
 {
-  "id": 11512541,
+  "id": 12766668,
   "name": "branch-protection",
   "target": "branch",
   "source_type": "Repository",
@@ -97,9 +97,16 @@
           {
             "context": "Governance & Security Quality Check",
             "integration_id": 15368
+          },
+          {
+            "context": "CodeQL",
+            "integration_id": 57789
           }
         ]
       }
+    },
+    {
+      "type": "required_signatures"
     }
   ],
   "bypass_actors": []
