@@ -249,20 +249,20 @@ record_comparison \
 EXPECTED_BRANCH_RULES="$(jq -c "$NORMALIZE_JQ
   (.rules // [])
   | map(
-      if .type == "pull_request" then
+      if .type == \"pull_request\" then
         .parameters.allowed_merge_methods = ((.parameters.allowed_merge_methods // []) | sort)
-      elif .type == "required_status_checks" then
+      elif .type == \"required_status_checks\" then
         .parameters.required_status_checks = (
           (.parameters.required_status_checks // [])
           | map(del(.integration_id))
           | sort_by(.context)
         )
-      elif .type == "code_scanning" then
+      elif .type == \"code_scanning\" then
         .parameters.code_scanning_tools = (
           (.parameters.code_scanning_tools // [])
           | sort_by(.tool, .security_alerts_threshold, .alerts_threshold)
         )
-      elif .type == "copilot_code_review_analysis_tools" then
+      elif .type == \"copilot_code_review_analysis_tools\" then
         .parameters.tools = ((.parameters.tools // []) | sort_by(.name))
       else
         .
@@ -275,20 +275,20 @@ EXPECTED_BRANCH_RULES="$(jq -c "$NORMALIZE_JQ
 LIVE_BRANCH_RULES="$(jq -c "$NORMALIZE_JQ
   (.rules // [])
   | map(
-      if .type == "pull_request" then
+      if .type == \"pull_request\" then
         .parameters.allowed_merge_methods = ((.parameters.allowed_merge_methods // []) | sort)
-      elif .type == "required_status_checks" then
+      elif .type == \"required_status_checks\" then
         .parameters.required_status_checks = (
           (.parameters.required_status_checks // [])
           | map(del(.integration_id))
           | sort_by(.context)
         )
-      elif .type == "code_scanning" then
+      elif .type == \"code_scanning\" then
         .parameters.code_scanning_tools = (
           (.parameters.code_scanning_tools // [])
           | sort_by(.tool, .security_alerts_threshold, .alerts_threshold)
         )
-      elif .type == "copilot_code_review_analysis_tools" then
+      elif .type == \"copilot_code_review_analysis_tools\" then
         .parameters.tools = ((.parameters.tools // []) | sort_by(.name))
       else
         .
@@ -307,7 +307,7 @@ record_comparison \
 EXPECTED_TAG_RULES="$(jq -c "$NORMALIZE_JQ
   (.rules // [])
   | map(
-      if .type == "required_status_checks" then
+      if .type == \"required_status_checks\" then
         .parameters.required_status_checks = (
           (.parameters.required_status_checks // [])
           | map(del(.integration_id))
@@ -324,7 +324,7 @@ EXPECTED_TAG_RULES="$(jq -c "$NORMALIZE_JQ
 LIVE_TAG_RULES="$(jq -c "$NORMALIZE_JQ
   (.rules // [])
   | map(
-      if .type == "required_status_checks" then
+      if .type == \"required_status_checks\" then
         .parameters.required_status_checks = (
           (.parameters.required_status_checks // [])
           | map(del(.integration_id))
