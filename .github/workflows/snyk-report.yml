@@ -57,3 +57,10 @@ jobs:
               --title "docs: weekly Snyk security scan update" \
               --body "Automated PR to update Snyk governance evidence in readme.md and docs/snyk artifacts."
           fi
+      
+      - name: Publish summary to workflow run
+        if: always()
+        shell: bash
+        run: |
+          cat docs/snyk/index.md >> "$GITHUB_STEP_SUMMARY"
+
