@@ -32,11 +32,11 @@ jobs:
       - name: Validate audit token availability
         if: env.AUDIT_MODE == 'live'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PAT_GITHUB }}
         run: |
           set -euo pipefail
           test -n "${GH_TOKEN}" || {
-            echo "::error::Missing GITHUB_TOKEN secret. Configure a fine-grained token with read-only Administration access for repository settings audit."
+            echo "::error::Missing PAT_GITHUB secret. Configure a fine-grained token with read-only Administration access for repository settings audit."
             exit 1
           }
 
