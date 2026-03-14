@@ -2,8 +2,8 @@
   "branch_policies": [
     {
       "id": 100,
-      "name": "v*.*.*",
-      "type": "tag"
+      "name": "main",
+      "type": "branch"
     }
   ]
 }
