@@ -1,23 +1,28 @@
 import datetime as dt
+import importlib.util
 import math
 import pathlib
+import sys
 import pytest
 from unittest.mock import patch
 
-# Import the functions from your refactored script
-# Assuming your script is saved as `report.py`
-from report import (
-    build_status,
-    count_success_conclusions,
-    fail,
-    get_backend_infra_jobs,
-    iso_to_date,
-    markdown_table_row,
-    percentile,
-    read_resolved_debt_entries,
-    safe_resolve_dir,
-    TelemetryData,
-)
+MODULE_PATH = pathlib.Path(__file__).with_name("report-governance-slos.py")
+MODULE_SPEC = importlib.util.spec_from_file_location("report_governance_slos", MODULE_PATH)
+assert MODULE_SPEC and MODULE_SPEC.loader
+report_governance_slos = importlib.util.module_from_spec(MODULE_SPEC)
+sys.modules[MODULE_SPEC.name] = report_governance_slos
+MODULE_SPEC.loader.exec_module(report_governance_slos)
+
+build_status = report_governance_slos.build_status
+count_success_conclusions = report_governance_slos.count_success_conclusions
+fail = report_governance_slos.fail
+get_backend_infra_jobs = report_governance_slos.get_backend_infra_jobs
+iso_to_date = report_governance_slos.iso_to_date
+markdown_table_row = report_governance_slos.markdown_table_row
+percentile = report_governance_slos.percentile
+read_resolved_debt_entries = report_governance_slos.read_resolved_debt_entries
+safe_resolve_dir = report_governance_slos.safe_resolve_dir
+TelemetryData = report_governance_slos.TelemetryData
 
 # --- 1. Core Logic & Math Tests ---
 
@@ -140,4 +145,7 @@ def test_fail(mock_stderr):
     
     assert exc_info.value.code == 1
     # Check that it actually prints the GitHub Action annotation
-    mock_stderr.write.assert_any_call("::error::Something went wrong\n")
+    assert mock_stderr.write.call_args_list[:2] == [
+        (( "::error::Something went wrong",), {}),
+        (("\n",), {}),
+    ]

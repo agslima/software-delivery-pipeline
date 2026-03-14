@@ -368,8 +368,7 @@ def main() -> None:
 
     # Data Collection Phase
     if fixtures_mode:
-        fixtures_root = pathlib.Path("fixtures").resolve()
-        fixtures_dir = safe_resolve_dir(fixtures_root, args.fixtures_dir)
+        fixtures_dir = safe_resolve_dir(base_dir, args.fixtures_dir)
         if not fixtures_dir.exists():
             fail(f"Fixtures directory not found: {fixtures_dir}")
             
