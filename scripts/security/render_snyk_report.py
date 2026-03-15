@@ -713,6 +713,8 @@ def main() -> int:
         raise SystemExit(
             f"--html-dir must be within --docs-dir ({docs_dir_resolved}): {html_dir_resolved}"
         )
+    # Use the validated, resolved HTML directory path from this point onward.
+    html_dir = html_dir_resolved
 
     readme_path = Path(args.readme)
     readme_path_resolved = readme_path.resolve()
