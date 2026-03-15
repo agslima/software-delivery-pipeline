@@ -1,3 +1,12 @@
 {
-  "errors": []
+  "errors": [
+    {
+      "path": ".github/CODEOWNERS",
+      "line": 7,
+      "column": 1,
+      "kind": "Invalid pattern",
+      "source": "scripts/*.sh @agslima [",
+      "message": "Invalid CODEOWNERS pattern prevents GitHub from enforcing owner resolution for this entry."
+    }
+  ]
 }
