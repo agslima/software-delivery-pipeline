@@ -689,10 +689,27 @@ def main() -> int:
     except ValueError:
         raise SystemExit(f"--docs-dir must be within {repo_root}, got {docs_dir_resolved}")
 
-    # Validate that metadata and baseline JSON files are within the repository root.
+    # Validate that metadata and baseline JSON files are within the repository root
+    # and constrained to the expected security scripts directory.
+    security_dir = repo_root / "scripts" / "security"
+
     try:
         metadata_path.relative_to(repo_root)
     except ValueError:
+        raise SystemExit(f"--metadata must be within {repo_root}, got {metadata_path}")
+    try:
+        baseline_path.relative_to(repo_root)
+    except ValueError:
+        raise SystemExit(f"--baseline must be within {repo_root}, got {baseline_path}")
+
+    try:
+        metadata_path.relative_to(security_dir)
+    except ValueError:
+        raise SystemExit(f"--metadata must be within {security_dir}, got {metadata_path}")
+    try:
+        baseline_path.relative_to(security_dir)
+    except ValueError:
+        raise SystemExit(f"--baseline must be within {security_dir}, got {baseline_path}")
         raise SystemExit(
             f"--metadata path must be within repo root ({repo_root}): {metadata_path}"
         )
