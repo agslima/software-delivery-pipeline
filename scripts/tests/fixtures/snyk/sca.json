@@ -1,0 +1,17 @@
+[
+  {
+    "displayTargetFile": "app/client/package.json",
+    "vulnerabilities": [
+      { "id": "SNYK-JS-001", "severity": "high" },
+      { "id": "SNYK-JS-002", "severity": "medium" },
+      { "id": "SNYK-JS-001", "severity": "high" }
+    ]
+  },
+  {
+    "displayTargetFile": "app/server/package.json",
+    "vulnerabilities": [
+      { "id": "SNYK-JS-003", "severity": "critical" },
+      { "id": "SNYK-JS-004", "severity": "low" }
+    ]
+  }
+]

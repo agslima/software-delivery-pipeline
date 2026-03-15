@@ -19,13 +19,21 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           fetch-depth: 0
-      - name: Create pull request
+      - name: Set up Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f #v6.3.0
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 #v6.2.0
+        with:
+          python-version: '3.12'
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd #v4.0.0
+      - name: Run Snyk & Create pull request
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: |
           set -euo pipefail
-          make snyk-report
+          make snyk
           if [[ -z "$(git status --porcelain -- readme.md docs/snyk)" ]]; then
             echo "No README/docs changes detected. Exiting."
             exit 0
@@ -38,14 +46,12 @@ jobs:
           git add docs/snyk
           git commit -m "docs: update Snyk security report in README"
           git push --force-with-lease --set-upstream origin "$pr_branch"
-
           existing_pr_number="$(gh pr list \
             --state open \
             --base main \
             --head "$pr_branch" \
             --json number \
             --jq '.[0].number // empty')"
-
           if [[ -n "$existing_pr_number" ]]; then
             gh pr edit "$existing_pr_number" \
               --title "docs: weekly Snyk security scan update" \
@@ -57,3 +63,8 @@ jobs:
               --title "docs: weekly Snyk security scan update" \
               --body "Automated PR to update Snyk governance evidence in readme.md and docs/snyk artifacts."
           fi
+      - name: Publish summary to workflow run
+        if: always()
+        shell: bash
+        run: |
+          cat docs/snyk/index.md >> "$GITHUB_STEP_SUMMARY"

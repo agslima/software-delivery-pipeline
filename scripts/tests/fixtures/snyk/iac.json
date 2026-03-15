@@ -1,0 +1,17 @@
+{
+  "results": [
+    {
+      "path": "k8s/deployment.yaml",
+      "infrastructureAsCodeIssues": [
+        { "id": "SNYK-CC-K8S-1", "severity": "high" },
+        { "id": "SNYK-CC-K8S-2", "severity": "medium" }
+      ]
+    },
+    {
+      "path": "k8s/service.yaml",
+      "infrastructureAsCodeIssues": [
+        { "id": "SNYK-CC-K8S-3", "severity": "low" }
+      ]
+    }
+  ]
+}
