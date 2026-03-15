@@ -459,6 +459,12 @@ def main() -> int:
     docs_dir = Path(args.docs_dir)
     docs_dir_resolved = docs_dir.resolve()
 
+    repo_root = Path.cwd().resolve()
+    try:
+        docs_dir_resolved.relative_to(repo_root)
+    except ValueError:
+        raise SystemExit(f"--docs-dir must be within {repo_root}, got {docs_dir_resolved}")
+
     html_dir = Path(args.html_dir).resolve()
     try:
         html_dir.relative_to(docs_dir_resolved)
@@ -551,7 +557,7 @@ def main() -> int:
             raise SystemExit(f"Unsupported scan kind: {scan['kind']}")
 
     render_index_md(
-        docs_dir=docs_dir,
+        docs_dir=docs_dir_resolved,
         html_dir=html_dir,
         timestamp_utc=args.timestamp_utc,
         scan_rows=rows,
