@@ -34,7 +34,7 @@ jobs:
         run: |
           set -euo pipefail
           make snyk
-          if [[ -z "$(git status --porcelain -- readme.md docs/snyk)" ]]; then
+          if [[ -z "$(git status --porcelain -- README.md docs/snyk)" ]]; then
             echo "No README/docs changes detected. Exiting."
             exit 0
           fi
