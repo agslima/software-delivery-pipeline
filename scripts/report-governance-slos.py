@@ -61,6 +61,32 @@ def load_json(path: pathlib.Path) -> Any:
         return json.load(handle)
 
 
+def safe_resolve_file(base_dir: pathlib.Path, path_str: str) -> pathlib.Path:
+    """
+    Safely resolve a file path provided by the user against a trusted base directory.
+
+    The resulting path is normalized and required to remain within ``base_dir``.
+    """
+    candidate = base_dir.joinpath(path_str)
+    resolved = candidate.resolve(strict=False)
+    try:
+        # Python 3.9+: pathlib.Path.is_relative_to
+        is_within_base = resolved.is_relative_to(base_dir)
+    except AttributeError:
+        # Fallback for older Python versions.
+        base_str = str(base_dir)
+        resolved_str = str(resolved)
+        is_within_base = pathlib.PurePath(resolved_str).as_posix().startswith(
+            pathlib.PurePath(base_str).as_posix().rstrip("/") + "/"
+        ) or pathlib.PurePath(resolved_str).as_posix() == pathlib.PurePath(
+            base_str
+        ).as_posix()
+
+    if not is_within_base:
+        fail(f"Refusing to access file outside base directory: {resolved}")
+    return resolved
+
+
 def gh_api(repo: str, path: str) -> Any:
     """Fetch and decode a JSON response from the GitHub CLI API wrapper."""
     try:
@@ -543,7 +569,7 @@ def main() -> None:
     output_dir = safe_resolve_dir(base_dir, args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    debt_file = pathlib.Path(args.debt_file)
+    debt_file = safe_resolve_file(base_dir, args.debt_file)
     if not debt_file.exists():
         fail(f"Missing security debt registry: {debt_file}")
 
