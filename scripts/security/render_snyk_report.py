@@ -721,6 +721,12 @@ def main() -> int:
     # Construct the README path from the docs directory and user-provided argument,
     # then resolve it and ensure it is contained within docs_dir_resolved.
     readme_arg_path = Path(args.readme)
+    # Disallow absolute paths for --readme so callers cannot bypass --docs-dir.
+    if readme_arg_path.is_absolute():
+        raise SystemExit(
+            f"--readme must be a path within --docs-dir ({docs_dir_resolved}), "
+            f"not an absolute path: {readme_arg_path}"
+        )
     readme_path = (docs_dir_resolved / readme_arg_path).resolve()
     try:
         readme_path.relative_to(docs_dir_resolved)
