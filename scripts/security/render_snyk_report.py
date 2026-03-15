@@ -85,15 +85,25 @@ def resolve_path(path_value: str, label: str, root: Path) -> Path:
     Returns:
         Path: Resolved absolute path that is contained within `root`.
     """
-    candidate = Path(path_value).expanduser()
-    if not candidate.is_absolute():
-        candidate = root / candidate
+    # Normalize the trusted root once.
+    root_resolved = root.resolve()
 
+    # Start from the user-provided path, expanding '~' but not yet trusting it.
+    candidate = Path(path_value).expanduser()
+
+    # If the path is not absolute, interpret it relative to the trusted root.
+    if not candidate.is_absolute():
+        candidate = root_resolved / candidate
+
+    # Resolve symlinks and ".." segments to get the final filesystem path.
     resolved = candidate.resolve()
+
+    # Ensure the resolved path is contained within the trusted root.
     try:
-        resolved.relative_to(root.resolve())
+        resolved.relative_to(root_resolved)
     except ValueError:
-        raise SystemExit(f"{label} must be within {root.resolve()}, got {resolved}")
+        raise SystemExit(f"{label} must be within {root_resolved}, got {resolved}")
+
     return resolved
 
 
