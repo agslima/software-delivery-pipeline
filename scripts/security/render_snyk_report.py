@@ -689,6 +689,7 @@ def main() -> int:
     except ValueError:
         raise SystemExit(f"--docs-dir must be within {repo_root}, got {docs_dir_resolved}")
 
+    # Validate that metadata and baseline JSON files are within the repository root.
     try:
         metadata_path.relative_to(repo_root)
     except ValueError:
@@ -699,6 +700,28 @@ def main() -> int:
     try:
         baseline_path.relative_to(repo_root)
     except ValueError:
+        raise SystemExit(
+            f"--baseline path must be within repo root ({repo_root}): {baseline_path}"
+        )
+
+    # Validate that html-dir and readme are contained within the validated docs directory.
+    html_dir = Path(args.html_dir)
+    html_dir_resolved = html_dir.resolve()
+    try:
+        html_dir_resolved.relative_to(docs_dir_resolved)
+    except ValueError:
+        raise SystemExit(
+            f"--html-dir must be within --docs-dir ({docs_dir_resolved}): {html_dir_resolved}"
+        )
+
+    readme_path = Path(args.readme)
+    readme_path_resolved = readme_path.resolve()
+    try:
+        readme_path_resolved.relative_to(docs_dir_resolved)
+    except ValueError:
+        raise SystemExit(
+            f"--readme must be within --docs-dir ({docs_dir_resolved}): {readme_path_resolved}"
+        )
         raise SystemExit(
             f"--baseline path must be within repo root ({repo_root}): {baseline_path}"
         )
