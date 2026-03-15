@@ -457,10 +457,17 @@ def main() -> int:
     metadata_path = Path(args.metadata)
     baseline_path = Path(args.baseline)
     docs_dir = Path(args.docs_dir)
-    html_dir = Path(args.html_dir)
-    readme_path = (docs_dir / args.readme).resolve()
-
     docs_dir_resolved = docs_dir.resolve()
+
+    html_dir = Path(args.html_dir).resolve()
+    try:
+        html_dir.relative_to(docs_dir_resolved)
+    except ValueError:
+        raise SystemExit(
+            f"--html-dir path must be within --docs-dir ({docs_dir_resolved}): {html_dir}"
+        )
+
+    readme_path = (docs_dir_resolved / args.readme).resolve()
     try:
         readme_path.relative_to(docs_dir_resolved)
     except ValueError:
