@@ -78,16 +78,16 @@ def resolve_within_base(
 
     resolved = candidate.resolve(strict=False)
     try:
+        # Python 3.9+: direct containment check
         is_within_base = resolved.is_relative_to(base_dir_resolved)
     except AttributeError:
-        # Fallback for older Python versions.
-        base_str = str(base_dir_resolved)
-        resolved_str = str(resolved)
-        is_within_base = pathlib.PurePath(resolved_str).as_posix().startswith(
-            pathlib.PurePath(base_str).as_posix().rstrip("/") + "/"
-        ) or pathlib.PurePath(resolved_str).as_posix() == pathlib.PurePath(
-            base_str
-        ).as_posix()
+        # Fallback for older Python versions: use relative_to instead of string prefix logic.
+        try:
+            resolved.relative_to(base_dir_resolved)
+        except ValueError:
+            is_within_base = False
+        else:
+            is_within_base = True
 
     if not is_within_base:
         kind = "directory" if expect_directory else "file"
