@@ -67,15 +67,25 @@ def resolve_within_base(
     """
     Resolve a user-provided path against a trusted base directory.
 
-    Relative paths are interpreted from ``base_dir``. Absolute paths are allowed only
-    when they still resolve within ``base_dir``. The resulting path must remain within
+    Only repository-relative paths are accepted. The resulting path must remain within
     the trusted base directory.
     """
     base_dir_resolved = base_dir.resolve()
-    candidate = pathlib.Path(target).expanduser()
-    if not candidate.is_absolute():
-        candidate = base_dir_resolved / candidate
+    normalized_target = target.replace("\\", "/")
+    candidate_parts = pathlib.PurePosixPath(normalized_target).parts
 
+    if not normalized_target or normalized_target.startswith("~"):
+        fail(f"{label} must be a repository-relative path, got: {target}")
+    if pathlib.PurePosixPath(normalized_target).is_absolute() or (
+        len(normalized_target) >= 2
+        and normalized_target[1] == ":"
+        and normalized_target[0].isalpha()
+    ):
+        fail(f"{label} must be relative to {base_dir_resolved}, got absolute path: {target}")
+    if any(part == ".." for part in candidate_parts):
+        fail(f"{label} must not traverse outside {base_dir_resolved}: {target}")
+
+    candidate = base_dir_resolved.joinpath(*candidate_parts)
     resolved = candidate.resolve(strict=False)
     try:
         # Python 3.9+: direct containment check

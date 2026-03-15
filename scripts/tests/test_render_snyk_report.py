@@ -176,8 +176,16 @@ def test_resolve_path_rejects_repo_escape(tmp_path: Path):
     repo_root = tmp_path / "repo"
     repo_root.mkdir()
 
-    with pytest.raises(SystemExit, match="must be within"):
+    with pytest.raises(SystemExit, match="must not traverse outside"):
         report.resolve_path("../outside.json", "--metadata", repo_root)
+
+
+def test_resolve_path_rejects_absolute_path(tmp_path: Path):
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+
+    with pytest.raises(SystemExit, match="absolute path"):
+        report.resolve_path(str((tmp_path / "outside.json").resolve()), "--metadata", repo_root)
 
 
 def test_main_allows_readme_anywhere_within_repo():
@@ -207,15 +215,15 @@ def test_main_allows_readme_anywhere_within_repo():
                 sys.executable,
                 str(SCRIPT),
                 "--metadata",
-                str(metadata),
+                "metadata.json",
                 "--baseline",
-                str(baseline),
+                "docs/snyk/baseline.json",
                 "--docs-dir",
-                str(docs_dir),
+                "docs/snyk",
                 "--html-dir",
-                str(html_dir),
+                "docs/snyk/html",
                 "--readme",
-                str(readme),
+                "subdir/README.md",
                 "--timestamp-utc",
                 "2026-03-14 12:00",
                 "--update-readme",
@@ -286,35 +294,35 @@ def test_main_end_to_end():
                         {
                             "name": "snyk-sca",
                             "kind": "sca",
-                            "json_path": str(sca),
+                            "json_path": "scans/sca.json",
                             "html_path": None,
                             "source_ref": str(run_root),
                         },
                         {
                             "name": "snyk-code",
                             "kind": "sast",
-                            "json_path": str(sast),
+                            "json_path": "scans/sast.json",
                             "html_path": None,
                             "source_ref": str(run_root),
                         },
                         {
                             "name": "snyk-container-client",
                             "kind": "container",
-                            "json_path": str(cc),
+                            "json_path": "scans/container-client.json",
                             "html_path": None,
                             "source_ref": "file-server-client:snyk",
                         },
                         {
                             "name": "snyk-container-server",
                             "kind": "container",
-                            "json_path": str(cs),
+                            "json_path": "scans/container-server.json",
                             "html_path": None,
                             "source_ref": "file-server-server:snyk",
                         },
                         {
                             "name": "snyk-iac",
                             "kind": "iac",
-                            "json_path": str(iac),
+                            "json_path": "scans/iac.json",
                             "html_path": None,
                             "source_ref": "k8s",
                         },
@@ -330,15 +338,15 @@ def test_main_end_to_end():
                 sys.executable,
                 str(SCRIPT),
                 "--metadata",
-                str(metadata),
+                "metadata.json",
                 "--baseline",
-                str(baseline),
+                "docs/snyk/baseline.json",
                 "--docs-dir",
-                str(docs_dir),
+                "docs/snyk",
                 "--html-dir",
-                str(html_dir),
+                "docs/snyk/html",
                 "--readme",
-                str(readme),
+                "README.md",
                 "--timestamp-utc",
                 "2026-03-14 12:00",
                 "--update-readme",

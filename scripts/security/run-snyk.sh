@@ -230,6 +230,14 @@ html_path = sys.argv[5]
 source_ref = sys.argv[6]
 parse_input_path = sys.argv[7]
 parse_input_format = sys.argv[8]
+repo_root = meta_path.resolve().parents[2]
+
+
+def to_repo_relative(path_value: str) -> str | None:
+    if not path_value:
+        return None
+    path = Path(path_value).resolve()
+    return str(path.relative_to(repo_root))
 
 if meta_path.exists():
     data = json.loads(meta_path.read_text(encoding="utf-8"))
@@ -239,10 +247,10 @@ else:
 data["scans"].append({
     "name": name,
     "kind": kind,
-    "json_path": json_path if json_path else None,
-    "html_path": html_path if html_path else None,
+    "json_path": to_repo_relative(json_path),
+    "html_path": to_repo_relative(html_path),
     "source_ref": source_ref,
-    "parse_input_path": parse_input_path,
+    "parse_input_path": to_repo_relative(parse_input_path),
     "parse_input_format": parse_input_format,
 })
 

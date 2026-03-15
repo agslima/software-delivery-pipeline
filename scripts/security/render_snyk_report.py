@@ -6,7 +6,7 @@ import json
 import re
 import sys
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Dict, Iterable, List, Optional
 
 
@@ -85,20 +85,25 @@ def resolve_path(path_value: str, label: str, root: Path) -> Path:
     Returns:
         Path: Resolved absolute path that is contained within `root`.
     """
-    # Normalize the trusted root once.
     root_resolved = root.resolve()
+    normalized_path = path_value.replace("\\", "/")
+    candidate_parts = PurePosixPath(normalized_path).parts
 
-    # Start from the user-provided path, expanding '~' but not yet trusting it.
-    candidate = Path(path_value).expanduser()
+    if not normalized_path or normalized_path.startswith("~"):
+        raise SystemExit(f"{label} must be a path relative to {root_resolved}, got {path_value}")
+    if PurePosixPath(normalized_path).is_absolute() or (
+        len(normalized_path) >= 2
+        and normalized_path[1] == ":"
+        and normalized_path[0].isalpha()
+    ):
+        raise SystemExit(
+            f"{label} must be relative to {root_resolved}, got absolute path: {path_value}"
+        )
+    if any(part == ".." for part in candidate_parts):
+        raise SystemExit(f"{label} must not traverse outside {root_resolved}: {path_value}")
 
-    # If the path is not absolute, interpret it relative to the trusted root.
-    if not candidate.is_absolute():
-        candidate = root_resolved / candidate
-
-    # Resolve symlinks and ".." segments to get the final filesystem path.
+    candidate = root_resolved.joinpath(*candidate_parts)
     resolved = candidate.resolve()
-
-    # Ensure the resolved path is contained within the trusted root.
     try:
         resolved.relative_to(root_resolved)
     except ValueError:

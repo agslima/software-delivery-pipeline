@@ -117,13 +117,20 @@ def test_safe_resolve_dir(tmp_path):
 
     # Valid: Subdirectory inside base
     valid_target = base_dir / "artifacts"
-    resolved = safe_resolve_dir(base_dir, str(valid_target))
+    resolved = safe_resolve_dir(base_dir, "artifacts")
     assert resolved == valid_target.resolve()
 
     # Invalid: Traversal outside base
-    invalid_target = base_dir / "../outside"
     with pytest.raises(SystemExit):
-        safe_resolve_dir(base_dir, str(invalid_target))
+        safe_resolve_dir(base_dir, "../outside")
+
+
+def test_safe_resolve_dir_rejects_absolute_path(tmp_path):
+    base_dir = tmp_path / "base"
+    base_dir.mkdir()
+
+    with pytest.raises(SystemExit):
+        safe_resolve_dir(base_dir, str((tmp_path / "outside").resolve()))
 
 
 def test_resolve_child_path_rejects_absolute_child(tmp_path):
