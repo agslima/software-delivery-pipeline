@@ -678,8 +678,8 @@ def main() -> int:
     parser.add_argument("--update-readme", required=True)
     args = parser.parse_args()
 
-    metadata_path = Path(args.metadata)
-    baseline_path = Path(args.baseline)
+    metadata_path = Path(args.metadata).resolve()
+    baseline_path = Path(args.baseline).resolve()
     docs_dir = Path(args.docs_dir)
     docs_dir_resolved = docs_dir.resolve()
 
@@ -688,6 +688,20 @@ def main() -> int:
         docs_dir_resolved.relative_to(repo_root)
     except ValueError:
         raise SystemExit(f"--docs-dir must be within {repo_root}, got {docs_dir_resolved}")
+
+    try:
+        metadata_path.relative_to(repo_root)
+    except ValueError:
+        raise SystemExit(
+            f"--metadata path must be within repo root ({repo_root}): {metadata_path}"
+        )
+
+    try:
+        baseline_path.relative_to(repo_root)
+    except ValueError:
+        raise SystemExit(
+            f"--baseline path must be within repo root ({repo_root}): {baseline_path}"
+        )
 
     html_dir = Path(args.html_dir).resolve()
     try:
