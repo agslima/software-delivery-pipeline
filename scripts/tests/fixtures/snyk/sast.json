@@ -1,0 +1,79 @@
+{
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "rules": [
+            {
+              "id": "js/hardcoded-secret",
+              "properties": {
+                "severity": "high"
+              }
+            },
+            {
+              "id": "js/cleartext-http",
+              "defaultConfiguration": {
+                "level": "warning"
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "js/hardcoded-secret",
+          "fingerprints": {
+            "primaryLocationLineHash": "abc123"
+          },
+          "level": "error",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "app/client/src/App.jsx" },
+                "region": { "startLine": 10 }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "js/hardcoded-secret",
+          "fingerprints": {
+            "primaryLocationLineHash": "abc123"
+          },
+          "level": "error",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "app/client/src/App.jsx" },
+                "region": { "startLine": 10 }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "js/cleartext-http",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "app/client/src/App.jsx" },
+                "region": { "startLine": 22 }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "js/info-note",
+          "level": "note",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "app/server/index.js" },
+                "region": { "startLine": 7 }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
