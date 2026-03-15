@@ -711,10 +711,21 @@ def main() -> int:
             f"--html-dir path must be within --docs-dir ({docs_dir_resolved}): {html_dir}"
         )
 
-    readme_path = (docs_dir_resolved / args.readme).resolve()
+    # Construct the README path from the docs directory and user-provided argument,
+    # then resolve it and ensure it is contained within docs_dir_resolved.
+    readme_arg_path = Path(args.readme)
+    readme_path = (docs_dir_resolved / readme_arg_path).resolve()
     try:
         readme_path.relative_to(docs_dir_resolved)
     except ValueError:
+        raise SystemExit(
+            f"--readme path must be within --docs-dir ({docs_dir_resolved}): {readme_path}"
+        )
+
+    # Extra safety check to ensure the resolved path is under docs_dir_resolved.
+    docs_dir_str = str(docs_dir_resolved)
+    readme_path_str = str(readme_path)
+    if not (readme_path_str == docs_dir_str or readme_path_str.startswith(docs_dir_str + "/")):
         raise SystemExit(
             f"--readme path must be within --docs-dir ({docs_dir_resolved}): {readme_path}"
         )
