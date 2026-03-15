@@ -34,7 +34,7 @@ jobs:
         run: |
           set -euo pipefail
           make snyk
-          if [[ -z "$(git status --porcelain -- readme.md docs/snyk)" ]]; then
+          if [[ -z "$(git status --porcelain -- README.md docs/snyk)" ]]; then
             echo "No README/docs changes detected. Exiting."
             exit 0
           fi
@@ -42,7 +42,7 @@ jobs:
           git checkout -B "$pr_branch"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
-          git add readme.md
+          git add README.md
           git add docs/snyk
           git commit -m "docs: update Snyk security report in README"
           git push --force-with-lease --set-upstream origin "$pr_branch"

@@ -12,6 +12,23 @@ spec:
       labels:
         app: exception-target
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: app
           image: docker.io/agslima/app-stayhealthy-backend@sha256:0a99302f729b15adbd7e4e53a262eeab35e4b487bfb9e0b2bcfbf66f6ff60326
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsUser: 10001
+            runAsGroup: 10001
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - "ALL"

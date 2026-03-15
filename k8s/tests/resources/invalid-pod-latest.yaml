@@ -4,6 +4,23 @@ metadata:
   name: latest-pod
   namespace: production
 spec:
+  automountServiceAccountToken: false
+  securityContext:
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
   containers:
     - name: app
       image: docker.io/library/nginx:latest
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsUser: 10001
+        runAsGroup: 10001
+        runAsNonRoot: true
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop:
+            - "ALL"
