@@ -13,6 +13,14 @@ spec:
       labels:
         app: governed
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: app
           image: docker.io/agslima/app-stayhealthy-backend@sha256:1111111111111111111111111111111111111111111111111111111111111111

@@ -423,11 +423,11 @@ TIMESTAMP_UTC="$(date -u '+%Y-%m-%d %H:%M')"
 
 log "Rendering consolidated report"
 python3 "${RENDER_SCRIPT}" \
-  --metadata "${META_FILE}" \
-  --baseline "${BASELINE_FILE}" \
-  --docs-dir "${DOCS_DIR}" \
-  --html-dir "${HTML_DIR}" \
-  --readme "${README_FILE}" \
+  --metadata ".tmp/snyk-run/scan-metadata.json" \
+  --baseline "docs/snyk/baseline.json" \
+  --docs-dir "docs/snyk" \
+  --html-dir "docs/snyk/html" \
+  --readme "$(basename "${README_FILE}")" \
   --timestamp-utc "${TIMESTAMP_UTC}" \
   --update-readme "${UPDATE_README}"
 
