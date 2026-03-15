@@ -15,15 +15,15 @@ assert_contains() {
 }
 
 echo "[governance-drift] Markdown structure assertions"
-assert_contains "readme.md" "# Governed Software Delivery Pipeline"
+assert_contains "README.md" "# Governed Software Delivery Pipeline"
 assert_contains "docs/governance.md" "# Delivery Governance Model"
 assert_contains "docs/threat-model.md" "# Security Controls"
 
 echo "[governance-drift] Reference assertions: workflow names and policy thresholds"
-assert_contains "readme.md" "HIGH > 5"
+assert_contains "README.md" "HIGH > 5"
 
 assert_contains "docs/governance.md" "## README Claims → Controls Matrix"
-assert_contains "readme.md" "docs/governance.md#readme-claims--controls-matrix"
+assert_contains "README.md" "docs/governance.md#readme-claims--controls-matrix"
 assert_contains "docs/governance.md" "ci-release-gate.yml"
 assert_contains "docs/governance.md" "ci-pr-validation.yml"
 assert_contains "docs/governance.md" "gitops-enforce.yml"
