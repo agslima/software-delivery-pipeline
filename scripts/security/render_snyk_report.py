@@ -703,6 +703,13 @@ def main() -> int:
             f"--baseline path must be within repo root ({repo_root}): {baseline_path}"
         )
 
+    try:
+        baseline_path.relative_to(repo_root)
+    except ValueError:
+        raise SystemExit(
+            f"--baseline path must be within repo root ({repo_root}): {baseline_path}"
+        )
+
     html_dir = Path(args.html_dir).resolve()
     try:
         html_dir.relative_to(docs_dir_resolved)
