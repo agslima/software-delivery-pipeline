@@ -18,6 +18,7 @@ from typing import Any
 @dataclasses.dataclass
 class TelemetryData:
     """Container for workflow and issue telemetry data."""
+
     release_runs: list[dict[str, Any]]
     release_jobs: dict[int, list[dict[str, Any]]]
     pr_runs: list[dict[str, Any]]
@@ -37,7 +38,10 @@ def parse_args() -> argparse.Namespace:
         description="Generate governance SLO summary.md and report.json from workflow telemetry.",
     )
     parser.add_argument("--repo", help="Repository in owner/name form for live mode.")
-    parser.add_argument("--fixtures-dir", help="Read telemetry from a fixture directory instead of GitHub.")
+    parser.add_argument(
+        "--fixtures-dir",
+        help="Read telemetry from a fixture directory instead of GitHub.",
+    )
     parser.add_argument(
         "--output-dir",
         default="artifacts/governance-slo-report",
@@ -107,7 +111,11 @@ def read_resolved_debt_entries(path: pathlib.Path) -> list[dict[str, str]]:
     if not match:
         return []
 
-    lines = [line.strip() for line in match.group(1).splitlines() if line.strip().startswith("|")]
+    lines = [
+        line.strip()
+        for line in match.group(1).splitlines()
+        if line.strip().startswith("|")
+    ]
     if len(lines) < 3:
         return []
 
@@ -124,14 +132,17 @@ def read_resolved_debt_entries(path: pathlib.Path) -> list[dict[str, str]]:
 def count_success_conclusions(runs: list[dict[str, Any]]) -> tuple[int, int]:
     """Count successful workflow or job runs among completed, relevant entries."""
     relevant = [
-        run for run in runs
+        run
+        for run in runs
         if run.get("conclusion") not in {"cancelled", "skipped", None}
     ]
     successes = [run for run in relevant if run.get("conclusion") == "success"]
     return len(successes), len(relevant)
 
 
-def get_backend_infra_jobs(jobs_by_run: dict[int, list[dict[str, Any]]]) -> list[dict[str, Any]]:
+def get_backend_infra_jobs(
+    jobs_by_run: dict[int, list[dict[str, Any]]]
+) -> list[dict[str, Any]]:
     """Select backend Infra Hygiene jobs from CI workflow job listings."""
     selected: list[dict[str, Any]] = []
     for jobs in jobs_by_run.values():
@@ -155,8 +166,14 @@ def build_status(actual: float, target: float, comparator: str, samples: int) ->
 
 def collect_live_inputs(repo: str) -> TelemetryData:
     """Fetch workflow runs and job data for live GitHub-backed reporting."""
-    release_runs = gh_api(repo, f"repos/{repo}/actions/workflows/ci-release-gate.yml/runs?per_page=20&status=completed").get("workflow_runs", [])
-    pr_runs = gh_api(repo, f"repos/{repo}/actions/workflows/ci-pr-validation.yml/runs?per_page=20&status=completed").get("workflow_runs", [])
+    release_runs = gh_api(
+        repo,
+        f"repos/{repo}/actions/workflows/ci-release-gate.yml/runs?per_page=20&status=completed",
+    ).get("workflow_runs", [])
+    pr_runs = gh_api(
+        repo,
+        f"repos/{repo}/actions/workflows/ci-pr-validation.yml/runs?per_page=20&status=completed",
+    ).get("workflow_runs", [])
 
     pr_jobs: dict[int, list[dict[str, Any]]] = {}
     for run in pr_runs:
@@ -170,34 +187,42 @@ def collect_live_inputs(repo: str) -> TelemetryData:
         release_jobs={},
         pr_runs=pr_runs,
         pr_jobs=pr_jobs,
-        issues_cache={}
+        issues_cache={},
     )
 
 
 def collect_fixture_inputs(fixtures_dir: pathlib.Path) -> TelemetryData:
     """Load workflow runs, jobs, and issue data from fixture files."""
-    release_runs = load_json(fixtures_dir / "release-runs.json").get("workflow_runs", [])
+    release_runs = load_json(fixtures_dir / "release-runs.json").get(
+        "workflow_runs", []
+    )
     pr_runs = load_json(fixtures_dir / "pr-runs.json").get("workflow_runs", [])
     issues_cache = load_json(fixtures_dir / "issues.json")
 
     release_jobs: dict[int, list[dict[str, Any]]] = {}
     for run in release_runs:
-        release_jobs[int(run["id"])] = load_json(fixtures_dir / f"jobs-release-{run['id']}.json").get("jobs", [])
+        release_jobs[int(run["id"])] = load_json(
+            fixtures_dir / f"jobs-release-{run['id']}.json"
+        ).get("jobs", [])
 
     pr_jobs: dict[int, list[dict[str, Any]]] = {}
     for run in pr_runs:
-        pr_jobs[int(run["id"])] = load_json(fixtures_dir / f"jobs-pr-{run['id']}.json").get("jobs", [])
+        pr_jobs[int(run["id"])] = load_json(
+            fixtures_dir / f"jobs-pr-{run['id']}.json"
+        ).get("jobs", [])
 
     return TelemetryData(
         release_runs=release_runs,
         release_jobs=release_jobs,
         pr_runs=pr_runs,
         pr_jobs=pr_jobs,
-        issues_cache=issues_cache
+        issues_cache=issues_cache,
     )
 
 
-def get_issue(repo: str, issue_ref: str, issues_cache: dict[str, Any], fixtures: bool) -> dict[str, Any] | None:
+def get_issue(
+    repo: str, issue_ref: str, issues_cache: dict[str, Any], fixtures: bool
+) -> dict[str, Any] | None:
     """Resolve a GitHub issue reference from fixtures or the live API cache."""
     match = re.fullmatch(r"#(\d+)", issue_ref.strip())
     if not match:
@@ -214,17 +239,29 @@ def safe_resolve_dir(base_dir: pathlib.Path, target: str) -> pathlib.Path:
     """Ensure a target directory is securely contained within the base directory."""
     target_path = pathlib.Path(target).resolve()
     if not target_path.is_relative_to(base_dir):
-        fail(f"Refusing to write or read outside of base directory {base_dir}: {target_path}")
+        fail(
+            f"Refusing to write or read outside of base directory {base_dir}: {target_path}"
+        )
     return target_path
 
 
-def generate_slos(data: TelemetryData, repository_name: str, fixtures_mode: bool, debt_file: pathlib.Path) -> list[dict[str, Any]]:
+def generate_slos(
+    data: TelemetryData,
+    repository_name: str,
+    fixtures_mode: bool,
+    debt_file: pathlib.Path,
+) -> list[dict[str, Any]]:
     """Calculate metrics and construct the SLO reporting dictionaries."""
     resolved_entries = read_resolved_debt_entries(debt_file)
     remediation_days: list[int] = []
-    
+
     for entry in resolved_entries:
-        issue = get_issue(repository_name, entry.get("Ticket/Link", ""), data.issues_cache, fixtures_mode)
+        issue = get_issue(
+            repository_name,
+            entry.get("Ticket/Link", ""),
+            data.issues_cache,
+            fixtures_mode,
+        )
         if not issue:
             continue
         try:
@@ -235,13 +272,23 @@ def generate_slos(data: TelemetryData, repository_name: str, fixtures_mode: bool
         remediation_days.append((resolved_on - created_on).days)
 
     release_successes, release_samples = count_success_conclusions(data.release_runs)
-    release_rate = round((release_successes / release_samples) * 100, 1) if release_samples else math.nan
+    release_rate = (
+        round((release_successes / release_samples) * 100, 1)
+        if release_samples
+        else math.nan
+    )
 
     backend_policy_jobs = get_backend_infra_jobs(data.pr_jobs)
     policy_successes, policy_samples = count_success_conclusions(backend_policy_jobs)
-    policy_rate = round((policy_successes / policy_samples) * 100, 1) if policy_samples else math.nan
+    policy_rate = (
+        round((policy_successes / policy_samples) * 100, 1)
+        if policy_samples
+        else math.nan
+    )
 
-    p80_remediation = round(percentile(remediation_days, 0.8), 1) if remediation_days else math.nan
+    p80_remediation = (
+        round(percentile(remediation_days, 0.8), 1) if remediation_days else math.nan
+    )
 
     slos = [
         {
@@ -301,12 +348,23 @@ def generate_slos(data: TelemetryData, repository_name: str, fixtures_mode: bool
     ]
 
     for slo in slos:
-        slo["status"] = build_status(float(slo["actual"]), float(slo["objective"]), slo["comparator"], int(slo["samples"]))
+        slo["status"] = build_status(
+            float(slo["actual"]),
+            float(slo["objective"]),
+            slo["comparator"],
+            int(slo["samples"]),
+        )
 
     return slos
 
 
-def create_markdown_summary(repository_name: str, mode: str, generated_at: str, overall_status: str, slos: list[dict[str, Any]]) -> str:
+def create_markdown_summary(
+    repository_name: str,
+    mode: str,
+    generated_at: str,
+    overall_status: str,
+    slos: list[dict[str, Any]],
+) -> str:
     """Format the calculated SLOs into a Markdown report."""
     summary_lines = [
         "# Governance SLO Report",
@@ -321,7 +379,11 @@ def create_markdown_summary(repository_name: str, mode: str, generated_at: str, 
     ]
 
     for slo in slos:
-        actual = "n/a" if math.isnan(float(slo["actual"])) else f"{slo['actual']} {slo['unit']}"
+        actual = (
+            "n/a"
+            if math.isnan(float(slo["actual"]))
+            else f"{slo['actual']} {slo['unit']}"
+        )
         summary_lines.append(
             markdown_table_row(
                 [
@@ -353,10 +415,10 @@ def main() -> None:
     """Generate the governance SLO report and fail on measured breaches."""
     args = parse_args()
     base_dir = pathlib.Path.cwd().resolve()
-    
+
     output_dir = safe_resolve_dir(base_dir, args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    
+
     debt_file = pathlib.Path(args.debt_file)
     if not debt_file.exists():
         fail(f"Missing security debt registry: {debt_file}")
@@ -371,14 +433,14 @@ def main() -> None:
         fixtures_dir = safe_resolve_dir(base_dir, args.fixtures_dir)
         if not fixtures_dir.exists():
             fail(f"Fixtures directory not found: {fixtures_dir}")
-            
+
         data = collect_fixture_inputs(fixtures_dir)
         mode = "fixture"
         repository_name = repo or "fixtures/software-delivery-pipeline"
     else:
         if subprocess.run(["which", "gh"], capture_output=True).returncode != 0:
             fail("gh CLI is required in live mode.")
-            
+
         data = collect_live_inputs(repo)
         mode = "live"
         repository_name = repo
@@ -393,7 +455,12 @@ def main() -> None:
         elif slo["status"] == "insufficient_data" and overall_status != "breach":
             overall_status = "insufficient_data"
 
-    generated_at = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    generated_at = (
+        dt.datetime.now(dt.timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
 
     # Artifact Generation Phase
     report = {
@@ -409,12 +476,14 @@ def main() -> None:
     report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
 
     summary_path = output_dir / "summary.md"
-    markdown_content = create_markdown_summary(repository_name, mode, generated_at, overall_status, slos)
+    markdown_content = create_markdown_summary(
+        repository_name, mode, generated_at, overall_status, slos
+    )
     summary_path.write_text(markdown_content, encoding="utf-8")
 
     print(f"[governance-slo-report] report: {report_path}")
     print(f"[governance-slo-report] summary: {summary_path}")
-    
+
     if overall_status == "breach":
         raise SystemExit(1)
 

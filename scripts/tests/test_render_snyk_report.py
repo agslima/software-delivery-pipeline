@@ -102,7 +102,9 @@ def test_status_for():
 
 def test_update_readme_replaces_generated_block(tmp_path: Path):
     readme = tmp_path / "README.md"
-    readme.write_text((FIXTURES / "README.md").read_text(encoding="utf-8"), encoding="utf-8")
+    readme.write_text(
+        (FIXTURES / "README.md").read_text(encoding="utf-8"), encoding="utf-8"
+    )
 
     baseline = {"critical": 10, "high": 20, "medium": 30, "low": 40}
     totals = report.SeverityCounts(critical=1, high=2, medium=3, low=4)
@@ -165,10 +167,14 @@ def test_main_end_to_end(tmp_path: Path):
     html_dir.mkdir(parents=True)
 
     readme = tmp_path / "README.md"
-    readme.write_text((FIXTURES / "README.md").read_text(encoding="utf-8"), encoding="utf-8")
+    readme.write_text(
+        (FIXTURES / "README.md").read_text(encoding="utf-8"), encoding="utf-8"
+    )
 
     baseline = tmp_path / "baseline.json"
-    baseline.write_text((FIXTURES / "baseline.json").read_text(encoding="utf-8"), encoding="utf-8")
+    baseline.write_text(
+        (FIXTURES / "baseline.json").read_text(encoding="utf-8"), encoding="utf-8"
+    )
 
     sca = tmp_path / "sca.json"
     sast = tmp_path / "sast.json"
@@ -176,11 +182,23 @@ def test_main_end_to_end(tmp_path: Path):
     cc = tmp_path / "container-client.json"
     cs = tmp_path / "container-server.json"
 
-    sca.write_text((FIXTURES / "sca.json").read_text(encoding="utf-8"), encoding="utf-8")
-    sast.write_text((FIXTURES / "sast.json").read_text(encoding="utf-8"), encoding="utf-8")
-    iac.write_text((FIXTURES / "iac.json").read_text(encoding="utf-8"), encoding="utf-8")
-    cc.write_text((FIXTURES / "container-client.json").read_text(encoding="utf-8"), encoding="utf-8")
-    cs.write_text((FIXTURES / "container-server.json").read_text(encoding="utf-8"), encoding="utf-8")
+    sca.write_text(
+        (FIXTURES / "sca.json").read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    sast.write_text(
+        (FIXTURES / "sast.json").read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    iac.write_text(
+        (FIXTURES / "iac.json").read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    cc.write_text(
+        (FIXTURES / "container-client.json").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    cs.write_text(
+        (FIXTURES / "container-server.json").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
 
     metadata = tmp_path / "metadata.json"
     metadata.write_text(

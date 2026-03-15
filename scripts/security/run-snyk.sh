@@ -201,8 +201,10 @@ write_metadata_entry() {
   local json_path="$3"
   local html_path="$4"
   local source_ref="$5"
+  local parse_input_path="$6"
+  local parse_input_format="$7"
 
-  python3 - "${META_FILE}" "${name}" "${kind}" "${json_path}" "${html_path}" "${source_ref}" <<'PY'
+  python3 - "${META_FILE}" "${name}" "${kind}" "${json_path}" "${html_path}" "${source_ref}" "${parse_input_path}" "${parse_input_format}" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -213,6 +215,8 @@ kind = sys.argv[3]
 json_path = sys.argv[4]
 html_path = sys.argv[5]
 source_ref = sys.argv[6]
+parse_input_path = sys.argv[7]
+parse_input_format = sys.argv[8]
 
 if meta_path.exists():
     data = json.loads(meta_path.read_text(encoding="utf-8"))
@@ -222,9 +226,11 @@ else:
 data["scans"].append({
     "name": name,
     "kind": kind,
-    "json_path": json_path,
+    "json_path": json_path if json_path else None,
     "html_path": html_path if html_path else None,
     "source_ref": source_ref,
+    "parse_input_path": parse_input_path,
+    "parse_input_format": parse_input_format,
 })
 
 meta_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
@@ -241,6 +247,11 @@ run_snyk_capture() {
   local sarif_tmp="${TMP_ROOT}/${name}.sarif.tmp"
   local html_out="${HTML_DIR}/${name}.html"
 
+  local parse_input_path=""
+  local parse_input_format=""
+  local html_input=""
+  local html_path=""
+
   log "Running Snyk scan: ${name}"
 
   set +e
@@ -251,27 +262,55 @@ run_snyk_capture() {
   local rc=$?
   set -e
 
+  # Snyk:
+  # 0 = no issues
+  # 1 = issues found
+  # >1 = execution error
   if [[ ${rc} -gt 1 ]]; then
     die "Snyk command failed for ${name} with exit code ${rc}"
-  fi
-
-  if [[ ! -s "${json_out}" ]]; then
-    warn "Empty JSON output for ${name}; creating placeholder."
-    echo '{}' > "${json_out}"
   fi
 
   sanitize_report_file "${json_out}"
   sanitize_report_file "${sarif_tmp}"
 
-  local html_path=""
+  case "${kind}" in
+    sast)
+      # Snyk Code reporting should parse from SARIF temp input.
+      if [[ ! -s "${sarif_tmp}" ]]; then
+        warn "Empty SARIF output for ${name}; creating placeholder."
+        printf '{"runs":[]}\n' > "${sarif_tmp}"
+      fi
+      parse_input_path="${sarif_tmp}"
+      parse_input_format="sarif"
+      html_input="${sarif_tmp}"
+      ;;
+
+    *)
+      if [[ ! -s "${json_out}" ]]; then
+        warn "Empty JSON output for ${name}; creating placeholder."
+        printf '{}\n' > "${json_out}"
+      fi
+      parse_input_path="${json_out}"
+      parse_input_format="json"
+      html_input="${json_out}"
+      ;;
+  esac
+
   if [[ "${WRITE_HTML}" == "1" ]]; then
-    maybe_html "${json_out}" "${html_out}"
+    maybe_html "${html_input}" "${html_out}"
     if [[ -f "${html_out}" ]]; then
       html_path="${html_out}"
     fi
   fi
 
-  write_metadata_entry "${name}" "${kind}" "${json_out}" "${html_path}" "${source_ref}"
+  write_metadata_entry \
+    "${name}" \
+    "${kind}" \
+    "${json_out}" \
+    "${html_path}" \
+    "${source_ref}" \
+    "${parse_input_path}" \
+    "${parse_input_format}"
 }
 
 build_container_images() {

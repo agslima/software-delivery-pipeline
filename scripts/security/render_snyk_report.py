@@ -54,7 +54,7 @@ def norm_severity(value: Any) -> Optional[str]:
         return "high"
     if s == "warning":
         return "medium"
-    if s == "note":
+    if s in {"note", "info"}:
         return "low"
     return None
 
@@ -64,7 +64,7 @@ def ensure_list(value: Any) -> List[Any]:
 
 
 def target_name_standard(result: Dict[str, Any]) -> str:
-    return (
+    return normalize_display_target(
         result.get("displayTargetFile")
         or result.get("targetFile")
         or result.get("projectName")
@@ -75,13 +75,29 @@ def target_name_standard(result: Dict[str, Any]) -> str:
 
 
 def target_name_iac(result: Dict[str, Any]) -> str:
-    return (
+    raw = (
         result.get("path")
         or result.get("targetFile")
         or result.get("displayTargetFile")
         or result.get("projectName")
         or "unknown-target"
     )
+    return normalize_display_target(raw)
+
+
+def normalize_display_target(target: str) -> str:
+    t = str(target).replace("\\", "/")
+
+    # Normalize staged IaC temp path back to a repo-facing label.
+    if t.endswith("/.tmp/snyk-run/iac-stage/k8s"):
+        return "k8s"
+
+    marker = "/.tmp/snyk-run/iac-stage/k8s/"
+    if marker in t:
+        suffix = t.split(marker, 1)[1]
+        return f"k8s/{suffix}" if suffix else "k8s"
+
+    return t
 
 
 def iter_standard_results(doc: Any) -> Iterable[Dict[str, Any]]:
@@ -89,7 +105,9 @@ def iter_standard_results(doc: Any) -> Iterable[Dict[str, Any]]:
         for item in doc:
             if isinstance(item, dict):
                 yield item
-    elif isinstance(doc, dict) and "results" in doc and isinstance(doc["results"], list):
+    elif (
+        isinstance(doc, dict) and "results" in doc and isinstance(doc["results"], list)
+    ):
         for item in doc["results"]:
             if isinstance(item, dict):
                 yield item
@@ -375,9 +393,13 @@ def update_readme(
 *Last scanned (UTC): {timestamp_utc}*
 {README_END}"""
 
-    pattern = re.compile(re.escape(README_BEGIN) + r".*?" + re.escape(README_END), re.DOTALL)
+    pattern = re.compile(
+        re.escape(README_BEGIN) + r".*?" + re.escape(README_END), re.DOTALL
+    )
     if not pattern.search(text):
-        raise SystemExit("README markers not found. Add BEGIN/END markers under the intended section.")
+        raise SystemExit(
+            "README markers not found. Add BEGIN/END markers under the intended section."
+        )
 
     updated = pattern.sub(replacement, text, count=1)
     readme_path.write_text(updated, encoding="utf-8")
@@ -385,23 +407,27 @@ def update_readme(
 
 def label_for_scan(scan: Dict[str, Any], per_target_label: Optional[str] = None) -> str:
     name = scan["name"]
-    source_ref = scan.get("source_ref") or ""
+    source_ref = normalize_display_target(scan.get("source_ref") or "")
 
     if scan["kind"] == "sast":
         return "Code analysis"
+
     if scan["kind"] == "sca":
         if per_target_label:
-            return f"npm dependencies: {per_target_label}"
+            return f"npm dependencies: {normalize_display_target(per_target_label)}"
         return f"SCA: {source_ref}"
+
     if scan["kind"] == "container":
         if "client" in name:
             return "Container: app/docker/Dockerfile.client"
         if "server" in name:
             return "Container: app/docker/Dockerfile.server"
         return f"Container: {source_ref}"
+
     if scan["kind"] == "iac":
-        return per_target_label or "IaC"
-    return name
+        return normalize_display_target(per_target_label or "k8s")
+
+    return normalize_display_target(name)
 
 
 def parse_baseline(path: Path) -> Dict[str, int]:
@@ -445,9 +471,9 @@ def main() -> int:
     rows: List[Dict[str, Any]] = []
 
     for scan in scans:
-        json_path = Path(scan["json_path"])
+        parse_input_path = Path(scan.get("parse_input_path") or scan["json_path"])
         html_path = scan.get("html_path")
-        doc = load_json(json_path)
+        doc = load_json(parse_input_path)
 
         if scan["kind"] == "sast":
             counts = extract_sast_counts(doc)
