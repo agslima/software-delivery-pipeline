@@ -744,17 +744,12 @@ def main() -> int:
     parser.add_argument("--update-readme", required=True)
     args = parser.parse_args()
 
-    repo_root = Path.cwd().resolve()
-    docs_dir_resolved = resolve_path(args.docs_dir, "--docs-dir", repo_root)
+    repo_root_resolved = Path.cwd().resolve()
+    docs_dir_resolved = resolve_path(args.docs_dir, "--docs-dir", repo_root_resolved)
     html_dir = resolve_path(args.html_dir, "--html-dir", docs_dir_resolved)
-    readme_path = resolve_path(args.readme, "--readme", repo_root)
-    metadata_path = resolve_path(args.metadata, "--metadata", repo_root)
-    baseline_path = resolve_path(args.baseline, "--baseline", repo_root)
-
-    if readme_path.parent != repo_root or readme_path.name not in {"README.md", "readme.md"}:
-        raise SystemExit(
-            f"--readme must point to the repository README in {repo_root}, got {readme_path}"
-        )
+    readme_path = resolve_path(args.readme, "--readme", repo_root_resolved)
+    metadata_path = resolve_path(args.metadata, "--metadata", repo_root_resolved)
+    baseline_path = resolve_path(args.baseline, "--baseline", repo_root_resolved)
 
     metadata = load_json(metadata_path)
     baseline = parse_baseline(baseline_path)
@@ -768,7 +763,9 @@ def main() -> int:
 
     for scan in scans:
         parse_input_value = scan.get("parse_input_path") or scan["json_path"]
-        parse_input_path = resolve_path(parse_input_value, "scan parse input", repo_root)
+        parse_input_path = resolve_path(
+            parse_input_value, "scan parse input", repo_root_resolved
+        )
         html_path = resolve_optional_path(scan.get("html_path"), "scan html artifact", html_dir)
         html_artifact = artifact_link_name(html_path, html_dir)
         doc = load_json(parse_input_path)

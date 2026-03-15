@@ -1,12 +1,13 @@
 import datetime as dt
 import importlib.util
 import math
+import json
 import pathlib
 import sys
 import pytest
 from unittest.mock import patch
 
-MODULE_PATH = pathlib.Path(__file__).with_name("report-governance-slos.py")
+MODULE_PATH = pathlib.Path(__file__).resolve().parents[1] / "report-governance-slos.py"
 MODULE_SPEC = importlib.util.spec_from_file_location(
     "report_governance_slos", MODULE_PATH
 )
@@ -23,7 +24,9 @@ iso_to_date = report_governance_slos.iso_to_date
 markdown_table_row = report_governance_slos.markdown_table_row
 percentile = report_governance_slos.percentile
 read_resolved_debt_entries = report_governance_slos.read_resolved_debt_entries
+resolve_child_path = report_governance_slos.resolve_child_path
 safe_resolve_dir = report_governance_slos.safe_resolve_dir
+collect_fixture_inputs = report_governance_slos.collect_fixture_inputs
 TelemetryData = report_governance_slos.TelemetryData
 
 # --- 1. Core Logic & Math Tests ---
@@ -121,6 +124,40 @@ def test_safe_resolve_dir(tmp_path):
     invalid_target = base_dir / "../outside"
     with pytest.raises(SystemExit):
         safe_resolve_dir(base_dir, str(invalid_target))
+
+
+def test_resolve_child_path_rejects_absolute_child(tmp_path):
+    parent_dir = tmp_path / "artifacts"
+    parent_dir.mkdir()
+
+    with pytest.raises(SystemExit):
+        resolve_child_path(parent_dir, str((tmp_path / "report.json").resolve()), "artifact")
+
+
+def test_collect_fixture_inputs_uses_validated_fixture_files(tmp_path):
+    fixtures_dir = tmp_path / "fixtures"
+    fixtures_dir.mkdir()
+
+    (fixtures_dir / "release-runs.json").write_text(
+        json.dumps({"workflow_runs": [{"id": 1}]}), encoding="utf-8"
+    )
+    (fixtures_dir / "pr-runs.json").write_text(
+        json.dumps({"workflow_runs": [{"id": 2}]}), encoding="utf-8"
+    )
+    (fixtures_dir / "issues.json").write_text(json.dumps({"123": {}}), encoding="utf-8")
+    (fixtures_dir / "jobs-release-1.json").write_text(
+        json.dumps({"jobs": [{"name": "release"}]}), encoding="utf-8"
+    )
+    (fixtures_dir / "jobs-pr-2.json").write_text(
+        json.dumps({"jobs": [{"name": "Infra Hygiene (backend)"}]}), encoding="utf-8"
+    )
+
+    data = collect_fixture_inputs(fixtures_dir)
+
+    assert data.release_runs == [{"id": 1}]
+    assert data.pr_runs == [{"id": 2}]
+    assert data.release_jobs[1] == [{"name": "release"}]
+    assert data.pr_jobs[2] == [{"name": "Infra Hygiene (backend)"}]
 
 
 def test_read_resolved_debt_entries(tmp_path):

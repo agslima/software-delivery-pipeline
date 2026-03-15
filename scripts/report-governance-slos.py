@@ -61,20 +61,27 @@ def load_json(path: pathlib.Path) -> Any:
         return json.load(handle)
 
 
-def safe_resolve_file(base_dir: pathlib.Path, path_str: str) -> pathlib.Path:
+def resolve_within_base(
+    base_dir: pathlib.Path, target: str, label: str, expect_directory: bool
+) -> pathlib.Path:
     """
-    Safely resolve a file path provided by the user against a trusted base directory.
+    Resolve a user-provided path against a trusted base directory.
 
-    The resulting path is normalized and required to remain within ``base_dir``.
+    Relative paths are interpreted from ``base_dir``. Absolute paths are allowed only
+    when they still resolve within ``base_dir``. The resulting path must remain within
+    the trusted base directory.
     """
-    candidate = base_dir.joinpath(path_str)
+    base_dir_resolved = base_dir.resolve()
+    candidate = pathlib.Path(target).expanduser()
+    if not candidate.is_absolute():
+        candidate = base_dir_resolved / candidate
+
     resolved = candidate.resolve(strict=False)
     try:
-        # Python 3.9+: pathlib.Path.is_relative_to
-        is_within_base = resolved.is_relative_to(base_dir)
+        is_within_base = resolved.is_relative_to(base_dir_resolved)
     except AttributeError:
         # Fallback for older Python versions.
-        base_str = str(base_dir)
+        base_str = str(base_dir_resolved)
         resolved_str = str(resolved)
         is_within_base = pathlib.PurePath(resolved_str).as_posix().startswith(
             pathlib.PurePath(base_str).as_posix().rstrip("/") + "/"
@@ -83,8 +90,31 @@ def safe_resolve_file(base_dir: pathlib.Path, path_str: str) -> pathlib.Path:
         ).as_posix()
 
     if not is_within_base:
-        fail(f"Refusing to access file outside base directory: {resolved}")
+        kind = "directory" if expect_directory else "file"
+        fail(f"Refusing to access {kind} outside base directory {base_dir_resolved}: {resolved}")
     return resolved
+
+
+def safe_resolve_file(base_dir: pathlib.Path, path_str: str) -> pathlib.Path:
+    """Safely resolve a file path provided by the user against a trusted base directory."""
+    return resolve_within_base(base_dir, path_str, "file path", expect_directory=False)
+
+
+def safe_resolve_dir(base_dir: pathlib.Path, target: str) -> pathlib.Path:
+    """Resolve a directory path within a trusted base directory and refuse paths that escape it."""
+    return resolve_within_base(base_dir, target, "directory path", expect_directory=True)
+
+
+def resolve_child_path(parent_dir: pathlib.Path, child_name: str, label: str) -> pathlib.Path:
+    """
+    Resolve a child path beneath a trusted directory.
+
+    The child must be a relative path so callers cannot bypass ``parent_dir``.
+    """
+    child = pathlib.Path(child_name)
+    if child.is_absolute():
+        fail(f"{label} must be relative to {parent_dir.resolve()}, got {child}")
+    return resolve_within_base(parent_dir, child_name, label, expect_directory=False)
 
 
 def gh_api(repo: str, path: str) -> Any:
@@ -281,22 +311,30 @@ def collect_fixture_inputs(fixtures_dir: pathlib.Path) -> TelemetryData:
         TelemetryData: Dataclass populated with release_runs, release_jobs (mapping run id -> jobs list),
                        pr_runs, pr_jobs (mapping run id -> jobs list), and issues_cache.
     """
-    release_runs = load_json(fixtures_dir / "release-runs.json").get(
+    release_runs = load_json(
+        resolve_child_path(fixtures_dir, "release-runs.json", "fixture file")
+    ).get(
         "workflow_runs", []
     )
-    pr_runs = load_json(fixtures_dir / "pr-runs.json").get("workflow_runs", [])
-    issues_cache = load_json(fixtures_dir / "issues.json")
+    pr_runs = load_json(
+        resolve_child_path(fixtures_dir, "pr-runs.json", "fixture file")
+    ).get("workflow_runs", [])
+    issues_cache = load_json(
+        resolve_child_path(fixtures_dir, "issues.json", "fixture file")
+    )
 
     release_jobs: dict[int, list[dict[str, Any]]] = {}
     for run in release_runs:
         release_jobs[int(run["id"])] = load_json(
-            fixtures_dir / f"jobs-release-{run['id']}.json"
+            resolve_child_path(
+                fixtures_dir, f"jobs-release-{run['id']}.json", "fixture file"
+            )
         ).get("jobs", [])
 
     pr_jobs: dict[int, list[dict[str, Any]]] = {}
     for run in pr_runs:
         pr_jobs[int(run["id"])] = load_json(
-            fixtures_dir / f"jobs-pr-{run['id']}.json"
+            resolve_child_path(fixtures_dir, f"jobs-pr-{run['id']}.json", "fixture file")
         ).get("jobs", [])
 
     return TelemetryData(
@@ -331,33 +369,6 @@ def get_issue(
     if issue_number not in issues_cache:
         issues_cache[issue_number] = gh_api(repo, f"repos/{repo}/issues/{issue_number}")
     return issues_cache[issue_number]
-
-
-def safe_resolve_dir(base_dir: pathlib.Path, target: str) -> pathlib.Path:
-    """
-    Resolve a target path within a trusted base directory and refuse targets that escape it.
-    
-    Parameters:
-        base_dir (pathlib.Path): The trusted base directory to contain the resolved path.
-        target (str): A path relative to `base_dir` (may include subdirectories); absolute or traversal attempts outside `base_dir` are rejected.
-    
-    Returns:
-        pathlib.Path: The resolved absolute path for `target` guaranteed to be within `base_dir`.
-    """
-    base_dir_resolved = base_dir.resolve()
-    # Resolve the target path relative to the trusted base directory to prevent
-    # directory traversal or writing outside the intended tree.
-    target_path = (base_dir_resolved / target).resolve()
-    try:
-        is_within_base = target_path.is_relative_to(base_dir_resolved)  # type: ignore[attr-defined]
-    except AttributeError:
-        # Fallback for Python versions without Path.is_relative_to (pre-3.9)
-        is_within_base = str(target_path).startswith(str(base_dir_resolved) + str(pathlib.os.sep))
-    if not is_within_base:
-        fail(
-            f"Refusing to write or read outside of base directory {base_dir_resolved}: {target_path}"
-        )
-    return target_path
 
 
 def generate_slos(
@@ -622,10 +633,10 @@ def main() -> None:
         "slos": slos,
     }
 
-    report_path = output_dir / "report.json"
+    report_path = resolve_child_path(output_dir, "report.json", "report artifact")
     report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
 
-    summary_path = output_dir / "summary.md"
+    summary_path = resolve_child_path(output_dir, "summary.md", "summary artifact")
     markdown_content = create_markdown_summary(
         repository_name, mode, generated_at, overall_status, slos
     )

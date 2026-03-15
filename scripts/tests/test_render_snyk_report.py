@@ -180,6 +180,59 @@ def test_resolve_path_rejects_repo_escape(tmp_path: Path):
         report.resolve_path("../outside.json", "--metadata", repo_root)
 
 
+def test_main_allows_readme_anywhere_within_repo():
+    run_root = ROOT / ".tmp" / f"pytest-render-snyk-readme-{uuid.uuid4().hex}"
+    run_root.mkdir(parents=True)
+    try:
+        docs_dir = run_root / "docs" / "snyk"
+        html_dir = docs_dir / "html"
+        html_dir.mkdir(parents=True)
+
+        readme = run_root / "subdir" / "README.md"
+        readme.parent.mkdir(parents=True)
+        readme.write_text(
+            (FIXTURES / "README.md").read_text(encoding="utf-8"), encoding="utf-8"
+        )
+
+        baseline = docs_dir / "baseline.json"
+        baseline.write_text(
+            (FIXTURES / "baseline.json").read_text(encoding="utf-8"), encoding="utf-8"
+        )
+
+        metadata = run_root / "metadata.json"
+        metadata.write_text(json.dumps({"scans": []}, indent=2), encoding="utf-8")
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPT),
+                "--metadata",
+                str(metadata),
+                "--baseline",
+                str(baseline),
+                "--docs-dir",
+                str(docs_dir),
+                "--html-dir",
+                str(html_dir),
+                "--readme",
+                str(readme),
+                "--timestamp-utc",
+                "2026-03-14 12:00",
+                "--update-readme",
+                "1",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+            cwd=run_root,
+        )
+
+        assert "Aggregate totals:" in result.stdout
+        assert "### Automated Security Posture" in readme.read_text(encoding="utf-8")
+    finally:
+        shutil.rmtree(run_root, ignore_errors=True)
+
+
 def test_main_end_to_end():
     run_root = ROOT / ".tmp" / f"pytest-render-snyk-{uuid.uuid4().hex}"
     run_root.mkdir(parents=True)

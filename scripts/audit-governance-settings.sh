@@ -259,8 +259,19 @@ MATCHING_BRANCH_RULESETS="$(jq -c --arg ref "$EXPECTED_BRANCH_REF" '
     else
       .
     end;
+  def glob_to_regex:
+    gsub("([][(){}.^$+|\\\\])"; "\\\\\\1")
+    | gsub("\\*"; ".*")
+    | gsub("\\?"; ".");
   ($ref | normalize_ref_pattern) as $normalized_ref
-  | map(select(any(.conditions.ref_name.include[]?; (. | normalize_ref_pattern) == $normalized_ref)))
+  | map(
+      select(
+        any(
+          .conditions.ref_name.include[]?;
+          $normalized_ref | test("^" + ((. | normalize_ref_pattern | glob_to_regex)) + "$")
+        )
+      )
+    )
   | .
 ' <<<"$LIVE_BRANCH_RULESETS")"
 
@@ -275,8 +286,19 @@ MATCHING_TAG_RULESETS="$(jq -c --arg ref "$EXPECTED_TAG_REF" '
     else
       .
     end;
+  def glob_to_regex:
+    gsub("([][(){}.^$+|\\\\])"; "\\\\\\1")
+    | gsub("\\*"; ".*")
+    | gsub("\\?"; ".");
   ($ref | normalize_ref_pattern) as $normalized_ref
-  | map(select(any(.conditions.ref_name.include[]?; (. | normalize_ref_pattern) == $normalized_ref)))
+  | map(
+      select(
+        any(
+          .conditions.ref_name.include[]?;
+          $normalized_ref | test("^" + ((. | normalize_ref_pattern | glob_to_regex)) + "$")
+        )
+      )
+    )
   | .
 ' <<<"$LIVE_TAG_RULESETS")"
 
@@ -567,8 +589,9 @@ LIVE_ENV_REFS="$(jq -c --argjson expected "$EXPECTED_ENV_REFS" '
   | map(. as $policy | {
       name: $policy.name,
       type: (
-        ($expected | map(select(.name == $policy.name)) | .[0].type)
-        // ($policy.type // "branch")
+        ($policy.type)
+        // ($expected | map(select(.name == $policy.name)) | .[0].type)
+        // "branch"
       )
     })
   | sort_by(.type, .name)
