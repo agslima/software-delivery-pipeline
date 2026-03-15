@@ -1,4 +1,20 @@
 {
+  "115": {
+    "id": 115,
+    "number": 115,
+    "title": "Remediate bundled npm CVEs in glob and tar",
+    "body": "Track remediation for CVE-2025-64756 and CVE-2026-23745 discovered in npm bundled dependencies so the resolved debt ledger can record the fix.",
+    "state": "closed",
+    "created_at": "2026-01-05T09:00:00Z",
+    "closed_at": "2026-01-20T12:00:00Z",
+    "assignees": [
+      { "login": "project-maintainers" }
+    ],
+    "labels": [
+      { "name": "security-debt" },
+      { "name": "governance" }
+    ]
+  },
   "236": { "number": 236, "created_at": "2026-02-10T09:00:00Z" },
   "264": { "number": 264, "created_at": "2026-01-10T09:00:00Z" }
 }

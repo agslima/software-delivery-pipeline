@@ -61,6 +61,14 @@ jobs:
             --fixtures-dir scripts/fixtures/governance-slo/breach \
             --output-dir artifacts/governance-slo-report
 
+      - name: Publish summary to workflow run
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f artifacts/governance-slo-report/summary.md ]]; then
+            cat artifacts/governance-slo-report/summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Upload governance SLO report artifact
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f #v7.0.0

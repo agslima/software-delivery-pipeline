@@ -82,11 +82,21 @@ NORMALIZE_JQ='def normalize:
     map(normalize)
   else
     .
+  end;
+def normalize_ref_pattern:
+  if type != "string" then
+    .
+  elif startswith("refs/heads/") then
+    .[11:]
+  elif startswith("refs/tags/") then
+    .[10:]
+  else
+    .
   end;'
 
 printf '[]\n' > "$CHECKS_FILE"
 
-# fetch_json reads an expected API payload from fixtures or GitHub and stores it on disk.
+# fetch_json reads an API payload (from FIXTURES_DIR when MODE=fixture or via `gh api` otherwise) and writes it to RAW_DIR/<basename>.json.
 fetch_json() {
   local basename="$1"
   local api_path="$2"
@@ -98,6 +108,23 @@ fetch_json() {
     gh api \
       -H "Accept: application/vnd.github+json" \
       "$api_path" > "$destination"
+  fi
+}
+
+# fetch_ruleset_detail_json loads the detailed ruleset payload for the given ruleset id.
+fetch_ruleset_detail_json() {
+  local ruleset_id="$1"
+
+  if [ "$MODE" = "fixture" ]; then
+    jq -c --argjson id "$ruleset_id" '
+      (if type == "array" then . else .rulesets // [] end)
+      | map(select(.id == $id))
+      | .[0] // {}
+    ' "$RULESETS_FILE"
+  else
+    gh api \
+      -H "Accept: application/vnd.github+json" \
+      "repos/$REPO/rulesets/$ruleset_id"
   fi
 }
 
@@ -197,19 +224,88 @@ ENVIRONMENT_POLICIES_FILE="$RAW_DIR/environment-${ENVIRONMENT_NAME}-deployment-b
 EXPECTED_BRANCH_REF="$(jq -r '.rulesets.branch.target_ref' "$EXPECTATIONS_FILE")"
 EXPECTED_TAG_REF="$(jq -r '.rulesets.tag.target_ref' "$EXPECTATIONS_FILE")"
 
-LIVE_BRANCH_RULESET="$(jq -c --arg ref "$EXPECTED_BRANCH_REF" '
+LIVE_BRANCH_RULESET_IDS="$(jq -r '
   (if type == "array" then . else .rulesets // [] end)
   | map(select(.target == "branch"))
-  | map(select(any(.conditions.ref_name.include[]?; . == $ref)))
-  | .[0] // {}
+  | .[].id
 ' "$RULESETS_FILE")"
-
-LIVE_TAG_RULESET="$(jq -c --arg ref "$EXPECTED_TAG_REF" '
+LIVE_TAG_RULESET_IDS="$(jq -r '
   (if type == "array" then . else .rulesets // [] end)
   | map(select(.target == "tag"))
-  | map(select(any(.conditions.ref_name.include[]?; . == $ref)))
-  | .[0] // {}
+  | .[].id
 ' "$RULESETS_FILE")"
+
+LIVE_BRANCH_RULESETS="$(
+  while IFS= read -r ruleset_id; do
+    [ -n "$ruleset_id" ] || continue
+    fetch_ruleset_detail_json "$ruleset_id"
+  done <<<"$LIVE_BRANCH_RULESET_IDS" | jq -sc .
+)"
+LIVE_TAG_RULESETS="$(
+  while IFS= read -r ruleset_id; do
+    [ -n "$ruleset_id" ] || continue
+    fetch_ruleset_detail_json "$ruleset_id"
+  done <<<"$LIVE_TAG_RULESET_IDS" | jq -sc .
+)"
+
+MATCHING_BRANCH_RULESETS="$(jq -c --arg ref "$EXPECTED_BRANCH_REF" '
+  def normalize_ref_pattern:
+    if type != "string" then
+      .
+    elif startswith("refs/heads/") then
+      .[11:]
+    elif startswith("refs/tags/") then
+      .[10:]
+    else
+      .
+    end;
+  def glob_to_regex:
+    gsub("([][(){}.^$+|\\\\])"; "\\\\\\1")
+    | gsub("\\*"; ".*")
+    | gsub("\\?"; ".");
+  ($ref | normalize_ref_pattern) as $normalized_ref
+  | map(
+      select(
+        any(
+          .conditions.ref_name.include[]?;
+          $normalized_ref | test("^" + ((. | normalize_ref_pattern | glob_to_regex)) + "$")
+        )
+      )
+    )
+  | .
+' <<<"$LIVE_BRANCH_RULESETS")"
+
+MATCHING_TAG_RULESETS="$(jq -c --arg ref "$EXPECTED_TAG_REF" '
+  def normalize_ref_pattern:
+    if type != "string" then
+      .
+    elif startswith("refs/heads/") then
+      .[11:]
+    elif startswith("refs/tags/") then
+      .[10:]
+    else
+      .
+    end;
+  def glob_to_regex:
+    gsub("([][(){}.^$+|\\\\])"; "\\\\\\1")
+    | gsub("\\*"; ".*")
+    | gsub("\\?"; ".");
+  ($ref | normalize_ref_pattern) as $normalized_ref
+  | map(
+      select(
+        any(
+          .conditions.ref_name.include[]?;
+          $normalized_ref | test("^" + ((. | normalize_ref_pattern | glob_to_regex)) + "$")
+        )
+      )
+    )
+  | .
+' <<<"$LIVE_TAG_RULESETS")"
+
+LIVE_BRANCH_RULESET_COUNT="$(jq -r 'length' <<<"$MATCHING_BRANCH_RULESETS")"
+LIVE_TAG_RULESET_COUNT="$(jq -r 'length' <<<"$MATCHING_TAG_RULESETS")"
+LIVE_BRANCH_RULESET="$(jq -c '.[0] // {}' <<<"$MATCHING_BRANCH_RULESETS")"
+LIVE_TAG_RULESET="$(jq -c '.[0] // {}' <<<"$MATCHING_TAG_RULESETS")"
 
 EXPECTED_BRANCH_RULESET="$(jq -c '.' "$EXPECTED_BRANCH_FILE")"
 EXPECTED_TAG_RULESET="$(jq -c '.' "$EXPECTED_TAG_FILE")"
@@ -223,12 +319,28 @@ record_condition \
   "$(jq -r 'if . == {} then "false" else "true" end' <<<"$LIVE_BRANCH_RULESET")"
 
 record_condition \
+  "branch-ruleset-unique" "branch_protection" "high" \
+  "exactly 1 ruleset for ${EXPECTED_BRANCH_REF}" \
+  "${LIVE_BRANCH_RULESET_COUNT} matching ruleset(s)" \
+  "GitHub rulesets API" \
+  "Repository must not accumulate overlapping branch rulesets for the audited main ref." \
+  "$( [ "$LIVE_BRANCH_RULESET_COUNT" -eq 1 ] && echo true || echo false )"
+
+record_condition \
   "tag-ruleset-present" "tag_protection" "high" \
   "ruleset for ${EXPECTED_TAG_REF} exists" \
   "$(jq -r 'if . == {} then "missing" else (.name // "present") end' <<<"$LIVE_TAG_RULESET")" \
   "GitHub rulesets API" \
   "Repository must keep an active release tag ruleset." \
   "$(jq -r 'if . == {} then "false" else "true" end' <<<"$LIVE_TAG_RULESET")"
+
+record_condition \
+  "tag-ruleset-unique" "tag_protection" "high" \
+  "exactly 1 ruleset for ${EXPECTED_TAG_REF}" \
+  "${LIVE_TAG_RULESET_COUNT} matching ruleset(s)" \
+  "GitHub rulesets API" \
+  "Repository must not accumulate overlapping tag rulesets for the audited release ref." \
+  "$( [ "$LIVE_TAG_RULESET_COUNT" -eq 1 ] && echo true || echo false )"
 
 EXPECTED_BRANCH_ENFORCEMENT="$(jq -r '.enforcement' <<<"$EXPECTED_BRANCH_RULESET")"
 LIVE_BRANCH_ENFORCEMENT="$(jq -r '.enforcement // "missing"' <<<"$LIVE_BRANCH_RULESET")"
@@ -246,23 +358,75 @@ record_comparison \
   "$EXPECTED_TAG_FILE" \
   "Tag ruleset enforcement must stay active."
 
+EXPECTED_BRANCH_CONDITIONS="$(jq -c "$NORMALIZE_JQ
+  (.conditions // {})
+  | if .ref_name? then
+      .ref_name.include = ((.ref_name.include // []) | map(normalize_ref_pattern) | sort)
+      | .ref_name.exclude = ((.ref_name.exclude // []) | map(normalize_ref_pattern) | sort)
+    else
+      .
+    end
+  | normalize
+" <<<"$EXPECTED_BRANCH_RULESET")"
+LIVE_BRANCH_CONDITIONS="$(jq -c "$NORMALIZE_JQ
+  (.conditions // {})
+  | if .ref_name? then
+      .ref_name.include = ((.ref_name.include // []) | map(normalize_ref_pattern) | sort)
+      | .ref_name.exclude = ((.ref_name.exclude // []) | map(normalize_ref_pattern) | sort)
+    else
+      .
+    end
+  | normalize
+" <<<"$LIVE_BRANCH_RULESET")"
+record_comparison \
+  "branch-ruleset-conditions" "branch_protection" "high" \
+  "$EXPECTED_BRANCH_CONDITIONS" "$LIVE_BRANCH_CONDITIONS" \
+  "$EXPECTED_BRANCH_FILE" \
+  "Branch ruleset conditions must stay aligned with the audited main-branch scope."
+
+EXPECTED_TAG_CONDITIONS="$(jq -c "$NORMALIZE_JQ
+  (.conditions // {})
+  | if .ref_name? then
+      .ref_name.include = ((.ref_name.include // []) | map(normalize_ref_pattern) | sort)
+      | .ref_name.exclude = ((.ref_name.exclude // []) | map(normalize_ref_pattern) | sort)
+    else
+      .
+    end
+  | normalize
+" <<<"$EXPECTED_TAG_RULESET")"
+LIVE_TAG_CONDITIONS="$(jq -c "$NORMALIZE_JQ
+  (.conditions // {})
+  | if .ref_name? then
+      .ref_name.include = ((.ref_name.include // []) | map(normalize_ref_pattern) | sort)
+      | .ref_name.exclude = ((.ref_name.exclude // []) | map(normalize_ref_pattern) | sort)
+    else
+      .
+    end
+  | normalize
+" <<<"$LIVE_TAG_RULESET")"
+record_comparison \
+  "tag-ruleset-conditions" "tag_protection" "high" \
+  "$EXPECTED_TAG_CONDITIONS" "$LIVE_TAG_CONDITIONS" \
+  "$EXPECTED_TAG_FILE" \
+  "Tag ruleset conditions must stay aligned with the audited release-tag scope."
+
 EXPECTED_BRANCH_RULES="$(jq -c "$NORMALIZE_JQ
   (.rules // [])
   | map(
-      if .type == "pull_request" then
+      if .type == \"pull_request\" then
         .parameters.allowed_merge_methods = ((.parameters.allowed_merge_methods // []) | sort)
-      elif .type == "required_status_checks" then
+      elif .type == \"required_status_checks\" then
         .parameters.required_status_checks = (
           (.parameters.required_status_checks // [])
           | map(del(.integration_id))
           | sort_by(.context)
         )
-      elif .type == "code_scanning" then
+      elif .type == \"code_scanning\" then
         .parameters.code_scanning_tools = (
           (.parameters.code_scanning_tools // [])
           | sort_by(.tool, .security_alerts_threshold, .alerts_threshold)
         )
-      elif .type == "copilot_code_review_analysis_tools" then
+      elif .type == \"copilot_code_review_analysis_tools\" then
         .parameters.tools = ((.parameters.tools // []) | sort_by(.name))
       else
         .
@@ -275,20 +439,20 @@ EXPECTED_BRANCH_RULES="$(jq -c "$NORMALIZE_JQ
 LIVE_BRANCH_RULES="$(jq -c "$NORMALIZE_JQ
   (.rules // [])
   | map(
-      if .type == "pull_request" then
+      if .type == \"pull_request\" then
         .parameters.allowed_merge_methods = ((.parameters.allowed_merge_methods // []) | sort)
-      elif .type == "required_status_checks" then
+      elif .type == \"required_status_checks\" then
         .parameters.required_status_checks = (
           (.parameters.required_status_checks // [])
           | map(del(.integration_id))
           | sort_by(.context)
         )
-      elif .type == "code_scanning" then
+      elif .type == \"code_scanning\" then
         .parameters.code_scanning_tools = (
           (.parameters.code_scanning_tools // [])
           | sort_by(.tool, .security_alerts_threshold, .alerts_threshold)
         )
-      elif .type == "copilot_code_review_analysis_tools" then
+      elif .type == \"copilot_code_review_analysis_tools\" then
         .parameters.tools = ((.parameters.tools // []) | sort_by(.name))
       else
         .
@@ -307,7 +471,7 @@ record_comparison \
 EXPECTED_TAG_RULES="$(jq -c "$NORMALIZE_JQ
   (.rules // [])
   | map(
-      if .type == "required_status_checks" then
+      if .type == \"required_status_checks\" then
         .parameters.required_status_checks = (
           (.parameters.required_status_checks // [])
           | map(del(.integration_id))
@@ -324,7 +488,7 @@ EXPECTED_TAG_RULES="$(jq -c "$NORMALIZE_JQ
 LIVE_TAG_RULES="$(jq -c "$NORMALIZE_JQ
   (.rules // [])
   | map(
-      if .type == "required_status_checks" then
+      if .type == \"required_status_checks\" then
         .parameters.required_status_checks = (
           (.parameters.required_status_checks // [])
           | map(del(.integration_id))
@@ -416,13 +580,20 @@ record_condition \
   "$( [ "$LIVE_ENV_REVIEWERS" -ge "$EXPECTED_ENV_REVIEWERS" ] && echo true || echo false )"
 
 EXPECTED_ENV_REFS="$(jq -c '.environment.allowed_deployment_refs | sort_by(.type, .name)' "$EXPECTATIONS_FILE")"
-LIVE_ENV_REFS="$(jq -c '
+LIVE_ENV_REFS="$(jq -c --argjson expected "$EXPECTED_ENV_REFS" '
   (
     if type == "array" then .
     else (.branch_policies // .policies // [])
     end
   )
-  | map({name: .name, type: (.type // "branch")})
+  | map(. as $policy | {
+      name: $policy.name,
+      type: (
+        ($policy.type)
+        // ($expected | map(select(.name == $policy.name)) | .[0].type)
+        // "branch"
+      )
+    })
   | sort_by(.type, .name)
 ' "$ENVIRONMENT_POLICIES_FILE")"
 record_comparison \

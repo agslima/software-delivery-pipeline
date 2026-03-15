@@ -1,7 +1,7 @@
 [
   {
-    "id": 11512541,
-    "name": "branch-protection",
+    "id": 12766668,
+    "name": "branch_protection",
     "target": "branch",
     "source_type": "Repository",
     "source": "agslima/software-delivery-pipeline",
@@ -24,7 +24,7 @@
       {
         "type": "pull_request",
         "parameters": {
-          "required_approving_review_count": 1,
+          "required_approving_review_count": 0,
           "dismiss_stale_reviews_on_push": true,
           "required_reviewers": [],
           "require_code_owner_review": true,
@@ -61,16 +61,6 @@
         }
       },
       {
-        "type": "copilot_code_review_analysis_tools",
-        "parameters": {
-          "tools": [
-            {
-              "name": "CodeQL"
-            }
-          ]
-        }
-      },
-      {
         "type": "required_linear_history"
       },
       {
@@ -96,18 +86,25 @@
               "integration_id": 15368
             },
             {
-              "context": "Security Quality Check",
+              "context": "Governance & Security Quality Check",
               "integration_id": 15368
+            },
+            {
+              "context": "CodeQL",
+              "integration_id": 57789
             }
           ]
         }
+      },
+      {
+        "type": "required_signatures"
       }
     ],
     "bypass_actors": []
   },
   {
-    "id": 11512778,
-    "name": "Tag Protection",
+    "id": 13900848,
+    "name": "tag_protection",
     "target": "tag",
     "source_type": "Repository",
     "source": "agslima/software-delivery-pipeline",
