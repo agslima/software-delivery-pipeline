@@ -73,6 +73,70 @@ def load_json(path: Path) -> Any:
         raise SystemExit(f"Invalid JSON in {path}: {exc}")
 
 
+def resolve_path(path_value: str, label: str, root: Path) -> Path:
+    """
+    Resolve a user-provided path string and require it to stay within a trusted root.
+
+    Parameters:
+        path_value (str): Path supplied by CLI args or metadata.
+        label (str): Argument name used in validation errors.
+        root (Path): Trusted directory the resolved path must remain within.
+
+    Returns:
+        Path: Resolved absolute path that is contained within `root`.
+    """
+    candidate = Path(path_value).expanduser()
+    if not candidate.is_absolute():
+        candidate = root / candidate
+
+    resolved = candidate.resolve()
+    try:
+        resolved.relative_to(root.resolve())
+    except ValueError:
+        raise SystemExit(f"{label} must be within {root.resolve()}, got {resolved}")
+    return resolved
+
+
+def resolve_optional_path(
+    path_value: Optional[str], label: str, root: Path
+) -> Optional[Path]:
+    """
+    Resolve an optional path value against a trusted root.
+
+    Returns `None` when `path_value` is empty.
+    """
+    if not path_value:
+        return None
+    return resolve_path(path_value, label, root)
+
+
+def resolve_child_path(path_value: str, label: str, parent_dir: Path) -> Path:
+    """
+    Resolve a relative child path underneath a trusted parent directory.
+
+    Absolute paths are rejected so callers cannot bypass the trusted parent.
+    """
+    child = Path(path_value)
+    if child.is_absolute():
+        raise SystemExit(
+            f"{label} must be a path within {parent_dir.resolve()}, not an absolute path: {child}"
+        )
+    return resolve_path(str(child), label, parent_dir)
+
+
+def artifact_link_name(path: Optional[Path], html_dir: Path) -> Optional[str]:
+    """
+    Return a safe artifact filename for a validated HTML path within `html_dir`.
+    """
+    if path is None:
+        return None
+    try:
+        path.relative_to(html_dir.resolve())
+    except ValueError:
+        raise SystemExit(f"HTML artifact path must be within {html_dir.resolve()}, got {path}")
+    return path.name
+
+
 def norm_severity(value: Any) -> Optional[str]:
     """
     Normalize a severity label or alias to one of: "critical", "high", "medium", or "low".
@@ -471,19 +535,20 @@ def render_index_md(
         scan_rows (List[Dict[str, Any]]): List of scan row mappings; each entry must contain:
             - "label" (str): human-friendly project/scan label,
             - "counts" (SeverityCounts): severity totals for that row,
-            - optional "html_path" (str/Path): path to an HTML artifact; if present and exists,
+            - optional "html_artifact" (str): validated HTML artifact filename; if present and exists,
               the index links to html/<artifact-name>.
         totals (SeverityCounts): Aggregate severity totals used to populate the Aggregate Summary section.
     """
     project_rows: List[str] = []
+    index_path = resolve_child_path("index.md", "--docs-dir output", docs_dir.resolve())
 
     for row in scan_rows:
         link = "-"
-        html_path = row.get("html_path")
-        if html_path:
-            p = Path(html_path)
-            if p.exists():
-                link = f"[{row['label']}](html/{p.name})"
+        html_name = row.get("html_artifact")
+        if html_name:
+            artifact_path = resolve_child_path(html_name, "HTML artifact", html_dir.resolve())
+            if artifact_path.exists():
+                link = f"[{row['label']}](html/{html_name})"
             else:
                 link = row["label"]
         else:
@@ -502,7 +567,7 @@ def render_index_md(
         "snyk-container-server.html",
         "snyk-iac.html",
     ]:
-        p = html_dir / artifact_name
+        p = resolve_child_path(artifact_name, "HTML artifact", html_dir.resolve())
         artifact_rows.append(
             f"| {artifact_name.removesuffix('.html')} | "
             f"{f'[html/{artifact_name}](html/{artifact_name})' if p.exists() else '-'} |"
@@ -545,7 +610,7 @@ def render_index_md(
         ]
     )
 
-    (docs_dir / "index.md").write_text(content, encoding="utf-8")
+    index_path.write_text(content, encoding="utf-8")
 
 
 def update_readme(
@@ -566,7 +631,8 @@ def update_readme(
     Raises:
         SystemExit: If the README_BEGIN/README_END markers are not found in the README file.
     """
-    text = readme_path.read_text(encoding="utf-8")
+    validated_readme_path = readme_path.resolve()
+    text = validated_readme_path.read_text(encoding="utf-8")
 
     replacement = f"""{README_BEGIN}
 ### Automated Security Posture
@@ -590,7 +656,7 @@ def update_readme(
         )
 
     updated = pattern.sub(replacement, text, count=1)
-    readme_path.write_text(updated, encoding="utf-8")
+    validated_readme_path.write_text(updated, encoding="utf-8")
 
 
 def label_for_scan(scan: Dict[str, Any], per_target_label: Optional[str] = None) -> str:
@@ -659,8 +725,8 @@ def parse_baseline(path: Path) -> Dict[str, int]:
 def main() -> int:
     """
     Orchestrates loading scan metadata and baseline, aggregates severity counts, renders an index.md, and optionally updates the README.
-    
-    Validates paths (ensuring docs/html/readme locations are within the repository/docs directory), loads and parses the provided metadata and baseline JSON files, computes per-scan and aggregate severity counts for supported scan kinds (sast, sca, container, iac), writes the rendered index into the docs directory, and updates the README when requested. Prints aggregate totals to stdout.
+
+    Validates CLI and metadata paths against trusted repository roots, loads and parses the provided metadata and baseline JSON files, computes per-scan and aggregate severity counts for supported scan kinds (sast, sca, container, iac), writes the rendered index into the docs directory, and updates the repository README when requested. Prints aggregate totals to stdout.
     
     Returns:
         int: 0 on success.
@@ -678,117 +744,16 @@ def main() -> int:
     parser.add_argument("--update-readme", required=True)
     args = parser.parse_args()
 
-    metadata_path = Path(args.metadata).resolve()
-    baseline_path = Path(args.baseline).resolve()
-    docs_dir = Path(args.docs_dir)
-    docs_dir_resolved = docs_dir.resolve()
-
     repo_root = Path.cwd().resolve()
-    try:
-        docs_dir_resolved.relative_to(repo_root)
-    except ValueError:
-        raise SystemExit(f"--docs-dir must be within {repo_root}, got {docs_dir_resolved}")
+    docs_dir_resolved = resolve_path(args.docs_dir, "--docs-dir", repo_root)
+    html_dir = resolve_path(args.html_dir, "--html-dir", docs_dir_resolved)
+    readme_path = resolve_path(args.readme, "--readme", repo_root)
+    metadata_path = resolve_path(args.metadata, "--metadata", repo_root)
+    baseline_path = resolve_path(args.baseline, "--baseline", repo_root)
 
-    # Validate that metadata and baseline JSON files are within the repository root
-    # and constrained to the expected security scripts directory.
-    security_dir = repo_root / "scripts" / "security"
-
-    try:
-        metadata_path.relative_to(repo_root)
-    except ValueError:
-        raise SystemExit(f"--metadata must be within {repo_root}, got {metadata_path}")
-    try:
-        baseline_path.relative_to(repo_root)
-    except ValueError:
-        raise SystemExit(f"--baseline must be within {repo_root}, got {baseline_path}")
-
-    try:
-        metadata_path.relative_to(security_dir)
-    except ValueError:
-        raise SystemExit(f"--metadata must be within {security_dir}, got {metadata_path}")
-    try:
-        baseline_path.relative_to(security_dir)
-    except ValueError:
-        raise SystemExit(f"--baseline must be within {security_dir}, got {baseline_path}")
+    if readme_path.parent != repo_root or readme_path.name not in {"README.md", "readme.md"}:
         raise SystemExit(
-            f"--metadata path must be within repo root ({repo_root}): {metadata_path}"
-        )
-
-    try:
-        baseline_path.relative_to(repo_root)
-    except ValueError:
-        raise SystemExit(
-            f"--baseline path must be within repo root ({repo_root}): {baseline_path}"
-        )
-
-    # Validate that html-dir and readme are contained within the validated docs directory.
-    html_dir = Path(args.html_dir)
-    html_dir_resolved = html_dir.resolve()
-    try:
-        html_dir_resolved.relative_to(docs_dir_resolved)
-    except ValueError:
-        raise SystemExit(
-            f"--html-dir must be within --docs-dir ({docs_dir_resolved}): {html_dir_resolved}"
-        )
-    # Use the validated, resolved HTML directory path from this point onward.
-    html_dir = html_dir_resolved
-
-    readme_path = Path(args.readme)
-    readme_path_resolved = readme_path.resolve()
-    try:
-        readme_path_resolved.relative_to(docs_dir_resolved)
-    except ValueError:
-        raise SystemExit(
-            f"--readme must be within --docs-dir ({docs_dir_resolved}): {readme_path_resolved}"
-        )
-    # Use the validated, resolved README path from this point onward.
-    readme_path = readme_path_resolved
-
-    try:
-        baseline_path.relative_to(repo_root)
-    except ValueError:
-        raise SystemExit(
-            f"--baseline path must be within repo root ({repo_root}): {baseline_path}"
-        )
-
-    html_dir = Path(args.html_dir).resolve()
-    try:
-        html_dir.relative_to(docs_dir_resolved)
-    except ValueError:
-        raise SystemExit(
-            f"--html-dir path must be within --docs-dir ({docs_dir_resolved}): {html_dir}"
-        )
-
-    try:
-        html_dir.relative_to(repo_root)
-    except ValueError:
-        raise SystemExit(
-            f"--html-dir path must be within repo root ({repo_root}): {html_dir}"
-        )
-
-    # Construct the README path from the docs directory and user-provided argument,
-    # then resolve it and ensure it is contained within docs_dir_resolved.
-    readme_arg_path = Path(args.readme)
-    # Disallow absolute paths for --readme so callers cannot bypass --docs-dir.
-    if readme_arg_path.is_absolute():
-        raise SystemExit(
-            f"--readme must be a path within --docs-dir ({docs_dir_resolved}), "
-            f"not an absolute path: {readme_arg_path}"
-        )
-    readme_path = (docs_dir_resolved / readme_arg_path).resolve()
-    try:
-        readme_path.relative_to(docs_dir_resolved)
-    except ValueError:
-        raise SystemExit(
-            f"--readme path must be within --docs-dir ({docs_dir_resolved}): {readme_path}"
-        )
-
-    # Extra safety check to ensure the resolved path is under docs_dir_resolved.
-    docs_dir_str = str(docs_dir_resolved)
-    readme_path_str = str(readme_path)
-    if not (readme_path_str == docs_dir_str or readme_path_str.startswith(docs_dir_str + "/")):
-        raise SystemExit(
-            f"--readme path must be within --docs-dir ({docs_dir_resolved}): {readme_path}"
+            f"--readme must point to the repository README in {repo_root}, got {readme_path}"
         )
 
     metadata = load_json(metadata_path)
@@ -802,8 +767,10 @@ def main() -> int:
     rows: List[Dict[str, Any]] = []
 
     for scan in scans:
-        parse_input_path = Path(scan.get("parse_input_path") or scan["json_path"])
-        html_path = scan.get("html_path")
+        parse_input_value = scan.get("parse_input_path") or scan["json_path"]
+        parse_input_path = resolve_path(parse_input_value, "scan parse input", repo_root)
+        html_path = resolve_optional_path(scan.get("html_path"), "scan html artifact", html_dir)
+        html_artifact = artifact_link_name(html_path, html_dir)
         doc = load_json(parse_input_path)
 
         if scan["kind"] == "sast":
@@ -813,7 +780,7 @@ def main() -> int:
                 {
                     "label": label_for_scan(scan),
                     "counts": counts,
-                    "html_path": html_path,
+                    "html_artifact": html_artifact,
                 }
             )
 
@@ -826,7 +793,7 @@ def main() -> int:
                     {
                         "label": label_for_scan(scan, target),
                         "counts": target_counts,
-                        "html_path": html_path,
+                        "html_artifact": html_artifact,
                     }
                 )
 
@@ -837,7 +804,7 @@ def main() -> int:
                 {
                     "label": label_for_scan(scan),
                     "counts": counts,
-                    "html_path": html_path,
+                    "html_artifact": html_artifact,
                 }
             )
 
@@ -851,7 +818,7 @@ def main() -> int:
                         {
                             "label": label_for_scan(scan, target),
                             "counts": target_counts,
-                            "html_path": html_path,
+                            "html_artifact": html_artifact,
                         }
                     )
             else:
@@ -859,7 +826,7 @@ def main() -> int:
                     {
                         "label": label_for_scan(scan),
                         "counts": counts,
-                        "html_path": html_path,
+                        "html_artifact": html_artifact,
                     }
                 )
 
