@@ -711,6 +711,13 @@ def main() -> int:
             f"--html-dir path must be within --docs-dir ({docs_dir_resolved}): {html_dir}"
         )
 
+    try:
+        html_dir.relative_to(repo_root)
+    except ValueError:
+        raise SystemExit(
+            f"--html-dir path must be within repo root ({repo_root}): {html_dir}"
+        )
+
     # Construct the README path from the docs directory and user-provided argument,
     # then resolve it and ensure it is contained within docs_dir_resolved.
     readme_arg_path = Path(args.readme)
