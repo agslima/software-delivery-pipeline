@@ -20,15 +20,13 @@ jobs:
         with:
           fetch-depth: 0
       - name: Set up Node.js
-        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
-        with:
-          node-version: 22
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f #v6.3.0
       - name: Set up Python
-        uses: actions/setup-python@42375524d8eebbc121dbb5ffb151c6243983c501 # v5.1.0
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 #v6.2.0
         with:
           python-version: '3.12'
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@e46851c2be7c8839b4bcb2e5c0e4a5b9b0f3c5e8 # v3.11.1
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd #v4.0.0
       - name: Run Snyk & Create pull request
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
