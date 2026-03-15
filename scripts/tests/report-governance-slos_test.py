@@ -138,7 +138,9 @@ def test_resolve_child_path_rejects_absolute_child(tmp_path):
     parent_dir.mkdir()
 
     with pytest.raises(SystemExit):
-        resolve_child_path(parent_dir, str((tmp_path / "report.json").resolve()), "artifact")
+        resolve_child_path(
+            parent_dir, str((tmp_path / "report.json").resolve()), "artifact"
+        )
 
 
 def test_collect_fixture_inputs_uses_validated_fixture_files(tmp_path):

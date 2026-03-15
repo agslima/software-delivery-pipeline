@@ -20,10 +20,10 @@ import render_snyk_report as report  # noqa: E402
 def load_fixture(name: str):
     """
     Load and parse a JSON fixture file from the FIXTURES directory.
-    
+
     Parameters:
         name (str): Filename of the fixture located in the FIXTURES directory (including extension).
-    
+
     Returns:
         The parsed JSON content (typically a dict or list).
     """
@@ -185,7 +185,9 @@ def test_resolve_path_rejects_absolute_path(tmp_path: Path):
     repo_root.mkdir()
 
     with pytest.raises(SystemExit, match="absolute path"):
-        report.resolve_path(str((tmp_path / "outside.json").resolve()), "--metadata", repo_root)
+        report.resolve_path(
+            str((tmp_path / "outside.json").resolve()), "--metadata", repo_root
+        )
 
 
 def test_main_allows_readme_anywhere_within_repo():
