@@ -1,0 +1,7 @@
+{
+  "projectName": "file-server-client:snyk",
+  "vulnerabilities": [
+    { "id": "SNYK-APK-001", "severity": "high" },
+    { "id": "SNYK-APK-002", "severity": "low" }
+  ]
+}
