@@ -458,7 +458,15 @@ def main() -> int:
     baseline_path = Path(args.baseline)
     docs_dir = Path(args.docs_dir)
     html_dir = Path(args.html_dir)
-    readme_path = Path(args.readme)
+    readme_path = (docs_dir / args.readme).resolve()
+
+    docs_dir_resolved = docs_dir.resolve()
+    try:
+        readme_path.relative_to(docs_dir_resolved)
+    except ValueError:
+        raise SystemExit(
+            f"--readme path must be within --docs-dir ({docs_dir_resolved}): {readme_path}"
+        )
 
     metadata = load_json(metadata_path)
     baseline = parse_baseline(baseline_path)
