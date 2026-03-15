@@ -1,22 +1,9 @@
 {
   "id": 1,
   "name": "production",
-  "protection_rules": [
-    {
-      "id": 10,
-      "type": "required_reviewers",
-      "reviewers": [
-        {
-          "type": "User",
-          "reviewer": {
-            "login": "agslima"
-          }
-        }
-      ]
-    }
-  ],
+  "protection_rules": [],
   "deployment_branch_policy": {
     "protected_branches": true,
-    "custom_branch_policies": true
+    "custom_branch_policies": false
   }
 }
