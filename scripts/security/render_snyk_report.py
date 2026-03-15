@@ -741,9 +741,8 @@ def main() -> int:
         raise SystemExit(
             f"--readme must be within --docs-dir ({docs_dir_resolved}): {readme_path_resolved}"
         )
-        raise SystemExit(
-            f"--baseline path must be within repo root ({repo_root}): {baseline_path}"
-        )
+    # Use the validated, resolved README path from this point onward.
+    readme_path = readme_path_resolved
 
     try:
         baseline_path.relative_to(repo_root)
