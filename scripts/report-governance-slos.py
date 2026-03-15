@@ -237,10 +237,18 @@ def get_issue(
 
 def safe_resolve_dir(base_dir: pathlib.Path, target: str) -> pathlib.Path:
     """Ensure a target directory is securely contained within the base directory."""
-    target_path = pathlib.Path(target).resolve()
-    if not target_path.is_relative_to(base_dir):
+    base_dir_resolved = base_dir.resolve()
+    # Resolve the target path relative to the trusted base directory to prevent
+    # directory traversal or writing outside the intended tree.
+    target_path = (base_dir_resolved / target).resolve()
+    try:
+        is_within_base = target_path.is_relative_to(base_dir_resolved)  # type: ignore[attr-defined]
+    except AttributeError:
+        # Fallback for Python versions without Path.is_relative_to (pre-3.9)
+        is_within_base = str(target_path).startswith(str(base_dir_resolved) + str(pathlib.os.sep))
+    if not is_within_base:
         fail(
-            f"Refusing to write or read outside of base directory {base_dir}: {target_path}"
+            f"Refusing to write or read outside of base directory {base_dir_resolved}: {target_path}"
         )
     return target_path
 
