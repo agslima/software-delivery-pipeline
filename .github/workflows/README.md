@@ -71,7 +71,7 @@ This folder contains the active GitHub Actions workflows that power CI, security
 
 - Name: Snyk Report
 - Triggers: `workflow_dispatch`, weekly schedule (Sundays at 00:00 UTC)
-- Summary: Runs `scripts/run-snyk-aggregate.sh` (via `make snyk-report`) to produce the repository security evidence set, updates the generated marker-delimited block in `readme.md`, refreshes `docs/snyk/`, and opens a PR when the evidence changes.
+- Summary: Runs `scripts/security/run-snyk.sh` (via `make snyk`) to produce the repository security evidence set, updates the generated marker-delimited block in `readme.md`, refreshes `docs/snyk/`, and opens a PR when the evidence changes.
 - Outputs: Updated README governance evidence table in PR diff plus refreshed `docs/snyk/` artifacts.
 - Permissions/Secrets: Uses `GITHUB_TOKEN` with `contents: write` and `pull-requests: write`; requires `SNYK_TOKEN`.
 - Maintenance notes: `scripts/run-snyk-aggregate.sh` is the only automation that should update the README evidence markers (`<!-- [BEGIN_GENERATED_TABLE] -->` / `<!-- [END_GENERATED_TABLE] -->`).

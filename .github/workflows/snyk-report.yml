@@ -67,4 +67,6 @@ jobs:
         if: always()
         shell: bash
         run: |
-          cat docs/snyk/index.md >> "$GITHUB_STEP_SUMMARY"
+          if [[ -f docs/snyk/index.md ]]; then
+            cat docs/snyk/index.md >> "$GITHUB_STEP_SUMMARY"
+          fi

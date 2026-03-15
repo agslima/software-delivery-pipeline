@@ -4,7 +4,7 @@ SHELL := /bin/bash
 
 ROOT_DIR := $(shell git rev-parse --show-toplevel 2>/dev/null || pwd)
 
-TRIVY_SCRIPT := $(ROOT_DIR)/scripts/trivy-scan.sh
+TRIVY_SCRIPT := $(ROOT_DIR)/scripts/security/trivy-scan.sh
 SNYK_SCRIPT := $(ROOT_DIR)/scripts/security/run-snyk.sh
 GOV_DRIFT_SCRIPT := $(ROOT_DIR)/scripts/check-governance-drift.sh
 GOV_METADATA_SCRIPT := $(ROOT_DIR)/scripts/check-governance-metadata-freshness.sh
