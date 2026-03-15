@@ -28,14 +28,14 @@ snyk-html: ## Run full scan and render HTML reports
 .PHONY: snyk-baseline-check
 snyk-baseline-check: ## Validate docs/snyk/baseline.json
 	@python3 - <<'PY'
-from pathlib import Path
-import json
-path = Path("$(SNYK_BASELINE)")
-if not path.exists():
-    raise SystemExit(f"Missing baseline file: {path}")
-json.loads(path.read_text(encoding="utf-8"))
-print(f"Baseline OK: {path}")
-PY
+	from pathlib import Path
+	import json
+	path = Path("$(SNYK_BASELINE)")
+	if not path.exists():
+    	raise SystemExit(f"Missing baseline file: {path}")
+	json.loads(path.read_text(encoding="utf-8"))
+	print(f"Baseline OK: {path}")
+	PY
 
 # Trivy local scan
 .PHONY: trivy-scan
