@@ -1,0 +1,6 @@
+{
+  "projectName": "file-server-server:snyk",
+  "vulnerabilities": [
+    { "id": "SNYK-OS-001", "severity": "medium" }
+  ]
+}
