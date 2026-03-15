@@ -29,19 +29,24 @@ help: ## Show available targets
 guard-snyk:
 	@test -f "$(ROOT_DIR)/docs/snyk/baseline.json" || { echo "Missing docs/snyk/baseline.json"; exit 1; }
 	@test -f "$(SNYK_SCRIPT)" || { echo "Missing $(SNYK_SCRIPT)"; exit 1; }
+	@test -x "$(SNYK_SCRIPT)" || chmod +x "$(SNYK_SCRIPT)"
 
 .PHONY: guard-trivy
 guard-trivy:
 	@test -f "$(TRIVY_SCRIPT)" || { echo "Missing $(TRIVY_SCRIPT)"; exit 1; }
+	@test -x "$(TRIVY_SCRIPT)" || chmod +x "$(TRIVY_SCRIPT)"
 
 .PHONY: guard-governance
 guard-governance:
 	@test -f "$(GOV_DRIFT_SCRIPT)" || { echo "Missing $(GOV_DRIFT_SCRIPT)"; exit 1; }
+	@test -x "$(GOV_DRIFT_SCRIPT)" || chmod +x "$(GOV_DRIFT_SCRIPT)"
 	@test -f "$(GOV_METADATA_SCRIPT)" || { echo "Missing $(GOV_METADATA_SCRIPT)"; exit 1; }
+	@test -x "$(GOV_METADATA_SCRIPT)" || chmod +x "$(GOV_METADATA_SCRIPT)"
 
 .PHONY: guard-dast
 guard-dast:
 	@test -f "$(DAST_SCRIPT)" || { echo "Missing $(DAST_SCRIPT)"; exit 1; }
+	@test -x "$(DAST_SCRIPT)" || chmod +x "$(DAST_SCRIPT)"
 
 # -----------------------------------------------------------------------------
 # Security: Snyk
@@ -49,37 +54,30 @@ guard-dast:
 
 .PHONY: snyk
 snyk: guard-snyk ## Run full Snyk aggregation and update README
-	@test -x "$(SNYK_SCRIPT)" || chmod +x "$(SNYK_SCRIPT)"
 	"$(SNYK_SCRIPT)"
 
 .PHONY: snyk-no-readme
 snyk-no-readme: guard-snyk ## Run full Snyk aggregation without touching README
-	@test -x "$(SNYK_SCRIPT)" || chmod +x "$(SNYK_SCRIPT)"
 	UPDATE_README=0 "$(SNYK_SCRIPT)"
 
 .PHONY: snyk-no-html
 snyk-no-html: guard-snyk ## Run full Snyk aggregation without HTML reports
-	@test -x "$(SNYK_SCRIPT)" || chmod +x "$(SNYK_SCRIPT)"
 	WRITE_HTML=0 "$(SNYK_SCRIPT)"
 
 .PHONY: snyk-sca
 snyk-sca: guard-snyk ## Run Snyk SCA only
-	@test -x "$(SNYK_SCRIPT)" || chmod +x "$(SNYK_SCRIPT)"
 	RUN_SCA=1 RUN_SAST=0 RUN_CONTAINER=0 RUN_IAC=0 "$(SNYK_SCRIPT)"
 
 .PHONY: snyk-code
 snyk-code: guard-snyk ## Run Snyk Code only
-	@test -x "$(SNYK_SCRIPT)" || chmod +x "$(SNYK_SCRIPT)"
 	RUN_SCA=0 RUN_SAST=1 RUN_CONTAINER=0 RUN_IAC=0 "$(SNYK_SCRIPT)"
 
 .PHONY: snyk-container
 snyk-container: guard-snyk ## Run Snyk container scan only
-	@test -x "$(SNYK_SCRIPT)" || chmod +x "$(SNYK_SCRIPT)"
 	RUN_SCA=0 RUN_SAST=0 RUN_CONTAINER=1 RUN_IAC=0 "$(SNYK_SCRIPT)"
 
 .PHONY: snyk-iac
 snyk-iac: guard-snyk ## Run Snyk IaC only
-	@test -x "$(SNYK_SCRIPT)" || chmod +x "$(SNYK_SCRIPT)"
 	RUN_SCA=0 RUN_SAST=0 RUN_CONTAINER=0 RUN_IAC=1 "$(SNYK_SCRIPT)"
 
 .PHONY: snyk-clean
@@ -92,7 +90,6 @@ snyk-clean: ## Remove temporary Snyk working directory
 
 .PHONY: trivy-scan
 trivy-scan: guard-trivy ## Generate local Trivy security report
-	@test -x "$(TRIVY_SCRIPT)" || chmod +x "$(TRIVY_SCRIPT)"
 	"$(TRIVY_SCRIPT)"
 
 # -----------------------------------------------------------------------------
@@ -101,12 +98,10 @@ trivy-scan: guard-trivy ## Generate local Trivy security report
 
 .PHONY: governance-drift-check
 governance-drift-check: guard-governance ## Check for governance documentation drift
-	@test -x "$(GOV_DRIFT_SCRIPT)" || chmod +x "$(GOV_DRIFT_SCRIPT)"
 	"$(GOV_DRIFT_SCRIPT)"
 
 .PHONY: governance-metadata-check
 governance-metadata-check: guard-governance ## Verify freshness of governance metadata
-	@test -x "$(GOV_METADATA_SCRIPT)" || chmod +x "$(GOV_METADATA_SCRIPT)"
 	"$(GOV_METADATA_SCRIPT)"
 
 # -----------------------------------------------------------------------------
@@ -115,10 +110,8 @@ governance-metadata-check: guard-governance ## Verify freshness of governance me
 
 .PHONY: dast-weekly
 dast-weekly: guard-dast ## Run weekly DAST orchestration scan
-	@test -x "$(DAST_SCRIPT)" || chmod +x "$(DAST_SCRIPT)"
 	KEEP_DAST_ENV=1 DAST_ENV_FILE=app/.env "$(DAST_SCRIPT)"
 
 .PHONY: dast-weekly-local
 dast-weekly-local: guard-dast ## Run local DAST ZAP scan
-	@test -x "$(DAST_SCRIPT)" || chmod +x "$(DAST_SCRIPT)"
 	"$(DAST_SCRIPT)"
