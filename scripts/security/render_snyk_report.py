@@ -22,6 +22,15 @@ class SeverityCounts:
     low: int = 0
 
     def add(self, other: "SeverityCounts") -> "SeverityCounts":
+        """
+        Add severity counts from another SeverityCounts into this instance.
+        
+        Parameters:
+            other (SeverityCounts): Counts to add to this instance.
+        
+        Returns:
+            SeverityCounts: This instance with its counts incremented by `other`.
+        """
         self.critical += other.critical
         self.high += other.high
         self.medium += other.medium
@@ -29,6 +38,12 @@ class SeverityCounts:
         return self
 
     def as_dict(self) -> Dict[str, int]:
+        """
+        Return counts for each severity level as a dictionary.
+        
+        Returns:
+            dict: Mapping with keys "critical", "high", "medium", and "low" to their integer counts.
+        """
         return {
             "critical": self.critical,
             "high": self.high,
@@ -38,6 +53,18 @@ class SeverityCounts:
 
 
 def load_json(path: Path) -> Any:
+    """
+    Load and parse JSON from the given file path.
+    
+    Parameters:
+        path (Path): Path to the JSON file to read.
+    
+    Returns:
+        The parsed JSON value (dict, list, number, string, etc.).
+    
+    Raises:
+        SystemExit: If the file does not exist or contains invalid JSON. The exit message indicates the problem and the path.
+    """
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
@@ -47,6 +74,15 @@ def load_json(path: Path) -> Any:
 
 
 def norm_severity(value: Any) -> Optional[str]:
+    """
+    Normalize a severity label or alias to one of: "critical", "high", "medium", or "low".
+    
+    Parameters:
+        value (Any): Input severity value; will be coerced to a string before normalization (handles common aliases like "error", "warning", "note", "info").
+    
+    Returns:
+        Optional[str]: The normalized severity ("critical", "high", "medium", or "low") if recognized, otherwise `None`.
+    """
     s = str(value or "").strip().lower()
     if s in {"critical", "high", "medium", "low"}:
         return s
@@ -60,10 +96,28 @@ def norm_severity(value: Any) -> Optional[str]:
 
 
 def ensure_list(value: Any) -> List[Any]:
+    """
+    Return the input if it is a list; otherwise return an empty list.
+    
+    Parameters:
+        value (Any): The value to ensure as a list.
+    
+    Returns:
+        list: The original list if `value` is a list, otherwise an empty list.
+    """
     return value if isinstance(value, list) else []
 
 
 def target_name_standard(result: Dict[str, Any]) -> str:
+    """
+    Return a normalized display name for a standard scan target.
+    
+    Parameters:
+        result (Dict[str, Any]): Scan result dictionary that may contain "displayTargetFile", "targetFile", "projectName", "docker", or "image".
+    
+    Returns:
+        str: The normalized target name derived from the first available key, or "unknown-target" if none are present.
+    """
     return normalize_display_target(
         result.get("displayTargetFile")
         or result.get("targetFile")
@@ -75,6 +129,17 @@ def target_name_standard(result: Dict[str, Any]) -> str:
 
 
 def target_name_iac(result: Dict[str, Any]) -> str:
+    """
+    Derives a normalized display target name from an IaC scan result.
+    
+    Checks the result for a target in this order: `path`, `targetFile`, `displayTargetFile`, `projectName`, and falls back to `"unknown-target"` if none are present. The returned string has path separators normalized and applies the script's IaC-specific display normalization (for example, collapsing staged k8s paths to `k8s` or `k8s/<suffix>`).
+    
+    Parameters:
+        result (Dict[str, Any]): A mapping representing an IaC scan result; may contain `path`, `targetFile`, `displayTargetFile`, or `projectName`.
+    
+    Returns:
+        str: The normalized display target name.
+    """
     raw = (
         result.get("path")
         or result.get("targetFile")
@@ -86,6 +151,15 @@ def target_name_iac(result: Dict[str, Any]) -> str:
 
 
 def normalize_display_target(target: str) -> str:
+    """
+    Normalize a target string for display by normalizing path separators and collapsing IaC staging paths to concise Kubernetes labels.
+    
+    Parameters:
+        target (str): The original target string or path.
+    
+    Returns:
+        normalized (str): The input with backslashes replaced by forward slashes. If the path ends with "/.tmp/snyk-run/iac-stage/k8s" returns "k8s". If it contains "/.tmp/snyk-run/iac-stage/k8s/" returns "k8s/<suffix>" where <suffix> is the remaining path; otherwise returns the normalized path.
+    """
     t = str(target).replace("\\", "/")
 
     # Normalize staged IaC temp path back to a repo-facing label.
@@ -101,6 +175,18 @@ def normalize_display_target(target: str) -> str:
 
 
 def iter_standard_results(doc: Any) -> Iterable[Dict[str, Any]]:
+    """
+    Yield result dictionaries from a Snyk-standard document in a consistent sequence.
+    
+    Parameters:
+        doc (Any): Input document which may be one of:
+            - a list of dicts (each dict is yielded),
+            - a dict containing a "results" key with a list of dicts (each dict in that list is yielded),
+            - a single dict (the dict itself is yielded).
+    
+    Returns:
+        Iterable[Dict[str, Any]]: An iterable producing each result dictionary found in `doc`, in document order.
+    """
     if isinstance(doc, list):
         for item in doc:
             if isinstance(item, dict):
@@ -116,6 +202,17 @@ def iter_standard_results(doc: Any) -> Iterable[Dict[str, Any]]:
 
 
 def extract_standard_counts(doc: Any) -> SeverityCounts:
+    """
+    Aggregate severity counts from standard (SCA/container) scan results.
+    
+    Iterates over results in `doc`, normalizes each vulnerability's severity, and counts unique vulnerabilities deduplicated by the combination of target and vulnerability identifier. Vulnerability identifier is derived from `id`, `packageName`, or `title`; entries with unrecognized severities are ignored.
+    
+    Parameters:
+        doc (Any): Parsed JSON document (a list of results, a dict with a "results" list, or a single result dict) containing `vulnerabilities` entries.
+    
+    Returns:
+        SeverityCounts: Totals of `critical`, `high`, `medium`, and `low` vulnerabilities aggregated across all targets.
+    """
     seen = set()
     counts = SeverityCounts()
 
@@ -141,6 +238,19 @@ def extract_standard_counts(doc: Any) -> SeverityCounts:
 
 
 def extract_standard_counts_by_target(doc: Any) -> Dict[str, SeverityCounts]:
+    """
+    Aggregate standard (SCA/container) vulnerability counts per normalized target.
+    
+    Processes the given Snyk-style document and produces a mapping from each normalized
+    target to its severity counts. Vulnerabilities without a recognized severity are
+    ignored. Duplicate vulnerabilities for the same target (by target + vulnerability id)
+    are counted only once. Ensures every discovered target appears in the result with a
+    SeverityCounts instance (zero counts when no vulnerabilities were counted).
+    
+    Returns:
+        Dict[str, SeverityCounts]: Mapping from normalized target name to its severity counts
+        (fields: critical, high, medium, low).
+    """
     seen = set()
     by_target: Dict[str, SeverityCounts] = {}
     known_targets = set()
@@ -173,6 +283,17 @@ def extract_standard_counts_by_target(doc: Any) -> Dict[str, SeverityCounts]:
 
 
 def extract_iac_counts(doc: Any) -> SeverityCounts:
+    """
+    Aggregate infrastructure-as-code (IaC) issue severities into a SeverityCounts object, deduplicating issues by target and issue id.
+    
+    Parameters:
+        doc (Any): Parsed JSON-like Snyk scan document or list of result objects; each result may contain issues under
+            "infrastructureAsCodeIssues", "iacIssues", or "issues".
+    
+    Returns:
+        SeverityCounts: Counts of IaC issues by severity (`critical`, `high`, `medium`, `low`). Issues without a mappable
+        severity are ignored; duplicates (same target and issue id) are counted once.
+    """
     seen = set()
     counts = SeverityCounts()
 
@@ -199,6 +320,14 @@ def extract_iac_counts(doc: Any) -> SeverityCounts:
 
 
 def extract_iac_counts_by_target(doc: Any) -> Dict[str, SeverityCounts]:
+    """
+    Aggregate Infrastructure-as-Code issue counts per target from a Snyk-like document.
+    
+    Iterates results in the input document, extracts IaC issues for each target, normalizes severities to `critical`, `high`, `medium`, or `low`, deduplicates issues by the combination of target and issue id/title, and increments the corresponding counters on a per-target SeverityCounts object. Issues with unknown or unrecognized severities are ignored.
+    
+    Returns:
+        Dict[str, SeverityCounts]: Mapping from normalized target name to its SeverityCounts (fields: critical, high, medium, low).
+    """
     seen = set()
     by_target: Dict[str, SeverityCounts] = {}
     known_targets = set()
@@ -232,6 +361,17 @@ def extract_iac_counts_by_target(doc: Any) -> Dict[str, SeverityCounts]:
 
 
 def extract_sast_counts(doc: Any) -> SeverityCounts:
+    """
+    Summarizes SAST (SARIF-like) scan results into severity counts, deduplicating issues.
+    
+    Processes the provided scan document (expected to be a SARIF-style dict with "runs") to determine each unique issue's severity and increments counts for `critical`, `high`, `medium`, or `low`. Issue identity is deduplicated using available fingerprints or a composite identifier derived from the artifact, region, and rule/message. When a rule or result-level severity is not present, a default severity of "medium" is used; unrecognized severity labels are ignored.
+    
+    Parameters:
+        doc (Any): Parsed scan document (typically a SARIF-like dict) containing "runs", each with tool rules and results.
+    
+    Returns:
+        SeverityCounts: Aggregated counts of unique SAST issues by severity (`critical`, `high`, `medium`, `low`).
+    """
     counts = SeverityCounts()
     seen = set()
 
@@ -281,6 +421,16 @@ def extract_sast_counts(doc: Any) -> SeverityCounts:
 
 
 def status_for(severity_label: str, count: int) -> str:
+    """
+    Map a severity label and its count to a concise human-readable status.
+    
+    For "Critical" or "High" severities, returns "✅ Fixed" when the count is 0, otherwise "❌ Must fix".
+    For "Medium" or "Low" severities, returns "✅ Fixed" when the count is 0, otherwise "ℹ️ Managed Debt".
+    For any other severity label, returns "Unknown".
+    
+    Returns:
+        status (str): One of "✅ Fixed", "❌ Must fix", "ℹ️ Managed Debt", or "Unknown".
+    """
     if severity_label in {"Critical", "High"}:
         return "✅ Fixed" if count == 0 else "❌ Must fix"
     if severity_label in {"Medium", "Low"}:
@@ -289,6 +439,18 @@ def status_for(severity_label: str, count: int) -> str:
 
 
 def rel_link(path: Path, base: Path) -> str:
+    """
+    Compute the relative path from base to path.
+    
+    Both inputs are resolved to absolute paths before computing the relative path.
+    
+    Parameters:
+        path (Path): Target filesystem path to be relativized.
+        base (Path): Base filesystem path from which to compute the relative path.
+    
+    Returns:
+        relative_path (str): The relative path from base to path.
+    """
     return str(path.resolve().relative_to(base.resolve()))
 
 
@@ -299,6 +461,20 @@ def render_index_md(
     scan_rows: List[Dict[str, Any]],
     totals: SeverityCounts,
 ) -> None:
+    """
+    Render a Markdown index of Snyk scan results and write it to docs_dir/index.md.
+    
+    Parameters:
+        docs_dir (Path): Directory where the generated index.md will be written.
+        html_dir (Path): Directory containing per-scan HTML artifacts referenced from the index.
+        timestamp_utc (str): UTC timestamp string to display as the scan time in the index.
+        scan_rows (List[Dict[str, Any]]): List of scan row mappings; each entry must contain:
+            - "label" (str): human-friendly project/scan label,
+            - "counts" (SeverityCounts): severity totals for that row,
+            - optional "html_path" (str/Path): path to an HTML artifact; if present and exists,
+              the index links to html/<artifact-name>.
+        totals (SeverityCounts): Aggregate severity totals used to populate the Aggregate Summary section.
+    """
     project_rows: List[str] = []
 
     for row in scan_rows:
@@ -378,6 +554,18 @@ def update_readme(
     totals: SeverityCounts,
     timestamp_utc: str,
 ) -> None:
+    """
+    Replace the Automated Security Posture block in the README (between README_BEGIN and README_END markers) with a generated table of baseline and current severity counts and a last-scanned timestamp.
+    
+    Parameters:
+        readme_path (Path): Path to the README file to update.
+        baseline (Dict[str, int]): Mapping with integer counts for keys "critical", "high", "medium", and "low" representing the initial baseline.
+        totals (SeverityCounts): Current aggregated severity counts.
+        timestamp_utc (str): UTC timestamp string to include as the "Last scanned" value.
+    
+    Raises:
+        SystemExit: If the README_BEGIN/README_END markers are not found in the README file.
+    """
     text = readme_path.read_text(encoding="utf-8")
 
     replacement = f"""{README_BEGIN}
@@ -406,6 +594,16 @@ def update_readme(
 
 
 def label_for_scan(scan: Dict[str, Any], per_target_label: Optional[str] = None) -> str:
+    """
+    Produce a human-friendly label for a scan record.
+    
+    Parameters:
+        scan (Dict[str, Any]): Scan metadata; expected keys include "kind" (scan type), "name", and optional "source_ref".
+        per_target_label (Optional[str]): Optional per-target display name used for SCA or IaC scans.
+    
+    Returns:
+        str: A formatted label appropriate for the scan kind (e.g., "Code analysis", "SCA: <source_ref>", "Container: <path>", or a normalized display name).
+    """
     name = scan["name"]
     source_ref = normalize_display_target(scan.get("source_ref") or "")
 
@@ -431,6 +629,21 @@ def label_for_scan(scan: Dict[str, Any], per_target_label: Optional[str] = None)
 
 
 def parse_baseline(path: Path) -> Dict[str, int]:
+    """
+    Parse a baseline JSON file into a mapping of severity levels to integer counts.
+    
+    Loads the JSON at `path` and returns a dict with keys "critical", "high", "medium", and "low".
+    Missing keys default to 0; values are converted to ints.
+    
+    Parameters:
+        path (Path): Filesystem path to the baseline JSON file.
+    
+    Returns:
+        Dict[str, int]: Mapping with integer counts for "critical", "high", "medium", and "low".
+    
+    Raises:
+        SystemExit: If the JSON root is not an object.
+    """
     raw = load_json(path)
     if not isinstance(raw, dict):
         raise SystemExit(f"Baseline file must be a JSON object: {path}")
@@ -444,6 +657,17 @@ def parse_baseline(path: Path) -> Dict[str, int]:
 
 
 def main() -> int:
+    """
+    Orchestrates loading scan metadata and baseline, aggregates severity counts, renders an index.md, and optionally updates the README.
+    
+    Validates paths (ensuring docs/html/readme locations are within the repository/docs directory), loads and parses the provided metadata and baseline JSON files, computes per-scan and aggregate severity counts for supported scan kinds (sast, sca, container, iac), writes the rendered index into the docs directory, and updates the README when requested. Prints aggregate totals to stdout.
+    
+    Returns:
+        int: 0 on success.
+    
+    Raises:
+        SystemExit: on invalid arguments or path validation failures, missing/invalid JSON, malformed metadata (e.g., missing "scans" list), or unsupported scan kinds.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--metadata", required=True)
     parser.add_argument("--baseline", required=True)

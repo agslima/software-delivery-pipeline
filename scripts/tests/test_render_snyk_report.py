@@ -16,6 +16,15 @@ import render_snyk_report as report  # noqa: E402
 
 
 def load_fixture(name: str):
+    """
+    Load and parse a JSON fixture file from the FIXTURES directory.
+    
+    Parameters:
+        name (str): Filename of the fixture located in the FIXTURES directory (including extension).
+    
+    Returns:
+        The parsed JSON content (typically a dict or list).
+    """
     return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
 
 

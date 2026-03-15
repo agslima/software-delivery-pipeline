@@ -66,31 +66,38 @@ UPDATE_README="${UPDATE_README:-1}"
 
 mkdir -p "${DOCS_DIR}" "${HTML_DIR}" "${SCAN_DIR}"
 
+# log prints an informational message prefixed with [INFO].
 log() {
   printf '[INFO] %s\n' "$*"
 }
 
+# warn writes its arguments as a warning message to stderr prefixed with [WARN].
 warn() {
   printf '[WARN] %s\n' "$*" >&2
 }
 
+# die prints an error message to stderr and exits with status 1.
 die() {
   printf '[ERROR] %s\n' "$*" >&2
   exit 1
 }
 
+# require_cmd ensures the specified executable is available on PATH and exits with an error message if it is not.
 require_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "Missing required command: $1"
 }
 
+# require_file ensures the specified path refers to an existing regular file; exits with an error message if it does not.
 require_file() {
   [[ -f "$1" ]] || die "Missing required file: $1"
 }
 
+# require_dir ensures the specified directory exists; otherwise it aborts with an error.
 require_dir() {
   [[ -d "$1" ]] || die "Missing required directory: $1"
 }
 
+# cleanup removes the temporary working directory (${TMP_ROOT}) and exits with the original command's exit status.
 cleanup() {
   local rc=$?
   rm -rf "${TMP_ROOT}"
@@ -99,6 +106,7 @@ cleanup() {
 
 trap cleanup EXIT
 
+# usage prints the script usage and documents supported environment variables.
 usage() {
   cat <<EOF
 Usage: $(basename "$0")
@@ -148,6 +156,7 @@ if [[ "${RUN_IAC}" == "1" ]]; then
   require_dir "${ROOT_DIR}/k8s"
 fi
 
+# init_snyk_tools initializes SNYK_CMD and SNYK_TO_HTML_CMD to the appropriate command invocations for `snyk` and `snyk-to-html`, preferring locally installed binaries and falling back to `npx` with the configured versions; if `snyk` is absent `npx` is required, and if `snyk-to-html` is unavailable and `npx` is not present `SNYK_TO_HTML_CMD` is left empty.
 init_snyk_tools() {
   if command -v snyk >/dev/null 2>&1; then
     SNYK_CMD=(snyk)
@@ -170,6 +179,7 @@ if [[ -n "${SNYK_ORG}" ]]; then
   snyk_args_common+=(--org="${SNYK_ORG}")
 fi
 
+# sanitize_report_file redacts Snyk token-shaped sample values (in-place) from the given report file if it is non-empty.
 sanitize_report_file() {
   local report_file="$1"
   [[ -s "${report_file}" ]] || return 0
@@ -181,6 +191,8 @@ sanitize_report_file() {
   perl -i -pe 's/SG\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}/SG.REDACTED.REDACTED/g' "${report_file}"
 }
 
+# maybe_html generates an HTML report from a Snyk JSON output when HTML generation is enabled and snyk-to-html is available.
+# It accepts the input JSON path as the first argument and the desired output HTML path as the second argument; if rendering fails or the tool is unavailable it emits a warning.
 maybe_html() {
   local in_json="$1"
   local out_html="$2"
@@ -195,6 +207,7 @@ maybe_html() {
   fi
 }
 
+# write_metadata_entry appends a scan entry to the metadata JSON file (META_FILE), creating the file with a `scans` array if missing; the entry includes name, kind, json_path, html_path, source_ref, parse_input_path, and parse_input_format.
 write_metadata_entry() {
   local name="$1"
   local kind="$2"
@@ -237,6 +250,11 @@ meta_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 PY
 }
 
+# run_snyk_capture runs a Snyk scan identified by `name` and records its outputs and metadata.
+# It executes the Snyk command with the provided arguments and writes a JSON report to .tmp/snyk-run/scans/<name>.json and a SARIF temp file to .tmp/snyk-run/<name>.sarif.tmp.
+# For `sast` scans the SARIF file is used as the parse input; for other kinds the JSON file is used. If an output is empty a minimal placeholder file is created.
+# If WRITE_HTML=1 it will attempt to render an HTML report and place it under docs/snyk/html/<name>.html when available.
+# On an execution error (Snyk exit code greater than 1) the function aborts the script; otherwise it records a metadata entry with name, kind, report paths, source_ref, parse_input_path, and parse_input_format.
 run_snyk_capture() {
   local name="$1"
   local kind="$2"
@@ -313,6 +331,7 @@ run_snyk_capture() {
     "${parse_input_format}"
 }
 
+# build_container_images builds Docker images for the client and server from the Dockerfiles in "${APP_DIR}/docker" and tags them with "${CLIENT_IMAGE_TAG}" and "${SERVER_IMAGE_TAG}" respectively.
 build_container_images() {
   log "Building client image: ${CLIENT_IMAGE_TAG}"
   docker build \
@@ -327,6 +346,7 @@ build_container_images() {
     "${APP_DIR}"
 }
 
+# prepare_iac_scan_dir creates the IaC staging directory and synchronizes the repository's k8s/ contents into it, excluding any tests/ subdirectory.
 prepare_iac_scan_dir() {
   local src="${ROOT_DIR}/k8s"
   local dst="${IAC_STAGE_DIR}/k8s"

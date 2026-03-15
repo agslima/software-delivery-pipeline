@@ -44,27 +44,33 @@ TRIVY_CONFIG_SEVERITY="${TRIVY_CONFIG_SEVERITY:-CRITICAL,HIGH,MEDIUM}"
 TRIVY_SKIP_DIRS="${TRIVY_SKIP_DIRS:-node_modules,.git,.tmp,dist,build,coverage,vendor}"
 TRIVY_SKIP_FILES="${TRIVY_SKIP_FILES:-}"
 
+# log prints an informational message prefixed with [INFO] to stdout.
 log() {
   printf '[INFO] %s\n' "$*"
 }
 
+# warn prints the provided arguments as a warning message to stderr prefixed with [WARN].
 warn() {
   printf '[WARN] %s\n' "$*" >&2
 }
 
+# die prints an error message to stderr and exits with status 1.
 die() {
   printf '[ERROR] %s\n' "$*" >&2
   exit 1
 }
 
+# require_cmd checks that the given command exists on PATH and exits with an error if the command is not found.
 require_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "Missing required command: $1"
 }
 
+# require_dir verifies that the specified directory exists and exits with an error if it does not.
 require_dir() {
   [[ -d "$1" ]] || die "Missing required directory: $1"
 }
 
+# usage prints usage information, documents supported environment variables for configuring scan modes and behavior, and shows example invocations.
 usage() {
   cat <<EOF
 Usage: $(basename "$0")
@@ -102,6 +108,7 @@ IFS=',' read -r -a SCAN_MODES <<< "${TRIVY_SCAN_MODES}"
 IFS=',' read -r -a SKIP_DIRS <<< "${TRIVY_SKIP_DIRS}"
 IFS=',' read -r -a SKIP_FILES <<< "${TRIVY_SKIP_FILES}"
 
+# build_skip_args populates the provided array variable (passed by name) with Trivy CLI `--skip-dirs` and `--skip-files` options derived from `SKIP_DIRS` and `SKIP_FILES`; empty entries are ignored.
 build_skip_args() {
   local -n out_ref=$1
   out_ref=()
@@ -119,6 +126,7 @@ build_skip_args() {
   done
 }
 
+# run_fs_scan runs a Trivy filesystem scan against TRIVY_SCAN_PATH using the configured scanners, severity filter, timeout, exit code, and any configured skip directories/files.
 run_fs_scan() {
   local skip_args=()
   build_skip_args skip_args
@@ -133,6 +141,7 @@ run_fs_scan() {
     "${TRIVY_SCAN_PATH}"
 }
 
+# run_config_scan runs a Trivy configuration (IaC) scan against TRIVY_SCAN_PATH using TRIVY_CONFIG_SEVERITY, TRIVY_TIMEOUT, TRIVY_EXIT_CODE, and any constructed skip arguments.
 run_config_scan() {
   local skip_args=()
   build_skip_args skip_args
@@ -146,6 +155,9 @@ run_config_scan() {
     "${TRIVY_SCAN_PATH}"
 }
 
+# run_image_scan runs a Trivy image scan for the image referenced by TRIVY_IMAGE_REF.
+# Dies with an error if TRIVY_IMAGE_REF is not set.
+# Uses TRIVY_SEVERITY, TRIVY_TIMEOUT, and TRIVY_EXIT_CODE to configure Trivy; writes output to stdout/stderr.
 run_image_scan() {
   [[ -n "${TRIVY_IMAGE_REF}" ]] || die "TRIVY_IMAGE_REF is required when TRIVY_SCAN_MODES includes image"
 
@@ -157,11 +169,13 @@ run_image_scan() {
     "${TRIVY_IMAGE_REF}"
 }
 
+# normalize_mode lowercases and trims surrounding whitespace from a mode string.
 normalize_mode() {
   local mode="$1"
   printf '%s' "${mode}" | tr '[:upper:]' '[:lower:]' | xargs
 }
 
+# main orchestrates the configured Trivy scan modes specified in SCAN_MODES, invoking filesystem (fs), configuration (config|conf), and image scans at most once each and exiting on any unsupported mode.
 main() {
   local seen_fs=0
   local seen_config=0

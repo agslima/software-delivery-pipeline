@@ -96,7 +96,7 @@ def normalize_ref_pattern:
 
 printf '[]\n' > "$CHECKS_FILE"
 
-# fetch_json reads an expected API payload from fixtures or GitHub and stores it on disk.
+# fetch_json reads an API payload (from FIXTURES_DIR when MODE=fixture or via `gh api` otherwise) and writes it to RAW_DIR/<basename>.json.
 fetch_json() {
   local basename="$1"
   local api_path="$2"
@@ -111,7 +111,7 @@ fetch_json() {
   fi
 }
 
-# fetch_ruleset_detail_json loads a detailed ruleset payload by id when the summary list omits conditions/rules.
+# fetch_ruleset_detail_json loads the detailed ruleset payload for the given ruleset id.
 fetch_ruleset_detail_json() {
   local ruleset_id="$1"
 

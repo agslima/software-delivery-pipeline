@@ -101,7 +101,17 @@ def percentile(values: list[int], p: float) -> float:
 
 
 def read_resolved_debt_entries(path: pathlib.Path) -> list[dict[str, str]]:
-    """Extract resolved security debt table entries from the governance document."""
+    """
+    Extract the "Resolved Debt (Historical)" Markdown table from a governance document and return its rows as dictionaries.
+    
+    Reads the file at the given path, locates a Markdown table under the heading "Resolved Debt (Historical)", and parses each data row into a dict keyed by the table header names. Header and cell values are trimmed of surrounding whitespace. Rows with a differing number of cells than the header are ignored.
+    
+    Parameters:
+        path (pathlib.Path): Path to the governance document to read.
+    
+    Returns:
+        list[dict[str, str]]: A list of dictionaries mapping header names to cell values for each valid table row; returns an empty list if the table is not found or contains no valid rows.
+    """
     text = path.read_text(encoding="utf-8")
     match = re.search(
         r"## Resolved Debt \(Historical\)\n\n(\|.*(?:\n\|.*)*)",
@@ -130,7 +140,15 @@ def read_resolved_debt_entries(path: pathlib.Path) -> list[dict[str, str]]:
 
 
 def count_success_conclusions(runs: list[dict[str, Any]]) -> tuple[int, int]:
-    """Count successful workflow or job runs among completed, relevant entries."""
+    """
+    Count successful runs among completed, relevant workflow or job run entries.
+    
+    Parameters:
+        runs (list[dict[str, Any]]): Sequence of run objects as returned by GitHub API.
+    
+    Returns:
+        tuple[int, int]: (success_count, relevant_count) where `success_count` is the number of runs with conclusion `"success"`, and `relevant_count` is the number of runs whose conclusion is not `"cancelled"`, not `"skipped"`, and not `None`.
+    """
     relevant = [
         run
         for run in runs
@@ -154,7 +172,22 @@ def get_backend_infra_jobs(
 
 
 def build_status(actual: float, target: float, comparator: str, samples: int) -> str:
-    """Classify an SLO measurement against its objective and comparator."""
+    """
+    Determine the SLO status for a measured value against an objective.
+    
+    Accepts comparator values "gte" (actual must be greater than or equal to target)
+    or "lte" (actual must be less than or equal to target).
+    
+    Parameters:
+        comparator (str): Comparison operator to apply; one of "gte" or "lte".
+    
+    Returns:
+        str: "pass" if the measurement meets the objective, "breach" if it does not,
+        "insufficient_data" if samples is zero.
+    
+    Raises:
+        ValueError: If an unknown comparator is provided.
+    """
     if samples == 0:
         return "insufficient_data"
     if comparator == "gte":
@@ -165,7 +198,20 @@ def build_status(actual: float, target: float, comparator: str, samples: int) ->
 
 
 def collect_live_inputs(repo: str) -> TelemetryData:
-    """Fetch workflow runs and job data for live GitHub-backed reporting."""
+    """
+    Collect live telemetry from GitHub Actions for the given repository and return it as a TelemetryData instance.
+    
+    Parameters:
+        repo (str): Repository in "owner/name" form used to query the GitHub API.
+    
+    Returns:
+        TelemetryData: Contains:
+            - release_runs: up to 20 completed runs for the "ci-release-gate" workflow.
+            - release_jobs: empty dict (individual release job lists are not fetched here).
+            - pr_runs: up to 20 completed runs for the "ci-pr-validation" workflow.
+            - pr_jobs: mapping of PR run id to its jobs (up to 100 jobs per run).
+            - issues_cache: empty dict (issue lookups are not populated).
+    """
     release_runs = gh_api(
         repo,
         f"repos/{repo}/actions/workflows/ci-release-gate.yml/runs?per_page=20&status=completed",
@@ -192,7 +238,23 @@ def collect_live_inputs(repo: str) -> TelemetryData:
 
 
 def collect_fixture_inputs(fixtures_dir: pathlib.Path) -> TelemetryData:
-    """Load workflow runs, jobs, and issue data from fixture files."""
+    """
+    Load telemetry fixtures from a directory and assemble a TelemetryData object.
+    
+    The function reads the following JSON files from fixtures_dir:
+    - release-runs.json (expects key "workflow_runs")
+    - pr-runs.json (expects key "workflow_runs")
+    - issues.json (full issues cache)
+    - jobs-release-<id>.json for each release run id (expects key "jobs")
+    - jobs-pr-<id>.json for each PR run id (expects key "jobs")
+    
+    Parameters:
+        fixtures_dir (pathlib.Path): Directory containing the fixture JSON files.
+    
+    Returns:
+        TelemetryData: Dataclass populated with release_runs, release_jobs (mapping run id -> jobs list),
+                       pr_runs, pr_jobs (mapping run id -> jobs list), and issues_cache.
+    """
     release_runs = load_json(fixtures_dir / "release-runs.json").get(
         "workflow_runs", []
     )
@@ -223,7 +285,17 @@ def collect_fixture_inputs(fixtures_dir: pathlib.Path) -> TelemetryData:
 def get_issue(
     repo: str, issue_ref: str, issues_cache: dict[str, Any], fixtures: bool
 ) -> dict[str, Any] | None:
-    """Resolve a GitHub issue reference from fixtures or the live API cache."""
+    """
+    Resolve a GitHub issue reference and return its issue data, using fixtures or the live GitHub API with caching.
+    
+    Parameters:
+        issue_ref (str): Issue reference in the form "#<number>"; returns `None` if the string does not match this pattern.
+        issues_cache (dict[str, Any]): Mutable cache keyed by issue number (string). When not in fixtures mode, a fetched issue will be stored in this cache.
+        fixtures (bool): If True, only read from `issues_cache` and do not call the GitHub API.
+    
+    Returns:
+        dict[str, Any] | None: The issue data dictionary if the reference is resolved and available, `None` if the reference is invalid or the issue is not present in fixtures mode.
+    """
     match = re.fullmatch(r"#(\d+)", issue_ref.strip())
     if not match:
         return None
@@ -236,7 +308,16 @@ def get_issue(
 
 
 def safe_resolve_dir(base_dir: pathlib.Path, target: str) -> pathlib.Path:
-    """Ensure a target directory is securely contained within the base directory."""
+    """
+    Resolve a target path within a trusted base directory and refuse targets that escape it.
+    
+    Parameters:
+        base_dir (pathlib.Path): The trusted base directory to contain the resolved path.
+        target (str): A path relative to `base_dir` (may include subdirectories); absolute or traversal attempts outside `base_dir` are rejected.
+    
+    Returns:
+        pathlib.Path: The resolved absolute path for `target` guaranteed to be within `base_dir`.
+    """
     base_dir_resolved = base_dir.resolve()
     # Resolve the target path relative to the trusted base directory to prevent
     # directory traversal or writing outside the intended tree.
@@ -259,7 +340,21 @@ def generate_slos(
     fixtures_mode: bool,
     debt_file: pathlib.Path,
 ) -> list[dict[str, Any]]:
-    """Calculate metrics and construct the SLO reporting dictionaries."""
+    """
+    Compute SLO metrics from telemetry and resolved debt entries and return a list of SLO definition dictionaries with computed actuals, samples, and status.
+    
+    Parameters:
+        data (TelemetryData): Collected telemetry including release and PR runs, job details, and cached issues.
+        repository_name (str): Repository identifier in owner/name form used to resolve issue links.
+        fixtures_mode (bool): If true, resolve issues from the provided fixtures cache instead of calling the GitHub API.
+        debt_file (pathlib.Path): Path to the security debt document from which resolved debt entries are read.
+    
+    Returns:
+        list[dict[str, Any]]: A list of SLO dictionaries. Each dictionary contains keys such as:
+            - id, name, target, objective, comparator
+            - actual (numeric), unit (e.g., "percent" or "days"), samples (int), window, source, owner, breach_response
+            - status: one of "pass", "breach", or "insufficient_data" determined by comparing actual to the objective.
+    """
     resolved_entries = read_resolved_debt_entries(debt_file)
     remediation_days: list[int] = []
 
@@ -373,7 +468,28 @@ def create_markdown_summary(
     overall_status: str,
     slos: list[dict[str, Any]],
 ) -> str:
-    """Format the calculated SLOs into a Markdown report."""
+    """
+    Create a Markdown-formatted governance SLO report.
+    
+    Parameters:
+        repository_name (str): Repository identifier in "owner/name" form used in the header.
+        mode (str): Data source label (e.g., "fixtures" or "live") used in the header.
+        generated_at (str): UTC timestamp string shown in the header.
+        overall_status (str): Aggregate status shown in the header (e.g., "pass", "breach", "insufficient_data").
+        slos (list[dict[str, Any]]): List of SLO dictionaries. Each dictionary is expected to contain the keys:
+            - name (str)
+            - target (str)
+            - actual (float or numeric-string; may be NaN)
+            - unit (str)
+            - samples (int)
+            - status (str)
+            - owner (str)
+            - source (list[str])
+            - breach_response (str)
+    
+    Returns:
+        str: The complete report as a Markdown-formatted string.
+    """
     summary_lines = [
         "# Governance SLO Report",
         "",
