@@ -1,2 +1,0 @@
-skip-dirs:
-  - "k8s/tests"
