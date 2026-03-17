@@ -29,7 +29,12 @@ DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 def fail(message: str) -> None:
-    """Emit a GitHub Actions error annotation and exit."""
+    """
+    Emit a GitHub Actions error annotation to stderr and terminate the process with exit code 1.
+    
+    Parameters:
+        message (str): Error message to include in the GitHub Actions annotation.
+    """
     print(f"::error::{message}", file=sys.stderr)
     raise SystemExit(1)
 
@@ -94,7 +99,12 @@ def validate_file(path_str: str) -> None:
 
 
 def main() -> int:
-    """Validate all targeted documentation files."""
+    """
+    Validate each file listed in TARGETS by running validate_file on every target.
+    
+    Returns:
+        exit_code (int): 0 on success.
+    """
     for target in TARGETS:
         validate_file(target)
     print(f"[docs-metadata] OK ({len(TARGETS)} files)")

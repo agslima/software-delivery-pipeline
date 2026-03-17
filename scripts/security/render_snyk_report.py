@@ -755,15 +755,15 @@ def parse_baseline(path: Path) -> Dict[str, int]:
 
 def main() -> int:  # pylint: disable=too-many-locals,too-many-statements
     """
-    Orchestrates loading scan metadata and baseline, aggregates severity counts, renders an index.md, and optionally updates the README.
-
-    Validates CLI and metadata paths against trusted repository roots, loads and parses the provided metadata and baseline JSON files, computes per-scan and aggregate severity counts for supported scan kinds (sast, sca, container, iac), writes the rendered index into the docs directory, and updates the repository README when requested. Prints aggregate totals to stdout.
-
+    Load scan metadata and baseline, aggregate vulnerability severities, render an index.md in the docs directory, and optionally update the repository README.
+    
+    Validates and resolves CLI-provided paths against the repository root, loads and parses metadata and baseline JSON, computes per-scan and aggregate severity counts for supported scan kinds (sast, sca, container, iac), writes the rendered index file, and prints aggregate totals.
+    
     Returns:
         int: 0 on success.
-
+    
     Raises:
-        SystemExit: on invalid arguments or path validation failures, missing/invalid JSON, malformed metadata (e.g., missing "scans" list), or unsupported scan kinds.
+        SystemExit: on invalid CLI arguments or path validation failures, missing or invalid JSON, malformed metadata (e.g., missing "scans" list), or unsupported scan kinds.
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("--metadata", required=True)

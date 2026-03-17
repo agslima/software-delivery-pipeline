@@ -7,18 +7,19 @@ fail() {
   exit 1
 }
 
-# assert_contains verifies that the specified file contains the given literal string and calls fail with an error annotation and exits if the string is missing.
+# assert_contains verifies that FILE contains the literal string EXPECTED and calls fail (printing an error annotation and exiting with status 1) if the string is not found.
 assert_contains() {
   local file="$1"
   local expected="$2"
   grep -Fq "$expected" "$file" || fail "Missing expected reference in $file: $expected"
 }
 
-# markdown_assert runs the Python markdown-aware assertion helper.
+# markdown_assert runs the markdown-aware assertion helper script (scripts/markdown_assert.py) with the provided arguments.
 markdown_assert() {
   python3 scripts/markdown_assert.py "$@"
 }
 
+# docs_metadata_assert validates documentation metadata by running scripts/check-docs-metadata.py.
 docs_metadata_assert() {
   python3 scripts/check-docs-metadata.py
 }
