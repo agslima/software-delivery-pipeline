@@ -19,8 +19,6 @@ REFERENCE_DEF_RE = re.compile(
 REFERENCE_LINK_RE = re.compile(r"\[[^][]+\]\[([^\]]+)\]")
 COLLAPSED_REFERENCE_LINK_RE = re.compile(r"\[([^\]]+)\]\[\]")
 SHORTCUT_REFERENCE_LINK_RE = re.compile(r"(?<![!\[])\\?\[([^\]]+)\](?!\(|\[|:)")
-BARE_TARGET_RE = re.compile(r"(https?://[^\s)>]+|docs/[A-Za-z0-9._/#-]+)")
-
 
 def fail(message: str) -> None:
     """Emit a GitHub Actions error annotation and exit."""
@@ -89,7 +87,7 @@ def extract_link_targets(text: str) -> set[str]:
     """
     Extract all link targets referenced in the given Markdown text.
     
-    Searches for inline links, reference-style links (resolved using reference definitions present in the text), collapsed and shortcut reference links, and bare URL/target forms, and returns the set of all discovered target strings.
+    Searches for inline links and reference-style links (standard, collapsed, and shortcut labels resolved via local reference definitions) and returns the set of discovered target strings.
     
     Returns:
         set[str]: A set of link target strings found in the input text.
@@ -103,7 +101,6 @@ def extract_link_targets(text: str) -> set[str]:
     for match in REFERENCE_DEF_RE.finditer(text):
         label, target = match.groups()
         reference_targets[normalize_label(label)] = target
-        targets.add(target)
 
     for match in REFERENCE_LINK_RE.finditer(text):
         target = reference_targets.get(normalize_label(match.group(1)))
@@ -119,9 +116,6 @@ def extract_link_targets(text: str) -> set[str]:
         target = reference_targets.get(normalize_label(match.group(1)))
         if target:
             targets.add(target)
-
-    for match in BARE_TARGET_RE.finditer(text):
-        targets.add(match.group(1))
 
     return targets
 

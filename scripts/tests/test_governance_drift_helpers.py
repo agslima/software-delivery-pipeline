@@ -426,16 +426,23 @@ def test_extract_link_targets_collapsed_reference_link():
     assert "https://example.com" in targets
 
 
-def test_extract_link_targets_bare_https_url():
-    text = "See https://example.com for details"
+def test_extract_link_targets_ignores_bare_urls_and_paths():
+    text = "See https://example.com and docs/governance.md for details"
     targets = markdown_assert.extract_link_targets(text)
-    assert "https://example.com" in targets
+    assert "https://example.com" not in targets
+    assert "docs/governance.md" not in targets
 
 
-def test_extract_link_targets_bare_docs_path():
-    text = "See docs/governance.md for details"
+def test_extract_link_targets_ignores_unreferenced_reference_definitions():
+    text = "[ref]: docs/governance.md"
     targets = markdown_assert.extract_link_targets(text)
-    assert "docs/governance.md" in targets
+    assert "docs/governance.md" not in targets
+
+
+def test_extract_link_targets_ignores_metadata_comments_with_paths():
+    text = "[//]: # (Controls matrix: docs/governance-evidence-index.md)"
+    targets = markdown_assert.extract_link_targets(text)
+    assert "docs/governance-evidence-index.md" not in targets
 
 
 def test_extract_link_targets_returns_empty_for_plain_text():
