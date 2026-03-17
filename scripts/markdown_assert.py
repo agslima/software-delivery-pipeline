@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+import unicodedata
 from pathlib import Path
 
 
@@ -67,9 +68,9 @@ def github_anchor_for_heading(heading: str) -> str:
     Returns:
         slug (str): The fragment slug suitable for GitHub headings — lowercase with spaces converted to hyphens, characters other than ASCII letters, digits, underscores, or hyphens removed, and leading/trailing hyphens trimmed.
     """
-    slug = heading.lower()
+    slug = unicodedata.normalize("NFKC", heading).casefold()
     slug = re.sub(r"\s+", "-", slug)
-    slug = re.sub(r"[^a-z0-9_-]", "", slug)
+    slug = re.sub(r"-{2,}", "-", slug)
     return slug.strip("-")
 
 

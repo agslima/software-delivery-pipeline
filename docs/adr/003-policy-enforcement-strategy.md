@@ -101,26 +101,52 @@ This aligns with Zero Trust and SLSA principles.
 
 ## Implementation Details
 
-### CI scope in GitHub Actions
+### Policy unit testing (`kyverno test` - `ci-pr-validation.yml`)
 
-Kyverno CLI is executed with:
+The `ci-pr-validation.yml` workflow runs `kyverno test` against `k8s/tests/` fixtures.
 
-- structural validation
-- digest enforcement
+This stage validates:
+
+- policy logic and rule intent
+- expected pass/fail outcomes from curated test cases
+- regression coverage for policy behavior
 
 Expected behavior:
 
-- `verifyImages` rules are expected to be skipped
-- skipped rules are treated as informational, not failures
+- policy unit tests pass when Kyverno results match the checked-in expectations
+- this stage is not responsible for live manifest evaluation or registry-backed verification
 
 Example CI log interpretation:
 
 ```text
-Notice: verifyImages rules skipped by Kyverno CLI (expected in CI).
-Policy validation passed (CI scope).
+Run Kyverno Policy Tests
+kyverno test k8s/tests/ -f k8s/tests/cluster-verify-test.yaml
+Test Summary: all policy assertions passed.
 ```
 
-This behavior is explicitly handled in pipeline logic.
+### Manifest validation/enforcement (`kyverno apply` - `gitops-enforce.yml`)
+
+The `gitops-enforce.yml` workflow runs `kyverno apply` against rendered manifests and selected policy sets.
+
+This stage validates:
+
+- structural manifest correctness
+- immutable digest enforcement
+- runtime-style policy evaluation that can be exercised by the CLI
+
+Expected behavior:
+
+- manifest validation fails if structural or digest-based policy checks fail
+- `verifyImages` evaluation may be skipped by the Kyverno CLI for rules that depend on admission-time or registry-backed capabilities
+- skipped `verifyImages` results must be interpreted in the context of the specific pipeline logic rather than as proof of runtime verification
+
+Example CI log interpretation:
+
+```text
+Applying policy: k8s/policies/cluster/supply-chain-policy.yaml
+Notice: verifyImages rules skipped by Kyverno CLI during manifest validation.
+Other structural and digest checks passed.
+```
 
 ### Cluster scope in Kubernetes
 

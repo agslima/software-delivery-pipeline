@@ -211,7 +211,7 @@ This control is effective only when `Require review from Code Owners` remains en
 
 ## README Claims → Controls Matrix
 
-The authoritative claim-to-enforcement index lives in [`docs/governance-evidence-index.md`](docs/governance-evidence-index.md). Use that document as the single audit surface for README claims, workflow jobs, policy enforcement points, artifact paths, ownership, and review cadence.
+The authoritative claim-to-enforcement index lives in [`governance-evidence-index.md`](governance-evidence-index.md). Use that document as the single audit surface for README claims, workflow jobs, policy enforcement points, artifact paths, ownership, and review cadence.
 
 ### Governance Evidence Index
 
@@ -277,7 +277,7 @@ Use `summary.md` for quick review and `report.json` for durable quarterly eviden
 
 ### Governance SLOs
 
-Governance operating targets and the weekly report path are defined in [`docs/governance-slos.md`](docs/governance-slos.md).
+Governance operating targets and the weekly report path are defined in [`governance-slos.md`](governance-slos.md).
 
 Automated reporting source:
 
