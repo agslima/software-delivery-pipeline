@@ -1,218 +1,177 @@
 # Decisions
 
-Architecture & Tooling Decisions
+[//]: # (owner: Project Maintainers)
+[//]: # (review_cadence: Quarterly)
+[//]: # (last_reviewed: 2026-03-17)
 
-This document explains the key architectural and tooling decisions made in this repository. The goal is not to claim a universally optimal setup, but to make the trade-offs explicit, focusing on clarity, auditability, and educational value for a governed software supply chain.
+## Architecture and Tooling Decisions
 
+This document explains the key architectural and tooling decisions made in this repository. The goal is not to claim a universally optimal setup, but to make the trade-offs explicit, with an emphasis on clarity, auditability, and educational value for a governed software supply chain.
 
----
+## Why GitHub Actions?
 
-1. Why GitHub Actions?
+_Compared with Jenkins or GitLab CI_
 
-(vs Jenkins, GitLab CI)
-
-Decision
+### Decision
 
 GitHub Actions was selected as the CI/CD engine for this project.
 
-Rationale
+### Rationale
 
-Minimize operational overhead
-This repository is designed as a reference implementation. GitHub Actions removes the need to provision, secure, and maintain CI infrastructure (agents, controllers, plugins), allowing the focus to remain on supply-chain security and policy enforcement.
+#### Minimize operational overhead
 
-CI/CD as code, versioned with the application
-Pipeline logic lives alongside application code, Kubernetes manifests, and policies. This ensures:
+This repository is designed as a reference implementation. GitHub Actions removes the need to provision, secure, and maintain CI infrastructure such as agents, controllers, and plugins, allowing the focus to remain on supply-chain security and policy enforcement.
 
-Full version history
+#### CI/CD as code, versioned with the application
 
-Atomic changes (code + pipeline evolve together)
+Pipeline logic lives alongside application code, Kubernetes manifests, and policies. This provides:
 
-Easier review and auditing
+- full version history
+- atomic changes, so code and pipeline evolve together
+- easier review and auditing
 
+#### Native integration with OIDC and Sigstore
 
-Native integration with OIDC & Sigstore
 GitHub Actions provides first-class support for:
 
-OIDC identity tokens
+- OIDC identity tokens
+- keyless signing with Cosign
+- strong workload identity guarantees
 
-Keyless signing (Cosign)
+This makes it a strong platform for demonstrating modern, identity-based supply-chain security.
 
-Strong workload identity guarantees
+### Trade-offs
 
-
-This makes it an ideal platform for demonstrating modern, identity-based supply chain security.
-
-Trade-offs
-
-Less flexibility than highly customized Jenkins setups
-
-GitHub-hosted runners are ephemeral and not suitable for long-running jobs
-
+- less flexibility than highly customized Jenkins setups
+- GitHub-hosted runners are ephemeral and not suitable for long-running jobs
 
 For this use case, these trade-offs are acceptable and intentional.
 
+## Why Cosign?
 
----
+_Compared with Docker Content Trust or Notary v1_
 
-2. Why Cosign?
-
-(vs Docker Content Trust / Notary v1)
-
-Decision
+### Decision
 
 Cosign was chosen for container image signing and attestation.
 
-Rationale
+### Rationale
 
-Keyless signing via OIDC
+#### Keyless signing via OIDC
+
 Cosign enables signing without long-lived private keys. Instead, it relies on:
 
-GitHub Actions OIDC identity
+- GitHub Actions OIDC identity
+- short-lived certificates
+- Fulcio and Rekor
 
-Short-lived certificates
+This significantly reduces key-management risk.
 
-Fulcio + Rekor transparency log
+#### First-class support for attestations
 
-
-This drastically reduces key management risk.
-
-First-class support for attestations
 Cosign supports multiple in-toto attestations, enabling:
 
-Vulnerability scan attestations (Trivy)
-
-DAST attestations (ZAP)
-
-SBOM attestations
-
+- vulnerability scan attestations from Trivy
+- DAST attestations from ZAP
+- SBOM attestations
 
 These attestations are directly consumed by Kyverno at admission time.
 
-Industry momentum & ecosystem alignment
+#### Industry momentum and ecosystem alignment
+
 Cosign is part of the Sigstore ecosystem and aligns with:
 
-SLSA
+- SLSA
+- Kubernetes admission controls
+- policy engines such as Kyverno
 
-Kubernetes admission controls
+### Trade-offs
 
-Policy engines like Kyverno
-
-
-Trade-offs
-
-Requires understanding of Sigstore components
-
-More concepts than legacy Notary v1
-
+- requires understanding of Sigstore components
+- introduces more concepts than legacy Notary v1
 
 The security and auditability benefits outweigh the added complexity.
 
+## Why Push-Based, CI-Driven GitOps?
 
----
+_Compared with Argo CD or pull-based GitOps_
 
-3. Why Push-Based (CI-Driven) GitOps?
+### Decision
 
-(vs ArgoCD / Pull-Based GitOps)
+A CI-driven, push-based GitOps model was selected for this repository.
 
-Decision
+See [ADR 001](adr/001-gitops-strategy.md) for the full decision record.
 
-A CI-driven (push-based) GitOps model was selected for this repository.
-
-> See ADR 001 below for the full decision record.
-
-
-
-Summary Rationale
+### Summary rationale
 
 This project prioritizes:
 
-Accessibility for reviewers
+- accessibility for reviewers
+- zero cluster dependency for demonstrating the flow
+- clear, linear execution flow
 
-Zero cluster dependency
+While pull-based GitOps with Argo CD or Flux is the enterprise standard, it introduces:
 
-Clear, linear execution flow
-
-
-While pull-based GitOps (ArgoCD/Flux) is the enterprise standard, it introduces:
-
-Persistent cluster infrastructure
-
-Additional controllers and CRDs
-
-Operational complexity unrelated to the core supply-chain topic
-
+- persistent cluster infrastructure
+- additional controllers and CRDs
+- operational complexity unrelated to the core supply-chain topic
 
 For a reference implementation, push-based GitOps provides maximum signal with minimum noise.
 
+## Why Trivy and OWASP ZAP?
 
----
-
-4. Why Trivy and OWASP ZAP?
-
-Decision
+### Decision
 
 The pipeline integrates Trivy and OWASP ZAP as security scanners, producing signed attestations.
 
-Trivy (SCA + Container Security)
+### Trivy
 
-Why Trivy?
+_SCA and container security_
 
-Industry-standard open source scanner
+#### Why Trivy?
 
-Covers OS packages and application dependencies
+- industry-standard open source scanner
+- covers OS packages and application dependencies
+- generates machine-readable results
+- integrates natively with Cosign attestations
 
-Generates machine-readable results
+#### What it enforces
 
-Integrates natively with Cosign attestations
+- no known critical or high vulnerabilities at build time beyond the documented threshold
+- cryptographically verifiable vulnerability state at deploy time
 
+### OWASP ZAP
 
-What it enforces
+_Dynamic application security testing_
 
-No known critical/high vulnerabilities at build time
+#### Why ZAP?
 
-Cryptographically verifiable vulnerability state at deploy time
+- de facto open source standard for DAST
+- focuses on runtime application behavior
+- complements static and dependency scanning
 
+Including DAST in the supply chain demonstrates:
 
-OWASP ZAP (DAST)
+- security validation after deployment
+- runtime risk awareness
+- attestation-based enforcement beyond static analysis
 
-Why ZAP?
-
-De-facto open source standard for DAST
-
-Focuses on runtime application behavior
-
-Complements static and dependency scanning
-
-
-Why include DAST in the supply chain? Most pipelines stop security checks at build time. Including ZAP demonstrates:
-
-Security validation after deployment
-
-Runtime risk awareness
-
-Attestation-based enforcement beyond static analysis
-
-
-Combined Value
+### Combined value
 
 Together, Trivy and ZAP provide:
 
-Shift-left (dependency & image scanning)
+- shift-left coverage through dependency and image scanning
+- shift-right coverage through runtime security testing
+- policy-enforced deployment gates through Kyverno
 
-Shift-right (runtime security testing)
+## Appendix: Architecture Decision Records
 
-Policy-enforced deployment gates via Kyverno
+The following ADRs capture the historical decision record for the main governance and delivery patterns in this repository:
 
-
-
----
-
-Appendix: Architecture Decision Records
-
-The following ADR is included verbatim to preserve historical and architectural context.
-
-
-- ADR 001 – CI-Driven (Push-Based) GitOps Strategy
-- ADR 002 – Image Signing & Attestation Strategy (Cosign + Kyverno)
-- docs/adr/003-policy-enforcement-strategy.md
-- docs/adr/004-vulnerability-thresholds-risk-acceptance.md
+- [ADR 001: CI-Driven (Push-Based) GitOps Strategy](adr/001-gitops-strategy.md)
+- [ADR 002: Image Signing and Attestation Strategy (Cosign + Kyverno)](adr/002-image-signing-attestation.md)
+- [ADR 003: Policy Enforcement Strategy](adr/003-policy-enforcement-strategy.md)
+- [ADR 004: Vulnerability Thresholds and Risk Acceptance](adr/004-vulnerability-thresholds-risk-acceptance.md)
+- [ADR 005: Break-Glass and Exception Handling Strategy](adr/005-break-glass-exception-handling.md)
+- [ADR 006: Scanner Failure and Degraded Mode Strategy](adr/006-scanner-failure-degraded-mode.md)
+- [ADR 007: Supply Chain Incident Response and Revocation Strategy](adr/007-supply-chain-incident-response-revocation.md)

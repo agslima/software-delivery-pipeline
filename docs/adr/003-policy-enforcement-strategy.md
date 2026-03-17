@@ -1,251 +1,174 @@
-Architecture Decision Record (ADR)
+# Architecture Decision Record (ADR)
 
-ADR 003: Policy Enforcement Strategy (CI Validation vs Cluster Admission Control)
+[//]: # (owner: Project Maintainers)
+[//]: # (review_cadence: Quarterly)
+[//]: # (last_reviewed: 2026-03-17)
 
-Status: Accepted
+## ADR 003: Policy Enforcement Strategy
 
-Date: 2026-01-07
+_CI validation versus cluster admission control_
 
-Context: Software Delivery Pipeline – Policy Enforcement Design
+- Status: Accepted
+- Date: 2026-01-07
+- Context: Software Delivery Pipeline, policy enforcement design
 
-
-
----
-
-Context
+## Context
 
 This project enforces multiple governance and security controls using Kyverno policies, including:
 
-Image signature verification
-
-Vulnerability scan attestations (Trivy, ZAP)
-
-Digest-pinned images (immutable deployments)
-
+- image signature verification
+- vulnerability scan attestations from Trivy and ZAP
+- digest-pinned images for immutable deployments
 
 A key architectural decision is where and how these policies should be enforced across the delivery lifecycle.
 
 Two primary enforcement points exist:
 
-1. CI-Time Validation
-
-Policies are evaluated using the Kyverno CLI during GitHub Actions.
-
-Applied to Kubernetes manifests before they are merged or deployed.
-
-
-
-2. Cluster-Time Admission Control
-
-Policies are enforced by Kyverno Admission Controllers running inside the Kubernetes cluster.
-
-Requests are allowed or denied at runtime.
-
-
-
+1. CI-time validation
+   CI policies are evaluated using the Kyverno CLI during GitHub Actions and applied to Kubernetes manifests before they are merged or promoted.
+2. Cluster-time admission control
+   Policies are enforced by Kyverno admission controllers running inside the Kubernetes cluster, where requests are allowed or denied at runtime.
 
 Each approach provides different guarantees, visibility, and trade-offs.
 
+## Decision
 
----
+The project adopts a dual-scope policy enforcement strategy.
 
-Decision
+### CI scope
 
-The project adopts a dual-scope policy enforcement strategy:
-
-CI Scope (Preventive Controls):
+_Preventive controls_
 
 Kyverno policies are evaluated during CI to validate:
 
-Manifest structure
+- manifest structure
+- digest pinning
+- baseline security posture
 
-Digest pinning
+`verifyImages` rules are acknowledged as non-enforceable in the Kyverno CLI and treated as informational in CI.
 
-Baseline security posture
+### Cluster scope
 
-
-verifyImages rules are acknowledged as non-enforceable in Kyverno CLI and treated as informational in CI.
-
-
-Cluster Scope (Authoritative Controls):
+_Authoritative controls_
 
 Full enforcement of image signature verification and attestation validation occurs at cluster admission time using Kyverno.
 
 These controls act as the final security gate before workloads run.
 
-
-
 This separation is intentional and explicitly documented.
 
+## Rationale
 
----
-
-Rationale
-
-1. Kyverno CLI vs Admission Controller Capabilities
+### 1. Kyverno CLI and admission controller capabilities differ
 
 Kyverno CLI is designed for static analysis of manifests and does not fully resolve:
 
-Remote registry lookups
-
-Cosign signature verification
-
-Attestation verification with live transparency logs
-
+- remote registry lookups
+- Cosign signature verification
+- attestation verification with live transparency logs
 
 Attempting to treat CI-based Kyverno execution as equivalent to admission control leads to false failures and brittle pipelines.
 
 Therefore:
 
-CI validation focuses on what can be deterministically evaluated
+- CI validation focuses on what can be deterministically evaluated
+- runtime verification is delegated to the cluster
 
-Runtime verification is delegated to the cluster
-
-
-
----
-
-2. Shift-Left Without Over-Claiming Enforcement
+### 2. Shift left without over-claiming enforcement
 
 CI enforcement provides:
 
-Early feedback to developers
-
-Fast failure before merge
-
-Policy-as-code validation
-
+- early feedback to developers
+- fast failure before merge
+- policy-as-code validation
 
 But it does not replace runtime enforcement.
 
-This avoids the common anti-pattern of:
+This avoids the common anti-pattern:
 
-> “Security theater in CI, no real enforcement in production”
+> Security theater in CI, no real enforcement in production.
 
+### 3. Clear trust boundaries
 
-
-
----
-
-3. Clear Trust Boundaries
-
-Layer	Responsibility
-
-CI Pipeline	Build integrity, signing, attestations, manifest correctness
-Git Repository	Declarative source of truth
-Kubernetes Admission	Runtime trust verification
-Runtime	Execution only of verified artifacts
-
+| Layer | Responsibility |
+| :--- | :--- |
+| CI pipeline | Build integrity, signing, attestations, and manifest correctness |
+| Git repository | Declarative source of truth |
+| Kubernetes admission | Runtime trust verification |
+| Runtime | Execution only of verified artifacts |
 
 This aligns with Zero Trust and SLSA principles.
 
+## Implementation Details
 
----
-
-Implementation Details
-
-CI Scope (GitHub Actions)
+### CI scope in GitHub Actions
 
 Kyverno CLI is executed with:
 
-Structural validation
+- structural validation
+- digest enforcement
 
-Digest enforcement
+Expected behavior:
 
-
-verifyImages rules are expected to be skipped
-
-Skips are treated as informational, not failures
-
+- `verifyImages` rules are expected to be skipped
+- skipped rules are treated as informational, not failures
 
 Example CI log interpretation:
 
+```text
 Notice: verifyImages rules skipped by Kyverno CLI (expected in CI).
 Policy validation passed (CI scope).
+```
 
 This behavior is explicitly handled in pipeline logic.
 
-
----
-
-Cluster Scope (Kubernetes)
+### Cluster scope in Kubernetes
 
 In a real deployment, Kyverno runs as:
 
-Admission Controller
-
-Background Controller (optional)
-
+- admission controller
+- background controller, optionally
 
 At this stage, Kyverno authoritatively enforces:
 
-Cosign image signatures
-
-Trivy vulnerability attestations
-
-ZAP DAST attestations
-
-Immutable image digests
-
+- Cosign image signatures
+- Trivy vulnerability attestations
+- ZAP DAST attestations
+- immutable image digests
 
 A workload will not be admitted if these conditions fail.
 
+## Consequences
 
----
+### Positive
 
-Consequences
+- accurate security guarantees because policies are enforced where they are technically valid
+- reduced CI noise because registry and attestation resolution limitations do not become false negatives
+- clear operational model where CI validates and the cluster enforces
+- production-grade pattern that mirrors real Kyverno usage
 
-Positive
+### Negative and trade-offs
 
-Accurate Security Guarantees: Policies are enforced where they are technically valid.
+- some controls, especially signature and attestation failures, are enforced only at admission time rather than in CI
+- full guarantees depend on Kyverno being installed and properly configured in the cluster
+- the distinction requires documentation to avoid confusion
 
-Reduced CI Noise: No false negatives caused by registry or attestation resolution issues.
+This ADR explicitly addresses that documentation need.
 
-Clear Operational Model: CI = validation, Cluster = enforcement.
+## Alternatives Considered
 
-Production-Grade Pattern: Mirrors how Kyverno is used in real clusters.
-
-
-
----
-
-Negative / Trade-offs
-
-Delayed Enforcement for Some Controls: Signature/attestation failures are only caught at admission time, not during CI.
-
-Requires Cluster Kyverno: Full guarantees depend on Kyverno being installed and properly configured in the cluster.
-
-More Documentation Needed: The distinction must be clearly explained to avoid confusion.
-
-
-This ADR explicitly addresses that documentation gap.
-
-
----
-
-Alternatives Considered
-
-1. CI-Only Enforcement
+### 1. CI-only enforcement
 
 Rejected because:
 
-Kyverno CLI cannot reliably enforce verifyImages
+- Kyverno CLI cannot reliably enforce `verifyImages`
+- security guarantees would be incomplete
+- it creates a high risk of false confidence
 
-Security guarantees would be incomplete
-
-High risk of false confidence
-
-
-
----
-
-2. Cluster-Only Enforcement (No CI Validation)
+### 2. Cluster-only enforcement with no CI validation
 
 Rejected because:
 
-Developers receive feedback too late
-
-Simple errors (e.g., mutable tags) could reach production pipelines
-
-Reduces developer experience and delivery speed
-
+- developers would receive feedback too late
+- simple errors such as mutable tags could reach production-facing workflows
+- developer experience and delivery speed would degrade
