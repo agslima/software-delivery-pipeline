@@ -86,8 +86,10 @@ def validate_file(path_str: str) -> None:
     if metadata["review_cadence"] != "Quarterly":
         fail(f"{path} review_cadence must be Quarterly, found: {metadata['review_cadence']}")
 
-    if not DATE_RE.match(metadata["last_reviewed"]):
-        fail(f"{path} last_reviewed must use YYYY-MM-DD format, found: {metadata['last_reviewed']}")
+import re
+import sys
+from datetime import date
+from pathlib import Path
 
     for key in METADATA_KEYS:
         occurrences = 0
