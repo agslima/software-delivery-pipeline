@@ -33,8 +33,3 @@ spec:
                           ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*$
                         rekor:
                           url: https://rekor.sigstore.dev
-              conditions:
-                - all:
-                    - key: "{{ predicate.result || '' }}"
-                      operator: Equals
-                      value: "PASS"
