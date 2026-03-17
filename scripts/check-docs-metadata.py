@@ -29,12 +29,7 @@ DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 def fail(message: str) -> None:
-    """
-    Emit a GitHub Actions error annotation to stderr and terminate the process with exit code 1.
-    
-    Parameters:
-        message (str): Error message to include in the GitHub Actions annotation.
-    """
+    """Emit a GitHub Actions error annotation and terminate the process."""
     print(f"::error::{message}", file=sys.stderr)
     raise SystemExit(1)
 
@@ -85,11 +80,8 @@ def validate_file(path_str: str) -> None:
 
     if metadata["review_cadence"] != "Quarterly":
         fail(f"{path} review_cadence must be Quarterly, found: {metadata['review_cadence']}")
-
-import re
-import sys
-from datetime import date
-from pathlib import Path
+    if not DATE_RE.match(metadata["last_reviewed"]):
+        fail(f"{path} last_reviewed must use YYYY-MM-DD, found: {metadata['last_reviewed']}")
 
     for key in METADATA_KEYS:
         occurrences = 0
@@ -102,12 +94,7 @@ from pathlib import Path
 
 
 def main() -> int:
-    """
-    Validate each file listed in TARGETS by running validate_file on every target.
-    
-    Returns:
-        exit_code (int): 0 on success.
-    """
+    """Validate each file listed in TARGETS."""
     for target in TARGETS:
         validate_file(target)
     print(f"[docs-metadata] OK ({len(TARGETS)} files)")

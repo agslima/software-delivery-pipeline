@@ -62,13 +62,11 @@ def normalize_label(label: str) -> str:
 
 
 def github_anchor_for_heading(heading: str) -> str:
-    """
-    Generate a GitHub-style anchor slug from a heading string.
-    
-    Returns:
-        slug (str): The fragment slug suitable for GitHub headings — lowercase with spaces converted to hyphens, characters other than ASCII letters, digits, underscores, or hyphens removed, and leading/trailing hyphens trimmed.
-    """
+    """Generate a GitHub-style anchor slug from a heading string."""
     slug = unicodedata.normalize("NFKC", heading).casefold()
+    slug = "".join(
+        char for char in slug if char in {" ", "-", "_"} or not unicodedata.category(char).startswith("P")
+    )
     slug = re.sub(r"\s+", "-", slug)
     slug = re.sub(r"-{2,}", "-", slug)
     return slug.strip("-")

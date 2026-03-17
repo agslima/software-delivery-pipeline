@@ -80,7 +80,7 @@ jobs:
           format: 'json'
           output: 'trivy-governance.json'
           severity: 'MEDIUM,HIGH,CRITICAL'
-          skip-dirs: ${{ steps.vars.outputs.FS_SKIP_DIRS }}
+          skip-dirs: ${{ steps.vars.outputs.CONFIG_SKIP_DIRS }}
 
       # Explicit output checks (The Gatekeeper)
       - name: Validate Scanner Outputs

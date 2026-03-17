@@ -33,6 +33,7 @@ echo "[governance-drift] Documentation metadata assertions"
 docs_metadata_assert
 
 echo "[governance-drift] Reference assertions: workflow names and policy thresholds"
+assert_contains "README.md" "Critical findings block release"
 assert_contains "README.md" "HIGH > 5"
 
 readme_claims_anchor="$(python3 scripts/markdown_assert.py anchor "README Claims → Controls Matrix")"
@@ -48,6 +49,8 @@ markdown_assert link-any "README.md" \
 assert_contains "docs/governance.md" "ci-release-gate.yml"
 assert_contains "docs/governance.md" "ci-pr-validation.yml"
 assert_contains "docs/governance.md" "gitops-enforce.yml"
+assert_contains "docs/governance.md" "CRITICAL > 0"
+assert_contains "docs/governance.md" "HIGH > 5"
 
 assert_contains ".github/workflows/ci-release-gate.yml" "Gate (CRITICAL>0 or HIGH>5)"
 assert_contains ".github/workflows/ci-pr-validation.yml" "name: Governance & Security Quality Check"
