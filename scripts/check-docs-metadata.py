@@ -79,7 +79,8 @@ def validate_file(path_str: str) -> None:
             f"{path} metadata block must appear in this exact order: owner, review_cadence, last_reviewed."
         )
 
-    if lines[metadata_start + 3 : metadata_start + 4] != [""]:
+    after_metadata = lines[metadata_start + 3 : metadata_start + 4]
+    if after_metadata and after_metadata != [""]:
         fail(f"{path} must include a blank line after the metadata block.")
 
     if metadata["review_cadence"] != "Quarterly":
