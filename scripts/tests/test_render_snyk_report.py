@@ -384,3 +384,80 @@ def test_main_end_to_end():
         assert "| **Low** | 40 | 4 | ℹ️ Managed Debt |" in updated_readme
     finally:
         shutil.rmtree(run_root, ignore_errors=True)
+
+def test_main_links_html_artifact_with_repo_relative_html_dir():
+    run_root = ROOT / ".tmp" / f"pytest-render-snyk-html-link-{uuid.uuid4().hex}"
+    run_root.mkdir(parents=True)
+    try:
+        docs_dir = run_root / "docs" / "snyk"
+        html_dir = docs_dir / "html"
+        html_dir.mkdir(parents=True)
+
+        readme = run_root / "README.md"
+        readme.write_text(
+            (FIXTURES / "README.md").read_text(encoding="utf-8"), encoding="utf-8"
+        )
+
+        baseline = docs_dir / "baseline.json"
+        baseline.write_text(
+            (FIXTURES / "baseline.json").read_text(encoding="utf-8"), encoding="utf-8"
+        )
+
+        scan_dir = run_root / "scans"
+        scan_dir.mkdir()
+        sca = scan_dir / "sca.json"
+        sca.write_text(
+            (FIXTURES / "sca.json").read_text(encoding="utf-8"), encoding="utf-8"
+        )
+
+        (html_dir / "snyk-sca.html").write_text("<html></html>", encoding="utf-8")
+
+        metadata = run_root / "metadata.json"
+        metadata.write_text(
+            json.dumps(
+                {
+                    "scans": [
+                        {
+                            "name": "snyk-sca",
+                            "kind": "sca",
+                            "json_path": "scans/sca.json",
+                            "parse_input_path": "scans/sca.json",
+                            "html_path": "docs/snyk/html/snyk-sca.html",
+                            "source_ref": str(run_root),
+                        }
+                    ]
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+
+        subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPT),
+                "--metadata",
+                "metadata.json",
+                "--baseline",
+                "docs/snyk/baseline.json",
+                "--docs-dir",
+                "docs/snyk",
+                "--html-dir",
+                "docs/snyk/html",
+                "--readme",
+                "README.md",
+                "--timestamp-utc",
+                "2026-03-14 12:00",
+                "--update-readme",
+                "0",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+            cwd=run_root,
+        )
+
+        index_md = (docs_dir / "index.md").read_text(encoding="utf-8")
+        assert "(html/snyk-sca.html)" in index_md
+    finally:
+        shutil.rmtree(run_root, ignore_errors=True)

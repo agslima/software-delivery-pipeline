@@ -5,7 +5,7 @@
 - **Validation cadence:** Quarterly
 - **Last validated:** 2026-03-11
 
-## 1. Summary
+## Summary
 
 This document outlines the threat landscape for the **Governed Software Delivery Pipeline**.
 It focuses on software supply-chain risks and the controls implemented in this repository.
@@ -17,9 +17,7 @@ The security model follows a zero-trust posture for delivery:
 - Require artifact verification by default (keyless signatures + attestations).
 - Enforce runtime admission checks by default (Kyverno verification).
 
----
-
-## 2. Assets at Risk
+## Assets at Risk
 
 - **Source code and workflow definitions** (`app/`, `.github/workflows/`)
 - **Build environment** (GitHub Actions runners)
@@ -27,9 +25,7 @@ The security model follows a zero-trust posture for delivery:
 - **Signing identity** (GitHub OIDC identity used by Cosign)
 - **Runtime environment** (Kubernetes cluster admission boundary)
 
----
-
-## 3. Threat Analysis (STRIDE)
+## Threat Analysis (STRIDE)
 
 ### A. Tampering (Integrity)
 
@@ -55,9 +51,7 @@ The security model follows a zero-trust posture for delivery:
 | Hardcoded secrets in code/history | Token/credential committed to repository | Gitleaks + Trivy secret/config scanning | Gitleaks runs in PR and daily security workflows; PR Trivy checks cover vulnerabilities and config/misconfiguration, while Trivy secret scanning runs in the daily/manual deep security workflow. |
 | Runtime information leakage | Missing headers / endpoint misconfig | OWASP ZAP DAST | Release and weekly DAST scans detect exposed attack surface and missing protections. |
 
----
-
-## 4. Defense Against Specific Attacks
+## Defense Against Specific Attacks
 
 ### Scenario 1: Compromised Registry Push
 
@@ -79,9 +73,7 @@ The security model follows a zero-trust posture for delivery:
 2. Build provenance ties artifact to workflow/run/commit.
 3. Verification catches provenance mismatch from untrusted build context.
 
----
-
-## 5. Residual Risks (Accepted)
+## Residual Risks
 
 - **Zero-day vulnerabilities:** Gitleaks/Trivy/ZAP detect known patterns and behaviors only.
   - Mitigation: SBOM and provenance support faster impact triage and incident response.
@@ -90,9 +82,9 @@ The security model follows a zero-trust posture for delivery:
 - **Scanner availability/outages:** Security tools may fail operationally.
   - Mitigation: fail-closed release gate + documented degraded-mode and break-glass ADRs.
 
----
+Accepted residual risk treatment depends on the governance controls described in `docs/governance.md`, the evidence mapping in `docs/governance-evidence-index.md`, and the active release and admission enforcement path.
 
-## 6. Security Architecture Diagram
+## Security Architecture Diagram
 
 ```mermaid
 flowchart LR

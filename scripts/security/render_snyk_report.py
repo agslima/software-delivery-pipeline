@@ -777,7 +777,7 @@ def main() -> int:  # pylint: disable=too-many-locals,too-many-statements
 
     repo_root_resolved = Path.cwd().resolve()
     docs_dir_resolved = resolve_path(args.docs_dir, "--docs-dir", repo_root_resolved)
-    html_dir = resolve_path(args.html_dir, "--html-dir", docs_dir_resolved)
+    html_dir = resolve_path(args.html_dir, "--html-dir", repo_root_resolved)
     readme_path = resolve_path(args.readme, "--readme", repo_root_resolved)
     metadata_path = resolve_path(args.metadata, "--metadata", repo_root_resolved)
     baseline_path = resolve_path(args.baseline, "--baseline", repo_root_resolved)
@@ -798,7 +798,7 @@ def main() -> int:  # pylint: disable=too-many-locals,too-many-statements
             parse_input_value, "scan parse input", repo_root_resolved
         )
         html_path = resolve_optional_path(
-            scan.get("html_path"), "scan html artifact", html_dir
+            scan.get("html_path"), "scan html artifact", repo_root_resolved
         )
         html_artifact = artifact_link_name(html_path, html_dir)
         doc = load_json(parse_input_path)
