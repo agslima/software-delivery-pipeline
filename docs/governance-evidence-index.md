@@ -6,7 +6,7 @@
 - **Review cadence:** Quarterly
 - **Last reviewed:** 2026-03-13
 
-## Purpose
+## Summary
 
 This index is the single-page traceability map for the repository's top-level README claims. Use it to trace each claim to:
 
@@ -15,9 +15,11 @@ This index is the single-page traceability map for the repository's top-level RE
 - durable evidence or artifact locations
 - accountable owner and review cadence
 
-When workflow job names, policy files, or artifact names change, update this page together with `readme.md` and `docs/governance.md`.
+When workflow job names, policy files, artifact names, or governance wording change, update this page together with `README.md` and `docs/governance.md`.
 
-## README Claim Traceability
+## Workflow and Evidence Mapping
+
+### README Claim Traceability
 
 | README claim | Workflow job enforcement | Policy / repository enforcement | Evidence / artifact path | Owner | Review cadence |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -26,7 +28,9 @@ When workflow job names, policy files, or artifact names change, update this pag
 | Container images are signed, attested, and validated through policy before deployment | `.github/workflows/ci-release-gate.yml` → `sign-and-attest`; `.github/workflows/gitops-enforce.yml` → `Verify Signatures + Required Attestations (hard gate)`, `Validate rendered prod manifests against cluster policy` | `k8s/policies/cluster/verify-signature.yaml`; `k8s/policies/cluster/verify-trivy.yaml`; `k8s/policies/cluster/verify-zap.yaml`; `k8s/policies/cluster/verify-sbom.yaml`; `k8s/policies/cluster/verify-slsa.yaml` | Release artifacts `digest-*`, `sbom-*`, `trivy-results-*`, `zap-results`; GitOps artifact `kyverno-gitops-log`; `docs/threat-model.md` | Project Maintainers | Quarterly |
 | The delivery path is designed to make governance bypass difficult, visible, and auditable | `.github/workflows/ci-pr-validation.yml` → `governance-and-security-scan`; `.github/workflows/gitops-enforce.yml` → `Guardrails - Validate promotion source`; `.github/workflows/ci-governance-settings-audit.yml` | GitHub branch/tag/environment protections; `.github/CODEOWNERS`; `k8s/policies/cluster/break-glass-policy.yaml`; `docs/adr/005-break-glass-exception-handling.md`; `scripts/check-governance-drift.sh`; `scripts/check-governance-metadata-freshness.sh` | `governance-settings-audit/report.json`; `governance-settings-audit/summary.md`; PR status checks from `ci-pr-validation.yml`; `docs/runbook.md`; `docs/governance.md` | Project Maintainers | Quarterly |
 
-## Reviewer Sign-Off
+## Governance Operations and Audit
+
+### Reviewer Sign-Off
 
 Record reviewer sign-off in the PR or audit trail using this format:
 

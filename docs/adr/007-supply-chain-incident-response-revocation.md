@@ -1,31 +1,24 @@
 # Architecture Decision Record (ADR)
 
-ADR 007: Supply Chain Incident Response & Revocation Strategy
+[//]: # (owner: Project Maintainers)
+[//]: # (review_cadence: Quarterly)
+[//]: # (last_reviewed: 2026-03-17)
 
-Status: Proposed
+## ADR 007: Supply Chain Incident Response and Revocation Strategy
 
-Date: 2026-01-07
+- Status: Proposed
+- Date: 2026-01-07
+- Context: Software supply-chain security and incident response
 
-Context: Software Supply Chain Security & Incident Response
+## Context
 
+Despite strong preventive controls such as image signing with Cosign, policy enforcement with Kyverno, vulnerability scanning, and CI governance, software supply-chain incidents remain possible, including:
 
-
----
-
-Context
-
-Despite strong preventive controls—image signing (Cosign), policy enforcement (Kyverno), vulnerability scanning, and CI governance—software supply chain incidents remain possible, including:
-
-Compromised signing keys
-
-Malicious image injected into a trusted registry
-
-False-negative vulnerability scans
-
-Attestation forgery or reuse
-
-CVE disclosure after deployment
-
+- compromised signing keys
+- malicious image injection into a trusted registry
+- false-negative vulnerability scans
+- attestation forgery or reuse
+- CVE disclosure after deployment
 
 The system must support post-deployment trust revocation and incident response, not only prevention.
 
@@ -33,302 +26,126 @@ Modern supply-chain security assumes:
 
 > Artifacts may need to be invalidated after they are already trusted.
 
-
-
-
----
-
-Problem Statement
+## Problem Statement
 
 Most CI/CD pipelines answer:
 
-> “Can this artifact be deployed?”
+> Can this artifact be deployed?
 
+Fewer answer:
 
-
-But fewer answer:
-
-> “How do we revoke trust once an artifact is known to be unsafe?”
-
-
+> How do we revoke trust once an artifact is known to be unsafe?
 
 Without a revocation strategy:
 
-Compromised images may continue running
+- compromised images may continue running
+- trust anchors become permanent liabilities
+- incident response becomes manual and error-prone
 
-Trust anchors become permanent liabilities
+## Decision
 
-Incident response becomes manual and error-prone
+The project adopts a policy-driven revocation model built on:
 
+- Cosign for signing and attestation identity
+- Kyverno for real-time trust enforcement
+- GitOps for declarative revocation state
+- Kubernetes-native controls for runtime containment
 
+Trust revocation is treated as a first-class security event, not merely an operational exception.
 
----
-
-Decision
-
-The project adopts a policy-driven revocation model, built on:
-
-Cosign for signing and attestation identity
-
-Kyverno for real-time trust enforcement
-
-GitOps for declarative revocation state
-
-Kubernetes-native controls for runtime containment
-
-
-Trust revocation is treated as a first-class security event, not an operational exception.
-
-
----
-
-Revocation Triggers
+## Revocation Triggers
 
 Revocation may be initiated by:
 
-Discovery of a critical CVE post-deployment
+- discovery of a critical CVE after deployment
+- detection of malicious behavior
+- compromise of a signing key
+- attestation tampering or replay
+- upstream dependency compromise
 
-Detection of malicious behavior
+## Revocation Mechanisms
 
-Compromise of a signing key
-
-Attestation tampering or replay
-
-Upstream dependency compromise
-
-
-
----
-
-Revocation Mechanisms
-
-1. Signing Key Revocation
+### 1. Signing key revocation
 
 Mechanism:
 
-Rotate Cosign key
-
-Remove compromised key from trusted key set
-
-Update Kyverno policy to trust only the new key
-
+- rotate the Cosign key or trusted identity set
+- remove the compromised key or identity from the trusted policy set
+- update Kyverno policy to trust only the new signer
 
 Effect:
 
-Previously signed images become invalid
+- previously signed images become invalid
+- new deployments are blocked
+- existing pods fail admission on restart or reschedule
 
-New deployments are blocked
-
-Existing pods fail admission on restart
-
-
-
----
-
-2. Image Digest Denylisting
+### 2. Image digest denylisting
 
 Mechanism:
 
-Add compromised image digests to a Kyverno denylist
-
-Managed declaratively in Git (revoked-images.yaml)
-
+- add compromised image digests to a Kyverno denylist
+- manage the denylist declaratively in Git
 
 Effect:
 
-Blocks redeployments
+- blocks redeployments
+- prevents scaling or rescheduling of compromised images
+- acts independently of signing identity
 
-Prevents scaling or rescheduling
-
-Acts independently of signing identity
-
-
-
----
-
-3. Attestation Revocation
+### 3. Attestation revocation
 
 Mechanism:
 
-Update Kyverno policies to require new attestation predicates
-
-Invalidate older attestations by version or timestamp
-
+- update Kyverno policies to require new attestation predicates
+- invalidate older attestations by version, freshness, or timestamp
 
 Effect:
 
-Forces rebuild and re-attestation
+- forces rebuild and re-attestation
+- prevents reuse of stale trust data
 
-Prevents reuse of stale trust data
-
-
-
----
-
-4. GitOps-Driven Rollback
+### 4. GitOps-driven rollback
 
 Mechanism:
 
-Revert Kubernetes manifests to last known-good image digest
-
-Commit change via GitHub Actions or manual PR
-
+- revert Kubernetes manifests to the last known-good image digest
+- commit the change through the governed PR workflow
 
 Effect:
 
-Controlled rollback with full audit trail
+- produces a controlled rollback with full audit trail
 
-
-
----
-
-Incident Response Workflow
+## Incident Response Workflow
 
 1. Detection
-
-CVE alert, SOC signal, or external advisory
-
-
-
+   Receive a CVE alert, SOC signal, or external advisory.
 2. Assessment
-
-Determine affected images, digests, and clusters
-
-
-
-3. Revocation Action
-
-Rotate keys, denylist digests, or tighten policies
-
-
-
+   Determine affected images, digests, environments, and clusters.
+3. Revocation action
+   Rotate keys, denylist digests, or tighten policies.
 4. Containment
-
-Block new deployments
-
-Force pod restart to trigger admission control
-
-
-
+   Block new deployments and force pod restart where appropriate so admission control re-evaluates trust.
 5. Recovery
+   Rebuild the artifact, re-scan it, re-sign it, re-attest it, and promote it through CI.
+6. Post-incident review
+   Document the timeline, root cause, and control improvements.
 
-Rebuild artifact
+## Implementation Notes
 
-Re-scan, re-sign, re-attest
+### Kyverno policy patterns
 
-Promote via CI
+The revocation strategy is expected to use patterns such as:
 
+- signature verification with key or identity allowlists
+- image digest denylist enforcement
+- time-bound attestation validation
+- namespace-scoped emergency policies where needed
 
+## Auditability
 
-6. Post-Incident Review
+Every revocation action should be:
 
-Document timeline and root cause
-
-Update policies if needed
-
-
-
-
-
----
-
-Implementation Notes
-
-Kyverno Policy Patterns
-
-Signature verification with key allowlists
-
-Image digest denylist enforcement
-
-Time-bound attestation validation
-
-Namespace-scoped emergency policies
-
-
-
----
-
-Auditability
-
-Every revocation action is:
-
-Versioned in Git
-
-Enforced by policy
-
-Visible in CI and cluster events
-
-Traceable to a human decision
-
-
-
----
-
-Consequences
-
-Positive
-
-Explicit Trust Lifecycle: Trust can be granted and revoked
-
-Fast Containment: No need to wait for redeploys
-
-Strong Blast Radius Control: Targeted revocation
-
-Enterprise-Grade Incident Handling
-
-
-
----
-
-Negative / Trade-offs
-
-Operational Complexity: Requires disciplined policy management
-
-Potential Availability Impact: Revocation may disrupt workloads
-
-Key Rotation Overhead: Requires secure key handling
-
-
-These are acceptable trade-offs for high-integrity environments.
-
-
----
-
-Alternatives Considered
-
-1. Registry-Level Image Deletion
-
-Rejected because:
-
-Not always supported
-
-Can break audit trails
-
-Does not prevent cached image reuse
-
-
-
----
-
-2. Manual Pod Deletion Only
-
-Rejected because:
-
-Reactive and fragile
-
-Does not prevent redeployment
-
-Lacks declarative control
-
-
-
----
-
-3. Relying Solely on Vulnerability Scanners
-
-Rejected because:
-
-Scanners are not enforcement mechanisms
-
-Incidents may not be CVE-based
-
+- versioned in Git
+- enforced by policy
+- visible in CI and cluster events
+- linked to an incident or change record

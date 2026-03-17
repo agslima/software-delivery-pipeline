@@ -8,6 +8,8 @@ TRIVY_SCRIPT := $(ROOT_DIR)/scripts/security/trivy-scan.sh
 SNYK_SCRIPT := $(ROOT_DIR)/scripts/security/run-snyk.sh
 GOV_DRIFT_SCRIPT := $(ROOT_DIR)/scripts/check-governance-drift.sh
 GOV_METADATA_SCRIPT := $(ROOT_DIR)/scripts/check-governance-metadata-freshness.sh
+GOV_MARKDOWN_ASSERT := $(ROOT_DIR)/scripts/markdown_assert.py
+DOCS_METADATA_ASSERT := $(ROOT_DIR)/scripts/check-docs-metadata.py
 DAST_SCRIPT := $(ROOT_DIR)/scripts/run-local-zap-full-scan.sh
 
 export RUN_SCA ?= 1
@@ -42,6 +44,8 @@ guard-governance:
 	@test -x "$(GOV_DRIFT_SCRIPT)" || chmod +x "$(GOV_DRIFT_SCRIPT)"
 	@test -f "$(GOV_METADATA_SCRIPT)" || { echo "Missing $(GOV_METADATA_SCRIPT)"; exit 1; }
 	@test -x "$(GOV_METADATA_SCRIPT)" || chmod +x "$(GOV_METADATA_SCRIPT)"
+	@test -f "$(GOV_MARKDOWN_ASSERT)" || { echo "Missing $(GOV_MARKDOWN_ASSERT)"; exit 1; }
+	@test -f "$(DOCS_METADATA_ASSERT)" || { echo "Missing $(DOCS_METADATA_ASSERT)"; exit 1; }
 
 .PHONY: guard-dast
 guard-dast:
@@ -95,6 +99,13 @@ trivy-scan: guard-trivy ## Generate local Trivy security report
 # -----------------------------------------------------------------------------
 # Governance
 # -----------------------------------------------------------------------------
+
+.PHONY: governance-checks
+governance-checks: governance-drift-check governance-metadata-check ## Run local governance drift and metadata checks
+
+.PHONY: docs-metadata-check
+docs-metadata-check: guard-governance ## Check standardized metadata comments in maintained docs pages
+	python3 "$(DOCS_METADATA_ASSERT)"
 
 .PHONY: governance-drift-check
 governance-drift-check: guard-governance ## Check for governance documentation drift

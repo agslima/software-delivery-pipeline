@@ -31,10 +31,18 @@ jobs:
           fetch-depth: 0
 
       - name: Secret Scanning (Gitleaks)
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set scan skip dirs
+        id: vars
+        run: |
+          # Keep policy fixtures in FS dependency scope, but exclude them from config misconfig scans
+          # because test fixtures intentionally include insecure manifests.
+          echo "FS_SKIP_DIRS=node_modules,dist,build,vendor,coverage,.git,.cache,.venv,tmp" >> "$GITHUB_OUTPUT"
+          echo "CONFIG_SKIP_DIRS=k8s/tests,node_modules,dist,build,vendor,coverage,.git,.cache,.venv,tmp" >> "$GITHUB_OUTPUT"
+      
       # TRIVY
       - name: Trivy Scan - Infrastructure
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
@@ -44,6 +52,7 @@ jobs:
           format: 'sarif'
           output: 'trivy-infra.sarif'
           severity: 'HIGH,CRITICAL'
+          skip-dirs: ${{ steps.vars.outputs.CONFIG_SKIP_DIRS }}
           hide-progress: true
         continue-on-error: true
 
@@ -57,7 +66,7 @@ jobs:
           format: 'sarif'
           output: 'trivy-code.sarif'
           severity: 'MEDIUM,HIGH,CRITICAL'
-          skip-dirs: "node_modules,dist,build"
+          skip-dirs: ${{ steps.vars.outputs.FS_SKIP_DIRS }}
           hide-progress: true
         continue-on-error: true
 
@@ -71,7 +80,7 @@ jobs:
           format: 'json'
           output: 'trivy-governance.json'
           severity: 'MEDIUM,HIGH,CRITICAL'
-          skip-dirs: "node_modules,dist,build"
+          skip-dirs: ${{ steps.vars.outputs.CONFIG_SKIP_DIRS }}
 
       # Explicit output checks (The Gatekeeper)
       - name: Validate Scanner Outputs

@@ -1,248 +1,159 @@
-# Operational Runbook 📖
+# Operational Runbook
 
-This runbook documents common failure scenarios, security gate rejections, and operational incidents in the Governed Software Delivery Pipeline.
-Its goal is to provide clear, repeatable response steps so failures are handled consistently, auditably, and without bypassing governance controls.
+[//]: # (owner: Project Maintainers)
+[//]: # (review_cadence: Quarterly)
+[//]: # (last_reviewed: 2026-03-17)
 
+This runbook documents common failure scenarios, security gate rejections, and operational incidents in the governed software delivery pipeline. Its goal is to provide clear, repeatable response steps so failures are handled consistently, auditably, and without bypassing governance controls.
 
----
-
-## Scope 🎯
+## Scope
 
 This runbook applies to:
 
-CI/CD pipeline executions (GitHub Actions)
-
-Supply chain security controls (Trivy, Cosign, SBOM, Attestations)
-
-Policy enforcement (Kyverno)
-
-GitOps-based Kubernetes deployments
-
+- CI/CD pipeline executions in GitHub Actions
+- supply-chain security controls such as Trivy, Cosign, SBOMs, and attestations
+- policy enforcement through Kyverno
+- GitOps-based Kubernetes deployments
 
 It intentionally focuses on response actions, not tool configuration.
 
+## Pipeline Failure: Security Gate (Trivy)
 
----
+### Symptom
 
-## Pipeline Failure: Security Gate (Trivy) 🚨
+CI job `Security Quality Check` fails on a pull request because Trivy reported `HIGH` or `CRITICAL` findings, or release job `Trivy Scan (Digest Gate)` fails for `backend` or `frontend`.
 
-Symptom
+- exit code: `1`
 
-CI job `Security Quality Check` fails on a pull request because Trivy reported `HIGH` or `CRITICAL` findings, or release job `Trivy Scan (Digest Gate)` fails for `backend` or `frontend`.  
+### Error message
 
-Exit code: 1
+- PR path: `HIGH` or `CRITICAL` vulnerabilities found in the PR scan
+- release path: `⛔ Trivy Gate Failed for <image> (CRIT=<n> HIGH=<n>)`
 
-Error Message
+### Triage steps
 
-`HIGH` or `CRITICAL` vulnerabilities found in the PR scan, or `⛔ Trivy Gate Failed for <image> (CRIT=<n> HIGH=<n>)` in the release digest gate  
+1. Open the GitHub Actions job logs.
+2. Identify which path failed.
+3. Review the affected CVE, package, severity, and fix version if available.
 
-
----
-
-Triage Steps
-
-1. Open the GitHub Actions job logs
-
-
-2. Identify which path failed:
+For the failing path:
 
 - PR path: inspect the `Security Quality Check` logs for the Trivy FS/config step output and confirm whether the failing threshold was `HIGH` or `CRITICAL`.
-- Release path: download the relevant artifact (`trivy-results-backend` or `trivy-results-frontend`).
+- release path: download the relevant artifact, either `trivy-results-backend` or `trivy-results-frontend`.
 
-3. Review:
+### Resolution paths
 
-CVE ID
+#### Scenario A: Fixable vulnerability
 
-Affected package
+Preferred response:
 
-Severity
+- update the base image in the Dockerfile
+- upgrade the vulnerable dependency
+- re-run the pipeline
 
-Fix version (if available)
+Rationale: fixing vulnerabilities preserves a cleaner supply chain and avoids accumulating risk.
 
----
-
-Resolution Paths
-
-✅ Scenario A: Fixable Vulnerability (Preferred)
-
-Update the base image in Dockerfile
-
-Upgrade the vulnerable dependency (e.g., npm update, pip upgrade)
-
-Re-run the pipeline
-
-
-Rationale: Fixing vulnerabilities preserves a clean supply chain and avoids accumulating risk.
-
-
----
-
-⚠️ Scenario B: False Positive or Acceptable Risk
+#### Scenario B: False positive or acceptable risk
 
 If no patch exists or the risk is deemed acceptable:
 
-Option 1 – CVE Ignore (Temporary)
+Option 1: temporary CVE ignore
 
-Add the CVE ID to .trivyignore
+- add the CVE ID to `.trivyignore`
+- include a justification comment explaining why the risk is acceptable and why remediation is not currently possible
 
-Include a justification comment explaining:
+Option 2: managed security debt
 
-Why the risk is acceptable
+- create a tracking ticket
+- log the issue in `docs/security-debt.md`
+- reference the ticket ID in commit history or the related PR
 
-Why remediation is not currently possible
+Important guardrails:
 
+- critical vulnerabilities must never be ignored without explicit justification
+- high vulnerabilities are release-blocking once they exceed the documented threshold of `HIGH > 5` per image
 
+## Pipeline Failure: Supply Chain Integrity (Cosign)
 
-Option 2 – Managed Security Debt
+### Symptom
 
-Create a tracking ticket
+Job `sign-and-attest` fails.
 
-Log the issue in docs/security-debt.md
+### Error message
 
-Reference the ticket ID in commit history
+- `no matching signatures found`
 
+### Triage steps
 
-⚠️ Critical vulnerabilities must never be ignored without explicit justification.
-⚠️ High vulnerabilities are release-blocking once they exceed the documented gate threshold (`HIGH > 5` per image).
-
-
----
-
-🚨 Pipeline Failure: Supply Chain Integrity (Cosign)
-
-Symptom
-
-Job sign-and-attest fails
-
-
-Error Message
-
-no matching signatures found
-
-
----
-
-Triage Steps
-
-1. Confirm the build-and-push job completed successfully
-
-
-2. Verify that the image digest exists in the registry
-
-
+1. Confirm the build-and-push job completed successfully.
+2. Verify that the image digest exists in the registry.
 3. Check GitHub Actions permissions:
 
-
-
+```yaml
 permissions:
   id-token: write
+```
 
 4. Validate registry credentials:
 
-Docker Hub token not expired
+- Docker Hub token is not expired
+- correct repository namespace is being used
 
-Correct repository namespace
+### Common root causes
 
+- OIDC token not issued because of missing permissions
+- image push failed silently
+- tag mismatch versus digest signing
+- registry authentication failure
 
+### Resolution
 
+- fix credentials or permissions
+- re-run the pipeline from a clean build
+- avoid re-signing old or locally cached images
 
+## Pipeline Failure: DAST (OWASP ZAP)
 
----
+### Symptom
 
-Common Root Causes
+Job `dast-analysis` fails.
 
-OIDC token not issued (missing permissions)
+### Error message
 
-Image push failed silently
+- `High Vulnerabilities Found: > 0`
 
-Tag mismatch vs digest signing
+### Triage steps
 
-Registry authentication failure
-
-
-
----
-
-Resolution
-
-Fix credentials or permissions
-
-Re-run pipeline from a clean build
-
-Avoid re-signing old or locally cached images
-
-
-
----
-
-🚨 Pipeline Failure: DAST (OWASP ZAP)
-
-Symptom
-
-Job dast-analysis fails
-
-
-Error Message
-
-High Vulnerabilities Found: > 0
-
-
----
-
-Triage Steps
-
-1. Download the zap-report.html artifact
-
-
+1. Download the `zap-report.html` artifact.
 2. Identify:
 
-Affected endpoint
+- affected endpoint
+- vulnerability type
+- risk level
 
-Vulnerability type
+### Resolution paths
 
-Risk level
+#### Legitimate vulnerability
 
+- fix the application logic
+- common fixes include input validation, authentication enforcement, and CSRF protection
 
+#### False positive or missing security headers
 
+If the application is functioning correctly but headers are missing:
 
+- update `app/server/index.js`
+- add standard security headers, for example with Helmet
 
----
-
-Resolution Paths
-
-✅ Legitimate Vulnerability
-
-Fix the application logic
-
-Common fixes include:
-
-Input validation
-
-Authentication enforcement
-
-CSRF protection
-
-
-
-
----
-
-⚠️ False Positive / Missing Security Headers
-
-If the app is functioning correctly but headers are missing:
-
-Update app/server/index.js
-
-Add standard security headers (e.g., Helmet)
-
-
+```js
 app.use(helmet());
+```
 
-Re-run DAST after remediation.
+- re-run DAST after remediation
 
-Local reproduction
+### Local reproduction
 
-Run the same compose-backed full-scan path locally:
+Run the same Compose-backed full-scan path locally:
 
 ```bash
 make dast-weekly-local
@@ -256,250 +167,3 @@ Useful overrides:
 KEEP_DAST_ENV=1 ./scripts/run-local-zap-full-scan.sh
 ZAP_LOGIN_EMAIL=security@example.test ZAP_LOGIN_PASSWORD='change-me' ./scripts/run-local-zap-full-scan.sh
 ```
-
----
-
-## Governance Settings Audit Failure
-
-Symptom
-
-Workflow `Governance Settings Audit` fails, or `scripts/audit-governance-settings.sh` exits non-zero with a drift finding.
-
-Primary evidence
-
-- Workflow artifact: `governance-settings-audit`
-- Summary: `summary.md`
-- Machine-readable report: `report.json`
-
-Triage steps
-
-1. Download the `governance-settings-audit` artifact from the failed run.
-2. Review `summary.md` to identify which control category failed: `branch_protection`, `tag_protection`, `codeowners`, or `environment_protection`.
-3. Open `report.json` and compare each failing check’s `expected` and `actual` values.
-4. Confirm whether the drift is:
-   - an intentional repository settings change that was not yet exported/documented, or
-   - unauthorized / unintended configuration drift in GitHub settings.
-5. If the failure is in live mode, verify the audit token still has read-only Administration access and rerun only after confirming the token itself is not the cause.
-
-Resolution paths
-
-✅ Expected governance change
-
-- Reconcile the repo-tracked expectations first:
-  - update `.github/rulesets/*.json` only from fresh GitHub exports,
-  - update `.github/governance-settings-audit.json` if the approved environment restriction model changed,
-  - update `docs/governance.md` if reviewer-facing claims or checklist language changed.
-- Submit the change through normal review with CODEOWNERS.
-- Rerun the audit and attach the passing artifact to the change record.
-
-🚨 Unintended or unsafe drift
-
-- Restore the GitHub setting to the approved state immediately.
-- Do not bypass branch, tag, or environment protections to “get green.”
-- Record the incident in the governance evidence trail with:
-  - failed artifact link,
-  - remediation action,
-  - approver or incident owner,
-  - follow-up control gap if automation missed part of the drift.
-
-Fixture-based drift proof
-
-Use workflow dispatch mode `fixtures-drift` to verify the audit still detects intentionally introduced drift without changing live repository settings. The run should fail and produce a `governance-settings-audit` artifact showing the mismatched controls.
-
----
-
-## Governance Metadata Freshness Failure
-
-Symptom
-
-Workflow `CI` fails on step `Governance Metadata Freshness Check`, or `scripts/check-governance-metadata-freshness.sh` exits non-zero.
-
-Primary evidence
-
-- Workflow log line showing the stale file and metadata field
-- Policy file: `.github/governance-metadata-policy.json`
-- Override file: `.github/governance-metadata-overrides.json`
-
-Triage steps
-
-1. Identify which file and metadata field failed from the CI error annotation.
-2. Open the document and confirm the current `last_reviewed` or `Last validated` date.
-3. Compare that date to the cadence window defined for the file in `.github/governance-metadata-policy.json`.
-4. Decide whether the correct remediation is:
-   - refreshing the document review/validation date now, or
-   - adding a temporary approved override because the content cannot yet be credibly revalidated.
-
-Resolution paths
-
-✅ Refresh metadata now
-
-- Update the document after completing the required review or validation.
-- Keep the metadata date in `YYYY-MM-DD` UTC form.
-- Rerun CI and confirm `Governance Metadata Freshness Check` passes without an override.
-
-✅ Temporary approved override
-
-- Add one entry to `.github/governance-metadata-overrides.json` with:
-  - `path`
-  - `field`
-  - `approved_by`
-  - `ticket`
-  - `reason`
-  - `allow_stale_until`
-- Keep the override short-lived and tied to a concrete follow-up item.
-- Remove the override once the metadata has been refreshed.
-
-🚨 Do not do this
-
-- Do not suppress the CI step.
-- Do not use empty or open-ended override values.
-- Do not refresh the metadata date without actually completing the review or validation the document claims.
-
----
-
-🚨 Policy Failure: Kyverno (CI Validation)
-
-Symptom
-
-Job policy-validation fails
-
-
-Error Message
-
-Policy validation failed
-
-
----
-
-Triage Steps
-
-1. Review Kyverno CLI output in logs
-
-
-2. Identify which policy rule failed
-
-
-3. Check the rendered Kubernetes manifest
-
-
-
-
----
-
-Common Causes
-
-Image not signed
-
-Missing required attestation
-
-Disallowed image registry
-
-Policy variables not provided in CI context
-
-
-
----
-
-Resolution
-
-Fix the manifest or pipeline configuration
-
-Do not weaken policies to unblock builds
-
-If necessary, follow the Break-Glass process (ADR 005)
-
-
-
----
-
-🚨 GitOps Deployment Failure
-
-Symptom
-
-Deployment PR blocked or reverted
-
-Kubernetes workload fails after rollout
-
-
-
----
-
-Triage Steps
-
-1. Inspect the deployment manifest change
-
-
-2. Verify image digest and signature
-
-
-3. Review cluster events (if applicable)
-
-
-
-
----
-
-Resolution
-
-Roll back to last known-good image digest
-
-Rebuild and re-attest the artifact
-
-Merge via standard GitOps workflow
-
-
-
----
-
-🧯 Emergency Procedures (Break-Glass)
-
-Used only when availability risk outweighs governance controls.
-
-Steps:
-
-1. Document the incident and justification
-
-
-2. Create a temporary `PolicyException` in the `policy-exceptions` namespace
-
-
-3. Deploy minimal fix
-
-
-4. Remove exception immediately after recovery
-
-
-5. Perform post-incident review
-
-
-
-
----
-
-📌 Operational Principles
-
-Failures are signals, not blockers
-
-All exceptions must be auditable
-
-Security debt must be visible and tracked
-
-No manual changes without Git history
-
-
-
----
-
-📎 Related Documents
-
-docs/adr/002-image-signing-attestation.md
-
-docs/adr/003-policy-enforcement-strategy.md
-
-docs/adr/004-vulnerability-thresholds-risk-acceptance.md
-
-docs/adr/005-break-glass-exception-handling.md
-
-docs/adr/006-scanner-failure-degraded-mode.md
-
-docs/adr/007-supply-chain-incident-response-revocation.md

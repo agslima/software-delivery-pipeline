@@ -1,123 +1,80 @@
+# Architecture Decision Record (ADR)
 
+[//]: # (owner: Project Maintainers)
+[//]: # (review_cadence: Quarterly)
+[//]: # (last_reviewed: 2026-03-17)
 
-Architecture Decision Record (ADR)
+## ADR 005: Break-Glass and Exception Handling Strategy
 
-ADR 005: Break-Glass & Exception Handling Strategy
+- Status: Accepted
+- Date: 2026-01-07
+- Context: Software Delivery Pipeline, operational resilience and security governance
 
-Status: Accepted
+## Context
 
-Date: 2026-01-07
-
-Context: Software Delivery Pipeline – Operational Resilience & Security Governance
-
-
-
----
-
-Context
-
-While the pipeline enforces strong supply chain security controls (image signing, attestations, vulnerability thresholds, and admission policies), real-world production environments occasionally require controlled exceptions.
+While the pipeline enforces strong supply-chain security controls such as image signing, attestations, vulnerability thresholds, and admission policies, real production environments occasionally require controlled exceptions.
 
 Examples include:
 
-Urgent security hotfixes
+- urgent security hotfixes
+- partial scanner outages, such as Trivy database availability issues
+- false positives blocking critical releases
+- external dependency issues outside team control
 
-Partial scanner outages (e.g., Trivy DB unavailable)
-
-False positives blocking critical releases
-
-External dependency issues outside team control
-
-
-A strictly enforced system without an exception mechanism risks becoming operationally brittle, potentially delaying critical fixes and increasing business risk.
+A strictly enforced system without an exception mechanism risks becoming operationally brittle, delaying critical fixes and increasing business risk.
 
 Therefore, the architecture must support a break-glass mechanism that allows controlled bypass of enforcement without undermining governance.
 
-
----
-
-Decision
+## Decision
 
 The project adopts a policy-driven, explicit break-glass mechanism with the following characteristics:
 
-Exceptions are:
+- exceptions are explicit
+- exceptions are auditable
+- exceptions are temporary
+- no silent or implicit bypasses are allowed
 
-Explicit
+Break-glass is implemented through Kyverno `PolicyException` resources in the dedicated `policy-exceptions` namespace, not through workload labels or annotations.
 
-Auditable
+## Rationale
 
-Temporary
-
-
-No silent or implicit bypasses are allowed
-
-Break-glass actions require a separately managed Kyverno `PolicyException`
-object in Kubernetes.
-
-Break-glass is implemented through Kyverno `PolicyException` resources in the
-dedicated `policy-exceptions` namespace, not workload labels or annotations.
-
-
----
-
-Rationale
-
-1. Exceptions Are Inevitable — Chaos Is Optional
+### 1. Exceptions are inevitable, chaos is optional
 
 In mature systems, exceptions are not a failure of security, but a recognized operational requirement.
 
 By designing break-glass behavior intentionally, the system avoids:
 
-Ad-hoc policy disabling
+- ad hoc policy disabling
+- emergency manual `kubectl` changes
+- untracked security debt
 
-Emergency manual kubectl changes
+### 2. Security by friction, not by impossibility
 
-Untracked security debt
+The break-glass path is intentionally frictionful. It:
 
-
-
----
-
-2. Security by Friction, Not by Impossibility
-
-The break-glass path is intentionally frictionful:
-
-Requires a separate exception object
-
-Requires code changes
-
-Requires Git history
-
-Requires review
-
+- requires a separate exception object
+- requires code changes
+- requires Git history
+- requires review
 
 This discourages casual misuse while preserving availability when genuinely needed.
 
-
----
-
-3. Auditability Over Absolute Prevention
+### 3. Auditability over absolute prevention
 
 The goal is not to make violations impossible, but to ensure they are:
 
-Visible
+- visible
+- traceable
+- reviewable
+- reversible
 
-Traceable
+## Implementation Details
 
-Reviewable
-
-Reversible
-
-
-
----
-
-Implementation Details
-
-Break-Glass PolicyException
+### Break-glass `PolicyException`
 
 A standardized `PolicyException` object is used to trigger exception handling:
 
+```yaml
 apiVersion: kyverno.io/v2
 kind: PolicyException
 metadata:
@@ -143,144 +100,77 @@ spec:
     - policyName: verify-signature
       ruleNames:
         - require-image-signature
+```
 
+### Kyverno policy integration
 
----
+Cluster verification policies remain fail-closed by default. Exception handling is granted only when a matching `PolicyException` exists.
 
-Kyverno Policy Integration
-
-Cluster verification policies remain fail-closed by default. Exception handling is
-granted only when a matching `PolicyException` exists:
-
+```yaml
 spec:
   exceptions:
     - policyName: verify-signature
       ruleNames:
         - require-image-signature
+```
 
 This ensures:
 
-Normal workloads remain fully governed
+- normal workloads remain fully governed
+- exception scope is minimal, explicit, and separately permissioned from workload manifests
 
-Exception scope is minimal, explicit, and separately permissioned from workload manifests
-
-
-
----
-
-CI & GitOps Enforcement
+### CI and GitOps enforcement
 
 Break-glass usage must be committed to Git and carry explicit approval metadata on the `PolicyException` object:
 
-- `security.break-glass/ticket` must reference a tracked incident/change (`INC-*` or `CHG-*`)
+- `security.break-glass/ticket` must reference a tracked incident or change such as `INC-*` or `CHG-*`
 - `PolicyException` objects must live in the `policy-exceptions` namespace
 - `security.break-glass/requested-by` must identify the requester
-- `security.break-glass/approved-by` is the authoritative approval field on the `PolicyException` and must be one of `platform-oncall` or `repository-administrator` (validated against `^(platform-oncall|repository-administrator)$`)
-- The `PolicyException` annotations are the approval record for break-glass review and must preserve separation of duties (`security.break-glass/requested-by` and `security.break-glass/approved-by` differ)
+- `security.break-glass/approved-by` is the authoritative approval field and must be one of `platform-oncall` or `repository-administrator`
+- `security.break-glass/requested-by` and `security.break-glass/approved-by` must differ to preserve separation of duties
 
 Break-glass usage must be committed to Git as a separate exception object with an explicit lifecycle:
 
-- Create a `PolicyException` manifest in the `policy-exceptions` namespace to enable the exception
-- Verify the exception exists in-cluster (`kubectl get policyexception -n policy-exceptions`)
-- Verify the `PolicyException` annotations carry the ticket, requester, approver, and expiry values required by policy before relying on the exception
-- Delete or revoke the `PolicyException` object once the blocking condition is resolved to restore enforcement
+1. Create a `PolicyException` manifest in the `policy-exceptions` namespace.
+2. Verify the exception exists in-cluster with `kubectl get policyexception -n policy-exceptions`.
+3. Verify the `PolicyException` annotations carry the required ticket, requester, approver, and expiry values before relying on the exception.
+4. Delete or revoke the `PolicyException` once the blocking condition is resolved.
 
-Manifest changes require a Pull Request
+Additional expectations:
 
-Changes are visible in Git history
+- manifest changes require a pull request
+- changes remain visible in Git history
+- policy exclusions are evaluated during CI validation and again at admission time
+- no runtime-only overrides are supported
 
-Policy exclusions are evaluated during CI validation and again at admission time
-
-
-No runtime-only overrides are supported.
-
-
----
-
-Operational Expectations
+## Operational Expectations
 
 Break-glass usage is expected to follow these guidelines:
 
-1. Justification: The PR description must explain why the exception is required.
+1. Justification: the PR description should explain why the exception is required.
+2. Scope minimization: the `PolicyException` should target only the affected policy, rule, and workload scope.
+3. Temporary nature: delete or revoke the `PolicyException` once the blocking condition is resolved.
+4. Operational verification: confirm the `PolicyException` is present while break-glass is enabled and absent after enforcement is restored.
+5. Post-incident review: break-glass usage should trigger retrospective analysis.
 
+## Consequences
 
-2. Scope Minimization: The `PolicyException` should target only the affected policy/rule and workload scope.
+### Positive
 
+- operational resilience because critical fixes are not blocked by tooling failures alone
+- security transparency because exceptions are explicit and auditable
+- policy integrity because core policies do not need to be weakened or disabled
+- enterprise alignment because the model resembles real platform security practice
 
-3. Temporary Nature: Delete or otherwise revoke the `PolicyException` from the `policy-exceptions` namespace once the blocking condition is resolved, and verify its removal.
+### Negative and trade-offs
 
-
-4. Operational Verification: Confirm the `PolicyException` is present when break-glass is enabled and absent after enforcement is restored.
-
-
-5. Post-Incident Review: Break-glass usage should trigger retrospective analysis.
-
-
-
-
----
-
-Consequences
-
-Positive
-
-Operational Resilience: Critical fixes are not blocked by tooling failures.
-
-Security Transparency: Exceptions are explicit and auditable.
-
-Policy Integrity: No need to weaken or disable core policies.
-
-Enterprise Alignment: Mirrors real-world platform security practices.
-
-
-
----
-
-Negative / Trade-offs
-
-Residual Risk: Break-glass allows deployment without full guarantees.
-
-Human Judgment Required: Relies on process discipline and review culture.
-
-Potential Abuse: Poor governance could lead to overuse.
-
+- break-glass introduces residual risk by allowing deployment without full guarantees
+- human judgment and review discipline remain necessary
+- poor governance could lead to overuse
 
 These risks are mitigated by:
 
-Mandatory Git workflows
-
-Explicit `PolicyException` objects in `policy-exceptions`
-
-Documentation
-
-Cultural enforcement rather than technical shortcuts
-
-
-
----
-
-Alternatives Considered
-
-1. No Break-Glass Support
-
-Rejected because:
-
-Unrealistic in production
-
-Encourages out-of-band changes
-
-Leads to emergency policy disabling
-
-
-
----
-
-2. Manual Policy Disablement
-
-Rejected because:
-
-High blast radius
-
-Poor auditability
-
-Inconsistent application
+- mandatory Git workflows
+- explicit `PolicyException` objects in `policy-exceptions`
+- documentation
+- cultural enforcement rather than technical shortcuts alone
