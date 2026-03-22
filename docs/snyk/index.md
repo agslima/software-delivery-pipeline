@@ -6,12 +6,12 @@ This document contains the latest Snyk scan index for this repository.
 
 | Project | Tested | C | H | M | L |
 | :--- | :--- | ---: | ---: | ---: | ---: |
-| npm dependencies: app/client/package-lock.json | 2026-03-15 22:46 | 0 | 0 | 0 | 0 |
-| npm dependencies: app/server/package-lock.json | 2026-03-15 22:46 | 0 | 0 | 0 | 0 |
-| Code analysis | 2026-03-15 22:46 | 0 | 0 | 1 | 14 |
-| Container: app/docker/Dockerfile.client | 2026-03-15 22:46 | 0 | 0 | 0 | 0 |
-| Container: app/docker/Dockerfile.server | 2026-03-15 22:46 | 0 | 0 | 0 | 0 |
-| k8s | 2026-03-15 22:46 | 0 | 0 | 0 | 2 |
+| [npm dependencies: app/client/package-lock.json](html/snyk-sca.html) | 2026-03-22 02:12 | 0 | 0 | 0 | 0 |
+| [npm dependencies: app/server/package-lock.json](html/snyk-sca.html) | 2026-03-22 02:12 | 0 | 0 | 0 | 0 |
+| [Code analysis](html/snyk-code.html) | 2026-03-22 02:12 | 0 | 0 | 1 | 14 |
+| [Container: app/docker/Dockerfile.client](html/snyk-container-client.html) | 2026-03-22 02:12 | 0 | 0 | 0 | 0 |
+| [Container: app/docker/Dockerfile.server](html/snyk-container-server.html) | 2026-03-22 02:12 | 0 | 0 | 0 | 0 |
+| [k8s](html/snyk-iac.html) | 2026-03-22 02:12 | 0 | 0 | 0 | 2 |
 
 ## Aggregate Summary
 
@@ -26,15 +26,15 @@ This document contains the latest Snyk scan index for this repository.
 
 | Scan | HTML |
 | :--- | :--- |
-| snyk-sca | - |
-| snyk-code | - |
-| snyk-container-client | - |
-| snyk-container-server | - |
-| snyk-iac | - |
+| snyk-sca | [html/snyk-sca.html](html/snyk-sca.html) |
+| snyk-code | [html/snyk-code.html](html/snyk-code.html) |
+| snyk-container-client | [html/snyk-container-client.html](html/snyk-container-client.html) |
+| snyk-container-server | [html/snyk-container-server.html](html/snyk-container-server.html) |
+| snyk-iac | [html/snyk-iac.html](html/snyk-iac.html) |
 
 ## Notes
 
 - Counts are aggregated across SCA, Code, container, and IaC scans.
 - Container findings come from real built local images, not Dockerfile-only analysis.
 - SCA scope reflects the actual Snyk CLI invocation used by the orchestration script.
-- Generated at: 2026-03-15 22:46 UTC
+- Generated at: 2026-03-22 02:12 UTC
