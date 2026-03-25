@@ -29,6 +29,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
 
+      - name: Governance Drift Check (README/evidence/workflows)
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/governance-settings-audit
+          make governance-drift-check 2>&1 | tee artifacts/governance-settings-audit/governance-drift-check.txt
+
       - name: Validate audit token availability
         if: env.AUDIT_MODE == 'live'
         env:
@@ -87,6 +93,17 @@ jobs:
         if: always()
         shell: bash
         run: |
+          if [[ -f artifacts/governance-settings-audit/governance-drift-check.txt ]]; then
+            {
+              echo '## Governance Drift Check'
+              echo
+              echo '```text'
+              cat artifacts/governance-settings-audit/governance-drift-check.txt
+              echo '```'
+              echo
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
           if [[ -f artifacts/governance-settings-audit/summary.md ]]; then
             cat artifacts/governance-settings-audit/summary.md >> "$GITHUB_STEP_SUMMARY"
           fi
