@@ -28,6 +28,9 @@ def load_module(name: str, path: pathlib.Path):
 check_docs_metadata = load_module(
     "check_docs_metadata", SCRIPTS_DIR / "check-docs-metadata.py"
 )
+check_governance_evidence_index = load_module(
+    "check_governance_evidence_index", SCRIPTS_DIR / "check-governance-evidence-index.py"
+)
 
 
 def _well_formed_doc(extra_body: str = "Body content here.") -> str:
@@ -717,3 +720,123 @@ def test_cluster_policy_attestation_condition_requires_pass(policy_file):
     assert found_pass_condition, (
         f"{policy_file} does not enforce a PASS condition on attestations"
     )
+
+# ---------------------------------------------------------------------------
+# check-governance-evidence-index.py
+# ---------------------------------------------------------------------------
+
+
+def test_extract_readme_claims_reads_top_level_tldr_bullets():
+    claims = check_governance_evidence_index.extract_readme_claims(
+        """# Title
+
+## TL;DR
+
+- First governed claim
+- Second **claim** with `formatting`
+
+## Next
+Body
+"""
+    )
+
+    assert claims == [
+        "First governed claim",
+        "Second claim with formatting",
+    ]
+
+
+def test_parse_workflow_references_requires_job_mappings():
+    row = check_governance_evidence_index.EvidenceRow(
+        claim="Claim",
+        workflow_cell="`.github/workflows/ci.yml`",
+        line_number=27,
+    )
+
+    with pytest.raises(SystemExit, match="without a job mapping"):
+        check_governance_evidence_index.parse_workflow_references(
+            row.workflow_cell,
+            row=row,
+        )
+
+
+def test_validate_workflow_references_flags_missing_jobs(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch):
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    workflow_path = workflow_dir / "ci.yml"
+    workflow_path.write_text(
+        """name: CI
+jobs:
+  real-job:
+    runs-on: ubuntu-latest
+""",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(check_governance_evidence_index, "ROOT", tmp_path)
+    monkeypatch.setattr(
+        check_governance_evidence_index,
+        "EVIDENCE_INDEX_PATH",
+        tmp_path / "docs" / "governance-evidence-index.md",
+    )
+
+    row = check_governance_evidence_index.EvidenceRow(
+        claim="Claim",
+        workflow_cell="`.github/workflows/ci.yml` → `missing-job`",
+        line_number=14,
+    )
+
+    errors = check_governance_evidence_index.validate_workflow_references([row])
+
+    assert len(errors) == 1
+    assert "missing-job" in errors[0]
+    assert "Available jobs: real-job" in errors[0]
+
+
+def test_run_check_fails_when_readme_claim_is_unmapped(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
+    readme_path = tmp_path / "README.md"
+    readme_path.write_text(
+        """# Repo
+
+## TL;DR
+
+- Claim A
+- Claim B
+""",
+        encoding="utf-8",
+    )
+
+    evidence_path = tmp_path / "docs" / "governance-evidence-index.md"
+    evidence_path.parent.mkdir(parents=True)
+    evidence_path.write_text(
+        """# Governance Evidence Index
+
+### README Claim Traceability
+| README claim | Workflow job enforcement | Policy / repository enforcement | Evidence / artifact path | Owner | Review cadence |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| Claim A | `.github/workflows/ci.yml` → `real-job` | Policy | Artifact | Owner | Quarterly |
+""",
+        encoding="utf-8",
+    )
+
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "ci.yml").write_text(
+        """name: CI
+jobs:
+  real-job:
+    runs-on: ubuntu-latest
+""",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(check_governance_evidence_index, "ROOT", tmp_path)
+    monkeypatch.setattr(check_governance_evidence_index, "README_PATH", readme_path)
+    monkeypatch.setattr(check_governance_evidence_index, "EVIDENCE_INDEX_PATH", evidence_path)
+
+    with pytest.raises(SystemExit, match="1"):
+        check_governance_evidence_index.run_check(readme_path=readme_path, evidence_index_path=evidence_path)
+
+    captured = capsys.readouterr()
+    assert "Claim B" in captured.err
+    assert "matching row" in captured.err
