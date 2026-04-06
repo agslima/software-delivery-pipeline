@@ -4,6 +4,8 @@
 [//]: # (review_cadence: Quarterly)
 [//]: # (last_reviewed: 2026-03-17)
 
+[Home](../README.md) // [Next](002-image-signing-attestation.md)
+
 ## ADR 001: CI-Driven (Push-Based) GitOps Strategy
 
 - Status: Accepted

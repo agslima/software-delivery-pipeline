@@ -4,6 +4,8 @@
 [//]: # (review_cadence: Quarterly)
 [//]: # (last_reviewed: 2026-03-17)
 
+[Back](001-gitops-strategy.md) // [Home](../README.md) // [Next](003-policy-enforcement-strategy.md)
+
 ## ADR 002: Image Signing and Attestation Strategy (Cosign + Kyverno)
 
 - Status: Accepted
