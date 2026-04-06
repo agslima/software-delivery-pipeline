@@ -4,6 +4,8 @@
 [//]: # (review_cadence: Quarterly)
 [//]: # (last_reviewed: 2026-03-17)
 
+[Back](004-vulnerability-thresholds-risk-acceptance.md) // [Home](../README.md) // [Next](006-scanner-failure-degraded-mode.md)
+
 ## ADR 005: Break-Glass and Exception Handling Strategy
 
 - Status: Accepted
