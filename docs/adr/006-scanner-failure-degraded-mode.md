@@ -4,7 +4,7 @@
 [//]: # (review_cadence: Quarterly)
 [//]: # (last_reviewed: 2026-03-17)
 
-[Back](004-vulnerability-thresholds-risk-acceptance.md) // [Home](../README.md) // [Next](007-supply-chain-incident-response-revocation.md)
+[Back](005-break-glass-exception-handling.md) // [Home](../README.md) // [Next](007-supply-chain-incident-response-revocation.md)
 
 ## ADR 006: Scanner Failure and Degraded Mode Strategy
 
