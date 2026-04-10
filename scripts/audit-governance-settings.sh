@@ -260,9 +260,15 @@ MATCHING_BRANCH_RULESETS="$(jq -c --arg ref "$EXPECTED_BRANCH_REF" '
       .
     end;
   def glob_to_regex:
-    gsub("([][(){}.^$+|\\\\])"; "\\\\\\1")
-    | gsub("\\*"; ".*")
-    | gsub("\\?"; ".");
+    split("")
+    | map(
+        if . == "*" then ".*"
+        elif . == "?" then "."
+        elif test("^[][(){}.^$+|\\\\]$") then ("\\\\" + .)
+        else .
+        end
+      )
+    | join("");
   ($ref | normalize_ref_pattern) as $normalized_ref
   | map(
       select(
@@ -287,9 +293,15 @@ MATCHING_TAG_RULESETS="$(jq -c --arg ref "$EXPECTED_TAG_REF" '
       .
     end;
   def glob_to_regex:
-    gsub("([][(){}.^$+|\\\\])"; "\\\\\\1")
-    | gsub("\\*"; ".*")
-    | gsub("\\?"; ".");
+    split("")
+    | map(
+        if . == "*" then ".*"
+        elif . == "?" then "."
+        elif test("^[][(){}.^$+|\\\\]$") then ("\\\\" + .)
+        else .
+        end
+      )
+    | join("");
   ($ref | normalize_ref_pattern) as $normalized_ref
   | map(
       select(
