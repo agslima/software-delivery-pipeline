@@ -269,4 +269,15 @@ const env = cleanEnv(process.env, {
   }),
 });
 
+for (const [key, value] of Object.entries({
+  EXPORT_JOB_POLL_MS: env.EXPORT_JOB_POLL_MS,
+  EXPORT_JOB_LEASE_SECONDS: env.EXPORT_JOB_LEASE_SECONDS,
+  EXPORT_JOB_MAX_ATTEMPTS: env.EXPORT_JOB_MAX_ATTEMPTS,
+})) {
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error(`${key} must be a positive integer`);
+  }
+}
+});
+
 module.exports = env;
