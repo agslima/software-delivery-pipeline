@@ -1,123 +1,276 @@
-name: CI
+name: CI - PR Validation
+
 on:
-  workflow_dispatch: {}
-  push:
-    branches: [ main ]
   pull_request:
     types: [opened, synchronize, reopened]
 
 concurrency:
-  group: pr-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
+
+permissions: {}
+
+env:
+  TRIVY_CACHE_DIR: ${{ github.workspace }}/.trivy-cache
 
 jobs:
   # ==================================================================
-  # JOB 1: TEST & CODE QUALITY
+  # JOB 0: CHANGE DETECTION
   # ==================================================================
-  code-quality:
-    name: Code Quality (${{ matrix.component }})
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        component: ['server', 'client']
-
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
-
-      - name: Setup Node.js
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f #v6.3.0
-        with:
-          node-version-file: 'app/${{ matrix.component }}/package.json'
-          cache: 'npm'
-          cache-dependency-path: 'app/${{ matrix.component }}/package-lock.json'
-
-      - name: Install Dependencies
-        working-directory: app/${{ matrix.component }}
-        run: npm ci --ignore-scripts
-
-      - name: Lint
-        working-directory: app/${{ matrix.component }}
-        run: npm run lint
-
-      - name: Unit Tests (TDD)
-        working-directory: app/${{ matrix.component }}
-        run: npm test
-
-  # ==================================================================
-  # JOB 2: INFRASTRUCTURE LINTING
-  # ==================================================================   
-  infra-lint:
-    name: Infra Hygiene
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        service: [backend, frontend]
-        include:
-          - service: backend
-            path: app/docker/Dockerfile.server
-          - service: frontend
-            path: app/docker/Dockerfile.client
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
-
-      # 1. Hadolint (Lints the syntax)
-      - name: Lint Dockerfile (${{ matrix.service }})
-        uses: hadolint/hadolint-action@2332a7b74a6de0dda2e2221d575162eba76ba5e5 #v3.3.0
-        with:
-          dockerfile: ${{ matrix.path }}
-          failure-threshold: error
-
-      # 2. Conftest (OPA Policy)
-      - name: Setup Conftest
-        uses: princespaghetti/setup-conftest@417586a9b2e806fc5a95c72dfe98e296ef092b6f #v1.0.0
-
-      - name: Run OPA Policy (${{ matrix.service }})
-        run: |
-          # Copy the specific file to a generic name for the policy check
-          cp ${{ matrix.path }} Dockerfile
-          conftest test Dockerfile \
-            --policy policies/dockerfile.rego
-
-      # 3. Kubeconform (Kubernetes Manifests)
-      - name: Validate K8s Manifests
-        if: matrix.service == 'backend'
-        uses: docker://ghcr.io/yannh/kubeconform@sha256:0474f7372c0089c41890101f0e293db5798e05942c98bbcf8359f206731115ea # v0.7.0
-        with:
-          entrypoint: "/kubeconform"
-          args: "-summary -output text -ignore-missing-schemas k8s/"
-
-      - name: Install Cosign
-        if: matrix.service == 'backend'
-        uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 #v4.1.1
-        
-      - name: Install Kyverno CLI
-        if: matrix.service == 'backend'
-        uses: kyverno/action-install-cli@fcee92fca5c883169ef9927acf543e0b5fc58289 # v0.2.0
-        with:
-          release: 'v1.17.1'
-          verify: true
-
-      - name: Run Kyverno Policy Tests
-        if: matrix.service == 'backend'
-        run: |
-          kyverno test k8s/tests/
-          kyverno test k8s/tests/ -f k8s/tests/policy-test.yaml
-          kyverno test k8s/tests/ -f k8s/tests/cluster-verify-test.yaml
-
-  migration-safety:
-    name: Migration Safety
+  changes:
+    name: Detect Changed Areas
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: read
+    outputs:
+      server: ${{ steps.filter.outputs.server }}
+      client: ${{ steps.filter.outputs.client }}
+      docker_backend: ${{ steps.filter.outputs.docker_backend }}
+      docker_frontend: ${{ steps.filter.outputs.docker_frontend }}
+      docker_worker: ${{ steps.filter.outputs.docker_worker }} 
+      k8s: ${{ steps.filter.outputs.k8s }}
+      policies: ${{ steps.filter.outputs.policies }}
+      migrations: ${{ steps.filter.outputs.migrations }}
+      governance: ${{ steps.filter.outputs.governance }}
+      security: ${{ steps.filter.outputs.security }}
+      any_app: ${{ steps.filter.outputs.any_app }}
+      any_infra: ${{ steps.filter.outputs.any_infra }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Detect changed files
+        id: filter
+        uses: dorny/paths-filter@45125827f72f0ce9f2fd8d3d7c0e1b2a6b3a5a1d # v3.0.2
+        with:
+          filters: |
+            server:
+              - 'app/server/**'
+            client:
+              - 'app/client/**'
+            docker_backend:
+              - 'app/docker/Dockerfile.server'
+            docker_frontend:
+              - 'app/docker/Dockerfile.client'
+            docker_worker:
+              - 'app/docker/Dockerfile.worker'
+            k8s:
+              - 'k8s/**'
+            policies:
+              - 'policies/**'
+              - 'k8s/tests/**'
+            migrations:
+              - 'app/server/**/migrations/**'
+              - 'scripts/check-migration-safety.py'
+            governance:
+              - '.github/workflows/**'
+              - 'Makefile'
+              - 'docs/**'
+              - '.github/**'
+              - 'scripts/**'
+            security:
+              - '**/package-lock.json'
+              - '**/package.json'
+              - '.github/workflows/**'
+              - 'app/docker/**'
+              - 'k8s/**'
+              - 'policies/**'
+            any_app:
+              - 'app/server/**'
+              - 'app/client/**'
+            any_infra:
+              - 'app/docker/**'
+              - 'k8s/**'
+              - 'policies/**'
+              - 'k8s/tests/**'
+
+  # ==================================================================
+  # JOB 1A: SERVER CODE QUALITY
+  # ==================================================================
+  code-quality-server:
+    name: Code Quality (server)
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.server == 'true'
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: app/server/package-lock.json
+
+      - name: Install dependencies
+        working-directory: app/server
+        run: npm ci
+
+      - name: Lint
+        working-directory: app/server
+        run: npm run lint
+
+      - name: Unit tests
+        working-directory: app/server
+        run: npm test -- --ci
+
+  # ==================================================================
+  # JOB 1B: CLIENT CODE QUALITY
+  # ==================================================================
+  code-quality-client:
+    name: Code Quality (client)
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.client == 'true'
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: app/client/package-lock.json
+
+      - name: Install dependencies
+        working-directory: app/client
+        run: npm ci
+
+      - name: Lint
+        working-directory: app/client
+        run: npm run lint
+
+      - name: Unit tests
+        working-directory: app/client
+        run: npm test -- --ci
+
+  # ==================================================================
+  # JOB 2A: DOCKERFILE HYGIENE
+  # ==================================================================
+  dockerfile-hygiene:
+    name: Dockerfile Hygiene
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.docker_backend == 'true' || needs.changes.outputs.docker_frontend == 'true' || needs.changes.outputs.docker_worker == 'true'  || needs.changes.outputs.policies == 'true'
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: backend
+            path: app/docker/Dockerfile.server
+            changed: ${{ needs.changes.outputs.docker_backend }}
+          - service: frontend
+            path: app/docker/Dockerfile.client
+            changed: ${{ needs.changes.outputs.docker_frontend }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Skip unchanged Dockerfile row
+        if: matrix.changed != 'true' && needs.changes.outputs.policies != 'true'
+        run: |
+          echo "No relevant changes for ${{ matrix.service }} Dockerfile."
+          exit 0
+
+      - name: Lint Dockerfile (${{ matrix.service }})
+        if: matrix.changed == 'true' || needs.changes.outputs.policies == 'true'
+        uses: hadolint/hadolint-action@2332a7b74a6de0dda2e2221d575162eba76ba5e5 # v3.3.0
+        with:
+          dockerfile: ${{ matrix.path }}
+          failure-threshold: error
+
+      - name: Setup Conftest
+        if: matrix.changed == 'true' || needs.changes.outputs.policies == 'true'
+        uses: princespaghetti/setup-conftest@417586a9b2e806fc5a95c72dfe98e296ef092b6f # v1.0.0
+
+      - name: Run Dockerfile OPA policy (${{ matrix.service }})
+        if: matrix.changed == 'true' || needs.changes.outputs.policies == 'true'
+        run: |
+          cp "${{ matrix.path }}" "/tmp/${{ matrix.service }}.Dockerfile"
+          conftest test "/tmp/${{ matrix.service }}.Dockerfile" \
+            --policy policies/dockerfile.rego
+
+  # ==================================================================
+  # JOB 2B: KUBERNETES SCHEMA VALIDATION
+  # ==================================================================
+  k8s-schema-validation:
+    name: Kubernetes Schema Validation
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.k8s == 'true'
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Validate Kubernetes manifests
+        uses: docker://ghcr.io/yannh/kubeconform@sha256:0474f7372c0089c41890101f0e293db5798e05942c98bbcf8359f206731115ea # v0.7.0
+        with:
+          entrypoint: /kubeconform
+          args: >-
+            -summary
+            -output text
+            -ignore-missing-schemas
+            k8s/
+
+  # ==================================================================
+  # JOB 2C: KYVERNO POLICY TESTS
+  # ==================================================================
+  kyverno-policy-tests:
+    name: Kyverno Policy Tests
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.k8s == 'true' || needs.changes.outputs.policies == 'true'
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
+
+      - name: Install Kyverno CLI
+        uses: kyverno/action-install-cli@fcee92fca5c883169ef9927acf543e0b5fc58289 # v0.2.0
+        with:
+          release: v1.17.1
+          verify: true
+
+      - name: Run baseline Kyverno tests
+        run: kyverno test k8s/tests/
+
+      - name: Run policy suite
+        if: hashFiles('k8s/tests/policy-test.yaml') != ''
+        run: kyverno test k8s/tests/ -f k8s/tests/policy-test.yaml
+
+      - name: Run cluster verify suite
+        if: hashFiles('k8s/tests/cluster-verify-test.yaml') != ''
+        run: kyverno test k8s/tests/ -f k8s/tests/cluster-verify-test.yaml
+
+  # ==================================================================
+  # JOB 3: MIGRATION SAFETY (PR-ONLY)
+  # ==================================================================
+  migration-safety:
+    name: Migration Safety
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.migrations == 'true'
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
 
@@ -142,30 +295,44 @@ jobs:
         run: python3 scripts/check-migration-safety.py
 
   # ==================================================================
-  # JOB 4: Governance & Security Scan (Code + IaC)
+  # JOB 4A: GOVERNANCE CHECKS
   # ==================================================================
-  governance-and-security-scan:
-    name: Governance & Security Quality Check
+  governance-checks:
+    name: Governance Checks
     runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.governance == 'true'
     permissions:
       contents: read
-      pull-requests: write
-      security-events: write
-    env:
-      TRIVY_CACHE_DIR: ${{ github.workspace }}/.trivy-cache
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
 
-      - name: Governance Drift Check (docs/workflow refs)
+      - name: Governance drift check
         run: make governance-drift-check
 
-      - name: Governance Metadata Freshness Check
+      - name: Governance metadata freshness check
         run: make governance-metadata-check
 
-      # 1. Secret Scanning
-      - name: Secret Scanning (Gitleaks)
+  # ==================================================================
+  # JOB 4B: SECURITY SCANS
+  # ==================================================================
+  security-scans:
+    name: Security Scans
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.security == 'true' || needs.changes.outputs.any_app == 'true' || needs.changes.outputs.any_infra == 'true'
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Secret scanning (Gitleaks)
         uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -175,6 +342,9 @@ jobs:
         id: trivy-db-key
         run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
 
+      - name: Create cache dir
+        run: mkdir -p "${{ env.TRIVY_CACHE_DIR }}"
+
       - name: Cache Trivy DB
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
@@ -182,51 +352,32 @@ jobs:
           key: trivy-db-${{ runner.os }}-${{ github.workflow }}-${{ steps.trivy-db-key.outputs.week }}
           restore-keys: |
             trivy-db-${{ runner.os }}-
-      
-      - name: Create Cache Dir
-        run: mkdir -p "${{ env.TRIVY_CACHE_DIR }}"
-        
+
       - name: Set scan skip dirs
         id: vars
         run: |
-          # Keep policy fixtures in FS dependency scope, but exclude them from config misconfig scans
-          # because test fixtures intentionally include insecure manifests.
           echo "FS_SKIP_DIRS=node_modules,dist,build,vendor,coverage,.git,.cache,.venv,tmp" >> "$GITHUB_OUTPUT"
           echo "CONFIG_SKIP_DIRS=k8s/tests,node_modules,dist,build,vendor,coverage,.git,.cache,.venv,tmp" >> "$GITHUB_OUTPUT"
-      
-      # TRIVY SCAN: Filesystem (Dependencies & Code Secrets)
-      - name: Trivy Scan - Root FS
-        id: trivy-scan
+
+      - name: Trivy filesystem scan
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
         with:
-          scan-type: 'fs'
+          scan-type: fs
           scan-ref: .
-          scanners: 'vuln'
-          vuln-type: 'os,library'
-          severity: 'HIGH,CRITICAL'
-          format: 'table'
+          scanners: vuln
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          format: table
           skip-dirs: ${{ steps.vars.outputs.FS_SKIP_DIRS }}
           ignore-unfixed: true
-          exit-code: 1
-      
-      - name: Trivy config scan (misconfig) - gate
-        id: trivy-config-scan
+          exit-code: '1'
+
+      - name: Trivy config scan
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
         with:
           scan-type: config
           scan-ref: .
           severity: HIGH,CRITICAL
           format: table
-          exit-code: "1"
+          exit-code: '1'
           skip-dirs: ${{ steps.vars.outputs.CONFIG_SKIP_DIRS }}
-      
-      - name: 🚨 Notify Slack on Failure
-        if: failure() && steps.trivy-scan.outcome == 'failure'
-        uses: rtCamp/action-slack-notify@v2
-        env:
-          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
-          SLACK_COLOR: '#ff0000'
-          SLACK_TITLE: 'Security Gate Blocked Merge'
-          SLACK_MESSAGE: 'Trivy found Critical vulnerabilities. Auto-merge has been aborted.'
-          SLACK_USERNAME: 'Security Bot'
-          SLACK_ICON: 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png'
