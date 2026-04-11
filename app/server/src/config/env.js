@@ -80,6 +80,10 @@ const env = cleanEnv(process.env, {
     default: 8080,
     desc: 'API server port',
   }),
+  WORKER_PORT: port({
+    default: 8090,
+    desc: 'Background worker health server port',
+  }),
   LOG_LEVEL: str({
     choices: ['info', 'debug', 'error', 'silent'],
     default: isTest ? 'silent' : 'info',
@@ -183,6 +187,10 @@ const env = cleanEnv(process.env, {
   }),
 
   DB_HOST: str({ default: 'localhost' }),
+  DB_PORT: port({
+    desc: 'Database port',
+    default: 5432,
+  }),
   DB_USER: str({
     desc: 'Database user',
     default: isTest ? 'test' : process.env.DB_USER,
@@ -247,6 +255,28 @@ const env = cleanEnv(process.env, {
     desc: 'MFA token time-to-live in minutes',
     default: 5,
   }),
+  EXPORT_JOB_POLL_MS: num({
+    desc: 'Polling interval for queued export jobs in milliseconds',
+    default: 3000,
+  }),
+  EXPORT_JOB_LEASE_SECONDS: num({
+    desc: 'Lease duration for claimed export jobs in seconds',
+    default: 30,
+  }),
+  EXPORT_JOB_MAX_ATTEMPTS: num({
+    desc: 'Maximum number of export job attempts before terminal failure',
+    default: 5,
+  }),
 });
+
+for (const [key, value] of Object.entries({
+  EXPORT_JOB_POLL_MS: env.EXPORT_JOB_POLL_MS,
+  EXPORT_JOB_LEASE_SECONDS: env.EXPORT_JOB_LEASE_SECONDS,
+  EXPORT_JOB_MAX_ATTEMPTS: env.EXPORT_JOB_MAX_ATTEMPTS,
+})) {
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error(`${key} must be a positive integer`);
+  }
+}
 
 module.exports = env;

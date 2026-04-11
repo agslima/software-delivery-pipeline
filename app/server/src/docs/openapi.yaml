@@ -406,6 +406,68 @@ components:
           items:
             type: object
 
+    ExportJob:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        prescriptionId:
+          type: string
+          format: uuid
+        doctorId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [queued, processing, completed, failed]
+        format:
+          type: string
+          enum: [json]
+        attemptCount:
+          type: integer
+        maxAttempts:
+          type: integer
+        nextRunAt:
+          type: string
+          format: date-time
+        leaseExpiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        failedAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastError:
+          type: string
+          nullable: true
+        result:
+          type: object
+          nullable: true
+          properties:
+            contentType:
+              type: string
+            fileName:
+              type: string
+            payload:
+              type: object
+              additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
     Prescription:
       type: object
       properties:
@@ -931,6 +993,67 @@ paths:
                 $ref: '#/components/schemas/PrescriptionV2'
         404:
           description: Prescription not found
+
+  /api/v2/prescriptions/{id}/exports:
+    post:
+      summary: Queue prescription export generation
+      tags: [Prescriptions]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                format:
+                  type: string
+                  enum: [json]
+      responses:
+        202:
+          description: Export job queued
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ExportJob'
+                  - type: object
+                    properties:
+                      pollUrl:
+                        type: string
+        404:
+          description: Prescription not found
+
+  /api/v2/exports/{id}:
+    get:
+      summary: Get prescription export job status
+      tags: [Prescriptions]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      responses:
+        200:
+          description: Export job detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportJob'
+        404:
+          description: Export job not found
 
   /api/v2/patient/me/prescriptions:
     get:

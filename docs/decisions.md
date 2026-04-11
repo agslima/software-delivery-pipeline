@@ -2,7 +2,7 @@
 
 [//]: # (owner: Project Maintainers)
 [//]: # (review_cadence: Quarterly)
-[//]: # (last_reviewed: 2026-03-17)
+[//]: # (last_reviewed: 2026-04-11)
 
 ## Architecture and Tooling Decisions
 
@@ -164,6 +164,53 @@ Together, Trivy and ZAP provide:
 - shift-right coverage through runtime security testing
 - policy-enforced deployment gates through Kyverno
 
+## Why Expand-and-Contract Database Migrations?
+
+_Compared with one-step, in-place schema replacement_
+
+### Decision
+
+This repository uses an expand-and-contract migration strategy for database schema evolution.
+
+See [ADR 008](adr/008-database-migration-strategy.md) for the full decision record and [database-migration-strategy.md](database-migration-strategy.md) for the normative operating rules.
+
+### Summary rationale
+
+The project needs schema changes that remain safe during:
+
+- rollout
+- rollback
+- mixed-version execution
+
+Therefore:
+
+- schema changes must be backward-compatible first
+- application cutover must happen only after the new shape exists
+- destructive cleanup must happen in a later release
+
+This approach is slower than one-step replacement, but it is far easier to review, validate, and govern safely.
+
+## Why Simple Canary Rollout?
+
+_Compared with service-mesh traffic management or controller-driven rollout_
+
+### Decision
+
+The repository uses a simple replica-weighted canary rollout for the production backend.
+
+See [ADR 009](adr/009-progressive-delivery-canary-strategy.md) for the full decision record and [canary-rollout-strategy.md](canary-rollout-strategy.md) for the normative operating model.
+
+### Summary rationale
+
+This project prioritizes:
+
+- clear manifest-level visibility
+- minimal new control-plane complexity
+- auditable promotion and rollback changes
+
+The chosen design keeps stable and canary as explicit Kubernetes resources in Git.
+It does not claim service-mesh precision or automated controller-driven promotion.
+
 ## Appendix: Architecture Decision Records
 
 The following ADRs capture the historical decision record for the main governance and delivery patterns in this repository:
@@ -175,3 +222,5 @@ The following ADRs capture the historical decision record for the main governanc
 - [ADR 005: Break-Glass and Exception Handling Strategy](adr/005-break-glass-exception-handling.md)
 - [ADR 006: Scanner Failure and Degraded Mode Strategy](adr/006-scanner-failure-degraded-mode.md)
 - [ADR 007: Supply Chain Incident Response and Revocation Strategy](adr/007-supply-chain-incident-response-revocation.md)
+- [ADR 008: Database Migration Strategy](adr/008-database-migration-strategy.md)
+- [ADR 009: Progressive Delivery Canary Strategy](adr/009-progressive-delivery-canary-strategy.md)

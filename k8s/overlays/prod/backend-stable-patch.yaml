@@ -1,0 +1,75 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  labels:
+    app.kubernetes.io/name: backend
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: stayhealthy
+  annotations:
+    delivery.stayhealthy.io/rollout-strategy: replica-weighted-canary
+    delivery.stayhealthy.io/traffic-policy: shared-service
+spec:
+  selector:
+    app: backend
+    app.kubernetes.io/name: backend
+    delivery.stayhealthy.io/traffic-group: production
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  labels:
+    app.kubernetes.io/name: backend
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: stayhealthy
+    delivery.stayhealthy.io/release-track: stable
+spec:
+  replicas: 3
+  minReadySeconds: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: backend
+      app.kubernetes.io/name: backend
+      delivery.stayhealthy.io/release-track: stable
+  template:
+    metadata:
+      labels:
+        app: backend
+        app.kubernetes.io/name: backend
+        app.kubernetes.io/component: api
+        app.kubernetes.io/part-of: stayhealthy
+        delivery.stayhealthy.io/traffic-group: production
+        delivery.stayhealthy.io/release-track: stable
+      annotations:
+        delivery.stayhealthy.io/promotion-gate: manual
+        delivery.stayhealthy.io/traffic-share-hint: "75"
+        delivery.stayhealthy.io/rollout-strategy: replica-weighted-canary
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: backend
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          readinessProbe:
+            httpGet:
+              path: /api/v1/readyz
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3

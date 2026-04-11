@@ -1,6 +1,8 @@
 const { DoctorsService } = require('../../src/core/v2/doctors.service');
 const { DoctorContextService } = require('../../src/core/v2/doctorContext.service');
 const { EncountersService } = require('../../src/core/v2/encounters.service');
+const { ExportJobsService } = require('../../src/core/v2/exportJobs.service');
+const { ExportWorkerService } = require('../../src/core/v2/exportWorker.service');
 
 describe('Unit: core/v2 services', () => {
   describe('DoctorContextService', () => {
@@ -207,6 +209,241 @@ describe('Unit: core/v2 services', () => {
         2,
         'enc-1',
         expect.objectContaining({ status: 'open', ended_at: null, started_at: expect.any(Date) })
+      );
+    });
+  });
+
+  describe('ExportJobsService', () => {
+    const buildService = () => {
+      const exportJobsRepository = {
+        enqueueOrReuse: jest.fn(),
+        findById: jest.fn(),
+      };
+      const prescriptionsRepository = { findById: jest.fn() };
+      const doctorContext = {
+        getDoctorByUserId: jest.fn().mockResolvedValue({ id: 'doc-1' }),
+      };
+
+      const service = new ExportJobsService({
+        exportJobsRepository,
+        prescriptionsRepository,
+        doctorContext,
+      });
+
+      return { service, exportJobsRepository, prescriptionsRepository, doctorContext };
+    };
+
+    it('queues export jobs for the prescribing doctor', async () => {
+      const { service, exportJobsRepository, prescriptionsRepository } = buildService();
+      prescriptionsRepository.findById.mockResolvedValue({
+        id: 'rx-1',
+        doctor: { id: 'doc-1' },
+        updatedAt: new Date('2026-04-11T12:00:00.000Z'),
+      });
+      exportJobsRepository.enqueueOrReuse.mockResolvedValue({ id: 'job-1', status: 'queued' });
+
+      await expect(service.enqueue({ doctorUserId: 'user-1', prescriptionId: 'rx-1' })).resolves.toEqual({
+        id: 'job-1',
+        status: 'queued',
+      });
+
+      expect(exportJobsRepository.enqueueOrReuse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          prescriptionId: 'rx-1',
+          doctorId: 'doc-1',
+          format: 'json',
+          maxAttempts: 5,
+          idempotencyKey: 'rx-1:json:2026-04-11T12:00:00.000Z',
+        })
+      );
+    });
+
+    it('rejects export jobs when the requester is not the prescribing doctor', async () => {
+      const { service, prescriptionsRepository } = buildService();
+      prescriptionsRepository.findById.mockResolvedValue({
+        id: 'rx-1',
+        doctor: { id: 'doc-2' },
+        updatedAt: new Date('2026-04-11T12:00:00.000Z'),
+      });
+
+      await expect(service.enqueue({ doctorUserId: 'user-1', prescriptionId: 'rx-1' })).rejects.toMatchObject({
+        status: 403,
+        code: 'FORBIDDEN',
+      });
+    });
+
+    it('returns job details scoped to the requesting doctor', async () => {
+      const { service, exportJobsRepository } = buildService();
+      exportJobsRepository.findById.mockResolvedValue({ id: 'job-1', doctorId: 'doc-1' });
+
+      await expect(service.getById({ doctorUserId: 'user-1', jobId: 'job-1' })).resolves.toEqual({
+        id: 'job-1',
+        doctorId: 'doc-1',
+      });
+      expect(exportJobsRepository.findById).toHaveBeenCalledWith('job-1', { doctorId: 'doc-1' });
+    });
+  });
+
+  describe('ExportWorkerService', () => {
+    const buildService = () => {
+      const exportJobsRepository = {
+        claimNextRunnable: jest.fn(),
+        markCompleted: jest.fn(),
+        markRetry: jest.fn(),
+        markFailed: jest.fn(),
+      };
+      const prescriptionsRepository = { findById: jest.fn() };
+      const service = new ExportWorkerService({
+        exportJobsRepository,
+        prescriptionsRepository,
+      });
+      return { service, exportJobsRepository, prescriptionsRepository };
+    };
+
+    it('returns null when no jobs are queued', async () => {
+      const { service, exportJobsRepository } = buildService();
+      exportJobsRepository.claimNextRunnable.mockResolvedValue(null);
+
+      await expect(
+        service.processNext({
+          workerId: 'worker-1',
+          leaseSeconds: 30,
+          maxAttempts: 5,
+        })
+      ).resolves.toBeNull();
+    });
+
+    it('marks a claimed export job completed after generating the payload', async () => {
+      const now = new Date('2026-04-11T12:00:00.000Z');
+      const { service, exportJobsRepository, prescriptionsRepository } = buildService();
+      exportJobsRepository.claimNextRunnable.mockResolvedValue({
+        id: 'job-1',
+        prescriptionId: 'rx-1',
+        doctorId: 'doc-1',
+        attemptCount: 1,
+        format: 'json',
+      });
+      prescriptionsRepository.findById.mockResolvedValue({
+        id: 'rx-1',
+        doctor: { id: 'doc-1' },
+        patient: { id: 'pat-1' },
+        items: [],
+      });
+      exportJobsRepository.markCompleted.mockResolvedValue({ id: 'job-1', status: 'completed' });
+
+      await expect(
+        service.processNext({
+          workerId: 'worker-1',
+          leaseSeconds: 30,
+          maxAttempts: 5,
+          now,
+        })
+      ).resolves.toEqual({
+        outcome: 'completed',
+        job: { id: 'job-1', status: 'completed' },
+      });
+
+      expect(exportJobsRepository.markCompleted).toHaveBeenCalledWith(
+        'job-1',
+        expect.objectContaining({
+          workerId: 'worker-1',
+          contentType: 'application/json',
+          fileName: 'prescription-rx-1-export.json',
+          now,
+        })
+      );
+    });
+
+    it('requeues retryable failures while attempts remain', async () => {
+      const now = new Date('2026-04-11T12:00:00.000Z');
+      const { service, exportJobsRepository, prescriptionsRepository } = buildService();
+      exportJobsRepository.claimNextRunnable.mockResolvedValue({
+        id: 'job-1',
+        prescriptionId: 'rx-1',
+        doctorId: 'doc-1',
+        attemptCount: 1,
+        format: 'json',
+      });
+      prescriptionsRepository.findById.mockRejectedValue(new Error('database timeout'));
+      exportJobsRepository.markRetry.mockResolvedValue({ id: 'job-1', status: 'queued' });
+
+      const result = await service.processNext({
+        workerId: 'worker-1',
+        leaseSeconds: 30,
+        maxAttempts: 5,
+        now,
+      });
+
+      expect(result.outcome).toBe('retry');
+      expect(exportJobsRepository.markRetry).toHaveBeenCalledWith(
+        'job-1',
+        expect.objectContaining({
+          workerId: 'worker-1',
+          errorMessage: 'database timeout',
+          now,
+        })
+      );
+    });
+
+    it('marks non-retryable poison jobs failed immediately', async () => {
+      const now = new Date('2026-04-11T12:00:00.000Z');
+      const { service, exportJobsRepository, prescriptionsRepository } = buildService();
+      exportJobsRepository.claimNextRunnable.mockResolvedValue({
+        id: 'job-1',
+        prescriptionId: 'missing',
+        doctorId: 'doc-1',
+        attemptCount: 1,
+        format: 'json',
+      });
+      prescriptionsRepository.findById.mockResolvedValue(null);
+      exportJobsRepository.markFailed.mockResolvedValue({ id: 'job-1', status: 'failed' });
+
+      const result = await service.processNext({
+        workerId: 'worker-1',
+        leaseSeconds: 30,
+        maxAttempts: 5,
+        now,
+      });
+
+      expect(result.outcome).toBe('failed');
+      expect(exportJobsRepository.markFailed).toHaveBeenCalledWith(
+        'job-1',
+        expect.objectContaining({
+          workerId: 'worker-1',
+          errorMessage: 'Prescription not found during export processing',
+          now,
+        })
+      );
+    });
+
+    it('marks jobs failed after retry exhaustion', async () => {
+      const now = new Date('2026-04-11T12:00:00.000Z');
+      const { service, exportJobsRepository, prescriptionsRepository } = buildService();
+      exportJobsRepository.claimNextRunnable.mockResolvedValue({
+        id: 'job-1',
+        prescriptionId: 'rx-1',
+        doctorId: 'doc-1',
+        attemptCount: 5,
+        format: 'json',
+      });
+      prescriptionsRepository.findById.mockRejectedValue(new Error('database timeout'));
+      exportJobsRepository.markFailed.mockResolvedValue({ id: 'job-1', status: 'failed' });
+
+      const result = await service.processNext({
+        workerId: 'worker-1',
+        leaseSeconds: 30,
+        maxAttempts: 5,
+        now,
+      });
+
+      expect(result.outcome).toBe('failed');
+      expect(exportJobsRepository.markFailed).toHaveBeenCalledWith(
+        'job-1',
+        expect.objectContaining({
+          workerId: 'worker-1',
+          errorMessage: 'database timeout',
+          now,
+        })
       );
     });
   });

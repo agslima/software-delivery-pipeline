@@ -15,6 +15,11 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    refreshCookie:
+      type: apiKey
+      in: cookie
+      name: refresh_token
+      description: HttpOnly refresh token cookie used for rotation and logout.
 
   schemas:
     LoginRequest:
@@ -63,45 +68,35 @@ components:
           type: boolean
 
     LoginResponseV2:
+      description: Successful password login when MFA is not required.
       type: object
       properties:
         accessToken:
-          type: string
-        refreshToken:
           type: string
         tokenType:
           type: string
           example: Bearer
         user:
           $ref: '#/components/schemas/UserSummary'
+    MfaChallengeResponseV2:
+      description: MFA challenge response when second-factor verification is required before issuing a refresh cookie.
+      type: object
+      properties:
         mfaRequired:
           type: boolean
+          example: true
         mfaToken:
           type: string
-    RefreshRequestV2:
-      type: object
-      required:
-        - refreshToken
-      properties:
-        refreshToken:
-          type: string
+        user:
+          $ref: '#/components/schemas/UserSummary'
     RefreshResponseV2:
       type: object
       properties:
         accessToken:
           type: string
-        refreshToken:
-          type: string
         tokenType:
           type: string
           example: Bearer
-    RevokeRequestV2:
-      type: object
-      required:
-        - refreshToken
-      properties:
-        refreshToken:
-          type: string
     RevokeResponseV2:
       type: object
       properties:
@@ -126,8 +121,6 @@ components:
         verified:
           type: boolean
         accessToken:
-          type: string
-        refreshToken:
           type: string
         tokenType:
           type: string
@@ -413,6 +406,68 @@ components:
           items:
             type: object
 
+    ExportJob:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        prescriptionId:
+          type: string
+          format: uuid
+        doctorId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [queued, processing, completed, failed]
+        format:
+          type: string
+          enum: [json]
+        attemptCount:
+          type: integer
+        maxAttempts:
+          type: integer
+        nextRunAt:
+          type: string
+          format: date-time
+        leaseExpiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        failedAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastError:
+          type: string
+          nullable: true
+        result:
+          type: object
+          nullable: true
+          properties:
+            contentType:
+              type: string
+            fileName:
+              type: string
+            payload:
+              type: object
+              additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
     Prescription:
       type: object
       properties:
@@ -463,11 +518,18 @@ paths:
               $ref: '#/components/schemas/LoginRequestV2'
       responses:
         200:
-          description: Successful login
+          description: Successful login. When MFA is not required, the response includes an access token and sets a refresh-token cookie. When MFA is required, the response returns an MFA challenge and clears any existing refresh-token cookie instead of minting a new one.
+          headers:
+            Set-Cookie:
+              description: Conditionally present. Sets a refresh-token cookie on completed primary-factor login, or expires any existing refresh-token cookie when returning an MFA challenge.
+              schema:
+                type: string
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LoginResponseV2'
+                oneOf:
+                  - $ref: '#/components/schemas/LoginResponseV2'
+                  - $ref: '#/components/schemas/MfaChallengeResponseV2'
         401:
           description: Invalid credentials
 
@@ -475,15 +537,17 @@ paths:
     post:
       summary: Refresh access token (v2)
       tags: [Auth]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RefreshRequestV2'
+      description: Rotates the current refresh token using the incoming `refresh_token` cookie. No JSON request body is accepted.
+      security:
+        - refreshCookie: []
       responses:
         200:
           description: Successful refresh
+          headers:
+            Set-Cookie:
+              description: Rotated HttpOnly refresh token cookie.
+              schema:
+                type: string
           content:
             application/json:
               schema:
@@ -493,17 +557,19 @@ paths:
 
   /api/v2/auth/logout:
     post:
-      summary: Revoke a refresh token (v2)
+      summary: Revoke the current refresh token cookie (v2)
       tags: [Auth]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RevokeRequestV2'
+      description: Revokes the current session using the incoming `refresh_token` cookie and expires that cookie on the response. No JSON request body is accepted.
+      security:
+        - refreshCookie: []
       responses:
         200:
           description: Refresh token revoked
+          headers:
+            Set-Cookie:
+              description: Expired HttpOnly refresh token cookie.
+              schema:
+                type: string
           content:
             application/json:
               schema:
@@ -542,6 +608,11 @@ paths:
       responses:
         200:
           description: MFA verified
+          headers:
+            Set-Cookie:
+              description: HttpOnly refresh token cookie for the verified session.
+              schema:
+                type: string
           content:
             application/json:
               schema:
@@ -922,6 +993,67 @@ paths:
                 $ref: '#/components/schemas/PrescriptionV2'
         404:
           description: Prescription not found
+
+  /api/v2/prescriptions/{id}/exports:
+    post:
+      summary: Queue prescription export generation
+      tags: [Prescriptions]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                format:
+                  type: string
+                  enum: [json]
+      responses:
+        202:
+          description: Export job queued
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ExportJob'
+                  - type: object
+                    properties:
+                      pollUrl:
+                        type: string
+        404:
+          description: Prescription not found
+
+  /api/v2/exports/{id}:
+    get:
+      summary: Get prescription export job status
+      tags: [Prescriptions]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      responses:
+        200:
+          description: Export job detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportJob'
+        404:
+          description: Export job not found
 
   /api/v2/patient/me/prescriptions:
     get:

@@ -2,7 +2,7 @@
 
 [//]: # (owner: Project Maintainers)
 [//]: # (review_cadence: Quarterly)
-[//]: # (last_reviewed: 2026-03-22)
+[//]: # (last_reviewed: 2026-04-11)
 
 This runbook documents common failure scenarios, security gate rejections, and operational incidents in the governed software delivery pipeline. Its goal is to provide clear, repeatable response steps so failures are handled consistently, auditably, and without bypassing governance controls.
 
@@ -16,6 +16,134 @@ This runbook applies to:
 - GitOps-based Kubernetes deployments
 
 It intentionally focuses on response actions, not tool configuration.
+
+## Runtime Signal Reference
+
+Use [`runtime-signals.md`](runtime-signals.md) as the minimum go or no-go reference for risky releases.
+Risky releases are not considered complete until the required runtime observations are recorded in the release evidence record.
+
+## Schema Change Rollout Order
+
+Database releases must model three distinct phases:
+
+- pre-deploy migration job
+- application release job
+- post-deploy cleanup job in a later release
+
+Use [`schema-change-deployment-procedure.md`](schema-change-deployment-procedure.md) as the canonical deployment sequence and [`database-migration-demo-prescription-status.md`](database-migration-demo-prescription-status.md) as the worked example.
+
+Operational rule:
+
+- run additive expand migrations before deploying code that depends on them
+- deploy only application versions that remain compatible with the expanded schema
+- delay destructive cleanup until a later release after compatibility evidence exists
+
+If a proposed release cannot follow that sequence, treat it as an exception and stop for explicit review before deployment.
+
+## Async Export Worker: Retry, Failure, and Poison Jobs
+
+The prescription export worker uses bounded retry with terminal failure visibility.
+
+Operational rules:
+
+- transient worker failures are retried automatically with backoff
+- known non-retryable failures move directly to `failed`
+- jobs that exhaust `max_attempts` also move to `failed`
+- failed jobs remain visible via `GET /api/v2/exports/{jobId}` and in `v2.export_jobs`
+- re-submitting the same export request is the supported operator-safe requeue path for a failed job
+
+### Symptoms
+
+- export job remains `queued` or `processing` longer than expected
+- export job status is `failed`
+- worker logs show repeated retry scheduling for the same job id
+
+### Triage steps
+
+1. Query the job status endpoint or inspect `v2.export_jobs`.
+2. Check `status`, `attempt_count`, `max_attempts`, `lease_expires_at`, and `last_error`.
+3. Determine whether the failure was transient or non-retryable.
+4. Confirm whether the worker is healthy through `/health` and `/ready`.
+
+### Response
+
+For transient failures:
+
+- allow the bounded retry policy to continue
+- intervene only if the same class of failure is affecting multiple jobs
+
+For terminal `failed` jobs:
+
+- fix the underlying cause first
+- re-submit the same export request to requeue the failed job under the same idempotency key
+- do not insert manual duplicate rows into `v2.export_jobs`
+
+### Duplicate delivery assumption
+
+Assume at-least-once delivery.
+
+That means:
+
+- duplicate job claims must not corrupt exported state
+- duplicate request submissions should reuse or requeue the same logical job
+- operators should prefer replay through the API flow, not ad hoc database edits
+
+## Async Export Worker: Partial Failure Recovery Story
+
+Use [`async-failure-scenario-worker-retry.md`](async-failure-scenario-worker-retry.md) as the canonical worked example.
+
+Scenario summary:
+
+- API returns `202 Accepted`
+- worker claims the job
+- worker crashes before completion
+- job remains visible in `v2.export_jobs`
+- lease expires
+- restarted worker retries and completes the same job
+
+### Expected operator interpretation
+
+- `processing` with a non-expired lease means the worker may still legitimately own the job
+- `processing` with an expired lease means the job is recoverable and should be reclaimed by a healthy worker
+- missing `last_error` does not imply success when the worker dies abruptly; it can simply mean the process exited before recording an application-level error
+
+### Expected response
+
+1. Check worker health through `/ready`.
+2. Inspect `lease_expires_at` and `attempt_count`.
+3. Restore worker availability if needed.
+4. Allow the retry path to reclaim the stale job.
+5. Confirm the final transition to `completed`.
+
+Preferred operator action is recovery through worker restart and normal retry behavior, not direct queue mutation.
+
+## Production Backend Canary Rollout
+
+Use [`canary-rollout-strategy.md`](canary-rollout-strategy.md) for the rollout model, [`rollout-gates-policy.md`](rollout-gates-policy.md) for promotion rules, and [`canary-rollout-walkthrough.md`](canary-rollout-walkthrough.md) for example evidence.
+Use [`failure-scenarios/canary-health-degrades.md`](failure-scenarios/canary-health-degrades.md) when the canary path degrades under live traffic.
+
+### Expected steady-state model
+
+- `backend` carries the trusted stable digest
+- `backend-canary` carries the candidate digest
+- `backend` Service sends traffic to both tracks based on ready replica count
+
+### Triage steps during rollout
+
+1. Render `kubectl kustomize k8s/overlays/prod` and confirm the stable and canary digests.
+2. Check `kubectl get deploy,po,svc -n production -l app=backend`.
+3. Probe `backend-canary` directly and the shared `backend` Service.
+4. Review restart counts, readiness state, recent errors, and runtime signals from [`runtime-signals.md`](runtime-signals.md) during the observation window.
+
+### Promote
+
+Promote only when the canary gates are satisfied and the evidence bundle is complete.
+Promotion means moving the candidate digest into the stable slot and then scaling canary down.
+
+### Halt and roll back
+
+Stop rollout when rollback triggers in [`rollout-gates-policy.md`](rollout-gates-policy.md) fire.
+Preferred rollback is to remove canary exposure while preserving the last known-good stable digest.
 
 ## Pipeline Failure: Security Gate (Trivy)
 

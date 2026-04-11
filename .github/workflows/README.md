@@ -6,7 +6,7 @@ This folder contains the active GitHub Actions workflows that power CI, security
 
 - Name: PR Validation
 - Triggers: `workflow_dispatch`, `pull_request` (opened, synchronize, reopened)
-- Summary: Runs Node.js lint and unit tests for `server` and `client`, lints Dockerfiles with Hadolint, validates Dockerfiles with OPA Conftest, validates backend K8s manifests with Kubeconform, checks governance drift and governance metadata freshness, and performs secret scanning (Gitleaks) plus Trivy FS scanning (HIGH/CRITICAL). Sends a Slack notification on Trivy failure.
+- Summary: Runs Node.js lint and unit tests for `server` and `client`, lints Dockerfiles with Hadolint, validates Dockerfiles with OPA Conftest, validates backend K8s manifests with Kubeconform, runs a dedicated migration safety review for schema-impacting PRs, checks governance drift and governance metadata freshness, and performs secret scanning (Gitleaks) plus Trivy FS scanning (HIGH/CRITICAL). Sends a Slack notification on Trivy failure.
 
 **ci-pr-title.yaml**
 
@@ -18,7 +18,7 @@ This folder contains the active GitHub Actions workflows that power CI, security
 
 - Name: Release
 - Triggers: tag push `v*.*.*`
-- Summary: Resolves the release tag, builds and pushes backend/frontend images, stores digest artifacts, runs Trivy image scans with a gate (CRITICAL > 0 or HIGH > 5), runs ZAP baseline DAST against an ephemeral compose environment, gates on ZAP High findings, then cosign-signs images and publishes Trivy/ZAP/SBOM attestations plus build provenance.
+- Summary: Resolves the release tag, builds and pushes backend/worker/frontend images, stores digest artifacts, runs Trivy image scans with a gate (CRITICAL > 0 or HIGH > 5), runs ZAP baseline DAST against an ephemeral compose environment that includes the worker, gates on ZAP High findings, then cosign-signs images and publishes Trivy/ZAP/SBOM attestations plus build provenance.
 
 **ci-security-deep.yml**
 
@@ -59,7 +59,7 @@ This folder contains the active GitHub Actions workflows that power CI, security
 
 - Name: GitOps Enforcement
 - Triggers: automatic on successful `Release` completion from a tag `push` (`workflow_run`) and manual `workflow_dispatch` with `run_id`
-- Summary: Downloads image digests from the Release workflow, verifies cosign signatures and Trivy/ZAP/SBOM attestations, updates prod kustomize image digests, validates rendered manifests against Kyverno policies, uploads Kyverno logs, and opens a GitOps PR to `main`.
+- Summary: Downloads backend/worker/frontend image digests from the Release workflow, verifies cosign signatures and Trivy/ZAP/SBOM attestations for each deployable image, advances the prod backend canary digest while fully promoting worker/frontend digests, validates rendered manifests against Kyverno policies, uploads Kyverno logs, and opens a GitOps PR to `main`.
 
 **sonar.yml**
 

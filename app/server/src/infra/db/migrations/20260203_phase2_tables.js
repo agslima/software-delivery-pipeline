@@ -35,7 +35,7 @@ const migrateLegacyPrescriptions = async (knex) => {
 
   if (!legacyRows.length) return;
 
-  const v2 = knex.withSchema(SCHEMA);
+  const v2 = (table) => knex.withSchema(SCHEMA).from(table);
   const medicationCache = new Map();
 
   for (const row of legacyRows) {

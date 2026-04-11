@@ -11,7 +11,7 @@ Within the trust boundaries described below, promotion toward production depends
 ## Governance Metadata and Freshness
 
 - **Validation cadence:** Quarterly
-- **Last validated:** 2026-03-11
+- **Last validated:** 2026-04-11
 
 Governance metadata must remain current enough to support audit credibility. The repository enforces freshness with:
 
@@ -49,6 +49,31 @@ This governance model is designed so that:
 - promoted artifacts carry verifiable identity, provenance, and security evidence
 - deployment depends on repository and runtime policy alignment
 - governance drift is intended to surface through failed checks, blocked promotion, denied admission, or audit review
+
+## Risky Release Evidence
+
+Normal release evidence is not sufficient for every change class.
+The repository requires a repeatable evidence format when a release changes the risk profile of deployment or rollback.
+
+Required template:
+
+- [`docs/templates/risky-release-evidence.md`](templates/risky-release-evidence.md)
+
+The template is expected for:
+
+- schema-changing releases
+- worker introduction or materially risky worker behavior changes
+- phased backend rollout decisions
+
+Minimum content:
+
+- change summary
+- risk type
+- expected blast radius
+- rollback plan
+- approval points
+- evidence links
+- runtime observations required by [`docs/runtime-signals.md`](runtime-signals.md)
 
 ## Trust Boundaries and Assumptions
 
@@ -207,6 +232,76 @@ Control intent:
 
 This control is effective only when `Require review from Code Owners` remains enabled in branch protection.
 
+### Database Schema Change Governance
+
+Database schema evolution is part of release integrity because application and data changes must remain safe across rollout and rollback windows.
+
+Required strategy:
+
+- expand-and-contract
+- backward-compatible first release
+- destructive cleanup only after a later release has removed old dependencies
+
+Normative policy:
+
+- [`docs/database-migration-strategy.md`](database-migration-strategy.md)
+- [`docs/adr/008-database-migration-strategy.md`](adr/008-database-migration-strategy.md)
+- [`docs/schema-change-deployment-procedure.md`](schema-change-deployment-procedure.md)
+- [`docs/database-migration-demo-prescription-status.md`](database-migration-demo-prescription-status.md)
+
+Reviewer expectations for schema-changing PRs:
+
+- the PR identifies whether it is an expand, cutover, or cleanup change
+- the first release remains compatible with both old and new schema expectations relevant to rollout
+- data backfill or dual-write needs are explicit when required
+- destructive actions such as drop, rename without compatibility, or immediate hardening against live dirty data are rejected unless they are explicitly approved as an exception
+- the risky release evidence record captures compatibility impact before promotion
+- the PR body records an explicit rollback compatibility note
+- schema-changing releases are reviewed as high-risk delivery events, not routine patch releases
+- risky release evidence must record migration runtime outcome and compatibility observations before promotion
+
+Unsafe migration patterns are forbidden because they can make deployment appear successful while breaking rollback, mixed-version safety, or data integrity.
+The PR workflow also runs a dedicated migration safety check that flags schema-impacting changes without migrations and requires explicit exception metadata for potentially destructive migration operations.
+Release sequencing is also explicit: pre-deploy expand steps, application rollout, and post-deploy cleanup must remain separate governed phases.
+
+### Progressive Rollout Governance
+
+Risky backend releases may enter production through a controlled canary state rather than full immediate replacement.
+
+Required strategy:
+
+- replica-weighted canary in the production backend overlay
+- explicit stable and canary manifest state
+- explicit promotion evidence before stable moves
+- explicit rollback triggers during the observation window
+
+Normative policy:
+
+- [`docs/canary-rollout-strategy.md`](canary-rollout-strategy.md)
+- [`docs/rollout-gates-policy.md`](rollout-gates-policy.md)
+- [`docs/canary-promotion-checklist.md`](canary-promotion-checklist.md)
+- [`docs/canary-rollout-walkthrough.md`](canary-rollout-walkthrough.md)
+- [`docs/adr/009-progressive-delivery-canary-strategy.md`](adr/009-progressive-delivery-canary-strategy.md)
+
+Reviewer and operator expectations:
+
+- the production backend stable digest remains identifiable during canary evaluation
+- the candidate digest is distinguishable from stable by manifest state and labels
+- promotion does not proceed without canary evidence
+- rollback conditions are explicit before rollout begins
+
+Promotion and stop authority:
+
+- promotion from canary to full rollout requires an approving maintainer or release reviewer tied to the production change record
+- stop or rollback authority belongs to the operator actively supervising the rollout and to project maintainers
+- promotion and rollback decisions must leave an audit trail in the PR, change ticket, or release record with evidence links and timestamps
+
+Runtime evidence requirement:
+
+- a risky release is not considered complete at CI success alone
+- required runtime signals and thresholds are defined in [`docs/runtime-signals.md`](runtime-signals.md)
+- promotion decisions must record the observed runtime state in the risky release evidence record
+
 ## Workflow and Evidence Mapping
 
 ## README Claims → Controls Matrix
@@ -228,10 +323,11 @@ Use this table during reviews to ensure governance controls remain mapped to act
 | Governance drift and metadata freshness | `.github/workflows/ci-pr-validation.yml` -> `governance-and-security-scan` | Required PR status check fails on governance drift or stale metadata, blocking merge until corrected |
 | Secret and vulnerability PR gate | `.github/workflows/ci-pr-validation.yml` -> `governance-and-security-scan` | Required PR status check passes before merge |
 | Scheduled deep security evidence | `.github/workflows/ci-security-deep.yml` -> `security-governance` | Artifacts and SARIF generated; issue raised on failure |
-| Release vulnerability gate by immutable digest | `.github/workflows/ci-release-gate.yml` -> `trivy-scan` | Release blocks on policy thresholds (`CRITICAL > 0` or `HIGH > 5`) |
+| Release vulnerability gate by immutable digest | `.github/workflows/ci-release-gate.yml` -> `trivy-scan` | Release blocks on policy thresholds (`CRITICAL > 0` or `HIGH > 5`) for backend, worker, and frontend images |
 | Release DAST gate | `.github/workflows/ci-release-gate.yml` -> `dast-analysis` | Release blocks on DAST gate criteria |
-| Artifact signing, SBOM, and provenance attestations | `.github/workflows/ci-release-gate.yml` -> `sign-and-attest` | Attestations bound to trusted workflow identity |
-| GitOps promotion manifest validation | `.github/workflows/gitops-enforce.yml` -> `gitops` | Promotion PR creation stops if Kyverno CLI policy evaluation fails |
+| Artifact signing, SBOM, and provenance attestations | `.github/workflows/ci-release-gate.yml` -> `sign-and-attest` | Attestations bound to trusted workflow identity for each deployable image |
+| GitOps promotion manifest validation | `.github/workflows/gitops-enforce.yml` -> `gitops` | Promotion PR creation stops if Kyverno CLI policy evaluation fails; worker/frontend digests advance directly and backend canary digest advances without implicitly promoting stable |
+| Backend release-in-progress governance | `k8s/overlays/prod/backend-rollout.yaml`; `docs/rollout-gates-policy.md`; `docs/canary-promotion-checklist.md` | Backend canary promotion requires explicit evidence, stable/canary distinction, and defined rollback triggers |
 
 ### SLSA Level Review and Requirement Mapping
 
@@ -239,7 +335,7 @@ Current documented posture is **SLSA Build L2 with L3-aligned controls in progre
 
 Why this statement is defensible:
 
-- provenance is generated in the trusted release workflow via `actions/attest-build-provenance` and tied to immutable image digests
+- provenance is generated in the trusted release workflow via `actions/attest-build-provenance` and tied to immutable backend, worker, and frontend image digests
 - release builds, scanning gates, signing, and attestations run in hosted CI with workflow identity constraints
 - runtime and GitOps verification validate signature and required attestations, including SLSA provenance, before promotion or deployment
 - some SLSA L3 expectations, such as independently validated hermetic or reproducible builds, are not yet fully evidenced in this repository
@@ -247,7 +343,7 @@ Why this statement is defensible:
 | SLSA requirement (build track) | Implemented control | Evidence source / workflow artifact |
 | :--- | :--- | :--- |
 | Provenance is generated for build outputs | `actions/attest-build-provenance` emits provenance for each release image digest | `.github/workflows/ci-release-gate.yml` (`sign-and-attest` job), registry attestation with predicate `https://slsa.dev/provenance/v1` |
-| Provenance is bound to immutable artifact identity | Build and promotion use digest-pinned images; attestations and signatures reference digest subjects | `digest-*` artifacts from the release workflow and digest-based image references in GitOps promotion |
+| Provenance is bound to immutable artifact identity | Build and promotion use digest-pinned images; attestations and signatures reference digest subjects for backend, worker, and frontend | `digest-*` artifacts from the release workflow and digest-based image references in GitOps promotion |
 | Trusted builder identity | OIDC-based keyless identity restricted to the release workflow on tag refs | Cosign verify identity regex in release verification and Kyverno `verify-slsa` policy subject regex |
 | Build steps are policy-gated before trust is granted | Trivy and ZAP release gates must pass before `sign-and-attest` runs | `.github/workflows/ci-release-gate.yml` (`trivy-scan`, `dast-analysis`, `sign-and-attest`) |
 | Non-falsifiable evidence retained for audit | Trivy and ZAP outputs, SBOMs, digests, and Kyverno logs uploaded as workflow artifacts | Release artifacts `trivy-results-*`, `zap-results`, `sbom-*`, `digest-*`, and GitOps artifact `kyverno-gitops-log` |

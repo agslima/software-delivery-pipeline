@@ -108,8 +108,39 @@ jobs:
           kyverno test k8s/tests/ -f k8s/tests/policy-test.yaml
           kyverno test k8s/tests/ -f k8s/tests/cluster-verify-test.yaml
 
+  migration-safety:
+    name: Migration Safety
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.12'
+
+      - name: Write PR body to file
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          cat > /tmp/pr-body.md <<'EOF'
+          $PR_BODY
+          EOF
+
+      - name: Validate migration safety
+        env:
+          MIGRATION_CHECK_BASE: ${{ github.event.pull_request.base.sha }}
+          MIGRATION_CHECK_HEAD: ${{ github.event.pull_request.head.sha }}
+          MIGRATION_CHECK_PR_BODY_FILE: /tmp/pr-body.md
+        run: python3 scripts/check-migration-safety.py
+
   # ==================================================================
-  # JOB 3: Governance & Security Scan (Code + IaC)
+  # JOB 4: Governance & Security Scan (Code + IaC)
   # ==================================================================
   governance-and-security-scan:
     name: Governance & Security Quality Check

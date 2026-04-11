@@ -12,6 +12,7 @@ const mapPrescription = (row, items = []) => {
     status: row.status,
     issuedAt: row.issued_at,
     expiresAt: row.expires_at,
+    updatedAt: row.updated_at,
     notes: decrypt(row.notes),
     doctor: {
       id: row.doctor_id,
@@ -116,6 +117,7 @@ class PrescriptionsRepository {
       status: row.status,
       issuedAt: row.issued_at,
       expiresAt: row.expires_at,
+      updatedAt: row.updated_at,
       notes: decrypt(row.notes),
       doctor: {
         id: row.doctor_id,

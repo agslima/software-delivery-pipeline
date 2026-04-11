@@ -132,6 +132,61 @@ services:
       retries: 3
       start_period: 30s
 
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker
+
+    networks:
+      - app_network
+
+    environment:
+      NODE_ENV: production
+      WORKER_PORT: "8090"
+      LOG_LEVEL: info
+      ADMIN_USER: ${ADMIN_USER}
+      ADMIN_PASS_FILE: /run/secrets/admin_pass
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET_FILE: /run/secrets/jwt_secret
+      DATA_ENCRYPTION_KEY_ID: ${DATA_ENCRYPTION_KEY_ID:-v1}
+      DATA_ENCRYPTION_KEYS: ${DATA_ENCRYPTION_KEYS:-}
+      EXPORT_JOB_POLL_MS: ${EXPORT_JOB_POLL_MS:-3000}
+      EXPORT_JOB_LEASE_SECONDS: ${EXPORT_JOB_LEASE_SECONDS:-30}
+      EXPORT_JOB_MAX_ATTEMPTS: ${EXPORT_JOB_MAX_ATTEMPTS:-5}
+      DB_HOST: postgres
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+      DB_NAME: ${DB_NAME}
+      DB_PASS_FILE: /run/secrets/db_pass
+
+    secrets:
+      - jwt_secret
+      - admin_pass
+      - db_pass
+      - data_encryption_key
+
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    read_only: true
+
+    tmpfs:
+      - /tmp:uid=1000,gid=1000,mode=1777
+
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8090/ready >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+
   db-bootstrap:
     build:
       context: .
@@ -164,8 +219,7 @@ services:
       - /bin/sh
       - -c
       - >-
-        ./node_modules/.bin/knex migrate:latest --knexfile src/config/knexfile.js &&
-        ./node_modules/.bin/knex seed:run --knexfile src/config/knexfile.js
+        node src/infra/db/run-migrations.js bootstrap
 
   postgres:
     image: postgres:15-alpine

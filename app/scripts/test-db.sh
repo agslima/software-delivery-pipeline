@@ -70,4 +70,4 @@ TEST_DB_PORT="$TEST_DB_PORT" \
 TEST_DB_USER="$TEST_DB_USER" \
 TEST_DB_PASS="$TEST_DB_PASS" \
 TEST_DB_NAME="$TEST_DB_NAME" \
-npm test -- tests/integration/audit.repository.test.js
+npm run test:db

@@ -117,8 +117,10 @@ describe('Unit: api/v2 coverage', () => {
     it('prescriptions schemas enforce required ids/items and update min payload', () => {
       const {
         createPrescriptionSchema,
+        createPrescriptionExportSchema,
         updatePrescriptionSchema,
       } = require('../../src/api/v2/prescriptions/prescriptions.schemas');
+      const { exportJobIdParamsSchema } = require('../../src/api/v2/exports/exports.schemas');
 
       expect(
         createPrescriptionSchema.validate({
@@ -130,6 +132,8 @@ describe('Unit: api/v2 coverage', () => {
       expect(createPrescriptionSchema.validate({ patientId: validUuid, items: [] }).error).toBeDefined();
       expect(updatePrescriptionSchema.validate({}).error).toBeDefined();
       expect(updatePrescriptionSchema.validate({ status: 'completed' }).error).toBeUndefined();
+      expect(createPrescriptionExportSchema.validate({ format: 'json' }).error).toBeUndefined();
+      expect(exportJobIdParamsSchema.validate({ id: validUuid }).error).toBeUndefined();
     });
 
     it('encounters and medications schemas validate status/query constraints', () => {

@@ -21,6 +21,8 @@ spec:
         - imageReferences:
             - "docker.io/agslima/app-stayhealthy-backend:*"  
             - "docker.io/agslima/app-stayhealthy-backend@*"  
+            - "docker.io/agslima/app-stayhealthy-worker:*"  
+            - "docker.io/agslima/app-stayhealthy-worker@*"  
             - "docker.io/agslima/app-stayhealthy-frontend:*"  
             - "docker.io/agslima/app-stayhealthy-frontend@*"
           attestors:
