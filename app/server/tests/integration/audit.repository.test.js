@@ -16,6 +16,23 @@ const baseEnv = { ...process.env };
 
 const testRunId = `audit_test_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 const eventTypes = [];
+const actorUsers = [
+  {
+    id: '11111111-1111-4111-8111-111111111111',
+    email: `${testRunId}_actor1@example.test`,
+    role: 'doctor',
+  },
+  {
+    id: '33333333-3333-4333-8333-333333333333',
+    email: `${testRunId}_actor2@example.test`,
+    role: 'doctor',
+  },
+  {
+    id: '55555555-5555-4555-8555-555555555555',
+    email: `${testRunId}_actor3@example.test`,
+    role: 'doctor',
+  },
+];
 
 let db;
 let AuditRepository;
@@ -25,6 +42,24 @@ let testDbContext = null;
 const cleanupEvents = async () => {
   if (!db || eventTypes.length === 0) return;
   await db.withSchema('v2').from('audit_events').whereIn('event_type', eventTypes).del();
+};
+
+const seedActorUsers = async () => {
+  if (!db) return;
+  await db.withSchema('v2').from('users').insert(
+    actorUsers.map((user) => ({
+      id: user.id,
+      email: user.email,
+      password_hash: 'test-password-hash',
+      role: user.role,
+      mfa_enabled: false,
+    }))
+  );
+};
+
+const cleanupActorUsers = async () => {
+  if (!db) return;
+  await db.withSchema('v2').from('users').whereIn('id', actorUsers.map((user) => user.id)).del();
 };
 
 describe('Integration: Audit repository storage and queries', () => {
@@ -50,10 +85,12 @@ describe('Integration: Audit repository storage and queries', () => {
       ({ AuditService } = require('../../src/core/v2/audit.service'));
     });
     await migrateLatest(db);
+    await seedActorUsers();
   });
 
   afterAll(async () => {
     await cleanupEvents();
+    await cleanupActorUsers();
     if (db) await db.destroy();
     stopTestDb(testDbContext);
     Object.keys(process.env).forEach((key) => {

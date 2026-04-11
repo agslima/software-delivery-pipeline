@@ -39,6 +39,13 @@ const legacyPrescription = {
   ],
 };
 
+const legacyPrescriptionRow = {
+  ...legacyPrescription,
+  doctor: JSON.stringify(legacyPrescription.doctor),
+  patient: JSON.stringify(legacyPrescription.patient),
+  medications: JSON.stringify(legacyPrescription.medications),
+};
+
 describe('Integration: database migrations', () => {
   let db;
   let testDbContext;
@@ -76,7 +83,7 @@ describe('Integration: database migrations', () => {
   it('upgrades legacy schema data incrementally into the current model', async () => {
     await migrateUp(db, '20240101_init.js');
 
-    await db('prescriptions').insert(legacyPrescription);
+    await db('prescriptions').insert(legacyPrescriptionRow);
 
     const [, appliedMigrations] = await migrateLatest(db);
     const migratedPrescription = await db.withSchema('v2').from('prescriptions').first();

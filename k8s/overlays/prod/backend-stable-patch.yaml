@@ -51,8 +51,21 @@ spec:
         delivery.stayhealthy.io/traffic-share-hint: "75"
         delivery.stayhealthy.io/rollout-strategy: replica-weighted-canary
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: backend
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
           readinessProbe:
             httpGet:
               path: /api/v1/readyz

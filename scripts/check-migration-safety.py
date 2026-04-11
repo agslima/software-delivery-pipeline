@@ -94,30 +94,43 @@ def git_changed_files(base: str, head: str) -> list[str]:
     return [line.strip() for line in result.stdout.splitlines() if line.strip()]
 
 
+def resolve_path_within_root(path_value: str, root: pathlib.Path, *, require_file: bool, error_label: str) -> pathlib.Path:
+    raw_value = path_value.strip()
+    if not raw_value:
+        fail(f"{error_label} path must not be empty")
+
+    candidate_path = pathlib.Path(raw_value).expanduser()
+    root_resolved = root.resolve()
+    candidate_base = candidate_path if candidate_path.is_absolute() else (root_resolved / candidate_path)
+    try:
+        candidate_resolved = candidate_base.resolve(strict=require_file)
+    except FileNotFoundError:
+        fail(f"{error_label} file not found: {candidate_base}")
+
+    try:
+        common_path = os.path.commonpath((str(root_resolved), str(candidate_resolved)))
+    except ValueError:
+        fail(f"{error_label} path must be within {root}")
+
+    if common_path != str(root_resolved):
+        fail(f"{error_label} path must be within {root}: {path_value}")
+
+    if require_file and not candidate_resolved.is_file():
+        fail(f"{error_label} file not found: {candidate_resolved}")
+
+    return candidate_resolved
+
+
 def load_pr_body(path_value: str | None) -> str:
     if not path_value:
         return os.environ.get("MIGRATION_CHECK_PR_BODY", "")
 
-    repo_root = REPO_ROOT.resolve()
-    raw_value = path_value.strip()
-    if not raw_value:
-        fail("PR body file path must not be empty")
-
-    candidate_path = pathlib.Path(raw_value).expanduser()
-    candidate_base = candidate_path if candidate_path.is_absolute() else (repo_root / candidate_path)
-
-    try:
-        body_path = candidate_base.resolve(strict=True)
-    except FileNotFoundError:
-        fail(f"PR body file not found: {candidate_base}")
-
-    try:
-        body_path.relative_to(repo_root)
-    except ValueError:
-        fail(f"PR body file path must be within repository: {path_value}")
-
-    if not body_path.is_file():
-        fail(f"PR body file not found: {body_path}")
+    body_path = resolve_path_within_root(
+        path_value,
+        REPO_ROOT,
+        require_file=True,
+        error_label="PR body",
+    )
     return body_path.read_text(encoding="utf-8")
 
 
@@ -144,12 +157,12 @@ def sanitize_migration_path(path_value: str) -> str:
     if candidate.is_absolute():
         fail(f"Migration path must be repository-relative: {path_value}")
 
-    resolved = (REPO_ROOT / candidate).resolve()
-    migrations_root = MIGRATIONS_DIR.resolve()
-    try:
-        resolved.relative_to(migrations_root)
-    except ValueError:
-        fail(f"Changed migration path escapes migrations directory: {path_value}")
+    resolved = resolve_path_within_root(
+        normalized_input,
+        MIGRATIONS_DIR,
+        require_file=False,
+        error_label="Changed migration",
+    )
 
     return resolved.relative_to(REPO_ROOT.resolve()).as_posix()
 
@@ -162,15 +175,13 @@ def is_destructive_line(line: str) -> bool:
 
 def destructive_findings(migration_paths: Iterable[str]) -> list[str]:
     findings: list[str] = []
-    migrations_root = MIGRATIONS_DIR.resolve()
     for relative_path in migration_paths:
-        full_path = (REPO_ROOT / relative_path).resolve()
-        try:
-            full_path.relative_to(migrations_root)
-        except ValueError:
-            fail(f"Changed migration path escapes migrations directory: {relative_path}")
-        if not full_path.is_file():
-            fail(f"Changed migration file does not exist: {relative_path}")
+        full_path = resolve_path_within_root(
+            relative_path,
+            REPO_ROOT,
+            require_file=True,
+            error_label="Changed migration",
+        )
         lines = full_path.read_text(encoding="utf-8").splitlines()
         for line_number, line in enumerate(lines, start=1):
             if is_destructive_line(line):
