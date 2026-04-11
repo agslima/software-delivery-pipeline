@@ -48,6 +48,8 @@ SAFE_DESTRUCTIVE_ALLOWLIST = (
     re.compile(r"\brollback\b", re.IGNORECASE),
 )
 
+DOWN_BLOCK_START = re.compile(r"\bexports\.down\s*=\s*async\s+function\b|\bexports\.down\s*=\s*function\b")
+
 NO_MIGRATION_CHECKBOX = re.compile(
     r"- \[x\] Migration impact reviewed: no schema migration required", re.IGNORECASE
 )
@@ -221,7 +223,20 @@ def destructive_findings(migration_paths: Iterable[str]) -> list[str]:
             lines = full_path.read_text(encoding="utf-8").splitlines()
         except OSError:
             fail(f"Changed migration file not found: {relative_path}")
+        in_down_block = False
+        down_block_depth = 0
         for line_number, line in enumerate(lines, start=1):
+            if DOWN_BLOCK_START.search(line):
+                in_down_block = True
+                down_block_depth = line.count("{") - line.count("}")
+                continue
+
+            if in_down_block:
+                down_block_depth += line.count("{") - line.count("}")
+                if down_block_depth <= 0:
+                    in_down_block = False
+                continue
+
             if is_destructive_line(line):
                 findings.append(f"{relative_path}:{line_number}: {line.strip()}")
     return findings
