@@ -137,9 +137,6 @@ services:
       context: .
       dockerfile: docker/Dockerfile.server
 
-    ports:
-      - "8090:8090"
-
     networks:
       - app_network
 
