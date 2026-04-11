@@ -2,7 +2,7 @@
 
 [//]: # (owner: Project Maintainers)
 [//]: # (review_cadence: Quarterly)
-[//]: # (last_reviewed: 2026-03-17)
+[//]: # (last_reviewed: 2026-04-11)
 
 This plan is an implementation-aware review of repository alignment against the commitments in `README.md`, the documented governance model, and the active CI/CD controls.
 
@@ -263,23 +263,23 @@ Evidence required:
 
 Tasks:
 
-- [ ] Build a gap matrix for hermeticity, reproducibility, build isolation, and dependency provenance.
-- [ ] Prioritize controls by risk reduction versus operational cost.
-- [ ] Run one pilot control with explicit success, failure, and rollback criteria.
+- [x] Build a gap matrix for hermeticity, reproducibility, build isolation, and dependency provenance in [`docs/slsa-l3-sequencing-plan.md`](slsa-l3-sequencing-plan.md).
+- [x] Prioritize controls by risk reduction versus operational cost in [`docs/slsa-l3-sequencing-plan.md`](slsa-l3-sequencing-plan.md).
+- [x] Run one pilot control with explicit success, failure, and rollback criteria in [`docs/slsa-l3-pilot-retrospective.md`](slsa-l3-pilot-retrospective.md).
 
 Deliverables:
 
-- time-phased roadmap
-- pilot report
+- time-phased roadmap: [`docs/slsa-l3-sequencing-plan.md`](slsa-l3-sequencing-plan.md)
+- pilot report: [`docs/slsa-l3-pilot-retrospective.md`](slsa-l3-pilot-retrospective.md)
 
 Acceptance criteria:
 
-- [ ] Each control has an owner, dependency, validation method, and rollback path.
+- [x] Each control has an owner, dependency, validation method, and rollback path in the sequencing plan.
 
 Evidence required:
 
-- approved roadmap
-- pilot retrospective
+- approved roadmap: pending maintainer sign-off on the sequencing plan
+- pilot retrospective: [`docs/slsa-l3-pilot-retrospective.md`](slsa-l3-pilot-retrospective.md)
 
 #### Epic M2-E3: Governance SLO operationalization
 

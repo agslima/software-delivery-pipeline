@@ -340,6 +340,8 @@ Why this statement is defensible:
 - runtime and GitOps verification validate signature and required attestations, including SLSA provenance, before promotion or deployment
 - some SLSA L3 expectations, such as independently validated hermetic or reproducible builds, are not yet fully evidenced in this repository
 
+The active sequencing and pilot record for those remaining L3-aligned controls live in [`docs/slsa-l3-sequencing-plan.md`](slsa-l3-sequencing-plan.md) and [`docs/slsa-l3-pilot-retrospective.md`](slsa-l3-pilot-retrospective.md).
+
 | SLSA requirement (build track) | Implemented control | Evidence source / workflow artifact |
 | :--- | :--- | :--- |
 | Provenance is generated for build outputs | `actions/attest-build-provenance` emits provenance for each release image digest | `.github/workflows/ci-release-gate.yml` (`sign-and-attest` job), registry attestation with predicate `https://slsa.dev/provenance/v1` |

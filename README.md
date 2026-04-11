@@ -54,6 +54,7 @@ The repository is organized around three core **non-functional goals**:
 ### 2. Traceability
 
 Each released container image is tied to a specific Git commit and accompanied by verifiable supply-chain metadata:
+
 - Keyless Sigstore signature bound to CI identity
 - Build provenance
 - SBOM (SPDX)
@@ -149,6 +150,7 @@ graph TD
 - CI updates Kubernetes manifests with the **immutable image digest** of the newly signed artifact.
 - A Pull Request is automatically opened to `main` with updated digests.
 - **Constraint:** CI cannot commit to main directly; it passes the same policy checks as a human developer.
+
 ### Runtime Admission Control
 
 At deployment time, **Kyverno** enforces runtime admission checks inside the cluster.
@@ -188,12 +190,14 @@ This section summarizes the repository’s current published vulnerability postu
 This table is **automatically generated** by the repository evidence pipeline and reflects the latest published Snyk-based vulnerability snapshot tracked under [`docs/snyk/`](docs/snyk/index.md).
 
 Interpretation:
+
 - **Baseline:** the intentionally vulnerable starting state used to validate remediation and policy behavior.
 - **Current:** the latest published scan snapshot.
 - **Critical:** always release-blocking until remediated.
 - **High:** remediation priority; release-blocking when documented policy thresholds are exceeded.
 - **Medium / Low:** allowed only when tracked as time-bound managed debt in [`docs/security-debt.md`](docs/security-debt.md).
 - **Managed Debt:** displayed when Medium or Low vulnerabilities remain open under approved governance controls.
+
 ### Case Study 🔬
 
 To validate that the governance model works in practice, the application described in [`app/readme.md`](https://github.com/agslima/software-delivery-pipeline/tree/main/app) was intentionally exercised through the pipeline with known vulnerabilities and security weaknesses. The goal was not to showcase an insecure app, but to demonstrate how the delivery system detects, blocks, tracks, and verifies remediation.

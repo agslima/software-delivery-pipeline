@@ -38,6 +38,8 @@ If you are new to the repository, start with these documents:
 - [failure-scenarios/canary-health-degrades.md](failure-scenarios/canary-health-degrades.md): stressed rollout example showing stop and rollback governance
 - [governance-evidence-index.md](governance-evidence-index.md): claim-to-control and evidence traceability index
 - [governance-slos.md](governance-slos.md): governance operating targets and reporting path
+- [slsa-l3-sequencing-plan.md](slsa-l3-sequencing-plan.md): phased roadmap for L3-aligned build-control sequencing, ownership, validation, and rollback
+- [slsa-l3-pilot-retrospective.md](slsa-l3-pilot-retrospective.md): pilot results and retrospective for the first L3-aligned dependency-provenance control
 - [threat-model.md](threat-model.md): threat analysis and security architecture
 - [security-debt.md](security-debt.md): tracked accepted risk and remediation status
 
@@ -59,6 +61,8 @@ If you are new to the repository, start with these documents:
 
 - [runbook.md](runbook.md): incident and failure response guidance
 - [remediation-plan.md](remediation-plan.md): planned remediation work and sequencing
+- [slsa-l3-sequencing-plan.md](slsa-l3-sequencing-plan.md): detailed execution plan for the M2 SLSA L3-aligned workstream
+- [slsa-l3-pilot-retrospective.md](slsa-l3-pilot-retrospective.md): pilot evidence for the first sequencing-plan control
 
 ### Evidence and Supporting Material
 

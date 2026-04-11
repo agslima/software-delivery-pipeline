@@ -48,7 +48,7 @@ class ExportJobsRepository {
     const now = new Date();
 
     try {
-      await withSchema()('export_jobs').insert({
+      await withSchema().from('export_jobs').insert({
         id,
         prescription_id: prescriptionId,
         doctor_id: doctorId,
@@ -71,12 +71,12 @@ class ExportJobsRepository {
   }
 
   async findByIdempotencyKey(idempotencyKey, { trx } = {}) {
-    const row = await withSchema(trx)('export_jobs').where({ idempotency_key: idempotencyKey }).first();
+    const row = await withSchema(trx).from('export_jobs').where({ idempotency_key: idempotencyKey }).first();
     return mapJob(row);
   }
 
   async findById(id, { doctorId, trx } = {}) {
-    const query = withSchema(trx)('export_jobs').where({ id }).first();
+    const query = withSchema(trx).from('export_jobs').where({ id }).first();
     if (doctorId) {
       query.andWhere('doctor_id', doctorId);
     }
@@ -91,7 +91,8 @@ class ExportJobsRepository {
     return executor.transaction(async (transaction) => {
       const jobs = withSchema(transaction);
       const leaseExpiresAt = new Date(now.getTime() + (leaseSeconds * 1000));
-      const row = await jobs('export_jobs')
+      const row = await jobs
+        .from('export_jobs')
         .whereIn('status', ['queued', 'processing'])
         .andWhere('next_run_at', '<=', now)
         .whereRaw('attempt_count < max_attempts')
@@ -106,7 +107,8 @@ class ExportJobsRepository {
 
       if (!row) return null;
 
-      await jobs('export_jobs')
+      await jobs
+        .from('export_jobs')
         .where({ id: row.id })
         .update({
           status: 'processing',
@@ -124,7 +126,7 @@ class ExportJobsRepository {
   }
 
   async markCompleted(id, { workerId, resultPayload, contentType, fileName, now = new Date() }) {
-    await withSchema()('export_jobs')
+    await withSchema().from('export_jobs')
       .where({ id, lease_owner: workerId })
       .update({
         status: 'completed',
@@ -142,7 +144,7 @@ class ExportJobsRepository {
   }
 
   async markRetry(id, { workerId, retryAt, errorMessage, now = new Date() }) {
-    await withSchema()('export_jobs')
+    await withSchema().from('export_jobs')
       .where({ id, lease_owner: workerId })
       .update({
         status: 'queued',
@@ -157,7 +159,7 @@ class ExportJobsRepository {
   }
 
   async markFailed(id, { workerId, errorMessage, now = new Date() }) {
-    await withSchema()('export_jobs')
+    await withSchema().from('export_jobs')
       .where({ id, lease_owner: workerId })
       .update({
         status: 'failed',
@@ -172,7 +174,7 @@ class ExportJobsRepository {
   }
 
   async requeueFailed(id, { now = new Date() } = {}) {
-    await withSchema()('export_jobs')
+    await withSchema().from('export_jobs')
       .where({ id, status: 'failed' })
       .update({
         status: 'queued',
@@ -194,7 +196,7 @@ class ExportJobsRepository {
   }
 
   async getQueueDepthSummary({ now = new Date(), trx } = {}) {
-    const rows = await withSchema(trx)('export_jobs')
+    const rows = await withSchema(trx).from('export_jobs')
       .select('status')
       .count('* as count')
       .groupBy('status');
@@ -214,7 +216,7 @@ class ExportJobsRepository {
       }
     }
 
-    const oldestQueued = await withSchema(trx)('export_jobs')
+    const oldestQueued = await withSchema(trx).from('export_jobs')
       .where({ status: 'queued' })
       .andWhere('next_run_at', '<=', now)
       .min('created_at as oldest_created_at')
