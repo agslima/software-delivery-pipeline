@@ -105,14 +105,12 @@ def resolve_path_within_root(path_value: str, root: pathlib.Path, *, require_fil
     parts = normalized_value.split("/")
     if any(part in ("", "..") for part in parts):
         fail(f"{error_label} path contains invalid traversal segments: {path_value}")
+    if normalized_value.startswith("/") or re.match(r"^[A-Za-z]:", normalized_value):
+        fail(f"{error_label} path must be repository-relative: {path_value}")
 
     root_resolved = root.resolve()
-    candidate_path = pathlib.Path(normalized_value).expanduser()
-
-    if candidate_path.is_absolute():
-        candidate_base = candidate_path
-    else:
-        candidate_base = root_resolved / candidate_path
+    relative_candidate = pathlib.PurePosixPath(normalized_value)
+    candidate_base = (root_resolved / pathlib.Path(*relative_candidate.parts)).expanduser()
 
     try:
         candidate_resolved = candidate_base.resolve(strict=require_file)
