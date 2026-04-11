@@ -121,8 +121,13 @@ def is_destructive_line(line: str) -> bool:
 
 def destructive_findings(migration_paths: Iterable[str]) -> list[str]:
     findings: list[str] = []
+    migrations_root = MIGRATIONS_DIR.resolve()
     for relative_path in migration_paths:
-        full_path = REPO_ROOT / relative_path
+        full_path = (REPO_ROOT / relative_path).resolve()
+        try:
+            full_path.relative_to(migrations_root)
+        except ValueError:
+            fail(f"Changed migration path escapes migrations directory: {relative_path}")
         if not full_path.is_file():
             fail(f"Changed migration file does not exist: {relative_path}")
         lines = full_path.read_text(encoding="utf-8").splitlines()
