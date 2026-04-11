@@ -6,11 +6,12 @@ ROOT_DIR := $(shell git rev-parse --show-toplevel 2>/dev/null || pwd)
 
 TRIVY_SCRIPT := $(ROOT_DIR)/scripts/security/trivy-scan.sh
 SNYK_SCRIPT := $(ROOT_DIR)/scripts/security/run-snyk.sh
+DAST_SCRIPT := $(ROOT_DIR)/scripts/security/run-local-zap-full-scan.sh
 GOV_DRIFT_SCRIPT := $(ROOT_DIR)/scripts/check-governance-drift.sh
+GOV_EVIDENCE_INDEX_SCRIPT := $(ROOT_DIR)/scripts/check-governance-evidence-index.py
 GOV_METADATA_SCRIPT := $(ROOT_DIR)/scripts/check-governance-metadata-freshness.sh
 GOV_MARKDOWN_ASSERT := $(ROOT_DIR)/scripts/markdown_assert.py
 DOCS_METADATA_ASSERT := $(ROOT_DIR)/scripts/check-docs-metadata.py
-DAST_SCRIPT := $(ROOT_DIR)/scripts/run-local-zap-full-scan.sh
 
 export RUN_SCA ?= 1
 export RUN_SAST ?= 1
@@ -42,6 +43,8 @@ guard-trivy:
 guard-governance:
 	@test -f "$(GOV_DRIFT_SCRIPT)" || { echo "Missing $(GOV_DRIFT_SCRIPT)"; exit 1; }
 	@test -x "$(GOV_DRIFT_SCRIPT)" || chmod +x "$(GOV_DRIFT_SCRIPT)"
+	@test -f "$(GOV_EVIDENCE_INDEX_SCRIPT)" || { echo "Missing $(GOV_EVIDENCE_INDEX_SCRIPT)"; exit 1; }
+	@test -x "$(GOV_EVIDENCE_INDEX_SCRIPT)" || chmod +x "$(GOV_EVIDENCE_INDEX_SCRIPT)"
 	@test -f "$(GOV_METADATA_SCRIPT)" || { echo "Missing $(GOV_METADATA_SCRIPT)"; exit 1; }
 	@test -x "$(GOV_METADATA_SCRIPT)" || chmod +x "$(GOV_METADATA_SCRIPT)"
 	@test -f "$(GOV_MARKDOWN_ASSERT)" || { echo "Missing $(GOV_MARKDOWN_ASSERT)"; exit 1; }
