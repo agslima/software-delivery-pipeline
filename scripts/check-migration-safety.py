@@ -123,7 +123,15 @@ def is_schema_impact_path(path_value: str) -> bool:
 
 
 def sanitize_migration_path(path_value: str) -> str:
-    candidate = pathlib.Path(path_value)
+    normalized_input = path_value.replace("\\", "/")
+    if not normalized_input.startswith(MIGRATION_PATH_PREFIX):
+        fail(f"Changed migration path must be under {MIGRATION_PATH_PREFIX}: {path_value}")
+    if normalized_input.startswith("/") or normalized_input.startswith("\\"):
+        fail(f"Migration path must be repository-relative: {path_value}")
+    if any(part in ("", "..") for part in normalized_input.split("/")):
+        fail(f"Changed migration path contains invalid traversal segments: {path_value}")
+
+    candidate = pathlib.Path(normalized_input)
     if candidate.is_absolute():
         fail(f"Migration path must be repository-relative: {path_value}")
 
