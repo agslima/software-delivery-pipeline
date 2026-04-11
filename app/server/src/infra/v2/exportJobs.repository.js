@@ -192,6 +192,41 @@ class ExportJobsRepository {
 
     return this.findById(id);
   }
+
+  async getQueueDepthSummary({ now = new Date(), trx } = {}) {
+    const rows = await withSchema(trx)('export_jobs')
+      .select('status')
+      .count('* as count')
+      .groupBy('status');
+
+    const summary = {
+      queued: 0,
+      processing: 0,
+      failed: 0,
+      oldestQueuedAgeSeconds: 0,
+    };
+
+    for (const row of rows) {
+      const status = String(row.status || '');
+      const count = Number(row.count || 0);
+      if (status in summary) {
+        summary[status] = count;
+      }
+    }
+
+    const oldestQueued = await withSchema(trx)('export_jobs')
+      .where({ status: 'queued' })
+      .andWhere('next_run_at', '<=', now)
+      .min('created_at as oldest_created_at')
+      .first();
+
+    const oldestCreatedAt = oldestQueued?.oldest_created_at ? new Date(oldestQueued.oldest_created_at) : null;
+    if (oldestCreatedAt && !Number.isNaN(oldestCreatedAt.getTime())) {
+      summary.oldestQueuedAgeSeconds = Math.max(0, (now.getTime() - oldestCreatedAt.getTime()) / 1000);
+    }
+
+    return summary;
+  }
 }
 
 module.exports = { ExportJobsRepository, mapJob };

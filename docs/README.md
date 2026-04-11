@@ -24,15 +24,18 @@ If you are new to the repository, start with these documents:
 ### Governance and Security
 
 - [governance.md](governance.md): repository governance model and control boundaries
+- [runtime-signals.md](runtime-signals.md): minimum runtime checks and thresholds for risky release decisions
 - [database-migration-strategy.md](database-migration-strategy.md): required operating model for safe schema evolution and PR review
 - [canary-rollout-strategy.md](canary-rollout-strategy.md): chosen progressive rollout model and production scope boundary
 - [rollout-gates-policy.md](rollout-gates-policy.md): required promotion gates, evidence, and rollback triggers for canary rollout
 - [canary-promotion-checklist.md](canary-promotion-checklist.md): operator checklist for canary evaluation and promotion
 - [canary-rollout-walkthrough.md](canary-rollout-walkthrough.md): worked examples of successful and halted canary rollout
+- [templates/risky-release-evidence.md](templates/risky-release-evidence.md): standard evidence record for schema change, worker-introduction, and phased-rollout releases
 - [schema-change-deployment-procedure.md](schema-change-deployment-procedure.md): controlled pre-deploy, app deploy, and post-deploy sequencing for schema changes
 - [database-migration-demo-prescription-status.md](database-migration-demo-prescription-status.md): worked example of a safe schema evolution release sequence
 - [async-workflow-design.md](async-workflow-design.md): background worker design for asynchronous prescription export generation
 - [async-failure-scenario-worker-retry.md](async-failure-scenario-worker-retry.md): concrete partial-failure walkthrough for async retry and recovery
+- [failure-scenarios/canary-health-degrades.md](failure-scenarios/canary-health-degrades.md): stressed rollout example showing stop and rollback governance
 - [governance-evidence-index.md](governance-evidence-index.md): claim-to-control and evidence traceability index
 - [governance-slos.md](governance-slos.md): governance operating targets and reporting path
 - [threat-model.md](threat-model.md): threat analysis and security architecture

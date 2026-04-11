@@ -2,10 +2,38 @@
 
 <!-- Describe the change and why it is needed. -->
 
+## Risk Classification
+
+- [ ] Standard patch or low-risk change
+- [ ] Schema-changing release behavior
+- [ ] Worker introduction or worker-behavior risk
+- [ ] Phased rollout or canary release behavior
+
+Risky release evidence link:
+
+<!-- Link the completed docs/templates/risky-release-evidence.md record when any high-risk box above is checked. -->
+
+Expected blast radius:
+
+<!-- Describe user, data, queue, or runtime scope if the change degrades. -->
+
+Approval points:
+
+<!-- Record any required manual approvals, production reviewers, or promotion checkpoints. -->
+
+Release note / compatibility impact:
+
+<!-- Required for schema-changing releases. Summarize compatibility expectations for rollout, rollback, or mixed-version operation. -->
+
+Rollback compatibility note:
+
+<!-- Required for schema-changing releases and recommended for worker/phased rollout changes. State what remains safe to roll back and what does not. -->
+
 ## Validation
 
 - [ ] Relevant automated checks were run
 - [ ] Relevant docs were updated
+- [ ] Risk-specific evidence was prepared when this change affects schema, worker behavior, or phased rollout
 
 ## Migration Review
 
@@ -13,6 +41,8 @@
 - [ ] Migration impact reviewed: no schema migration required
 - [ ] Schema migration included in this PR
 - [ ] Destructive migration exception approved
+- [ ] Schema compatibility impact documented above
+- [ ] Rollback compatibility documented above
 
 Migration rationale:
 

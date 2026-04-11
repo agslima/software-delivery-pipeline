@@ -50,6 +50,31 @@ This governance model is designed so that:
 - deployment depends on repository and runtime policy alignment
 - governance drift is intended to surface through failed checks, blocked promotion, denied admission, or audit review
 
+## Risky Release Evidence
+
+Normal release evidence is not sufficient for every change class.
+The repository requires a repeatable evidence format when a release changes the risk profile of deployment or rollback.
+
+Required template:
+
+- [`docs/templates/risky-release-evidence.md`](templates/risky-release-evidence.md)
+
+The template is expected for:
+
+- schema-changing releases
+- worker introduction or materially risky worker behavior changes
+- phased backend rollout decisions
+
+Minimum content:
+
+- change summary
+- risk type
+- expected blast radius
+- rollback plan
+- approval points
+- evidence links
+- runtime observations required by [`docs/runtime-signals.md`](runtime-signals.md)
+
 ## Trust Boundaries and Assumptions
 
 This document describes governance within the normal repository-to-release-to-deployment path. It assumes:
@@ -230,6 +255,10 @@ Reviewer expectations for schema-changing PRs:
 - the first release remains compatible with both old and new schema expectations relevant to rollout
 - data backfill or dual-write needs are explicit when required
 - destructive actions such as drop, rename without compatibility, or immediate hardening against live dirty data are rejected unless they are explicitly approved as an exception
+- the risky release evidence record captures compatibility impact before promotion
+- the PR body records an explicit rollback compatibility note
+- schema-changing releases are reviewed as high-risk delivery events, not routine patch releases
+- risky release evidence must record migration runtime outcome and compatibility observations before promotion
 
 Unsafe migration patterns are forbidden because they can make deployment appear successful while breaking rollback, mixed-version safety, or data integrity.
 The PR workflow also runs a dedicated migration safety check that flags schema-impacting changes without migrations and requires explicit exception metadata for potentially destructive migration operations.
@@ -260,6 +289,18 @@ Reviewer and operator expectations:
 - the candidate digest is distinguishable from stable by manifest state and labels
 - promotion does not proceed without canary evidence
 - rollback conditions are explicit before rollout begins
+
+Promotion and stop authority:
+
+- promotion from canary to full rollout requires an approving maintainer or release reviewer tied to the production change record
+- stop or rollback authority belongs to the operator actively supervising the rollout and to project maintainers
+- promotion and rollback decisions must leave an audit trail in the PR, change ticket, or release record with evidence links and timestamps
+
+Runtime evidence requirement:
+
+- a risky release is not considered complete at CI success alone
+- required runtime signals and thresholds are defined in [`docs/runtime-signals.md`](runtime-signals.md)
+- promotion decisions must record the observed runtime state in the risky release evidence record
 
 ## Workflow and Evidence Mapping
 

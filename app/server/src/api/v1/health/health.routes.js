@@ -2,6 +2,7 @@ const express = require('express');
 const db = require('../../../infra/db/knex');
 const { AppError } = require('../../http/errors/AppError');
 const rateLimit = require('express-rate-limit');
+const { registerReadinessFailure } = require('../../../observability/metrics');
 
 const router = express.Router();
 
@@ -17,6 +18,7 @@ router.get('/readyz', readyzLimiter, async (_req, res, next) => {
     await db.raw('select 1');
     res.json({ status: 'ready' });
   } catch {
+    registerReadinessFailure('backend');
     next(new AppError({ status: 503, code: 'NOT_READY', message: 'Not ready' }));
   }
 });

@@ -1,10 +1,12 @@
 const knex = require('knex');
 const { createKnexConfig } = require('./knex-config');
+const { observeMigrationRun, registerMigrationFailure } = require('../../observability/metrics');
 
 /* eslint-disable no-console */
 
 const command = process.argv[2] || 'latest';
 const rollbackAll = process.argv.includes('--all');
+const startedAt = Date.now();
 
 const toMigrationName = (entry) => {
   if (typeof entry === 'string') return entry;
@@ -64,6 +66,9 @@ const main = async () => {
       default:
         throw new Error(`Unsupported migration command "${command}". Use latest, seed, bootstrap, status, or rollback.`);
     }
+    const durationSeconds = (Date.now() - startedAt) / 1000;
+    observeMigrationRun({ command, status: 'success', durationSeconds });
+    console.log(`Migration command "${command}" completed in ${durationSeconds.toFixed(3)}s`);
   } finally {
     await db.destroy();
   }
@@ -71,6 +76,9 @@ const main = async () => {
 
 main().catch((error) => {
   const message = error instanceof Error ? error.message : String(error);
+  const durationSeconds = (Date.now() - startedAt) / 1000;
+  observeMigrationRun({ command, status: 'failure', durationSeconds });
+  registerMigrationFailure(command);
   console.error(`Migration runner failed: ${message}`);
   process.exitCode = 1;
 });

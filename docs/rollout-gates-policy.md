@@ -38,6 +38,7 @@ Required evidence types:
 - `kubectl get deploy,po,svc -n production -l app=backend`
 - direct `curl` or synthetic health checks against `backend-canary`
 - shared-service health checks against `backend`
+- runtime signal review from [`runtime-signals.md`](runtime-signals.md), especially backend error-rate and readiness observations
 - operator note recording the start time, observation window, and decision
 
 The evidence may be attached to a PR, change ticket, or release record, but it must identify:
@@ -46,6 +47,13 @@ The evidence may be attached to a PR, change ticket, or release record, but it m
 - the canary digest
 - the replica ratio under observation
 - the promotion or rollback decision
+- who made the decision and when
+
+Audit trail expectation:
+
+- record the decision in the PR, change ticket, or release note
+- keep links to the evidence bundle and manifest diff
+- make the final promote or stop decision traceable to a named reviewer or operator
 
 ## Manual Approval Point
 
@@ -53,6 +61,14 @@ The repository already uses the protected `production` GitHub environment for re
 That reviewer gate is the manual approval point before trusted release artifacts are produced.
 
 For rollout promotion itself, maintainers should require a second explicit review on the manifest change that moves the canary digest into stable.
+
+## Promotion and Rollback Authority
+
+Authority is intentionally explicit:
+
+- promotion from canary to full rollout requires an approving project maintainer or release reviewer tied to the production change record
+- stop or rollback authority belongs to the operator actively supervising the rollout and to project maintainers
+- when evidence is ambiguous, the default decision is to stop the rollout and preserve stable
 
 ## Promotion Rules
 

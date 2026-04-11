@@ -17,6 +17,11 @@ This runbook applies to:
 
 It intentionally focuses on response actions, not tool configuration.
 
+## Runtime Signal Reference
+
+Use [`runtime-signals.md`](runtime-signals.md) as the minimum go or no-go reference for risky releases.
+Risky releases are not considered complete until the required runtime observations are recorded in the release evidence record.
+
 ## Schema Change Rollout Order
 
 Database releases must model three distinct phases:
@@ -115,6 +120,7 @@ Preferred operator action is recovery through worker restart and normal retry be
 ## Production Backend Canary Rollout
 
 Use [`canary-rollout-strategy.md`](canary-rollout-strategy.md) for the rollout model, [`rollout-gates-policy.md`](rollout-gates-policy.md) for promotion rules, and [`canary-rollout-walkthrough.md`](canary-rollout-walkthrough.md) for example evidence.
+Use [`failure-scenarios/canary-health-degrades.md`](failure-scenarios/canary-health-degrades.md) when the canary path degrades under live traffic.
 
 ### Expected steady-state model
 
@@ -127,7 +133,7 @@ Use [`canary-rollout-strategy.md`](canary-rollout-strategy.md) for the rollout m
 1. Render `kubectl kustomize k8s/overlays/prod` and confirm the stable and canary digests.
 2. Check `kubectl get deploy,po,svc -n production -l app=backend`.
 3. Probe `backend-canary` directly and the shared `backend` Service.
-4. Review restart counts, readiness state, and recent errors during the observation window.
+4. Review restart counts, readiness state, recent errors, and runtime signals from [`runtime-signals.md`](runtime-signals.md) during the observation window.
 
 ### Promote
 

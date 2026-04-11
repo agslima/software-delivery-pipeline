@@ -8,6 +8,11 @@ const createWorkerApp = require('./createWorkerApp');
 const { ExportJobsRepository } = require('../infra/v2/exportJobs.repository');
 const { PrescriptionsRepository } = require('../infra/v2/prescriptions.repository');
 const { ExportWorkerService } = require('../core/v2/exportWorker.service');
+const {
+  registerExportJobOutcome,
+  registerWorkerPollError,
+  updateExportJobDepth,
+} = require('../observability/metrics');
 
 const state = {
   ready: false,
@@ -15,6 +20,9 @@ const state = {
   lastJobId: null,
   lastPollAt: null,
   lastError: null,
+  queueDepth: 0,
+  failedJobs: 0,
+  oldestQueuedAgeSeconds: 0,
 };
 
 const workerId = `worker-${randomUUID()}`;
@@ -27,6 +35,14 @@ const exportWorker = new ExportWorkerService({
 
 let shuttingDown = false;
 let timer = null;
+
+const refreshQueueDepth = async (now = new Date()) => {
+  const summary = await exportWorker.exportJobsRepository.getQueueDepthSummary({ now });
+  state.queueDepth = summary.queued;
+  state.failedJobs = summary.failed;
+  state.oldestQueuedAgeSeconds = summary.oldestQueuedAgeSeconds;
+  updateExportJobDepth(summary);
+};
 
 const schedulePoll = (delayMs) => {
   if (shuttingDown) return;
@@ -42,18 +58,22 @@ const poll = async () => {
   state.lastPollAt = new Date().toISOString();
 
   try {
+    const now = new Date();
     const result = await exportWorker.processNext({
       workerId,
       leaseSeconds: env.EXPORT_JOB_LEASE_SECONDS,
       maxAttempts: env.EXPORT_JOB_MAX_ATTEMPTS,
+      now,
     });
 
     state.ready = true;
     state.lastError = null;
+    await refreshQueueDepth(now);
 
     if (result?.job?.id) {
       state.lastJobId = result.job.id;
       state.processedJobs += 1;
+      registerExportJobOutcome(result.outcome);
       logger.info(
         {
           workerId,
@@ -68,6 +88,7 @@ const poll = async () => {
   } catch (error) {
     state.ready = false;
     state.lastError = error.message;
+    registerWorkerPollError();
     logger.error({ err: error, workerId }, 'Worker poll failed');
   }
 
@@ -77,6 +98,7 @@ const poll = async () => {
 const start = async () => {
   await db.raw('select 1');
   state.ready = true;
+  await refreshQueueDepth();
 
   server.listen(env.WORKER_PORT, '0.0.0.0', () => {
     logger.info({ workerId, port: env.WORKER_PORT }, 'Worker started');
