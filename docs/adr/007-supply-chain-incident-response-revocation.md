@@ -4,6 +4,8 @@
 [//]: # (review_cadence: Quarterly)
 [//]: # (last_reviewed: 2026-03-17)
 
+[Back](006-scanner-failure-degraded-mode.md) // [Home](../README.md)
+
 ## ADR 007: Supply Chain Incident Response and Revocation Strategy
 
 - Status: Proposed
