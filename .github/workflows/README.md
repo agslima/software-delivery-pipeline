@@ -30,9 +30,9 @@ This folder contains the active GitHub Actions workflows that power CI, security
 
 - Name: Governance Settings Audit
 - Triggers: quarterly schedule (January/April/July/October 1st at 06:00 UTC), manual
-- Summary: Runs `scripts/audit-governance-settings.sh` in live mode against repository rulesets, CODEOWNERS parsing, protected tags, and production environment restrictions; supports fixture-based `fixtures-pass` and `fixtures-drift` test modes for evidence and regression checks.
-- Outputs: Artifact `governance-settings-audit` containing `summary.md`, `report.json`, and raw API responses.
-- Permissions/Secrets: Uses `contents: read`; live mode requires `GOVERNANCE_AUDIT_TOKEN` with read-only repository Administration access.
+- Summary: Runs `make governance-drift-check` to verify README claims and workflow/job mappings before executing `scripts/audit-governance-settings.sh` in live mode against repository rulesets, CODEOWNERS parsing, protected tags, and production environment restrictions; supports fixture-based `fixtures-pass` and `fixtures-drift` test modes for evidence and regression checks.
+- Outputs: Artifact `governance-settings-audit` containing `governance-drift-check.txt`, `summary.md`, `report.json`, and raw API responses.
+- Permissions/Secrets: Uses `contents: read`; live mode requires `PAT_GITHUB` with read-only repository Administration access.
 - Maintenance notes: Keep `.github/rulesets/*.json`, `.github/governance-settings-audit.json`, and `docs/governance.md` aligned when GitHub governance settings intentionally change.
 
 **ci-governance-slo-report.yml**

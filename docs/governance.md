@@ -231,7 +231,7 @@ Use this table during reviews to ensure governance controls remain mapped to act
 | Release vulnerability gate by immutable digest | `.github/workflows/ci-release-gate.yml` -> `trivy-scan` | Release blocks on policy thresholds (`CRITICAL > 0` or `HIGH > 5`) |
 | Release DAST gate | `.github/workflows/ci-release-gate.yml` -> `dast-analysis` | Release blocks on DAST gate criteria |
 | Artifact signing, SBOM, and provenance attestations | `.github/workflows/ci-release-gate.yml` -> `sign-and-attest` | Attestations bound to trusted workflow identity |
-| GitOps promotion manifest validation | `.github/workflows/gitops-enforce.yml` -> `Validate rendered prod manifests against cluster policy` | Promotion PR creation stops if Kyverno CLI policy evaluation fails |
+| GitOps promotion manifest validation | `.github/workflows/gitops-enforce.yml` -> `gitops` | Promotion PR creation stops if Kyverno CLI policy evaluation fails |
 
 ### SLSA Level Review and Requirement Mapping
 
@@ -336,7 +336,7 @@ Automated evidence source:
 
 - workflow: `.github/workflows/ci-governance-settings-audit.yml`
 - artifact: `governance-settings-audit`
-- files: `summary.md`, `report.json`
+- files: `governance-drift-check.txt`, `summary.md`, `report.json`
 
 - [ ] Confirm `main` still requires pull requests and blocks direct pushes.
 - [ ] Confirm required status checks are still configured and match current governance-critical workflows.
@@ -348,5 +348,6 @@ Automated evidence source:
 - [ ] Confirm the production deployment environment still restricts deployments to release tags and required reviewers.
 - [ ] Confirm the latest `governance-settings-audit` artifact status is `pass` and attach its `summary.md` or `report.json` to the audit record.
 - [ ] Confirm the latest `governance-slo-report` artifact reflects acceptable release-gate reliability, remediation lead time, and policy-test health, and attach `summary.md` or `report.json` to the audit record.
+- [ ] Review the latest `governance-drift-check.txt` output from the quarterly `Governance Settings Audit` run, verify all README claims remain mapped to active workflows/jobs, and attach the artifact or workflow summary to the audit record.
 - [ ] Confirm README claim and control wording still distinguishes posture evidence from release-blocking controls and remains aligned with `docs/threat-model.md`.
 - [ ] Confirm any exceptions, including break-glass use or temporary metadata overrides, were documented, approved, and time-bounded.

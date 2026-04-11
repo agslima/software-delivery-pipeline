@@ -32,6 +32,9 @@ markdown_assert heading-any "docs/threat-model.md" "Security Controls"
 echo "[governance-drift] Documentation metadata assertions"
 docs_metadata_assert
 
+echo "[governance-drift] README claim and evidence-index mapping assertions"
+python3 scripts/check-governance-evidence-index.py
+
 echo "[governance-drift] Reference assertions: workflow names and policy thresholds"
 assert_contains "README.md" "Critical findings block release"
 assert_contains "README.md" "HIGH > 5"

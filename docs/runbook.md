@@ -2,7 +2,7 @@
 
 [//]: # (owner: Project Maintainers)
 [//]: # (review_cadence: Quarterly)
-[//]: # (last_reviewed: 2026-03-17)
+[//]: # (last_reviewed: 2026-03-22)
 
 This runbook documents common failure scenarios, security gate rejections, and operational incidents in the governed software delivery pipeline. Its goal is to provide clear, repeatable response steps so failures are handled consistently, auditably, and without bypassing governance controls.
 
@@ -72,6 +72,44 @@ Important guardrails:
 
 - critical vulnerabilities must never be ignored without explicit justification
 - high vulnerabilities are release-blocking once they exceed the documented threshold of `HIGH > 5` per image
+
+## Pipeline Failure: Governance Evidence Drift
+
+### Symptom
+
+Job `Governance & Security Quality Check` fails at `Governance Drift Check (docs/workflow refs)` or the quarterly `Governance Settings Audit` fails while generating `governance-drift-check.txt`.
+
+### Error message
+
+Typical failures include:
+
+- `README claim '<claim>' does not have a matching row in docs/governance-evidence-index.md`
+- `claim '<claim>' references missing workflow file '<path>'`
+- `claim '<claim>' references workflow job '<job>' in '<path>', but that job was not found`
+
+### Triage steps
+
+1. Open the failed workflow run and inspect the `Governance Drift Check (docs/workflow refs)` step log.
+2. For quarterly review runs, download artifact `governance-settings-audit` and open `governance-drift-check.txt`.
+3. Determine which class of drift occurred:
+   - README claim added or edited without a corresponding row in `docs/governance-evidence-index.md`
+   - workflow file renamed or removed
+   - workflow job id/name changed without updating the evidence index
+4. Compare the referenced workflow file under `.github/workflows/` with the affected row in `docs/governance-evidence-index.md`.
+
+### Resolution
+
+- If the README claim is intentional, add or update the matching row in `docs/governance-evidence-index.md`.
+- If a workflow or job was renamed intentionally, update the `Workflow job enforcement` column to the active file and job id(s).
+- If the workflow/job removal was accidental, restore the governance control or revert the change before merging.
+- Re-run `make governance-drift-check` locally before pushing the fix.
+
+### Evidence handling
+
+For quarterly review records, attach both of the following:
+
+- the workflow run URL for the `Governance Settings Audit` execution
+- `governance-drift-check.txt` from the uploaded artifact or workflow summary
 
 ## Pipeline Failure: Supply Chain Integrity (Cosign)
 
