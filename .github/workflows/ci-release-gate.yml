@@ -62,7 +62,7 @@ jobs:
             image_repo: app-stayhealthy-backend
           - name: worker
             context: app
-            file: app/docker/Dockerfile.server
+            file: app/docker/Dockerfile.worker
             image_repo: app-stayhealthy-worker
           - name: frontend
             context: app
