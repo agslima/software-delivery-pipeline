@@ -119,8 +119,6 @@ def resolve_path_within_roots(
 
     path_is_absolute = os.path.isabs(expanded_raw)
     root_candidates = [os.path.realpath(root) for root in roots]
-    within_allowed_root = False
-
     for root_resolved in root_candidates:
         candidate_base = expanded_raw if path_is_absolute else os.path.join(root_resolved, expanded_raw)
         candidate_normalized = os.path.realpath(candidate_base)
@@ -132,11 +130,6 @@ def resolve_path_within_roots(
 
         if common_path != root_resolved:
             continue
-
-        within_allowed_root = True
-
-        if require_file and not os.path.isfile(candidate_normalized):
-            fail(f"{error_label} file not found: {path_value}")
 
         return pathlib.Path(candidate_normalized)
 
@@ -165,7 +158,10 @@ def load_pr_body(path_value: str | None) -> str:
         error_label="PR body",
         allow_absolute=True,
     )
-    return body_path.read_text(encoding="utf-8")
+    try:
+        return body_path.read_text(encoding="utf-8")
+    except OSError:
+        fail(f"PR body file not found: {path_value}")
 
 
 def is_schema_impact_path(path_value: str) -> bool:
@@ -193,10 +189,15 @@ def sanitize_migration_path(path_value: str) -> str:
 
     resolved = resolve_path_within_root(
         normalized_input,
-        MIGRATIONS_DIR,
+        REPO_ROOT,
         require_file=False,
         error_label="Changed migration",
     )
+
+    try:
+        resolved.relative_to(MIGRATIONS_DIR.resolve())
+    except ValueError:
+        fail(f"Changed migration path escapes migrations directory: {path_value}")
 
     return resolved.relative_to(REPO_ROOT.resolve()).as_posix()
 
@@ -216,7 +217,10 @@ def destructive_findings(migration_paths: Iterable[str]) -> list[str]:
             require_file=True,
             error_label="Changed migration",
         )
-        lines = full_path.read_text(encoding="utf-8").splitlines()
+        try:
+            lines = full_path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            fail(f"Changed migration file not found: {relative_path}")
         for line_number, line in enumerate(lines, start=1):
             if is_destructive_line(line):
                 findings.append(f"{relative_path}:{line_number}: {line.strip()}")
