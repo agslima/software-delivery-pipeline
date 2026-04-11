@@ -42,7 +42,7 @@ jobs:
 
       - name: Detect changed files
         id: filter
-        uses: dorny/paths-filter@45125827f72f0ce9f2fd8d3d7c0e1b2a6b3a5a1d # v3.0.2
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
         with:
           filters: |
             server:
