@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import tempfile
 import os
 import pathlib
 import re
@@ -94,52 +95,84 @@ def git_changed_files(base: str, head: str) -> list[str]:
     return [line.strip() for line in result.stdout.splitlines() if line.strip()]
 
 
-def resolve_path_within_root(path_value: str, root: pathlib.Path, *, require_file: bool, error_label: str) -> pathlib.Path:
+def resolve_path_within_roots(
+    path_value: str,
+    roots: Iterable[pathlib.Path],
+    *,
+    require_file: bool,
+    error_label: str,
+    allow_absolute: bool,
+) -> pathlib.Path:
     raw_value = path_value.strip()
     if not raw_value:
         fail(f"{error_label} path must not be empty")
     if "\x00" in raw_value:
         fail(f"{error_label} path contains invalid characters")
 
-    normalized_value = raw_value.replace("\\", "/")
-    parts = normalized_value.split("/")
-    if any(part in ("", "..") for part in parts):
-        fail(f"{error_label} path contains invalid traversal segments: {path_value}")
-    if normalized_value.startswith("/") or re.match(r"^[A-Za-z]:", normalized_value):
+    candidate_path = pathlib.Path(raw_value).expanduser()
+    if not allow_absolute and candidate_path.is_absolute():
         fail(f"{error_label} path must be repository-relative: {path_value}")
 
-    root_resolved = root.resolve()
-    relative_candidate = pathlib.PurePosixPath(normalized_value)
-    candidate_base = (root_resolved / pathlib.Path(*relative_candidate.parts)).expanduser()
+    if any(part == ".." for part in candidate_path.parts):
+        fail(f"{error_label} path contains invalid traversal segments: {path_value}")
 
-    try:
-        candidate_resolved = candidate_base.resolve(strict=require_file)
-    except FileNotFoundError:
-        fail(f"{error_label} file not found: {candidate_base}")
+    root_candidates = [root.resolve() for root in roots]
+    within_allowed_root = False
+    for root_resolved in root_candidates:
+        candidate_base = candidate_path if candidate_path.is_absolute() else (root_resolved / candidate_path)
 
-    try:
-        common_path = os.path.commonpath((str(root_resolved), str(candidate_resolved)))
-    except ValueError:
-        fail(f"{error_label} path must be within {root}")
+        try:
+            common_candidate_base = os.path.commonpath((str(root_resolved), str(candidate_base)))
+        except ValueError:
+            common_candidate_base = None
+        if common_candidate_base == str(root_resolved):
+            within_allowed_root = True
 
-    if common_path != str(root_resolved):
-        fail(f"{error_label} path must be within {root}: {path_value}")
+        try:
+            candidate_resolved = candidate_base.resolve(strict=require_file)
+        except FileNotFoundError:
+            continue
 
-    if require_file and not candidate_resolved.is_file():
-        fail(f"{error_label} file not found: {candidate_resolved}")
+        try:
+            common_path = os.path.commonpath((str(root_resolved), str(candidate_resolved)))
+        except ValueError:
+            continue
 
-    return candidate_resolved
+        if common_path != str(root_resolved):
+            continue
+
+        if require_file and not candidate_resolved.is_file():
+            fail(f"{error_label} file not found: {candidate_resolved}")
+
+        return candidate_resolved
+
+    if require_file and within_allowed_root:
+        fail(f"{error_label} file not found: {path_value}")
+
+    allowed_roots = ", ".join(str(root) for root in root_candidates)
+    fail(f"{error_label} path must be within one of: {allowed_roots}: {path_value}")
+
+
+def resolve_path_within_root(path_value: str, root: pathlib.Path, *, require_file: bool, error_label: str) -> pathlib.Path:
+    return resolve_path_within_roots(
+        path_value,
+        (root,),
+        require_file=require_file,
+        error_label=error_label,
+        allow_absolute=False,
+    )
 
 
 def load_pr_body(path_value: str | None) -> str:
     if not path_value:
         return os.environ.get("MIGRATION_CHECK_PR_BODY", "")
 
-    body_path = resolve_path_within_root(
+    body_path = resolve_path_within_roots(
         path_value,
-        REPO_ROOT,
+        (REPO_ROOT, pathlib.Path(tempfile.gettempdir())),
         require_file=True,
         error_label="PR body",
+        allow_absolute=True,
     )
     return body_path.read_text(encoding="utf-8")
 
