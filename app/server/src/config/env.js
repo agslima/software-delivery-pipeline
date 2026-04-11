@@ -278,6 +278,5 @@ for (const [key, value] of Object.entries({
     throw new Error(`${key} must be a positive integer`);
   }
 }
-});
 
 module.exports = env;

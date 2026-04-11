@@ -113,42 +113,32 @@ def resolve_path_within_roots(
     if not allow_absolute and os.path.isabs(expanded_raw):
         fail(f"{error_label} path must be repository-relative: {path_value}")
 
-    normalized_for_parts = expanded_raw.replace("\\", "/")
-    if any(part == ".." for part in normalized_for_parts.split("/")):
+    normalized_for_parts = pathlib.PurePath(expanded_raw).parts
+    if any(part == ".." for part in normalized_for_parts):
         fail(f"{error_label} path contains invalid traversal segments: {path_value}")
 
-    root_candidates = [root.resolve() for root in roots]
+    path_is_absolute = os.path.isabs(expanded_raw)
+    root_candidates = [os.path.realpath(root) for root in roots]
     within_allowed_root = False
+
     for root_resolved in root_candidates:
-        candidate_base = pathlib.Path(expanded_raw) if os.path.isabs(expanded_raw) else (root_resolved / expanded_raw)
+        candidate_base = expanded_raw if path_is_absolute else os.path.join(root_resolved, expanded_raw)
+        candidate_normalized = os.path.realpath(candidate_base)
 
         try:
-            common_candidate_base = os.path.commonpath((str(root_resolved), str(candidate_base)))
-        except ValueError:
-            common_candidate_base = None
-        if common_candidate_base == str(root_resolved):
-            within_allowed_root = True
-
-        try:
-            candidate_resolved = candidate_base.resolve(strict=require_file)
-        except FileNotFoundError:
-            continue
-
-        try:
-            common_path = os.path.commonpath((str(root_resolved), str(candidate_resolved)))
+            common_path = os.path.commonpath((root_resolved, candidate_normalized))
         except ValueError:
             continue
 
-        if common_path != str(root_resolved):
+        if common_path != root_resolved:
             continue
 
-        if require_file and not candidate_resolved.is_file():
-            fail(f"{error_label} file not found: {candidate_resolved}")
+        within_allowed_root = True
 
-        return candidate_resolved
+        if require_file and not os.path.isfile(candidate_normalized):
+            fail(f"{error_label} file not found: {path_value}")
 
-    if require_file and within_allowed_root:
-        fail(f"{error_label} file not found: {path_value}")
+        return pathlib.Path(candidate_normalized)
 
     allowed_roots = ", ".join(str(root) for root in root_candidates)
     fail(f"{error_label} path must be within one of: {allowed_roots}: {path_value}")

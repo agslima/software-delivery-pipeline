@@ -41,7 +41,6 @@ class ExportJobsService {
       idempotencyKey,
     });
   }
-  }
 
   async getById({ doctorUserId, jobId }) {
     const doctor = await this.doctorContext.getDoctorByUserId(doctorUserId);
