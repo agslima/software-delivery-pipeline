@@ -125,9 +125,11 @@ jobs:
           python-version: '3.12'
 
       - name: Write PR body to file
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
         run: |
           cat > /tmp/pr-body.md <<'EOF'
-          ${{ github.event.pull_request.body }}
+          $PR_BODY
           EOF
 
       - name: Validate migration safety
