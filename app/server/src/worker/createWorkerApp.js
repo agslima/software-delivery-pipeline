@@ -16,7 +16,7 @@ module.exports = function createWorkerApp(state) {
     if (!state.ready) {
       return res.status(503).json({
         status: 'not_ready',
-        lastError: state.lastError,
+        reason: 'worker_not_ready',
       });
     }
 
