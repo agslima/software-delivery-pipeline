@@ -97,7 +97,15 @@ def git_changed_files(base: str, head: str) -> list[str]:
 def load_pr_body(path_value: str | None) -> str:
     if not path_value:
         return os.environ.get("MIGRATION_CHECK_PR_BODY", "")
-    body_path = pathlib.Path(path_value)
+
+    candidate_path = pathlib.Path(path_value)
+    body_path = (REPO_ROOT / candidate_path).resolve() if not candidate_path.is_absolute() else candidate_path.resolve()
+
+    try:
+        body_path.relative_to(REPO_ROOT)
+    except ValueError:
+        fail(f"PR body file path must be within repository: {candidate_path}")
+
     if not body_path.is_file():
         fail(f"PR body file not found: {body_path}")
     return body_path.read_text(encoding="utf-8")
