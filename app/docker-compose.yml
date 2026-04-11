@@ -135,7 +135,7 @@ services:
   worker:
     build:
       context: .
-      dockerfile: docker/Dockerfile.server
+      dockerfile: docker/Dockerfile.worker
 
     networks:
       - app_network
@@ -186,10 +186,6 @@ services:
       timeout: 3s
       retries: 3
       start_period: 30s
-
-    command:
-      - node
-      - src/worker/server.js
 
   db-bootstrap:
     build:

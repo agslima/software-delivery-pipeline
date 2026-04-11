@@ -28,6 +28,7 @@ SCHEMA_IMPACT_FILES = {
 }
 
 MIGRATION_PATH_PREFIX = "app/server/src/infra/db/migrations/"
+MIGRATION_FILENAME = re.compile(r"^[A-Za-z0-9._-]+\.js$")
 
 DESTRUCTIVE_PATTERNS = (
     re.compile(r"\brenameColumn\s*\("),
@@ -185,23 +186,15 @@ def sanitize_migration_path(path_value: str) -> str:
     if any(part in ("", "..") for part in normalized_input.split("/")):
         fail(f"Changed migration path contains invalid traversal segments: {path_value}")
 
-    candidate = pathlib.Path(normalized_input)
-    if candidate.is_absolute():
-        fail(f"Migration path must be repository-relative: {path_value}")
+    file_name = normalized_input.removeprefix(MIGRATION_PATH_PREFIX)
+    if "/" in file_name or "\\" in file_name or not MIGRATION_FILENAME.fullmatch(file_name):
+        fail(f"Changed migration path must reference a direct migration file: {path_value}")
 
-    resolved = resolve_path_within_root(
-        normalized_input,
-        REPO_ROOT,
-        require_file=False,
-        error_label="Changed migration",
-    )
+    migration_file = MIGRATIONS_DIR / file_name
+    if not migration_file.is_file():
+        fail(f"Changed migration file not found: {path_value}")
 
-    try:
-        resolved.relative_to(MIGRATIONS_DIR.resolve())
-    except ValueError:
-        fail(f"Changed migration path escapes migrations directory: {path_value}")
-
-    return resolved.relative_to(REPO_ROOT.resolve()).as_posix()
+    return f"{MIGRATION_PATH_PREFIX}{file_name}"
 
 
 def is_destructive_line(line: str) -> bool:
@@ -213,12 +206,8 @@ def is_destructive_line(line: str) -> bool:
 def destructive_findings(migration_paths: Iterable[str]) -> list[str]:
     findings: list[str] = []
     for relative_path in migration_paths:
-        full_path = resolve_path_within_root(
-            relative_path,
-            REPO_ROOT,
-            require_file=True,
-            error_label="Changed migration",
-        )
+        file_name = relative_path.removeprefix(MIGRATION_PATH_PREFIX)
+        full_path = MIGRATIONS_DIR / file_name
         try:
             lines = full_path.read_text(encoding="utf-8").splitlines()
         except OSError:
