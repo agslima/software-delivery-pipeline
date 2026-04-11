@@ -98,10 +98,22 @@ def resolve_path_within_root(path_value: str, root: pathlib.Path, *, require_fil
     raw_value = path_value.strip()
     if not raw_value:
         fail(f"{error_label} path must not be empty")
+    if "\x00" in raw_value:
+        fail(f"{error_label} path contains invalid characters")
 
-    candidate_path = pathlib.Path(raw_value).expanduser()
+    normalized_value = raw_value.replace("\\", "/")
+    parts = normalized_value.split("/")
+    if any(part in ("", "..") for part in parts):
+        fail(f"{error_label} path contains invalid traversal segments: {path_value}")
+
     root_resolved = root.resolve()
-    candidate_base = candidate_path if candidate_path.is_absolute() else (root_resolved / candidate_path)
+    candidate_path = pathlib.Path(normalized_value).expanduser()
+
+    if candidate_path.is_absolute():
+        candidate_base = candidate_path
+    else:
+        candidate_base = root_resolved / candidate_path
+
     try:
         candidate_resolved = candidate_base.resolve(strict=require_file)
     except FileNotFoundError:
