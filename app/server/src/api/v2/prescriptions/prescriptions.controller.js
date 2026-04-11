@@ -1,10 +1,12 @@
 const { PrescriptionsService } = require('../../../core/v2/prescriptions.service');
 const { PrescriptionsRepository } = require('../../../infra/v2/prescriptions.repository');
+const { ExportJobsRepository } = require('../../../infra/v2/exportJobs.repository');
 const { PatientsRepository } = require('../../../infra/v2/patients.repository');
 const { EncountersRepository } = require('../../../infra/v2/encounters.repository');
 const { MedicationsRepository } = require('../../../infra/v2/medications.repository');
 const { DoctorsRepository } = require('../../../infra/v2/doctors.repository');
 const { DoctorContextService } = require('../../../core/v2/doctorContext.service');
+const { ExportJobsService } = require('../../../core/v2/exportJobs.service');
 const { AuditService } = require('../../../core/v2/audit.service');
 const { AuditRepository } = require('../../../infra/v2/audit.repository');
 const { AuditConsoleRepository } = require('../../../infra/v2/audit.console.repository');
@@ -21,6 +23,11 @@ const service = new PrescriptionsService({
   patientsRepository: new PatientsRepository(),
   encountersRepository: new EncountersRepository(),
   medicationsRepository: new MedicationsRepository(),
+  doctorContext,
+});
+const exportJobsService = new ExportJobsService({
+  exportJobsRepository: new ExportJobsRepository(),
+  prescriptionsRepository: new PrescriptionsRepository(),
   doctorContext,
 });
 const auditRepository = auditConfig.sink === 'console' ? new AuditConsoleRepository() : new AuditRepository();
@@ -91,6 +98,23 @@ exports.update = async (req, res, next) => {
       },
     });
     return res.json(prescription);
+  } catch (err) {
+    return next(err);
+  }
+};
+
+exports.createExport = async (req, res, next) => {
+  try {
+    const job = await exportJobsService.enqueue({
+      doctorUserId: req.user.sub,
+      prescriptionId: req.params.id,
+      format: req.body?.format || 'json',
+    });
+
+    return res.status(202).json({
+      ...job,
+      pollUrl: `/api/v2/exports/${job.id}`,
+    });
   } catch (err) {
     return next(err);
   }

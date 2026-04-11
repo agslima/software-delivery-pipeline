@@ -7,6 +7,7 @@ const {
   prescriptionIdParamsSchema,
   createPrescriptionSchema,
   updatePrescriptionSchema,
+  createPrescriptionExportSchema,
 } = require('./prescriptions.schemas');
 const { readLimiter, writeLimiter } = require('../../http/middleware/rateLimiters');
 
@@ -22,6 +23,15 @@ router.patch(
   validate(prescriptionIdParamsSchema, 'params'),
   validate(updatePrescriptionSchema),
   controller.update
+);
+router.post(
+  '/:id/exports',
+  writeLimiter,
+  auth,
+  requireRole('doctor'),
+  validate(prescriptionIdParamsSchema, 'params'),
+  validate(createPrescriptionExportSchema),
+  controller.createExport
 );
 
 module.exports = router;

@@ -80,6 +80,10 @@ const env = cleanEnv(process.env, {
     default: 8080,
     desc: 'API server port',
   }),
+  WORKER_PORT: port({
+    default: 8090,
+    desc: 'Background worker health server port',
+  }),
   LOG_LEVEL: str({
     choices: ['info', 'debug', 'error', 'silent'],
     default: isTest ? 'silent' : 'info',
@@ -183,6 +187,10 @@ const env = cleanEnv(process.env, {
   }),
 
   DB_HOST: str({ default: 'localhost' }),
+  DB_PORT: port({
+    desc: 'Database port',
+    default: 5432,
+  }),
   DB_USER: str({
     desc: 'Database user',
     default: isTest ? 'test' : process.env.DB_USER,
@@ -245,6 +253,18 @@ const env = cleanEnv(process.env, {
   }),
   MFA_TOKEN_TTL_MINUTES: num({
     desc: 'MFA token time-to-live in minutes',
+    default: 5,
+  }),
+  EXPORT_JOB_POLL_MS: num({
+    desc: 'Polling interval for queued export jobs in milliseconds',
+    default: 3000,
+  }),
+  EXPORT_JOB_LEASE_SECONDS: num({
+    desc: 'Lease duration for claimed export jobs in seconds',
+    default: 30,
+  }),
+  EXPORT_JOB_MAX_ATTEMPTS: num({
+    desc: 'Maximum number of export job attempts before terminal failure',
     default: 5,
   }),
 });

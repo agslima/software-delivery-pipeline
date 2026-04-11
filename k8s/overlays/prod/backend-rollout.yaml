@@ -1,0 +1,171 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-stable
+  labels:
+    app: backend
+    app.kubernetes.io/name: backend
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: stayhealthy
+    delivery.stayhealthy.io/release-track: stable
+  annotations:
+    delivery.stayhealthy.io/purpose: direct-stable-health-check
+spec:
+  selector:
+    app: backend
+    app.kubernetes.io/name: backend
+    delivery.stayhealthy.io/traffic-group: production
+    delivery.stayhealthy.io/release-track: stable
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-canary
+  labels:
+    app: backend
+    app.kubernetes.io/name: backend
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: stayhealthy
+    delivery.stayhealthy.io/release-track: canary
+  annotations:
+    delivery.stayhealthy.io/purpose: direct-canary-health-check
+spec:
+  selector:
+    app: backend
+    app.kubernetes.io/name: backend
+    delivery.stayhealthy.io/traffic-group: production
+    delivery.stayhealthy.io/release-track: canary
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-canary
+  labels:
+    app: backend
+    app.kubernetes.io/name: backend
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: stayhealthy
+    delivery.stayhealthy.io/release-track: canary
+spec:
+  replicas: 1
+  minReadySeconds: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: backend
+      app.kubernetes.io/name: backend
+      delivery.stayhealthy.io/release-track: canary
+  template:
+    metadata:
+      labels:
+        app: backend
+        app.kubernetes.io/name: backend
+        app.kubernetes.io/component: api
+        app.kubernetes.io/part-of: stayhealthy
+        delivery.stayhealthy.io/traffic-group: production
+        delivery.stayhealthy.io/release-track: canary
+      annotations:
+        delivery.stayhealthy.io/promotion-gate: manual
+        delivery.stayhealthy.io/traffic-share-hint: "25"
+        delivery.stayhealthy.io/rollout-strategy: replica-weighted-canary
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: backend
+          image: backend-canary
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: PORT
+              value: "8080"
+            - name: DB_HOST
+              value: "postgres"
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: DB_USER
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: DB_PASS
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: DB_NAME
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: JWT_SECRET
+            - name: ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: ADMIN_USER
+            - name: ADMIN_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: ADMIN_PASS
+            - name: DATA_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: DATA_ENCRYPTION_KEY
+          readinessProbe:
+            httpGet:
+              path: /api/v1/readyz
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            failureThreshold: 3
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+              ephemeral-storage: "512Mi"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+              ephemeral-storage: "1Gi"
+          volumeMounts:
+            - mountPath: /tmp
+              name: tmp-volume
+      volumes:
+        - name: tmp-volume
+          emptyDir: {}

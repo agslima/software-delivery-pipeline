@@ -28,4 +28,13 @@ const updatePrescriptionSchema = Joi.object({
   notes: Joi.string().max(500).allow('', null),
 }).min(1);
 
-module.exports = { prescriptionIdParamsSchema, createPrescriptionSchema, updatePrescriptionSchema };
+const createPrescriptionExportSchema = Joi.object({
+  format: Joi.string().valid('json').default('json'),
+});
+
+module.exports = {
+  prescriptionIdParamsSchema,
+  createPrescriptionSchema,
+  updatePrescriptionSchema,
+  createPrescriptionExportSchema,
+};

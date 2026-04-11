@@ -42,7 +42,7 @@ Primary goals:
 
 ## 3. High-Level Architecture 🏗
 
-The system is composed of three primary components:
+The system is composed of four primary runtime components:
 
 ### 1. Frontend (Client)
 
@@ -56,11 +56,19 @@ The system is composed of three primary components:
 - Handles authentication, request validation, and business logic
 - Exposes REST endpoints under `/api/v1` and `/api/v2`
 
-### 3. Database
+### 3. Background Worker
+
+- Separate runtime for asynchronous prescription export generation
+- Claims queued export jobs from the database
+- Handles retries and completion state outside the user request path
+- Exposes `/health` and `/ready` on port `8090` for orchestrator probes
+
+### 4. Database
 
 - PostgreSQL instance
 - Persistent storage for prescription and user data
-- Managed via Knex.js migrations
+- Managed via versioned Knex.js migrations
+- Stores async export job state for the worker
 
 ```mermaid
 graph LR
@@ -72,14 +80,19 @@ graph LR
 
     subgraph Backend
         API[Node.js API :8080]
+        Worker[Background Worker]
     end
 
     subgraph Database
         DB[(PostgreSQL :5432)]
+        Queue[(v2.export_jobs)]
     end
 
     Nginx -->|/api/*| API
     API --> DB
+    API -->|enqueue export job| Queue
+    Worker -->|claim queued job| Queue
+    Worker -->|read/write data| DB
 ```
 
 ### Demo
@@ -96,6 +109,8 @@ graph LR
 - Optional OIDC validation with AMR/ACR checks
 - MFA enrollment and verification
 - Audit pipeline (DB or console sinks)
+- Asynchronous prescription export generation via a queue-backed worker
+- Documented partial-failure recovery story for async worker retry behavior
 - Field-level encryption with key rotation
 - TLS enforcement middleware (behind proxy)
 - Rate limiting and hardened headers
@@ -116,11 +131,15 @@ cd app
 docker compose up --build
 ```
 
+The `db-bootstrap` service applies the versioned migrations and demo seed data before the backend and worker start.
+
 Quick backend-only stack:
 ```bash
 cd app
 docker compose -f docker-compose.quick.yml up --build
 ```
+
+This quick stack now includes the API and worker so asynchronous exports can be exercised locally.
 
 ---
 
@@ -190,12 +209,18 @@ export SEED_PATIENT_EMAIL=patient@local.test
 export SEED_DEFAULT_PASSWORD=ChangeMe123!
 ```
 
-### 6. Migrate and seed database
+### 6. Bootstrap database from migrations
+
+```bash
+cd app/server
+npm run db:bootstrap
+```
+
+If you only need schema changes without seed data:
 
 ```bash
 cd app/server
 npm run db:migrate
-npm run db:seed
 ```
 
 ### 7. Start backend and frontend
@@ -214,16 +239,46 @@ cd app/client
 npm run dev
 ```
 
+Optional Terminal 3 for the worker:
+
+```bash
+cd app/server
+npm run worker
+```
+
 ### 8. Verify locally
 
 - UI: `http://localhost:5173`
 - API health: `http://localhost:8080/health`
+- Worker readiness: `http://localhost:8090/ready`
 - OpenAPI spec: `app/server/src/docs/openapi.yaml`
 
 Patient portal login (if deterministic seed vars were set):
 
 - Email: `patient@local.test`
 - Password: `ChangeMe123!`
+
+---
+
+## Database Migrations
+
+The backend schema is versioned and must be bootstrapped from migrations, not from ad hoc SQL.
+
+Canonical commands from `app/server/`:
+
+- `npm run db:migrate`: apply pending schema changes
+- `npm run db:seed`: load demo seed data
+- `npm run db:bootstrap`: apply migrations and seed data together
+- `npm run db:migrate:status`: show completed and pending migrations
+- `npm run db:rollback`: roll back the most recent migration batch
+
+Current migration path:
+
+- `src/infra/db/migrations/20240101_init.js`: legacy baseline schema
+- `src/infra/db/migrations/20260203_phase2_tables.js`: incremental upgrade into the `v2` relational model
+- later migrations extend the current schema without requiring manual database edits
+
+This means a fresh environment can build the schema from scratch, and an older environment can migrate incrementally to the current model using the same runner.
 
 ---
 

@@ -1,8 +1,11 @@
-const knex = require('knex');
-const { execSync, spawnSync } = require('node:child_process');
-const { randomBytes } = require('node:crypto');
-const path = require('node:path');
-const { setTimeout: delay } = require('node:timers/promises');
+const {
+  ensureDatabaseConfig,
+  ensureTestDb,
+  getDbConfig,
+  buildDb,
+  migrateLatest,
+  stopTestDb,
+} = require('../helpers/testDb');
 
 const defaultSuiteTimeoutMs = 120000;
 const suiteTimeoutMs = Number(process.env.AUDIT_REPOSITORY_TEST_TIMEOUT_MS || defaultSuiteTimeoutMs);
@@ -17,210 +20,7 @@ const eventTypes = [];
 let db;
 let AuditRepository;
 let AuditService;
-let autoStarted = false;
-let composeProject = null;
-
-const appDir = path.resolve(__dirname, '../../..');
-const composeFile = path.join(appDir, 'docker-compose.test-db.yml');
-const defaultTestDbPass = randomBytes(16).toString('hex');
-
-const dockerAvailable = () => {
-  try {
-    execSync('docker --version', { stdio: 'ignore' });
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-const execCompose = (args, envOverrides = {}) => {
-  const env = { ...process.env, ...envOverrides };
-  const programArgs = ['compose', '-f', composeFile, ...args];
-  const result = spawnSync('docker', programArgs, { encoding: 'utf8', env });
-  if (!result.error) {
-    if (typeof result.status === 'number' && result.status === 0) {
-      return;
-    }
-    throw new Error(`docker compose failed.\n${result.stderr || result.stdout || 'No stderr output.'}`);
-  }
-
-  if (result.error.code !== 'ENOENT') {
-    throw result.error;
-  }
-
-  const legacyArgs = ['-f', composeFile, ...args];
-  const legacy = spawnSync('docker-compose', legacyArgs, { encoding: 'utf8', env });
-  if (!legacy.error && typeof legacy.status === 'number' && legacy.status === 0) {
-    return;
-  }
-
-  throw new Error(`docker-compose failed.\n${legacy.stderr || legacy.stdout || 'No stderr output.'}`);
-};
-
-const waitForDb = async (envOverrides) => {
-  const waitSeconds = Number(process.env.AUDIT_REPOSITORY_DB_WAIT_SECONDS || 60);
-  const maxAttempts = Number.isFinite(waitSeconds) && waitSeconds > 0 ? waitSeconds : 60;
-  const stableChecks = Number(process.env.AUDIT_REPOSITORY_DB_STABLE_CHECKS || 3);
-  const requiredStableChecks = Number.isFinite(stableChecks) && stableChecks > 0 ? stableChecks : 3;
-  let readyStreak = 0;
-
-  const canConnectFromHost = async () => {
-    const probe = buildDb({
-      host: process.env.TEST_DB_HOST || 'localhost',
-      user: envOverrides.TEST_DB_USER,
-      password: envOverrides.TEST_DB_PASS,
-      database: envOverrides.TEST_DB_NAME,
-      port: envOverrides.TEST_DB_PORT,
-    });
-    try {
-      await probe.raw('select 1');
-      return true;
-    } catch {
-      return false;
-    } finally {
-      await probe.destroy().catch(() => {});
-    }
-  };
-
-  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    try {
-      execCompose(
-        ['exec', '-T', 'test-postgres', 'pg_isready', '-U', envOverrides.TEST_DB_USER, '-d', envOverrides.TEST_DB_NAME],
-        envOverrides
-      );
-      const hostReady = await canConnectFromHost();
-      if (hostReady) {
-        readyStreak += 1;
-        if (readyStreak >= requiredStableChecks) {
-          return true;
-        }
-      } else {
-        readyStreak = 0;
-      }
-    } catch {
-      readyStreak = 0;
-      await delay(1000);
-      continue;
-    }
-    await delay(1000);
-  }
-  return false;
-};
-
-const startTestDb = async () => {
-  if (!dockerAvailable()) {
-    throw new Error('Docker is required to auto-start the test database.');
-  }
-
-  composeProject = `audit-test-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
-  const envOverrides = {
-    COMPOSE_PROJECT_NAME: composeProject,
-    TEST_DB_PORT: process.env.TEST_DB_PORT || '5433',
-    TEST_DB_USER: process.env.TEST_DB_USER || 'postgres',
-    TEST_DB_PASS: process.env.TEST_DB_PASS || defaultTestDbPass,
-    TEST_DB_NAME: process.env.TEST_DB_NAME || 'prescriptions_test',
-  };
-
-  const preferredPort = envOverrides.TEST_DB_PORT;
-  const fallbackPorts = process.env.TEST_DB_PORT
-    ? [preferredPort]
-    : [preferredPort, '5434', '5435', '5436', '5437', '5438', '5439'];
-  let lastError = null;
-
-  for (const port of fallbackPorts) {
-    envOverrides.TEST_DB_PORT = port;
-    try {
-      execCompose(['up', '-d'], envOverrides);
-      if (!(await waitForDb(envOverrides))) {
-        execCompose(['logs', 'test-postgres'], envOverrides);
-        throw new Error('Test database did not become ready in time.');
-      }
-      lastError = null;
-      break;
-    } catch (err) {
-      lastError = err;
-      try {
-        execCompose(['down', '-v'], envOverrides);
-      } catch {
-        // ignore cleanup errors
-      }
-      if (process.env.TEST_DB_PORT) {
-        break;
-      }
-      if (!String(err?.message || '').includes('port is already allocated')) {
-        break;
-      }
-    }
-  }
-
-  if (lastError) {
-    throw lastError;
-  }
-
-  process.env.TEST_DB_HOST = process.env.TEST_DB_HOST || 'localhost';
-  process.env.TEST_DB_PORT = envOverrides.TEST_DB_PORT;
-  process.env.TEST_DB_USER = envOverrides.TEST_DB_USER;
-  process.env.TEST_DB_PASS = envOverrides.TEST_DB_PASS;
-  process.env.TEST_DB_NAME = envOverrides.TEST_DB_NAME;
-  autoStarted = true;
-};
-
-const stopTestDb = () => {
-  if (!autoStarted || !composeProject) return;
-  execCompose(['down', '-v'], { COMPOSE_PROJECT_NAME: composeProject });
-};
-
-const getDbConfig = () => ({
-  host: process.env.TEST_DB_HOST || process.env.DB_HOST,
-  user: process.env.TEST_DB_USER || process.env.DB_USER,
-  password: process.env.TEST_DB_PASS || process.env.DB_PASS,
-  database: process.env.TEST_DB_NAME || process.env.DB_NAME,
-  port: process.env.TEST_DB_PORT || process.env.DB_PORT,
-});
-
-const ensureDatabaseConfig = (config) => {
-  const required = ['host', 'user', 'password', 'database'];
-  const missing = required.filter((key) => !config[key]);
-  if (missing.length > 0) {
-    throw new Error(
-      `Missing database env vars for audit integration test. Set TEST_DB_HOST/USER/PASS/NAME (preferred) or DB_HOST/USER/PASS/NAME. Missing: ${missing.join(
-        ', '
-      )}`
-    );
-  }
-};
-
-const buildDb = (config) =>
-  knex({
-    client: 'pg',
-    connection: {
-      host: config.host,
-      user: config.user,
-      password: config.password,
-      database: config.database,
-      port: config.port ? Number(config.port) : undefined,
-    },
-    pool: { min: 0, max: 4 },
-  });
-
-const ensureAuditTable = async () => {
-  await db.raw('CREATE SCHEMA IF NOT EXISTS v2');
-  const hasTable = await db.schema.withSchema('v2').hasTable('audit_events');
-  if (!hasTable) {
-    await db.schema.withSchema('v2').createTable('audit_events', (table) => {
-      table.uuid('id').primary();
-      table.uuid('actor_user_id').notNullable();
-      table.text('event_type').notNullable();
-      table.text('subject_type').notNullable();
-      table.uuid('subject_id').notNullable();
-      table.text('ip_address');
-      table.text('user_agent');
-      table.text('redaction_mode');
-      table.jsonb('metadata');
-      table.timestamp('created_at', { useTz: true }).notNullable().defaultTo(db.fn.now());
-    });
-  }
-};
+let testDbContext = null;
 
 const cleanupEvents = async () => {
   if (!db || eventTypes.length === 0) return;
@@ -232,9 +32,7 @@ describe('Integration: Audit repository storage and queries', () => {
     process.env.AUDIT_SINK = 'db';
     process.env.AUDIT_PII_REDACTION = 'none';
     try {
-      if (!process.env.TEST_DB_HOST) {
-        await startTestDb();
-      }
+      testDbContext = await ensureTestDb();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(
@@ -251,13 +49,13 @@ describe('Integration: Audit repository storage and queries', () => {
       ({ AuditRepository } = require('../../src/infra/v2/audit.repository'));
       ({ AuditService } = require('../../src/core/v2/audit.service'));
     });
-    await ensureAuditTable();
+    await migrateLatest(db);
   });
 
   afterAll(async () => {
     await cleanupEvents();
     if (db) await db.destroy();
-    stopTestDb();
+    stopTestDb(testDbContext);
     Object.keys(process.env).forEach((key) => {
       if (!(key in baseEnv)) delete process.env[key];
     });

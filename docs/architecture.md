@@ -2,7 +2,7 @@
 
 [//]: # (owner: Project Maintainers)
 [//]: # (review_cadence: Quarterly)
-[//]: # (last_reviewed: 2026-03-17)
+[//]: # (last_reviewed: 2026-04-11)
 
 This repository is organized to separate application logic, infrastructure definition, and governance policies. That structure supports a shift-left model in which policy testing happens alongside application testing and delivery controls remain reviewable as code.
 
@@ -13,8 +13,13 @@ This repository is organized to separate application logic, infrastructure defin
 This area contains the source code and build definitions for the workload application.
 
 - `Dockerfile`: defines the immutable build artifact
-- `server/`: Node.js backend logic
+- `server/`: Node.js backend logic and the shared domain code used by both HTTP and worker runtimes
 - `server/tests/`: unit tests that validate code behavior before deeper security controls run
+
+The runtime model now includes two application-side execution modes:
+
+- an HTTP API runtime for request-response handling
+- a background worker runtime for asynchronous prescription export generation
 
 ### 2. Policy Engine: `policies/` and `k8s/policies/`
 
@@ -31,11 +36,19 @@ This is the core of the governance model. Policies are treated as code, versione
 
 This area defines the desired Kubernetes runtime state of the application.
 
-- `base/`: base manifests for backend, frontend, disruption budgets, and examples
+- `base/`: base manifests for backend, worker, frontend, disruption budgets, and examples
 - `overlays/`: environment overlays such as `dev` and `prod`, where release digests are promoted
 - `tests/`: infrastructure unit tests and fixtures
 
-GitOps promotion updates `k8s/overlays/prod/kustomization.yaml` with new image digests after the governed release path succeeds.
+GitOps promotion updates `k8s/overlays/prod/kustomization.yaml` after the governed release path succeeds.
+The production overlay now models the backend as a stable/canary split:
+
+- `backend`: last known-good backend digest
+- `backend-canary`: candidate backend digest under observation
+- `backend`: shared Service selecting both tracks
+
+That rollout is intentionally simple and replica-weighted.
+The repository does not currently model service-mesh traffic splitting.
 
 ### 4. Governance Logic: `scripts/` and `docs/`
 
@@ -55,13 +68,78 @@ These paths bridge the gap between tool output and business or operational decis
 3. Policy check during build
    `app/Dockerfile` and related manifests are checked against policy definitions in `policies/` and `k8s/policies/`.
 4. Artifact creation
-   A container image is built, published by digest, and signed or attested through the trusted release path.
+   Container images for backend, worker, and frontend are built, published by digest, and signed or attested through the trusted release path.
 5. GitOps update
-   If all gates pass, the pipeline updates `k8s/overlays/prod/kustomization.yaml` with new image digests.
+   If all gates pass, the pipeline updates `k8s/overlays/prod/kustomization.yaml`.
+   Worker and frontend digests move directly.
+   Backend candidate rollout begins by advancing the canary digest while stable remains pinned.
 6. Policy check during promotion
    The GitOps enforcement workflow renders `k8s/overlays/prod` and validates the result against `k8s/policies/cluster` with the Kyverno CLI before opening the promotion PR.
 7. Runtime admission
    The Kubernetes cluster re-applies the Kyverno cluster policies when the promoted manifests are deployed.
+
+## Progressive Rollout Update
+
+The production backend deployment model now distinguishes between:
+
+- stable capacity that continues serving trusted production traffic
+- candidate capacity that receives limited exposure during the canary window
+
+```mermaid
+flowchart LR
+    User["Portal User"]
+    Frontend["Frontend SPA"]
+    SVC["backend Service"]
+    Stable["backend (3 stable replicas)"]
+    Canary["backend-canary (1 replica)"]
+    DB[("PostgreSQL")]
+
+    User --> Frontend
+    Frontend --> SVC
+    SVC --> Stable
+    SVC --> Canary
+    Stable --> DB
+    Canary --> DB
+```
+
+Why this matters:
+
+- risky backend releases can be introduced gradually
+- stable and candidate state stay explicit in Git-managed manifests
+- promotion becomes a governed decision rather than an implicit side effect of image publication
+- the repository demonstrates progressive delivery without introducing a service mesh control plane
+
+## Runtime Architecture Update
+
+The workload is no longer modeled as only a single request-response API.
+It now includes an asynchronous processing path for prescription export generation.
+
+```mermaid
+flowchart LR
+    User["Portal User"]
+    Frontend["Frontend SPA"]
+    API["HTTP API"]
+    Queue[("v2.export_jobs")]
+    Worker["Background Worker"]
+    Data[("PostgreSQL")]
+    Artifact["Export Artifact"]
+
+    User --> Frontend
+    Frontend --> API
+    API --> Data
+    API -->|enqueue export job| Queue
+    Worker -->|claim job| Queue
+    Worker --> Data
+    Worker --> Artifact
+    Worker -->|status update| Queue
+```
+
+Why this matters:
+
+- export generation should not hold open a user request until completion
+- retries and failure handling belong to a worker lifecycle, not an HTTP request lifecycle
+- the platform now has to manage more than a single stateless API container
+- Kubernetes now carries separate deployment concerns for the API and worker, including independent health probes and rollout behavior
 
 ## Design Boundaries
 

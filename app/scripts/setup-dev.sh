@@ -140,3 +140,4 @@ fi
 
 echo "✅ Setup Complete!"
 echo "🚀 You can now run: cd app && docker-compose up --build"
+echo "🗃️  Local backend bootstrap command: cd app/server && npm run db:bootstrap"

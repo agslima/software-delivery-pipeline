@@ -54,7 +54,41 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: sh -c "npm install && npm run db:migrate && npm run db:seed && npm run dev"
+    command: sh -c "npm install && npm run db:bootstrap && npm run dev"
+
+  worker:
+    image: node:24.13.0-alpine
+    working_dir: /app
+    environment:
+      NODE_ENV: development
+      WORKER_PORT: "8090"
+      LOG_LEVEL: info
+      EXPORT_JOB_POLL_MS: ${EXPORT_JOB_POLL_MS:-3000}
+      EXPORT_JOB_LEASE_SECONDS: ${EXPORT_JOB_LEASE_SECONDS:-30}
+      EXPORT_JOB_MAX_ATTEMPTS: ${EXPORT_JOB_MAX_ATTEMPTS:-5}
+      DB_HOST: postgres
+      DB_USER: ${DB_USER:-prescriptions_user}
+      DB_NAME: ${DB_NAME:-prescriptions_db}
+      DB_PASS_FILE: /run/secrets/db_pass
+      JWT_SECRET_FILE: /run/secrets/jwt_secret
+      ADMIN_USER: ${ADMIN_USER:-admin}
+      ADMIN_PASS_FILE: /run/secrets/admin_pass
+      DATA_ENCRYPTION_KEY_FILE: /run/secrets/data_encryption_key
+    volumes:
+      - ./server:/app
+    ports:
+      - "8090:8090"
+    secrets:
+      - db_pass
+      - jwt_secret
+      - admin_pass
+      - data_encryption_key
+    depends_on:
+      postgres:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    command: sh -c "npm install && npm run worker"
 
 volumes:
   pgdata_quick:

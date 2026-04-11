@@ -68,6 +68,26 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: DB_NAME
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: JWT_SECRET
+            - name: ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: ADMIN_USER
+            - name: ADMIN_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: ADMIN_PASS
+            - name: DATA_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: DATA_ENCRYPTION_KEY
           livenessProbe:
             httpGet:
               path: /health

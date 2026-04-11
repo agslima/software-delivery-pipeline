@@ -60,6 +60,10 @@ jobs:
             context: app
             file: app/docker/Dockerfile.server
             image_repo: app-stayhealthy-backend
+          - name: worker
+            context: app
+            file: app/docker/Dockerfile.server
+            image_repo: app-stayhealthy-worker
           - name: frontend
             context: app
             file: app/docker/Dockerfile.client
@@ -122,6 +126,8 @@ jobs:
         include:
           - name: backend
             image_repo: app-stayhealthy-backend
+          - name: worker
+            image_repo: app-stayhealthy-worker
           - name: frontend
             image_repo: app-stayhealthy-frontend
     steps:
@@ -209,6 +215,10 @@ jobs:
           path: digests
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v4.1.8.0.1
         with:
+          name: digest-worker
+          path: digests
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v4.1.8.0.1
+        with:
           name: digest-frontend
           path: digests
 
@@ -244,6 +254,7 @@ jobs:
           printf "%s" "${{ secrets.JWT_SECRET }}" > "${SECRETS_DIR}/jwt_secret.txt"
           printf "%s" "${{ secrets.ADMIN_PASS }}" > "${SECRETS_DIR}/admin_pass.txt"
           printf "%s" "${{ secrets.DB_PASS }}" > "${SECRETS_DIR}/db_pass.txt"
+          printf "%s" "${{ secrets.DATA_ENCRYPTION_KEY }}" > "${SECRETS_DIR}/data_encryption_key.txt"
           chmod 600 "${SECRETS_DIR}"/*.txt
 
           echo "Secrets dir: ${SECRETS_DIR}"
@@ -254,12 +265,15 @@ jobs:
           set -euo pipefail
 
           BACKEND_DIGEST="$(cat ../digests/digest-backend)"
+          WORKER_DIGEST="$(cat ../digests/digest-worker)"
           FRONTEND_DIGEST="$(cat ../digests/digest-frontend)"
 
           export BACKEND_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-backend@$BACKEND_DIGEST"
+          export WORKER_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-worker@$WORKER_DIGEST"
           export FRONTEND_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-frontend@$FRONTEND_DIGEST"
 
           echo "BACKEND_IMAGE=$BACKEND_IMAGE"
+          echo "WORKER_IMAGE=$WORKER_IMAGE"
           echo "FRONTEND_IMAGE=$FRONTEND_IMAGE"
 
           # Compose should reference BACKEND_IMAGE / FRONTEND_IMAGE
@@ -267,6 +281,8 @@ jobs:
 
           echo "⏳ Waiting for Backend..."
           timeout 90s bash -c 'until curl -s http://127.0.0.1:8080/health > /dev/null; do sleep 5; done'
+          echo "⏳ Waiting for Worker..."
+          timeout 90s bash -c 'until curl -s http://127.0.0.1:8090/ready > /dev/null; do sleep 5; done'
           echo "⏳ Waiting for Frontend..."
           timeout 90s bash -c 'until curl -s http://127.0.0.1:4173 > /dev/null; do sleep 5; done'
           docker compose ps
@@ -375,6 +391,8 @@ jobs:
         include:
           - name: backend
             image_repo: app-stayhealthy-backend
+          - name: worker
+            image_repo: app-stayhealthy-worker
           - name: frontend
             image_repo: app-stayhealthy-frontend
     #env:

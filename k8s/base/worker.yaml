@@ -1,0 +1,111 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  labels:
+    app: worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: worker
+          image: docker.io/agslima/app-stayhealthy-worker@sha256:0a99302f729b15adbd7e4e53a262eeab35e4b487bfb9e0b2bcfbf66f6ff60326
+          imagePullPolicy: Always
+          command: ["node", "src/worker/server.js"]
+          ports:
+            - containerPort: 8090
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: WORKER_PORT
+              value: "8090"
+            - name: DB_HOST
+              value: "postgres"
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: DB_USER
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: DB_PASS
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: DB_NAME
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: JWT_SECRET
+            - name: ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: ADMIN_USER
+            - name: ADMIN_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: ADMIN_PASS
+            - name: DATA_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: DATA_ENCRYPTION_KEY
+            - name: EXPORT_JOB_POLL_MS
+              value: "3000"
+            - name: EXPORT_JOB_LEASE_SECONDS
+              value: "30"
+            - name: EXPORT_JOB_MAX_ATTEMPTS
+              value: "5"
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8090
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8090
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            failureThreshold: 3
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+              ephemeral-storage: "512Mi"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+              ephemeral-storage: "1Gi"
+          volumeMounts:
+            - mountPath: /tmp
+              name: tmp-volume
+      volumes:
+        - name: tmp-volume
+          emptyDir: {}
