@@ -109,17 +109,18 @@ def resolve_path_within_roots(
     if "\x00" in raw_value:
         fail(f"{error_label} path contains invalid characters")
 
-    candidate_path = pathlib.Path(raw_value).expanduser()
-    if not allow_absolute and candidate_path.is_absolute():
+    expanded_raw = os.path.expanduser(raw_value)
+    if not allow_absolute and os.path.isabs(expanded_raw):
         fail(f"{error_label} path must be repository-relative: {path_value}")
 
-    if any(part == ".." for part in candidate_path.parts):
+    normalized_for_parts = expanded_raw.replace("\\", "/")
+    if any(part == ".." for part in normalized_for_parts.split("/")):
         fail(f"{error_label} path contains invalid traversal segments: {path_value}")
 
     root_candidates = [root.resolve() for root in roots]
     within_allowed_root = False
     for root_resolved in root_candidates:
-        candidate_base = candidate_path if candidate_path.is_absolute() else (root_resolved / candidate_path)
+        candidate_base = pathlib.Path(expanded_raw) if os.path.isabs(expanded_raw) else (root_resolved / expanded_raw)
 
         try:
             common_candidate_base = os.path.commonpath((str(root_resolved), str(candidate_base)))
