@@ -99,8 +99,17 @@ def load_pr_body(path_value: str | None) -> str:
         return os.environ.get("MIGRATION_CHECK_PR_BODY", "")
 
     repo_root = REPO_ROOT.resolve()
-    candidate_path = pathlib.Path(path_value)
-    body_path = (candidate_path if candidate_path.is_absolute() else (REPO_ROOT / candidate_path)).resolve()
+    raw_value = path_value.strip()
+    if not raw_value:
+        fail("PR body file path must not be empty")
+
+    candidate_path = pathlib.Path(raw_value).expanduser()
+    candidate_base = candidate_path if candidate_path.is_absolute() else (repo_root / candidate_path)
+
+    try:
+        body_path = candidate_base.resolve(strict=True)
+    except FileNotFoundError:
+        fail(f"PR body file not found: {candidate_base}")
 
     try:
         body_path.relative_to(repo_root)
