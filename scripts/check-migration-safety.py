@@ -97,7 +97,12 @@ def git_changed_files(base: str, head: str) -> list[str]:
 def load_pr_body(path_value: str | None) -> str:
     if not path_value:
         return os.environ.get("MIGRATION_CHECK_PR_BODY", "")
-
+    repo_root = REPO_ROOT.resolve()
+    body_path = (REPO_ROOT / path_value).resolve()
+    try:
+        body_path.relative_to(repo_root)
+    except ValueError:
+        fail(f"PR body file path escapes repository root: {path_value}")
     candidate_path = pathlib.Path(path_value)
     body_path = (REPO_ROOT / candidate_path).resolve() if not candidate_path.is_absolute() else candidate_path.resolve()
 
