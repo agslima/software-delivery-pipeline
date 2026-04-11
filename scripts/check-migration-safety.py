@@ -126,6 +126,21 @@ def is_schema_impact_path(path_value: str) -> bool:
     return path_value.startswith("app/server/src/infra/v2/") and path_value.endswith(".repository.js")
 
 
+def sanitize_migration_path(path_value: str) -> str:
+    candidate = pathlib.Path(path_value)
+    if candidate.is_absolute():
+        fail(f"Migration path must be repository-relative: {path_value}")
+
+    resolved = (REPO_ROOT / candidate).resolve()
+    migrations_root = MIGRATIONS_DIR.resolve()
+    try:
+        resolved.relative_to(migrations_root)
+    except ValueError:
+        fail(f"Changed migration path escapes migrations directory: {path_value}")
+
+    return resolved.relative_to(REPO_ROOT.resolve()).as_posix()
+
+
 def is_destructive_line(line: str) -> bool:
     if any(pattern.search(line) for pattern in SAFE_DESTRUCTIVE_ALLOWLIST):
         return False
@@ -188,7 +203,11 @@ def main() -> None:
     pr_body = load_pr_body(args.pr_body_file)
 
     schema_paths = sorted(path for path in changed_files if is_schema_impact_path(path))
-    migration_paths = sorted(path for path in changed_files if path.startswith(MIGRATION_PATH_PREFIX))
+    migration_paths = sorted(
+        sanitize_migration_path(path)
+        for path in changed_files
+        if path.startswith(MIGRATION_PATH_PREFIX)
+    )
 
     print(f"[migration-safety] changed_files={len(changed_files)} schema_paths={len(schema_paths)} migration_paths={len(migration_paths)}")
 
