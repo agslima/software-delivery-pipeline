@@ -29,7 +29,6 @@ SCHEMA_IMPACT_FILES = {
 
 MIGRATION_PATH_PREFIX = "app/server/src/infra/db/migrations/"
 MIGRATION_FILENAME = re.compile(r"^[A-Za-z0-9._-]+\.js$")
-PR_BODY_FILENAME = re.compile(r"^[A-Za-z0-9._-]+$")
 
 DESTRUCTIVE_PATTERNS = (
     re.compile(r"\brenameColumn\s*\("),
@@ -161,25 +160,20 @@ def load_pr_body(path_value: str | None) -> str:
     if "\x00" in raw_value:
         fail("PR body path contains invalid characters")
 
-    expanded_raw = os.path.expanduser(raw_value)
-    file_name = os.path.basename(expanded_raw)
-    if not PR_BODY_FILENAME.fullmatch(file_name):
-        fail(f"PR body path must reference a direct file name: {path_value}")
+    repo_pr_body = REPO_ROOT / "pr-body.md"
+    temp_pr_body = pathlib.Path(tempfile.gettempdir()) / "pr-body.md"
+    allowed_pr_body_paths = {
+        "pr-body.md": repo_pr_body,
+        os.path.realpath(repo_pr_body): repo_pr_body,
+        os.path.realpath(temp_pr_body): temp_pr_body,
+    }
 
-    temp_root = os.path.realpath(tempfile.gettempdir())
-    repo_root = os.path.realpath(REPO_ROOT)
-    if os.path.isabs(expanded_raw):
-        parent_dir = os.path.realpath(os.path.dirname(expanded_raw))
-        if parent_dir == temp_root:
-            body_path = pathlib.Path(temp_root) / file_name
-        elif parent_dir == repo_root:
-            body_path = pathlib.Path(repo_root) / file_name
-        else:
-            fail(f"PR body path must be within {repo_root} or {temp_root}: {path_value}")
-    else:
-        if any(sep in expanded_raw for sep in ("/", "\\")):
-            fail(f"PR body path must reference a direct file under the repository root: {path_value}")
-        body_path = REPO_ROOT / file_name
+    body_path = allowed_pr_body_paths.get(os.path.realpath(os.path.expanduser(raw_value)))
+    if body_path is None:
+        fail(
+            f"PR body path must be one of: pr-body.md, {os.path.realpath(repo_pr_body)}, "
+            f"{os.path.realpath(temp_pr_body)}"
+        )
 
     try:
         return body_path.read_text(encoding="utf-8")
