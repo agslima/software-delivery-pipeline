@@ -9,6 +9,12 @@ class ExportJobsService {
   }
 
   async enqueue({ doctorUserId, prescriptionId, format = 'json' }) {
+    const normalizedFormat = String(format).trim().toLowerCase();
+    const allowedFormats = new Set(['json']);
+    if (!allowedFormats.has(normalizedFormat)) {
+      throw new AppError({ status: 400, code: 'BAD_REQUEST', message: 'Unsupported export format' });
+    }
+
     const doctor = await this.doctorContext.getDoctorByUserId(doctorUserId);
     const prescription = await this.prescriptionsRepository.findById(prescriptionId);
 
@@ -25,15 +31,16 @@ class ExportJobsService {
     }
 
     const updatedAt = prescription.updatedAt instanceof Date ? prescription.updatedAt.toISOString() : String(prescription.updatedAt);
-    const idempotencyKey = `${prescription.id}:${format}:${updatedAt}`;
+    const idempotencyKey = `${prescription.id}:${normalizedFormat}:${updatedAt}`;
 
     return this.exportJobsRepository.enqueueOrReuse({
       prescriptionId,
       doctorId: doctor.id,
-      format,
+      format: normalizedFormat,
       maxAttempts: env.EXPORT_JOB_MAX_ATTEMPTS,
       idempotencyKey,
     });
+  }
   }
 
   async getById({ doctorUserId, jobId }) {
