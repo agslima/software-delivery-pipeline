@@ -34,7 +34,15 @@ check_governance_evidence_index = load_module(
 
 
 def _well_formed_doc(extra_body: str = "Body content here.") -> str:
-    """Return a well-formed metadata document string for reuse in tests."""
+    """
+    Produce a well-formed Markdown document with a top-level title, a three-line metadata comment block (owner, review_cadence, last_reviewed), a blank line, and the provided body text for use in tests.
+    
+    Parameters:
+        extra_body (str): Text to place as the document body after the metadata block.
+    
+    Returns:
+        doc (str): The complete Markdown document string.
+    """
     return "\n".join(
         [
             "# Title",
@@ -708,6 +716,12 @@ def test_cluster_policy_background_scanning_disabled(policy_file):
     "verify-trivy.yaml",
 ])
 def test_cluster_policy_attestation_condition_requires_pass(policy_file):
+    """
+    Asserts that the ClusterPolicy file contains at least one attestation condition with value "PASS".
+    
+    Parameters:
+        policy_file (str): Path or filename of the ClusterPolicy YAML to validate (under k8s/policies/cluster).
+    """
     doc = _load_cluster_policy(policy_file)
     found_pass_condition = False
     for rule in doc["spec"].get("rules", []):
