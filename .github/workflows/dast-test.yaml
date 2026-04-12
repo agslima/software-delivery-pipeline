@@ -35,7 +35,8 @@ jobs:
           set -euo pipefail
 
           ./scripts/setup-dev.sh
-
+          chmod 644 ./secrets/*.txt
+          
       - name: Start Ephemeral Environment (Pinned Digests)
         working-directory: app
         run: |
