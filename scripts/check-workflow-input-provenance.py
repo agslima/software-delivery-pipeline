@@ -66,7 +66,8 @@ def resolve_workflow_path(path_str: str) -> Path:
         Path: The resolved absolute Path guaranteed to be inside the repository root.
 
     Notes:
-        If the resolved path is outside the repository root, the function calls `fail(...)` and exits with a non-zero status.
+        If the resolved path is outside the repository root, or not under .github/workflows
+        with a YAML extension, the function calls `fail(...)` and exits with a non-zero status.
     """
     raw_value = path_str.strip()
     if not raw_value:
@@ -77,9 +78,16 @@ def resolve_workflow_path(path_str: str) -> Path:
     candidate = ROOT / raw_value if not Path(raw_value).is_absolute() else Path(raw_value)
     resolved = candidate.resolve()
     try:
-        resolved.relative_to(ROOT)
+        relative = resolved.relative_to(ROOT)
     except ValueError:
         fail(f"Workflow path must be within repository root: {path_str}")
+
+    workflows_root = Path(".github/workflows")
+    if workflows_root not in relative.parents:
+        fail(f"Workflow path must be under .github/workflows: {path_str}")
+    if resolved.suffix.lower() not in {".yml", ".yaml"}:
+        fail(f"Workflow path must be a YAML file: {path_str}")
+
     return resolved
 
 
