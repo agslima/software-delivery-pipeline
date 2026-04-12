@@ -183,6 +183,16 @@ def evaluate_path(path: Path) -> tuple[list[Finding], dict[str, int]]:
     return findings, collect_summary(document, raw_text)
 
 
+def resolve_workflow_path(path_str: str) -> Path:
+    candidate = ROOT / path_str if not Path(path_str).is_absolute() else Path(path_str)
+    resolved = candidate.resolve()
+    try:
+        resolved.relative_to(ROOT)
+    except ValueError:
+        fail(f"Workflow path must be within repository root: {path_str}")
+    return resolved
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
@@ -209,7 +219,7 @@ def main() -> int:
     }
 
     for path_str in args.paths:
-        path = ROOT / path_str if not Path(path_str).is_absolute() else Path(path_str)
+        path = resolve_workflow_path(path_str)
         if not path.is_file():
             fail(f"Workflow file not found: {path}")
         findings, summary = evaluate_path(path)
