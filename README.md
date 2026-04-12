@@ -179,10 +179,10 @@ This section summarizes the repository’s current published vulnerability postu
 | :--- | :---: | :---: | :--- |
 | **Critical** | 27 | 0 | ✅ Fixed |
 | **High** | 116 | 0 | ✅ Fixed |
-| **Medium** | 191 | 1 | ℹ️ Managed Debt |
-| **Low** | 345 | 16 | ℹ️ Managed Debt |
+| **Medium** | 191 | 2 | ℹ️ Managed Debt |
+| **Low** | 345 | 19 | ℹ️ Managed Debt |
 
-*Last scanned (UTC): 2026-04-05 02:30*
+*Last scanned (UTC): 2026-04-12 02:34*
 <!-- [END_GENERATED_TABLE] -->
 
 This table is **automatically generated** by the repository evidence pipeline and reflects the latest published Snyk-based vulnerability snapshot tracked under [`docs/snyk/`](docs/snyk/index.md).
