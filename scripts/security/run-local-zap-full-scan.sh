@@ -2,6 +2,51 @@
 
 set -euo pipefail
 
+usage() {
+  cat <<EOF
+Quick start: local OWASP ZAP full scan
+
+Runs the same Compose-backed DAST flow used by \`make dast-weekly-local\`.
+Reports are written to: ${APP_DIR}/zap-out/
+
+From the repository root:
+
+  make dast-weekly-local
+
+Set explicit auth credentials for the seeded DAST admin user:
+
+  ZAP_LOGIN_EMAIL=dast-admin@example.test \\
+  ZAP_LOGIN_PASSWORD='ChangeMe123!ChangeMe123!' \\
+  make dast-weekly-local
+
+Keep the environment running for inspection after the scan:
+
+  ZAP_LOGIN_EMAIL=dast-admin@example.test \\
+  ZAP_LOGIN_PASSWORD='ChangeMe123!ChangeMe123!' \\
+  KEEP_DAST_ENV=1 \\
+  make dast-weekly-local
+
+Run the script directly:
+
+  ${ROOT_DIR}/scripts/security/run-local-zap-full-scan.sh
+
+Common overrides:
+  ZAP_LOGIN_EMAIL            Email used for the seeded DAST admin user
+  ZAP_LOGIN_PASSWORD         Password used for the seeded DAST admin user
+  KEEP_DAST_ENV=1            Preserve compose stack, env file, and generated secrets
+  DEBUG_DAST=1               Emit extra debug output during the run
+  FAIL_ON_LOW_URLS=1         Fail if URL coverage is below the configured floor
+
+Requirements:
+  docker curl jq awk python3 grep head sed timeout
+EOF
+}
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  usage
+  exit 0
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
 APP_DIR="${ROOT_DIR}/app"

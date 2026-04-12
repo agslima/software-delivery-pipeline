@@ -80,8 +80,7 @@ jobs:
 
           # Compose should reference BACKEND_IMAGE / FRONTEND_IMAGE
           # docker compose -f docker-compose.prod.yml -f docker-compose.release.yml up -d
-          docker compose -f docker-compose.yml up -d
-
+          docker compose up -d --build
 
           echo "⏳ Waiting for Backend..."
           timeout 90s bash -c 'until curl -s http://127.0.0.1:8080/health > /dev/null; do sleep 5; done'
