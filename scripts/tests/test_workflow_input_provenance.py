@@ -11,6 +11,19 @@ SCRIPTS_DIR = ROOT / "scripts"
 
 
 def load_module(name: str, path: pathlib.Path):
+    """
+    Load a Python module from a filesystem path and register it under the given import name.
+    
+    Parameters:
+        name (str): Module import name to register in sys.modules.
+        path (pathlib.Path): Filesystem path to the module file.
+    
+    Returns:
+        module: The loaded module object.
+    
+    Raises:
+        AssertionError: If a module spec or loader cannot be created for the given path.
+    """
     spec = importlib.util.spec_from_file_location(name, path)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
