@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
 from dataclasses import dataclass
@@ -76,7 +77,12 @@ def resolve_workflow_path(path_str: str) -> Path:
         fail("Workflow path contains invalid characters")
 
     candidate = ROOT / raw_value if not Path(raw_value).is_absolute() else Path(raw_value)
-    resolved = candidate.resolve()
+    root_real = os.path.realpath(ROOT)
+    resolved_real = os.path.realpath(candidate)
+    if os.path.commonpath([root_real, resolved_real]) != root_real:
+        fail(f"Workflow path must be within repository root: {path_str}")
+
+    resolved = Path(resolved_real)
     try:
         relative = resolved.relative_to(ROOT)
     except ValueError:
@@ -101,7 +107,7 @@ def read_workflow_text(path: Path) -> str:
     Returns:
         str: UTF-8 decoded file contents.
     """
-    resolved = resolve_workflow_path(str(path))
+    resolved = resolve_workflow_path(os.fspath(path))
     try:
         return resolved.read_text(encoding="utf-8")
     except OSError as exc:
