@@ -70,9 +70,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          export BACKEND_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-backend@$BACKEND_DIGEST"
-          export WORKER_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-worker@$WORKER_DIGEST"
-          export FRONTEND_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-frontend@$FRONTEND_DIGEST"
+          export BACKEND_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-backend@sha256:20a7af4ca42f8892a8589cc0012a845efee45fdaea4185a0864e099383ebc8ef"
+          export WORKER_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-worker@sha256:6eca61a664270c5ecade5dac816193fa6b4f4351668990b44064fadb90a18808"
+          export FRONTEND_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-frontend@sha256:39a76ef055114033bf90cc249641cd3a3adfc48a7938d559edbd618c79887e4c"
 
           echo "BACKEND_IMAGE=$BACKEND_IMAGE"
           echo "WORKER_IMAGE=$WORKER_IMAGE"
