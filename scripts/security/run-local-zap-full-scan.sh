@@ -160,7 +160,7 @@ validate_context_file() {
     exit 1
   }
 
-  grep -q '^context$' "$file" || {
+  [[ "$(sed -n '1p' "$file")" == "context" ]] || {
     echo "::error::Context file is invalid (missing leading \"context\" stanza): $file"
     exit 1
   }
