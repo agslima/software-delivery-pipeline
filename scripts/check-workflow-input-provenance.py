@@ -65,39 +65,35 @@ def resolve_workflow_path(path_input: str) -> Path:
         fail("Invalid path type")
 
     raw = path_input.strip()
-
     if not raw:
         fail("Workflow path must not be empty")
-
     if "\x00" in raw:
         fail("Path contains null byte")
 
-    candidate = Path(raw)
-
-    # Force relative paths to ROOT
-    if not candidate.is_absolute():
-        candidate = ROOT / candidate
-
+    # Build a canonical allowlist from known-safe targets.
     try:
-        resolved = candidate.resolve(strict=False)
         root_resolved = ROOT.resolve(strict=True)
+        allowed: dict[str, Path] = {}
+        for target in DEFAULT_TARGETS:
+            target_path = (ROOT / target).resolve(strict=False)
+            rel = target_path.relative_to(root_resolved).as_posix()
+            allowed[rel] = target_path
     except OSError as exc:
         fail(f"Path resolution failed: {exc}")
+    except ValueError as exc:
+        fail(f"Invalid default workflow target configuration: {exc}")
 
-    try:
-        resolved.relative_to(root_resolved)
-    except ValueError:
-        fail(f"Path escapes repository root: {path_input}")
+    candidate = Path(raw)
+    if candidate.is_absolute():
+        fail(f"Absolute paths are not allowed: {path_input}")
 
-    workflows_root = root_resolved / ".github" / "workflows"
+    normalized_key = (Path(".") / candidate).as_posix()
+    if normalized_key.startswith("./"):
+        normalized_key = normalized_key[2:]
 
-    try:
-        resolved.relative_to(workflows_root)
-    except ValueError:
-        fail(f"Path must be under .github/workflows: {path_input}")
-
-    if resolved.suffix.lower() not in {".yml", ".yaml"}:
-        fail(f"Invalid workflow file extension: {path_input}")
+    resolved = allowed.get(normalized_key)
+    if resolved is None:
+        fail(f"Workflow path is not an allowed target: {path_input}")
 
     return resolved
 
