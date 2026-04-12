@@ -35,7 +35,7 @@ services:
     security_opt:
       - no-new-privileges:true
     restart: unless-stopped
-    read_only: true
+    # read_only: true
 
     # Nginx Alpine UID (101)
     tmpfs:
