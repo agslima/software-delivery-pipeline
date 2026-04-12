@@ -28,55 +28,18 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 #v4.1.0
-        with:
-          username: ${{ secrets.DOCKER_HUB_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
-
+      
       - name: Set Variables + Compose Secrets (file-based)
         working-directory: app
         run: |
           set -euo pipefail
 
-          # Keep secrets OUT of workspace: use RUNNER_TEMP
-          SECRETS_DIR="${RUNNER_TEMP}/compose-secrets"
-          ENV_FILE=".env"
-
-          rm -f "$ENV_FILE"
-          rm -rf "$SECRETS_DIR"
-          mkdir -p "$SECRETS_DIR"
-
-          # Non-secret env vars
-          {
-            echo "ADMIN_USER=${{ vars.ADMIN_USER }}"
-            echo "DB_USER=${{ vars.DB_USER }}"
-            echo "DB_NAME=${{ vars.DB_NAME }}"
-            echo "COMPOSE_PROJECT_NAME=${{ env.COMPOSE_PROJECT_NAME }}"
-            echo "SECRETS_PATH=${SECRETS_DIR}"
-          } >> "$ENV_FILE"
-          chmod 600 "$ENV_FILE"
-
-          # Compose secrets files
-          printf "%s" "${{ secrets.JWT_SECRET }}" > "${SECRETS_DIR}/jwt_secret.txt"
-          printf "%s" "${{ secrets.ADMIN_PASS }}" > "${SECRETS_DIR}/admin_pass.txt"
-          printf "%s" "${{ secrets.DB_PASS }}" > "${SECRETS_DIR}/db_pass.txt"
-          printf "%s" "${{ secrets.DATA_ENCRYPTION_KEY }}" > "${SECRETS_DIR}/data_encryption_key.txt"
-          chmod 600 "${SECRETS_DIR}"/*.txt
-
-          echo "Secrets dir: ${SECRETS_DIR}"
+          ./scripts/setup-dev.sh
 
       - name: Start Ephemeral Environment (Pinned Digests)
         working-directory: app
         run: |
           set -euo pipefail
-
-          export BACKEND_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-backend@sha256:20a7af4ca42f8892a8589cc0012a845efee45fdaea4185a0864e099383ebc8ef"
-          export WORKER_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-worker@sha256:6eca61a664270c5ecade5dac816193fa6b4f4351668990b44064fadb90a18808"
-          export FRONTEND_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-frontend@sha256:39a76ef055114033bf90cc249641cd3a3adfc48a7938d559edbd618c79887e4c"
-
-          echo "BACKEND_IMAGE=$BACKEND_IMAGE"
-          echo "WORKER_IMAGE=$WORKER_IMAGE"
-          echo "FRONTEND_IMAGE=$FRONTEND_IMAGE"
 
           # Compose should reference BACKEND_IMAGE / FRONTEND_IMAGE
           # docker compose -f docker-compose.prod.yml -f docker-compose.release.yml up -d
