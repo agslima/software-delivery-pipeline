@@ -1,0 +1,176 @@
+name: DAST Test
+
+on:
+  # schedule:
+  #  - cron: "0 4 * * 0" # Sundays 04:00 UTC
+  workflow_dispatch: {}
+
+concurrency:
+  group: dast-weekly-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  TRIVY_VERSION: "0.58.1"
+  ZAP_TARGET_FRONTEND: "http://127.0.0.1:4173"
+  ZAP_TARGET_BACKEND: "http://127.0.0.1:8080"
+jobs:
+  dast-analysis:
+    name: DAST (Digest-based)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      ZAP_IMG: ghcr.io/zaproxy/zaproxy@sha256:8e79e827afb9e8bdba390c829eb3062062cdb407570559e2ddebd49130c00a59
+      HEALTH_TIMEOUT: "120" # seconds
+      COMPOSE_PROJECT_NAME: dast-${{ github.run_id }}-${{ github.run_attempt }} 
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
+        with:
+          fetch-depth: 0
+
+      - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 #v4.1.0
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+
+      - name: Set Variables + Compose Secrets (file-based)
+        working-directory: app
+        run: |
+          set -euo pipefail
+
+          # Keep secrets OUT of workspace: use RUNNER_TEMP
+          SECRETS_DIR="${RUNNER_TEMP}/compose-secrets"
+          ENV_FILE=".env"
+
+          rm -f "$ENV_FILE"
+          rm -rf "$SECRETS_DIR"
+          mkdir -p "$SECRETS_DIR"
+
+          # Non-secret env vars
+          {
+            echo "ADMIN_USER=${{ vars.ADMIN_USER }}"
+            echo "DB_USER=${{ vars.DB_USER }}"
+            echo "DB_NAME=${{ vars.DB_NAME }}"
+            echo "COMPOSE_PROJECT_NAME=${{ env.COMPOSE_PROJECT_NAME }}"
+            echo "SECRETS_PATH=${SECRETS_DIR}"
+          } >> "$ENV_FILE"
+          chmod 600 "$ENV_FILE"
+
+          # Compose secrets files
+          printf "%s" "${{ secrets.JWT_SECRET }}" > "${SECRETS_DIR}/jwt_secret.txt"
+          printf "%s" "${{ secrets.ADMIN_PASS }}" > "${SECRETS_DIR}/admin_pass.txt"
+          printf "%s" "${{ secrets.DB_PASS }}" > "${SECRETS_DIR}/db_pass.txt"
+          printf "%s" "${{ secrets.DATA_ENCRYPTION_KEY }}" > "${SECRETS_DIR}/data_encryption_key.txt"
+          chmod 600 "${SECRETS_DIR}"/*.txt
+
+          echo "Secrets dir: ${SECRETS_DIR}"
+
+      - name: Start Ephemeral Environment (Pinned Digests)
+        working-directory: app
+        run: |
+          set -euo pipefail
+
+          export BACKEND_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-backend@sha256:20a7af4ca42f8892a8589cc0012a845efee45fdaea4185a0864e099383ebc8ef"
+          export WORKER_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-worker@sha256:6eca61a664270c5ecade5dac816193fa6b4f4351668990b44064fadb90a18808"
+          export FRONTEND_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-frontend@sha256:39a76ef055114033bf90cc249641cd3a3adfc48a7938d559edbd618c79887e4c"
+
+          echo "BACKEND_IMAGE=$BACKEND_IMAGE"
+          echo "WORKER_IMAGE=$WORKER_IMAGE"
+          echo "FRONTEND_IMAGE=$FRONTEND_IMAGE"
+
+          # Compose should reference BACKEND_IMAGE / FRONTEND_IMAGE
+          docker compose -f docker-compose.yml -f docker-compose.release.yml up -d
+
+          echo "⏳ Waiting for Backend..."
+          timeout 90s bash -c 'until curl -s http://127.0.0.1:8080/health > /dev/null; do sleep 5; done'
+          echo "⏳ Waiting for Worker..."
+          timeout 90s bash -c 'until curl -s http://127.0.0.1:8090/ready > /dev/null; do sleep 5; done'
+          echo "⏳ Waiting for Frontend..."
+          timeout 90s bash -c 'until curl -s http://127.0.0.1:4173 > /dev/null; do sleep 5; done'
+          docker compose ps
+          echo "✅ Application is live!"
+
+      - name: OWASP ZAP Baseline (Frontend)
+        working-directory: app
+        run: |
+          set -euo pipefail
+          mkdir -p zap-out
+          chmod 777 zap-out
+
+          VOL_PATH="$(pwd)/zap-out"
+          echo "ZAP volume: $VOL_PATH"
+          echo "ZAP image: ${{ env.ZAP_IMG }}"
+
+          docker run --rm \
+            --network host \
+            -v "$VOL_PATH:/zap/wrk/:rw" \
+            "${{ env.ZAP_IMG }}" zap-baseline.py \
+            -t "${{ env.ZAP_TARGET_FRONTEND }}" \
+            -r zap-frontend.html \
+            -J zap-frontend.json \
+            -I || true
+
+          test -s "zap-out/zap-frontend.json" || (echo "::error::ZAP frontend JSON missing/empty (scanner crash?)"; exit 1)
+          jq -e 'type=="object"' "zap-out/zap-frontend.json" >/dev/null
+
+      - name: OWASP ZAP Baseline (Backend)
+        working-directory: app
+        run: |
+          set -euo pipefail
+
+          VOL_PATH="$(pwd)/zap-out"
+
+          docker run --rm \
+            --network host \
+            -v "$VOL_PATH:/zap/wrk/:rw" \
+            "${{ env.ZAP_IMG }}" zap-baseline.py \
+            -t "${{ env.ZAP_TARGET_BACKEND }}" \
+            -r zap-backend.html \
+            -J zap-backend.json \
+            -I || true
+
+          test -s "zap-out/zap-backend.json" || (echo "::error::ZAP backend JSON missing/empty (scanner crash?)"; exit 1)
+          jq -e 'type=="object"' "zap-out/zap-backend.json" >/dev/null
+
+
+      - name: Gate ZAP (High > 0)
+        working-directory: app
+        run: |
+          set -euo pipefail
+
+          for FILE in zap-out/zap-frontend.json zap-out/zap-backend.json; do
+            test -s "$FILE" || (echo "::error::ZAP report missing/empty: $FILE"; exit 1)
+            jq -e 'type=="object"' "$FILE" >/dev/null
+
+            HIGHS=$(jq '[.site[]? | .alerts[]? | select(.riskcode=="3")] | length' "$FILE")
+            echo "$FILE => High=$HIGHS"
+            if [ "$HIGHS" -gt 0 ]; then
+              echo "::error::⛔ DAST Gate Failed ($FILE High=$HIGHS)"
+              exit 1
+            fi
+          done
+
+          echo "✅ DAST Gate Passed"
+
+      - name: Upload ZAP Artifacts
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f #v7.0.0
+        with:
+          name: zap-results
+          path: app/zap-out/
+          retention-days: 30
+
+      - name: Cleanup Secrets + Env
+        if: always()
+        working-directory: app
+        run: |
+          set -euo pipefail
+          rm -f .env
+          if [ -n "${COMPOSE_SECRETS_DIR:-}" ] && [ -d "${COMPOSE_SECRETS_DIR:-}" ]; then
+            rm -rf "${COMPOSE_SECRETS_DIR}"
+          fi
+
+      - name: Teardown
+        if: always()
+        working-directory: app
+        run: docker compose down -v --remove-orphans
