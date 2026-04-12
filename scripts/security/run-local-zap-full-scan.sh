@@ -3,7 +3,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(dirname "$SCRIPT_DIR")"
+ROOT_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
 APP_DIR="${ROOT_DIR}/app"
 
 random_hex() {
@@ -88,12 +88,15 @@ for secret_var in ADMIN_PASS_VALUE DB_PASS_VALUE JWT_SECRET_VALUE DATA_ENCRYPTIO
 done
 
 SECRETS_PATH="${SECRETS_PATH:-$(mktemp -d /tmp/zap-local-secrets.XXXXXX)}"
+STAGED_CONTEXT_DIR="${STAGED_CONTEXT_DIR:-$(mktemp -d /tmp/zap-context.XXXXXX)}"
 OUT_DIR="${APP_DIR}/zap-out"
 DAST_ENV_FILE="${DAST_ENV_FILE:-${APP_DIR}/.env.zap.local}"
 COMPOSE_NETWORK="${COMPOSE_PROJECT_NAME}_app_network"
 FE_FILE="${OUT_DIR}/zap-frontend.json"
 BE_FILE="${OUT_DIR}/zap-backend.json"
 SUMMARY_FILE="${OUT_DIR}/summary.md"
+CONTEXT_ARTIFACT_FILE="${OUT_DIR}/context.context"
+STAGED_CONTEXT_FILE="${STAGED_CONTEXT_DIR}/context.context"
 
 cleanup() {
   local exit_code=$?
@@ -101,11 +104,13 @@ cleanup() {
   if [[ "${KEEP_DAST_ENV}" != "1" ]]; then
     docker compose --env-file "$DAST_ENV_FILE" -p "$COMPOSE_PROJECT_NAME" -f "${APP_DIR}/docker-compose.yml" down -v --remove-orphans >/dev/null 2>&1 || true
     rm -rf "$SECRETS_PATH"
+    rm -rf "$STAGED_CONTEXT_DIR"
     rm -f "$DAST_ENV_FILE"
   else
     echo "Keeping compose environment and secrets for inspection."
     echo "Compose project: ${COMPOSE_PROJECT_NAME}"
     echo "Secrets path: ${SECRETS_PATH}"
+    echo "Staged context dir: ${STAGED_CONTEXT_DIR}"
     echo "Env file: ${DAST_ENV_FILE}"
   fi
 
@@ -117,6 +122,68 @@ trap cleanup EXIT
 
 compose() {
   docker compose --env-file "$DAST_ENV_FILE" -p "$COMPOSE_PROJECT_NAME" -f "${APP_DIR}/docker-compose.yml" "$@"
+}
+
+assert_host_port_available() {
+  local port="$1"
+  local label="$2"
+
+  python3 - "$port" "$label" <<'PY'
+import socket
+import sys
+
+port = int(sys.argv[1])
+label = sys.argv[2]
+
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+try:
+    sock.bind(("0.0.0.0", port))
+except OSError:
+    print(f"::error::{label} host port {port} is already in use. Stop the conflicting service or free the port before running local DAST.", file=sys.stderr)
+    sys.exit(1)
+finally:
+    sock.close()
+PY
+}
+
+validate_context_file() {
+  local file="$1"
+
+  test -f "$file" || {
+    echo "::error::Missing context file $file"
+    exit 1
+  }
+
+  test -s "$file" || {
+    echo "::error::Context file is empty: $file"
+    exit 1
+  }
+
+  grep -q '^context$' "$file" || {
+    echo "::error::Context file is invalid (missing leading \"context\" stanza): $file"
+    exit 1
+  }
+
+  grep -q '^  includeInContextRegexes=' "$file" || {
+    echo "::error::Context file is invalid (missing includeInContextRegexes): $file"
+    exit 1
+  }
+
+  grep -q '^  excludeFromContextRegexes=' "$file" || {
+    echo "::error::Context file is invalid (missing excludeFromContextRegexes): $file"
+    exit 1
+  }
+}
+
+stage_context_file() {
+  mkdir -p "$STAGED_CONTEXT_DIR"
+  cp "$ZAP_CONTEXT_FILE" "$STAGED_CONTEXT_FILE"
+  cp "$ZAP_CONTEXT_FILE" "$CONTEXT_ARTIFACT_FILE"
+  chmod 600 "$STAGED_CONTEXT_FILE"
+  chmod 644 "$CONTEXT_ARTIFACT_FILE"
+  validate_context_file "$STAGED_CONTEXT_FILE"
+  validate_context_file "$CONTEXT_ARTIFACT_FILE"
 }
 
 count_urls() {
@@ -414,9 +481,13 @@ mkdir -p "$SECRETS_PATH"
 mkdir -p "$OUT_DIR"
 chmod -R u+rwX,go+rX "$OUT_DIR"
 
-test -f "$ZAP_CONTEXT_FILE" || { echo "::error::Missing context file $ZAP_CONTEXT_FILE"; exit 1; }
+validate_context_file "$ZAP_CONTEXT_FILE"
 test -f "$ZAP_RULES_FILE" || { echo "::error::Missing rules file $ZAP_RULES_FILE"; exit 1; }
 test -f "$MEDIUM_BLOCK_PATTERNS_FILE" || { echo "::error::Missing medium block patterns file $MEDIUM_BLOCK_PATTERNS_FILE"; exit 1; }
+stage_context_file
+assert_host_port_available 4173 "Frontend"
+assert_host_port_available 8443 "Frontend TLS"
+assert_host_port_available 8080 "Backend"
 
 cat > "$DAST_ENV_FILE" <<EOF
 ADMIN_USER=${ADMIN_USER_VALUE}
@@ -533,9 +604,9 @@ fi
 
 if [[ "$DEBUG_DAST" == "1" ]]; then
   echo "Context include:"
-  grep -E '^ *includeInContextRegexes=' -n "$ZAP_CONTEXT_FILE" || true
+  grep -E '^ *includeInContextRegexes=' -n "$STAGED_CONTEXT_FILE" || true
   echo "Context exclude:"
-  grep -E '^ *excludeFromContextRegexes=' -n "$ZAP_CONTEXT_FILE" || true
+  grep -E '^ *excludeFromContextRegexes=' -n "$STAGED_CONTEXT_FILE" || true
 fi
 
 LOGIN_URL="${RUNNER_BACKEND_URL%/}/api/v2/auth/login"
@@ -598,7 +669,7 @@ docker run --rm \
   --network "$COMPOSE_NETWORK" \
   --user root \
   -v "${OUT_DIR}:/zap/wrk/:rw" \
-  -v "${ZAP_CONTEXT_FILE}:/zap/wrk/context.context:ro" \
+  -v "${STAGED_CONTEXT_FILE}:/zap/wrk/context.context:ro" \
   -v "${OUT_DIR}/rules.tsv:/zap/wrk/rules.tsv:ro" \
   "${ZAP_IMG}" zap-full-scan.py \
   -t "$ZAP_FRONTEND_URL" \
@@ -625,6 +696,8 @@ if [[ "$ZAP_EXIT_FRONTEND" -ne 0 ]]; then
 fi
 
 github_env_set "ZAP_EXIT_FRONTEND" "$ZAP_EXIT_FRONTEND"
+validate_context_file "$STAGED_CONTEXT_FILE"
+validate_context_file "$CONTEXT_ARTIFACT_FILE"
 test -s "$FE_FILE" || { echo "::error::ZAP FE json missing/empty"; exit 1; }
 jq -e 'type=="object"' "$FE_FILE" >/dev/null
 

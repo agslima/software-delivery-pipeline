@@ -55,6 +55,51 @@ def fail(message: str) -> None:
     raise SystemExit(1)
 
 
+def resolve_workflow_path(path_str: str) -> Path:
+    """
+    Resolve a workflow path string to an absolute Path within the repository root.
+
+    Parameters:
+        path_str (str): The workflow file path or path fragment to resolve. If relative, it is interpreted relative to the repository root.
+
+    Returns:
+        Path: The resolved absolute Path guaranteed to be inside the repository root.
+
+    Notes:
+        If the resolved path is outside the repository root, the function calls `fail(...)` and exits with a non-zero status.
+    """
+    raw_value = path_str.strip()
+    if not raw_value:
+        fail("Workflow path must not be empty")
+    if "\x00" in raw_value:
+        fail("Workflow path contains invalid characters")
+
+    candidate = ROOT / raw_value if not Path(raw_value).is_absolute() else Path(raw_value)
+    resolved = candidate.resolve()
+    try:
+        resolved.relative_to(ROOT)
+    except ValueError:
+        fail(f"Workflow path must be within repository root: {path_str}")
+    return resolved
+
+
+def read_workflow_text(path: Path) -> str:
+    """
+    Read workflow text from a repository-rooted path after validating it.
+
+    Parameters:
+        path (Path): Candidate workflow path to validate and read.
+
+    Returns:
+        str: UTF-8 decoded file contents.
+    """
+    resolved = resolve_workflow_path(str(path))
+    try:
+        return resolved.read_text(encoding="utf-8")
+    except OSError as exc:
+        fail(f"Failed to read {resolved}: {exc}")
+
+
 def load_yaml(path: Path) -> dict[str, Any]:
     """
     Load and return a YAML mapping from the given file path.
@@ -68,7 +113,7 @@ def load_yaml(path: Path) -> dict[str, Any]:
         dict[str, Any]: The parsed YAML top-level mapping.
     """
     try:
-        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+        data = yaml.safe_load(read_workflow_text(path))
     except yaml.YAMLError as exc:  # pragma: no cover - exercised through SystemExit
         fail(f"Failed to parse {path}: {exc}")
     if not isinstance(data, dict):
@@ -258,7 +303,7 @@ def evaluate_path(path: Path) -> tuple[list[Finding], dict[str, int]]:
     - `pinned_action_refs`: number of those action references pinned to a full 40-hex SHA or (for docker `uses`) containing `@sha256:`
     - `digest_refs`: number of OCI image references in the file that are digest-pinned (`@sha256:`)
     """
-    raw_text = path.read_text(encoding="utf-8")
+    raw_text = read_workflow_text(path)
     document = load_yaml(path)
     findings: list[Finding] = []
 
@@ -267,28 +312,6 @@ def evaluate_path(path: Path) -> tuple[list[Finding], dict[str, int]]:
 
     findings.extend(check_mutable_oci_refs(path, raw_text))
     return findings, collect_summary(document, raw_text)
-
-
-def resolve_workflow_path(path_str: str) -> Path:
-    """
-    Resolve a workflow path string to an absolute Path within the repository root.
-    
-    Parameters:
-        path_str (str): The workflow file path or path fragment to resolve. If relative, it is interpreted relative to the repository root.
-    
-    Returns:
-        Path: The resolved absolute Path guaranteed to be inside the repository root.
-    
-    Notes:
-        If the resolved path is outside the repository root, the function calls `fail(...)` and exits with a non-zero status.
-    """
-    candidate = ROOT / path_str if not Path(path_str).is_absolute() else Path(path_str)
-    resolved = candidate.resolve()
-    try:
-        resolved.relative_to(ROOT)
-    except ValueError:
-        fail(f"Workflow path must be within repository root: {path_str}")
-    return resolved
 
 
 def parse_args() -> argparse.Namespace:

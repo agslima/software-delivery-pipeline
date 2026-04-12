@@ -40,8 +40,11 @@ workflow_input_provenance = load_module(
 
 def test_evaluate_path_accepts_sha_pinned_actions_and_digest_pinned_images(
     tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
 ):
-    workflow = tmp_path / "workflow.yml"
+    monkeypatch.setattr(workflow_input_provenance, "ROOT", tmp_path)
+    workflow = tmp_path / ".github/workflows/workflow.yml"
+    workflow.parent.mkdir(parents=True, exist_ok=True)
     workflow.write_text(
         "\n".join(
             [
@@ -67,8 +70,13 @@ def test_evaluate_path_accepts_sha_pinned_actions_and_digest_pinned_images(
     assert summary["digest_pinned_oci_refs"] == 1
 
 
-def test_evaluate_path_flags_mutable_action_refs_and_image_tags(tmp_path: pathlib.Path):
-    workflow = tmp_path / "workflow.yml"
+def test_evaluate_path_flags_mutable_action_refs_and_image_tags(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(workflow_input_provenance, "ROOT", tmp_path)
+    workflow = tmp_path / ".github/workflows/workflow.yml"
+    workflow.parent.mkdir(parents=True, exist_ok=True)
     workflow.write_text(
         "\n".join(
             [
@@ -92,8 +100,13 @@ def test_evaluate_path_flags_mutable_action_refs_and_image_tags(tmp_path: pathli
     assert "oci-digest-pin" in rules
 
 
-def test_evaluate_path_ignores_known_installer_urls(tmp_path: pathlib.Path):
-    workflow = tmp_path / "workflow.yml"
+def test_evaluate_path_ignores_known_installer_urls(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(workflow_input_provenance, "ROOT", tmp_path)
+    workflow = tmp_path / ".github/workflows/workflow.yml"
+    workflow.parent.mkdir(parents=True, exist_ok=True)
     workflow.write_text(
         "\n".join(
             [
@@ -117,9 +130,33 @@ def test_evaluate_path_ignores_known_installer_urls(tmp_path: pathlib.Path):
     assert summary["digest_pinned_oci_refs"] == 0
 
 
-def test_load_yaml_rejects_non_mapping_yaml(tmp_path: pathlib.Path):
-    workflow = tmp_path / "workflow.yml"
+def test_load_yaml_rejects_non_mapping_yaml(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(workflow_input_provenance, "ROOT", tmp_path)
+    workflow = tmp_path / ".github/workflows/workflow.yml"
+    workflow.parent.mkdir(parents=True, exist_ok=True)
     workflow.write_text("- not-a-mapping\n", encoding="utf-8")
 
     with pytest.raises(SystemExit):
         workflow_input_provenance.load_yaml(workflow)
+
+
+def test_read_workflow_text_rejects_paths_outside_repo(tmp_path: pathlib.Path):
+    outside = tmp_path / "workflow.yml"
+    outside.write_text("name: outside\n", encoding="utf-8")
+
+    with pytest.raises(SystemExit):
+        workflow_input_provenance.read_workflow_text(outside)
+
+
+def test_read_workflow_text_accepts_repo_relative_path(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch):
+    repo_root = tmp_path
+    workflow = repo_root / ".github/workflows/test.yml"
+    workflow.parent.mkdir(parents=True, exist_ok=True)
+    workflow.write_text("name: sample\njobs: {}\n", encoding="utf-8")
+
+    monkeypatch.setattr(workflow_input_provenance, "ROOT", repo_root)
+
+    assert (
+        workflow_input_provenance.read_workflow_text(pathlib.Path(".github/workflows/test.yml"))
+        == "name: sample\njobs: {}\n"
+    )
