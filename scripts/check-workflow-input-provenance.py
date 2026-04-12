@@ -56,62 +56,60 @@ def fail(message: str) -> None:
     raise SystemExit(1)
 
 
-def resolve_workflow_path(path_str: str) -> Path:
+def resolve_workflow_path(path_input: str) -> Path:
     """
-    Resolve a workflow path string to an absolute Path within the repository root.
-
-    Parameters:
-        path_str (str): The workflow file path or path fragment to resolve. If relative, it is interpreted relative to the repository root.
-
-    Returns:
-        Path: The resolved absolute Path guaranteed to be inside the repository root.
-
-    Notes:
-        If the resolved path is outside the repository root, or not under .github/workflows
-        with a YAML extension, the function calls `fail(...)` and exits with a non-zero status.
+    Strictly validate and resolve a workflow path within the repo.
+    Acts as a TRUST BOUNDARY for all filesystem access.
     """
-    raw_value = path_str.strip()
-    if not raw_value:
+    if not isinstance(path_input, str):
+        fail("Invalid path type")
+
+    raw = path_input.strip()
+
+    if not raw:
         fail("Workflow path must not be empty")
-    if "\x00" in raw_value:
-        fail("Workflow path contains invalid characters")
 
-    candidate = ROOT / raw_value if not Path(raw_value).is_absolute() else Path(raw_value)
-    root_real = os.path.realpath(ROOT)
-    resolved_real = os.path.realpath(candidate)
-    if os.path.commonpath([root_real, resolved_real]) != root_real:
-        fail(f"Workflow path must be within repository root: {path_str}")
+    if "\x00" in raw:
+        fail("Path contains null byte")
 
-    resolved = Path(resolved_real)
+    candidate = Path(raw)
+
+    # Force relative paths to ROOT
+    if not candidate.is_absolute():
+        candidate = ROOT / candidate
+
     try:
-        relative = resolved.relative_to(ROOT)
-    except ValueError:
-        fail(f"Workflow path must be within repository root: {path_str}")
+        resolved = candidate.resolve(strict=False)
+        root_resolved = ROOT.resolve(strict=True)
+    except OSError as exc:
+        fail(f"Path resolution failed: {exc}")
 
-    workflows_root = Path(".github/workflows")
-    if workflows_root not in relative.parents:
-        fail(f"Workflow path must be under .github/workflows: {path_str}")
+    try:
+        resolved.relative_to(root_resolved)
+    except ValueError:
+        fail(f"Path escapes repository root: {path_input}")
+
+    workflows_root = root_resolved / ".github" / "workflows"
+
+    try:
+        resolved.relative_to(workflows_root)
+    except ValueError:
+        fail(f"Path must be under .github/workflows: {path_input}")
+
     if resolved.suffix.lower() not in {".yml", ".yaml"}:
-        fail(f"Workflow path must be a YAML file: {path_str}")
+        fail(f"Invalid workflow file extension: {path_input}")
 
     return resolved
 
 
 def read_workflow_text(path: Path) -> str:
     """
-    Read workflow text from a repository-rooted path after validating it.
-
-    Parameters:
-        path (Path): Candidate workflow path to validate and read.
-
-    Returns:
-        str: UTF-8 decoded file contents.
+    Only accepts pre-validated Path objects.
     """
-    resolved = resolve_workflow_path(os.fspath(path))
     try:
-        return resolved.read_text(encoding="utf-8")
+        return path.read_text(encoding="utf-8")
     except OSError as exc:
-        fail(f"Failed to read {resolved}: {exc}")
+        fail(f"Failed to read {path}: {exc}")
 
 
 def load_yaml(path: Path) -> dict[str, Any]:
