@@ -12,7 +12,6 @@
 # columns: ruleId<tab>action<tab>comment
 #
 # action: IGNORE / WARN / FAIL
-# --- Common header hygiene (usually noisy in CI) ---
 10020	WARN	Missing Anti-clickjacking Header
 10021	WARN	X-Content-Type-Options Header Missing
 10016	WARN	Web Browser XSS Protection Header Not Set (legacy)
