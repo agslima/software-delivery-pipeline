@@ -391,6 +391,9 @@ jobs:
       contents: write
       id-token: write
       attestations: write
+    env:
+      IMAGE: ""
+      DIGEST: ""
     strategy:
       fail-fast: true
       matrix:
@@ -453,11 +456,14 @@ jobs:
             }
           ' "$FILE" > trivy-attestation.json
 
+      - name: Attest Trivy
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
           cosign attest --yes \
             --predicate trivy-attestation.json \
             --type "${{ env.TRIVY_PREDICATE_TYPE }}" \
             "$IMAGE"
-
+            
       - name: Create & Push ZAP Attestation (from DAST artifacts)
         if: startsWith(github.ref, 'refs/tags/')
         run: |
@@ -479,7 +485,10 @@ jobs:
               timestamp: (now | todate)
             }
           ' > zap-attestation.json
-
+          
+      - name: Attest ZAP
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
           cosign attest --yes \
             --predicate zap-attestation.json \
             --type "${{ env.ZAP_PREDICATE_TYPE }}" \
@@ -498,32 +507,34 @@ jobs:
         run: |
           set -euo pipefail
 
-          # 🟢 Retry up to 5 times with increasing backoff
-          for i in 1 2 3 4 5; do
-            echo "🔍 Verify attempt $i/5..."
-            if cosign verify \
-              "$IMAGE" \
-              --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*"; then
-              echo "✅ Signature Verified!"
-              exit 0
-            fi
+          echo "🔍 Resolving signature location..."
+          cosign triangulate "$IMAGE"
 
-            echo "⚠️ Verification failed. Retrying in $((i*5)) seconds..."
-            sleep $((i*5))
-          done
-
-          echo "::error::❌ Verify failed after 5 attempts. Check Registry consistency or Auth."
-          exit 1
+          echo "🔐 Verifying signature against Rekor..."
+          cosign verify \
+            "$IMAGE" \
+            --rekor-url https://rekor.sigstore.dev \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*"
+          
+          echo "✅ Signature Verified (Rekor-backed)"
 
       - name: Generate SBOM
+        if: startsWith(github.ref, 'refs/tags/')
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 #v0.24.0
         with:
           image: ${{ env.IMAGE }}
           format: spdx-json
           output-file: sbom-${{ matrix.name }}.spdx.json
           artifact-name: sbom-${{ matrix.name }}.spdx.json
+          upload-release-assets: false
 
+      - name: Validate SBOM
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          set -euo pipefail
+          test -s "sbom-${{ matrix.name }}.spdx.json" || (echo "::error::Missing SBOM file"; exit 1)
+          
       - name: Attest SBOM
         if: startsWith(github.ref, 'refs/tags/')
         run: |
