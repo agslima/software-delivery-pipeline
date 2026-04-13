@@ -71,8 +71,8 @@ jobs:
           set -euo pipefail
 
           # Compose should reference BACKEND_IMAGE / FRONTEND_IMAGE
-          # docker compose -f docker-compose.prod.yml -f docker-compose.release.yml up -d
-          docker compose up -d
+          docker compose -f docker-compose.prod.yml -f docker-compose.release.yml up -d
+          # docker compose up -d
 
           echo "⏳ Waiting for Backend..."
           timeout 90s bash -c 'until curl -s http://127.0.0.1:8080/health > /dev/null; do sleep 5; done'
@@ -88,7 +88,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p zap-out
-          chmod 644 zap-out
+          chmod 777 zap-out
           cp "$ZAP_CONTEXT_FILE" zap-out/context.context
           cp "$ZAP_RULES_FILE"   zap-out/rules.tsv
 
