@@ -380,7 +380,7 @@ jobs:
         run: docker compose down -v --remove-orphans
 
   # ==================================================================
-  # JOB 4: Sign + Attest + SBOM + Provenance (only after gates)
+  # JOB 4A: Sign + Attest + SBOM + Provenance (only after gates)
   # ==================================================================
   sign-and-attest:
     name: Sign & Attest (Governed)
@@ -391,6 +391,9 @@ jobs:
       contents: write
       id-token: write
       attestations: write
+    env:
+      IMAGE: ""
+      DIGEST: ""
     strategy:
       fail-fast: true
       matrix:
@@ -458,8 +461,87 @@ jobs:
             --type "${{ env.TRIVY_PREDICATE_TYPE }}" \
             "$IMAGE"
 
-      - name: Create & Push ZAP Attestation (from DAST artifacts)
+      - name: Sign Image
         if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          set -euo pipefail
+          cosign version
+          echo "IMAGE=$IMAGE"
+          cosign sign --yes "$IMAGE"
+
+      - name: Verify Signature (OIDC identity)
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          set -euo pipefail
+
+          echo "🔍 Resolving signature location..."
+          cosign triangulate "$IMAGE"
+
+          echo "🔐 Verifying signature against Rekor..."
+          cosign verify \
+            "$IMAGE" \
+            --rekor-url https://rekor.sigstore.dev \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*"
+          
+          echo "✅ Signature Verified (Rekor-backed)"
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 #v0.24.0
+        with:
+          image: ${{ env.IMAGE }}
+          format: spdx-json
+          output-file: sbom-${{ matrix.name }}.spdx.json
+          artifact-name: sbom-${{ matrix.name }}.spdx.json
+          upload-release-assets: false
+
+      - name: Validate SBOM
+        run: |
+          set -euo pipefail
+          test -s "sbom-${{ matrix.name }}.spdx.json" || (echo "::error::Missing SBOM file"; exit 1)
+          
+      - name: Attest SBOM
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          cosign attest --yes \
+            --predicate "sbom-${{ matrix.name }}.spdx.json" \
+            --type "${{ env.SBOM_PREDICATE_TYPE }}" \
+            "$IMAGE"
+
+      - name: Attest Build Provenance
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 #v4.1.0
+        with:
+          subject-name: docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}
+          subject-digest: ${{ env.DIGEST }}
+          push-to-registry: true
+  
+  # ==================================================================
+  # JOB 4B: Attest ZAP (only after gates)
+  # ==================================================================
+  attest-zap:
+    name: Attest ZAP (Governed)
+    runs-on: ubuntu-latest
+    needs: [dast-analysis, resolve]
+    environment: production
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+
+      - uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v4.1.8.0.1
+        with:
+          name: zap-results
+          path: zap-downloads
+
+      - name: Build ZAP Attestation
         run: |
           set -euo pipefail
           FE="zap-downloads/zap-frontend.json"
@@ -480,61 +562,14 @@ jobs:
             }
           ' > zap-attestation.json
 
+      - name: Define Release Subject
+        run: |
+          echo "RELEASE_SUBJECT=docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy:${{ needs.resolve.outputs.release_tag }}" >> $GITHUB_ENV
+      
+      - name: Attest ZAP
+        run: |
+          set -euo pipefail
           cosign attest --yes \
             --predicate zap-attestation.json \
             --type "${{ env.ZAP_PREDICATE_TYPE }}" \
-            "$IMAGE"
-
-      - name: Sign Image
-        if: startsWith(github.ref, 'refs/tags/')
-        run: |
-          set -euo pipefail
-          cosign version
-          echo "IMAGE=$IMAGE"
-          cosign sign --yes "$IMAGE"
-
-      - name: Verify Signature (OIDC identity)
-        if: startsWith(github.ref, 'refs/tags/')
-        run: |
-          set -euo pipefail
-
-          # 🟢 Retry up to 5 times with increasing backoff
-          for i in 1 2 3 4 5; do
-            echo "🔍 Verify attempt $i/5..."
-            if cosign verify \
-              "$IMAGE" \
-              --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*"; then
-              echo "✅ Signature Verified!"
-              exit 0
-            fi
-
-            echo "⚠️ Verification failed. Retrying in $((i*5)) seconds..."
-            sleep $((i*5))
-          done
-
-          echo "::error::❌ Verify failed after 5 attempts. Check Registry consistency or Auth."
-          exit 1
-
-      - name: Generate SBOM
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 #v0.24.0
-        with:
-          image: ${{ env.IMAGE }}
-          format: spdx-json
-          output-file: sbom-${{ matrix.name }}.spdx.json
-          artifact-name: sbom-${{ matrix.name }}.spdx.json
-
-      - name: Attest SBOM
-        if: startsWith(github.ref, 'refs/tags/')
-        run: |
-          cosign attest --yes \
-            --predicate "sbom-${{ matrix.name }}.spdx.json" \
-            --type "${{ env.SBOM_PREDICATE_TYPE }}" \
-            "$IMAGE"
-
-      - name: Attest Build Provenance
-        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 #v4.1.0
-        with:
-          subject-name: docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}
-          subject-digest: ${{ env.DIGEST }}
-          push-to-registry: true
+            "$RELEASE_SUBJECT"     
