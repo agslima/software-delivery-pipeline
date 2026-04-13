@@ -7,7 +7,7 @@ resources:
 patches:
   - path: backend-stable-patch.yaml
 images:
-  - name: docker.io/agslima/app-stayhealthy-backend
+  - name: index.docker.io/agslima/app-stayhealthy-backend
     digest: sha256:6fd327984db33ec24cd6a138fe7aa6c858a5f3f608011cc0248d1723671711e2
   - name: backend-canary
     newName: docker.io/agslima/app-stayhealthy-backend
