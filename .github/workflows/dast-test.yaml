@@ -88,7 +88,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p zap-out
-          chmod 777 zap-out
+          chmod 644 zap-out
           cp "$ZAP_CONTEXT_FILE" zap-out/context.context
           cp "$ZAP_RULES_FILE"   zap-out/rules.tsv
 
