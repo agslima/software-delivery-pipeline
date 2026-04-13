@@ -48,8 +48,8 @@ jobs:
 
           echo "⏳ Waiting for Backend..."
           timeout 90s bash -c 'until curl -s http://127.0.0.1:8080/health > /dev/null; do sleep 5; done'
-          echo "⏳ Waiting for Worker..." 
-          timeout 90s bash -c 'until docker compose exec worker curl -s http://127.0.0.1:8090/ready > /dev/null; do sleep 5; done'
+          echo "⏳ Waiting for Worker..."
+          timeout 90s bash -c 'until [ "$(docker compose ps worker --format json | jq -r .[0].Health)" == "healthy" ]; do sleep 5; done'
           echo "⏳ Waiting for Frontend..."
           timeout 90s bash -c 'until curl -s http://127.0.0.1:4173 > /dev/null; do sleep 5; done'
           docker compose ps
