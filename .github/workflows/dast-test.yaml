@@ -12,6 +12,10 @@ env:
   TRIVY_VERSION: "0.58.1"
   ZAP_TARGET_FRONTEND: "http://127.0.0.1:4173"
   ZAP_TARGET_BACKEND: "http://127.0.0.1:8080"
+  ZAP_CONTEXT_FILE: ${{ github.workspace }}/.zap/context.context
+  ZAP_RULES_FILE: ${{ github.workspace }}/.zap/rules.tsv
+  MEDIUM_BLOCK_PATTERNS_FILE: ${{ github.workspace }}/.zap/medium-block-patterns.txt
+      
 jobs:
   dast-analysis:
     name: DAST (Digest-based)
@@ -61,6 +65,8 @@ jobs:
           set -euo pipefail
           mkdir -p zap-out
           chmod 777 zap-out
+          cp "$ZAP_CONTEXT_FILE" zap-out/context.context
+          cp "$ZAP_RULES_FILE"   zap-out/rules.tsv
 
           VOL_PATH="$(pwd)/zap-out"
           echo "ZAP volume: $VOL_PATH"
@@ -71,6 +77,8 @@ jobs:
             -v "$VOL_PATH:/zap/wrk/:rw" \
             "${{ env.ZAP_IMG }}" zap-baseline.py \
             -t "${{ env.ZAP_TARGET_FRONTEND }}" \
+            -n /zap/wrk/context.context \
+            -c /zap/wrk/rules.tsv \
             -r zap-frontend.html \
             -J zap-frontend.json \
             -I || true
@@ -90,6 +98,8 @@ jobs:
             -v "$VOL_PATH:/zap/wrk/:rw" \
             "${{ env.ZAP_IMG }}" zap-baseline.py \
             -t "${{ env.ZAP_TARGET_BACKEND }}" \
+            -n /zap/wrk/context.context \
+            -c /zap/wrk/rules.tsv \
             -r zap-backend.html \
             -J zap-backend.json \
             -I || true
