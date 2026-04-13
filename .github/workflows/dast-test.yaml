@@ -61,7 +61,7 @@ jobs:
           printf "%s" "${{ secrets.ADMIN_PASS }}" > "${SECRETS_DIR}/admin_pass.txt"
           printf "%s" "${{ secrets.DB_PASS }}" > "${SECRETS_DIR}/db_pass.txt"
           printf "%s" "${{ secrets.DATA_ENCRYPTION_KEY }}" > "${SECRETS_DIR}/data_encryption_key.txt"
-          chmod 600 "${SECRETS_DIR}"/*.txt
+          chmod 644 "${SECRETS_DIR}"/*.txt
 
           echo "Secrets dir: ${SECRETS_DIR}"
           
