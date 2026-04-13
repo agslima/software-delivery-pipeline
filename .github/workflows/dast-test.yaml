@@ -69,10 +69,18 @@ jobs:
         working-directory: app
         run: |
           set -euo pipefail
+          
+          export BACKEND_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-backend@sha256:659a864aabeab318134a7d8c00b1d46dc982a6388e2362b99def2ea75b17ad3b"
+          export WORKER_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-worker@sha256:879f6ade618a05a25ac209c8b3a3aa666239774a6aa3ce84552875dda442245c"
+          export FRONTEND_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-frontend@sha256:f4af3e6deac77f3f11cdf304cc5de301c14852b67a53afd8868ede8856a5ab7f"
 
+          echo "BACKEND_IMAGE=$BACKEND_IMAGE"
+          echo "WORKER_IMAGE=$WORKER_IMAGE"
+          echo "FRONTEND_IMAGE=$FRONTEND_IMAGE"
+          
           # Compose should reference BACKEND_IMAGE / FRONTEND_IMAGE
-          # docker compose -f docker-compose.prod.yml -f docker-compose.release.yml up -d
-          docker compose up -d
+          docker compose -f docker-compose.prod.yml -f docker-compose.release.yml up -d
+          # docker compose up -d
 
           echo "⏳ Waiting for Backend..."
           timeout 90s bash -c 'until curl -s http://127.0.0.1:8080/health > /dev/null; do sleep 5; done'
@@ -88,7 +96,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p zap-out
-          chmod 644 zap-out
+          chmod 777 zap-out
           cp "$ZAP_CONTEXT_FILE" zap-out/context.context
           cp "$ZAP_RULES_FILE"   zap-out/rules.tsv
 
