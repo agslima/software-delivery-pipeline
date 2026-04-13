@@ -38,8 +38,32 @@ jobs:
         run: |
           set -euo pipefail
 
-          ./scripts/setup-dev.sh
-          chmod 644 ./secrets/*.txt
+          # Keep secrets OUT of workspace: use RUNNER_TEMP
+          SECRETS_DIR="${RUNNER_TEMP}/compose-secrets"
+          ENV_FILE=".env"
+
+          rm -f "$ENV_FILE"
+          rm -rf "$SECRETS_DIR"
+          mkdir -p "$SECRETS_DIR"
+
+          # Non-secret env vars
+          {
+            echo "ADMIN_USER=${{ vars.ADMIN_USER }}"
+            echo "DB_USER=${{ vars.DB_USER }}"
+            echo "DB_NAME=${{ vars.DB_NAME }}"
+            echo "COMPOSE_PROJECT_NAME=${{ env.COMPOSE_PROJECT_NAME }}"
+            echo "SECRETS_PATH=${SECRETS_DIR}"
+          } >> "$ENV_FILE"
+          chmod 600 "$ENV_FILE"
+
+          # Compose secrets files
+          printf "%s" "${{ secrets.JWT_SECRET }}" > "${SECRETS_DIR}/jwt_secret.txt"
+          printf "%s" "${{ secrets.ADMIN_PASS }}" > "${SECRETS_DIR}/admin_pass.txt"
+          printf "%s" "${{ secrets.DB_PASS }}" > "${SECRETS_DIR}/db_pass.txt"
+          printf "%s" "${{ secrets.DATA_ENCRYPTION_KEY }}" > "${SECRETS_DIR}/data_encryption_key.txt"
+          chmod 600 "${SECRETS_DIR}"/*.txt
+
+          echo "Secrets dir: ${SECRETS_DIR}"
           
       - name: Start Ephemeral Environment (Pinned Digests)
         working-directory: app
@@ -48,7 +72,7 @@ jobs:
 
           # Compose should reference BACKEND_IMAGE / FRONTEND_IMAGE
           # docker compose -f docker-compose.prod.yml -f docker-compose.release.yml up -d
-          docker compose up -d --build
+          docker compose up -d
 
           echo "⏳ Waiting for Backend..."
           timeout 90s bash -c 'until curl -s http://127.0.0.1:8080/health > /dev/null; do sleep 5; done'
