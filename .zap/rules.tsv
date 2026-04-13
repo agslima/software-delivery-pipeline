@@ -8,20 +8,25 @@
 # - Downgrade common "missing header" hygiene findings to WARN to reduce CI churn.
 # - IGNORE only when I'm certain it is non-actionable in my environment.
 
+# ZAP rules (TSV) for ZAP scan scripts (zap-full-scan.py / zap-api-scan.py)
+# columns: ruleId<tab>action<tab>comment
+# action: IGNORE / WARN / FAIL
+
 # --- Common header hygiene (usually noisy in CI) ---
-10020   WARN    LOW     # Missing Anti-clickjacking Header
-10021   WARN    LOW     # X-Content-Type-Options Header Missing
-10016   WARN    LOW     # Web Browser XSS Protection Header Not Set (legacy)
-10038   WARN    LOW     # Content Security Policy (CSP) Header Not Set
-10015   WARN    LOW     # Incomplete/No Cache-control and Pragma Header Set
-10096   WARN    LOW     # Timestamp Disclosure
+10020	WARN	Missing Anti-clickjacking Header
+10021	WARN	X-Content-Type-Options Header Missing
+10016	WARN	Web Browser XSS Protection Header Not Set (legacy)
+10038	WARN	Content Security Policy (CSP) Header Not Set
+10015	WARN	Incomplete/No Cache-control and Pragma Header Set
+10096	WARN	Timestamp Disclosure
 
 # In HTTP-only CI this is expected; don’t spam findings.
-10035   WARN    OFF     # Strict-Transport-Security Header Not Set (local HTTP)
+10035	WARN	Strict-Transport-Security Header Not Set (local HTTP)
 
 # --- Info leaks (keep visible; often actionable) ---
-10036   WARN    LOW     # Server Leaks Version Information via "Server"
-10037   WARN    LOW     # Server Leaks Info via "X-Powered-By"
+10036	WARN	Server Leaks Version Information via "Server"
+10037	WARN	Server Leaks Info via "X-Powered-By"
 
 # --- Optional noise reduction (ONLY enable after a few stable runs) ---
-# 10038   IGNORE  LOW   # CSP missing
+10038	IGNORE	CSP missing
+
