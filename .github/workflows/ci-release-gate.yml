@@ -198,7 +198,7 @@ jobs:
     permissions:
       contents: read
     env:
-      ZAP_IMG: ghcr.io/zaproxy/zaproxy:sha256-4bef6bcb753a95aa2f69f36e400a77dcc47ced2d10d26902d52f616fa292f5e1 # v2.17.0
+      ZAP_IMG: ghcr.io/zaproxy/zaproxy@sha256:4bef6bcb753a95aa2f69f36e400a77dcc47ced2d10d26902d52f616fa292f5e1 # v2.17.0
       ZAP_TARGET_FRONTEND: "http://127.0.0.1:4173"
       ZAP_TARGET_BACKEND: "http://127.0.0.1:8080"
       ZAP_CONTEXT_FILE: ${{ github.workspace }}/.zap/context.context
