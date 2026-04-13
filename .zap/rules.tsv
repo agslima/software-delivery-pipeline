@@ -4,8 +4,8 @@
 # threshold: OFF / LOW / MEDIUM / HIGH
 #
 # Philosophy:
-# - Keep "real vulns" (injection, auth, traversal, SSRF, etc.) as-is (they'll be gated by the workflow).
-# - Downgrade common "missing header" hygiene findings to WARN to reduce CI churn.
+# - Keep real vulns (injection, auth, traversal, SSRF, etc.) as-is (they'll be gated by the workflow).
+# - Downgrade common missing header hygiene findings to WARN to reduce CI churn.
 # - IGNORE only when I'm certain it is non-actionable in my environment.
 
 # ZAP rules (TSV) for ZAP scan scripts (zap-full-scan.py / zap-api-scan.py)
