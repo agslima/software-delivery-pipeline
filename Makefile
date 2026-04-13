@@ -12,6 +12,7 @@ GOV_EVIDENCE_INDEX_SCRIPT := $(ROOT_DIR)/scripts/check-governance-evidence-index
 GOV_METADATA_SCRIPT := $(ROOT_DIR)/scripts/check-governance-metadata-freshness.sh
 GOV_MARKDOWN_ASSERT := $(ROOT_DIR)/scripts/markdown_assert.py
 DOCS_METADATA_ASSERT := $(ROOT_DIR)/scripts/check-docs-metadata.py
+WORKFLOW_PROVENANCE_SCRIPT := $(ROOT_DIR)/scripts/check-workflow-input-provenance.py
 
 export RUN_SCA ?= 1
 export RUN_SAST ?= 1
@@ -49,6 +50,8 @@ guard-governance:
 	@test -x "$(GOV_METADATA_SCRIPT)" || chmod +x "$(GOV_METADATA_SCRIPT)"
 	@test -f "$(GOV_MARKDOWN_ASSERT)" || { echo "Missing $(GOV_MARKDOWN_ASSERT)"; exit 1; }
 	@test -f "$(DOCS_METADATA_ASSERT)" || { echo "Missing $(DOCS_METADATA_ASSERT)"; exit 1; }
+	@test -f "$(WORKFLOW_PROVENANCE_SCRIPT)" || { echo "Missing $(WORKFLOW_PROVENANCE_SCRIPT)"; exit 1; }
+	@test -x "$(WORKFLOW_PROVENANCE_SCRIPT)" || chmod +x "$(WORKFLOW_PROVENANCE_SCRIPT)"
 
 .PHONY: guard-dast
 guard-dast:
@@ -105,6 +108,10 @@ trivy-scan: guard-trivy ## Generate local Trivy security report
 
 .PHONY: governance-checks
 governance-checks: governance-drift-check governance-metadata-check ## Run local governance drift and metadata checks
+
+.PHONY: workflow-input-provenance-check
+workflow-input-provenance-check: guard-governance ## Check pinning of high-trust workflow inputs
+	python3 "$(WORKFLOW_PROVENANCE_SCRIPT)"
 
 .PHONY: docs-metadata-check
 docs-metadata-check: guard-governance ## Check standardized metadata comments in maintained docs pages

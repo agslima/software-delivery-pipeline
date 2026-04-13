@@ -1,4 +1,4 @@
-# Compliance Artifacts (Phase 3)
+# Compliance Artifacts
 
 This folder contains templates and baseline artifacts for Phase 3 compliance workflows.
 

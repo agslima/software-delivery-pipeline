@@ -16,9 +16,7 @@ networks:
 
 services:
   frontend:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.client
+    image: ${FRONTEND_IMAGE}
     ports:
       - "4173:8080"
       - "8443:8443"
@@ -43,7 +41,8 @@ services:
       - /var/run:uid=101,gid=101,mode=0755
       - /var/cache/nginx:uid=101,gid=101,mode=0755
       - /etc/nginx/conf.d:uid=101,gid=101,mode=0755
-      - /etc/nginx/ssl:uid=101,gid=101,mode=0755 
+      - /etc/nginx/ssl:uid=101,gid=101,mode=0755
+      
     # Resource limits apply only in Swarm mode. Keeping out of compose to avoid warnings.
 
     healthcheck:
@@ -54,9 +53,7 @@ services:
       start_period: 30s
 
   backend:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.server
+    image: ${BACKEND_IMAGE}
     ports:
       - "8080:8080"
     
@@ -132,9 +129,7 @@ services:
       start_period: 30s
 
   worker:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.worker
+    image: ${WORKER_IMAGE}
 
     networks:
       - app_network
@@ -185,9 +180,7 @@ services:
       start_period: 30s
 
   db-bootstrap:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.server
+    image: ${BACKEND_IMAGE}
 
     networks:
       - app_network
@@ -211,11 +204,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp:uid=1000,gid=1000,mode=1777
-    command:
-      - /bin/sh
-      - -c
-      - >-
-        node src/infra/db/run-migrations.js bootstrap
+    command: ["node", "src/infra/db/run-migrations.js", "bootstrap"]
 
   postgres:
     image: postgres:15-alpine

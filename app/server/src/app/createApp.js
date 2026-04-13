@@ -9,6 +9,7 @@ const requireTls = require('../api/http/middleware/requireTls');
 const metrics = require('../api/http/middleware/metrics');
 const httpLogger = require('../api/http/middleware/httpLogger');
 const errorHandler = require('../api/http/errors/errorHandler');
+const { AppError } = require('../api/http/errors/AppError');
 const metricsRoutes = require('../api/http/routes/metrics.routes');
 
 const v1Routes = require('./routes');
@@ -67,6 +68,16 @@ module.exports = function createApp() {
 
   app.use('/api/v1', v1Routes);
   app.use('/api/v2', v2Routes);
+
+  app.use((req, _res, next) => {
+    next(
+      new AppError({
+        status: 404,
+        code: 'ROUTE_NOT_FOUND',
+        message: `Route not found: ${req.method} ${req.originalUrl}`,
+      })
+    );
+  });
 
   app.use(errorHandler);
   return app;

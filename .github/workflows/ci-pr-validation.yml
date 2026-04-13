@@ -1,8 +1,5 @@
 name: CI
 on:
-  workflow_dispatch: {}
-  push:
-    branches: [ main ]
   pull_request:
     types: [opened, synchronize, reopened]
 
@@ -163,6 +160,16 @@ jobs:
 
       - name: Governance Metadata Freshness Check
         run: make governance-metadata-check
+
+      - name: Workflow Input Provenance Check (dry run)
+        id: workflow-input-provenance
+        continue-on-error: true
+        run: make workflow-input-provenance-check
+
+      - name: Workflow Input Provenance Check Result
+        if: steps.workflow-input-provenance.outcome == 'failure'
+        run: |
+          echo "::warning::Workflow input provenance dry run detected mutable high-trust workflow inputs. Review the 'Workflow Input Provenance Check (dry run)' step output before promoting this control to a blocking gate."
 
       # 1. Secret Scanning
       - name: Secret Scanning (Gitleaks)

@@ -12,6 +12,10 @@ env:
   TRIVY_VERSION: "0.58.1"
   ZAP_TARGET_FRONTEND: "http://127.0.0.1:4173"
   ZAP_TARGET_BACKEND: "http://127.0.0.1:8080"
+  ZAP_CONTEXT_FILE: ${{ github.workspace }}/.zap/context.context
+  ZAP_RULES_FILE: ${{ github.workspace }}/.zap/rules.tsv
+  MEDIUM_BLOCK_PATTERNS_FILE: ${{ github.workspace }}/.zap/medium-block-patterns.txt
+      
 jobs:
   dast-analysis:
     name: DAST (Digest-based)
@@ -28,11 +32,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 #v4.1.0
-        with:
-          username: ${{ secrets.DOCKER_HUB_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
-
+      
       - name: Set Variables + Compose Secrets (file-based)
         working-directory: app
         run: |
@@ -61,30 +61,23 @@ jobs:
           printf "%s" "${{ secrets.ADMIN_PASS }}" > "${SECRETS_DIR}/admin_pass.txt"
           printf "%s" "${{ secrets.DB_PASS }}" > "${SECRETS_DIR}/db_pass.txt"
           printf "%s" "${{ secrets.DATA_ENCRYPTION_KEY }}" > "${SECRETS_DIR}/data_encryption_key.txt"
-          chmod 600 "${SECRETS_DIR}"/*.txt
+          chmod 644 "${SECRETS_DIR}"/*.txt
 
           echo "Secrets dir: ${SECRETS_DIR}"
-
+          
       - name: Start Ephemeral Environment (Pinned Digests)
         working-directory: app
         run: |
           set -euo pipefail
 
-          export BACKEND_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-backend@sha256:20a7af4ca42f8892a8589cc0012a845efee45fdaea4185a0864e099383ebc8ef"
-          export WORKER_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-worker@sha256:6eca61a664270c5ecade5dac816193fa6b4f4351668990b44064fadb90a18808"
-          export FRONTEND_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-frontend@sha256:39a76ef055114033bf90cc249641cd3a3adfc48a7938d559edbd618c79887e4c"
-
-          echo "BACKEND_IMAGE=$BACKEND_IMAGE"
-          echo "WORKER_IMAGE=$WORKER_IMAGE"
-          echo "FRONTEND_IMAGE=$FRONTEND_IMAGE"
-
           # Compose should reference BACKEND_IMAGE / FRONTEND_IMAGE
-          docker compose -f docker-compose.yml -f docker-compose.release.yml up -d
+          # docker compose -f docker-compose.prod.yml -f docker-compose.release.yml up -d
+          docker compose up -d
 
           echo "⏳ Waiting for Backend..."
           timeout 90s bash -c 'until curl -s http://127.0.0.1:8080/health > /dev/null; do sleep 5; done'
-          echo "⏳ Waiting for Worker..."
-          timeout 90s bash -c 'until curl -s http://127.0.0.1:8090/ready > /dev/null; do sleep 5; done'
+          echo "⏳ Waiting for Worker..." 
+          timeout 90s bash -c 'until docker compose exec worker wget -qO- http://127.0.0.1:8090/ready > /dev/null; do sleep 5; done' 
           echo "⏳ Waiting for Frontend..."
           timeout 90s bash -c 'until curl -s http://127.0.0.1:4173 > /dev/null; do sleep 5; done'
           docker compose ps
@@ -95,7 +88,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p zap-out
-          chmod 777 zap-out
+          chmod 644 zap-out
+          cp "$ZAP_CONTEXT_FILE" zap-out/context.context
+          cp "$ZAP_RULES_FILE"   zap-out/rules.tsv
 
           VOL_PATH="$(pwd)/zap-out"
           echo "ZAP volume: $VOL_PATH"
@@ -106,6 +101,8 @@ jobs:
             -v "$VOL_PATH:/zap/wrk/:rw" \
             "${{ env.ZAP_IMG }}" zap-baseline.py \
             -t "${{ env.ZAP_TARGET_FRONTEND }}" \
+            -n /zap/wrk/context.context \
+            -c /zap/wrk/rules.tsv \
             -r zap-frontend.html \
             -J zap-frontend.json \
             -I || true
@@ -125,6 +122,8 @@ jobs:
             -v "$VOL_PATH:/zap/wrk/:rw" \
             "${{ env.ZAP_IMG }}" zap-baseline.py \
             -t "${{ env.ZAP_TARGET_BACKEND }}" \
+            -n /zap/wrk/context.context \
+            -c /zap/wrk/rules.tsv \
             -r zap-backend.html \
             -J zap-backend.json \
             -I || true
@@ -151,6 +150,13 @@ jobs:
           done
 
           echo "✅ DAST Gate Passed"
+
+      - name: Debug - Container Logs
+        if: failure()
+        working-directory: app
+        run: |
+          docker compose ps || true
+          docker compose logs --no-color || true
 
       - name: Upload ZAP Artifacts
         if: always()

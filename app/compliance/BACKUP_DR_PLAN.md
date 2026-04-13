@@ -1,4 +1,4 @@
-# Backup & DR Plan (Phase 3)
+# Backup & DR Plan
 
 ## Objectives
 

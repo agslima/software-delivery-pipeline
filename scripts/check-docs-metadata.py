@@ -14,6 +14,8 @@ TARGETS = [
     "docs/decisions.md",
     "docs/runbook.md",
     "docs/remediation-plan.md",
+    "docs/slsa-l3-sequencing-plan.md",
+    "docs/slsa-l3-pilot-retrospective.md",
     "docs/adr/001-gitops-strategy.md",
     "docs/adr/002-image-signing-attestation.md",
     "docs/adr/003-policy-enforcement-strategy.md",
