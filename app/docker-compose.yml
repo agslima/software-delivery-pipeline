@@ -35,14 +35,15 @@ services:
     security_opt:
       - no-new-privileges:true
     restart: unless-stopped
-    # read_only: true
+    read_only: true
 
     # Nginx Alpine UID (101)
     tmpfs:
       - /tmp:uid=101,gid=101,mode=1777
       - /var/run:uid=101,gid=101,mode=0755
       - /var/cache/nginx:uid=101,gid=101,mode=0755
-    
+      - /etc/nginx/conf.d:uid=101,gid=101,mode=0755
+      - /etc/nginx/ssl:uid=101,gid=101,mode=0755 
     # Resource limits apply only in Swarm mode. Keeping out of compose to avoid warnings.
 
     healthcheck:
