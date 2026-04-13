@@ -20,10 +20,10 @@
 10015	WARN	Incomplete/No Cache-control and Pragma Header Set
 10096	WARN	Timestamp Disclosure
 
-# In HTTP-only CI this is expected; don’t spam findings.
+# In HTTP-only CI this is expected
 10035	WARN	Strict-Transport-Security Header Not Set (local HTTP)
 
-# --- Info leaks (keep visible; often actionable) ---
+# --- Info leaks ---
 10036	WARN	Server Leaks Version Information via "Server"
 10037	WARN	Server Leaks Info via "X-Powered-By"
 
