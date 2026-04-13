@@ -10,9 +10,6 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  TRIVY_VERSION: "0.58.1"
-  ZAP_TARGET_FRONTEND: "http://127.0.0.1:4173"
-  ZAP_TARGET_BACKEND: "http://127.0.0.1:8080"
   # Canonical predicateTypes (Aligned with Kyverno policies)
   TRIVY_PREDICATE_TYPE: "https://security.sigstore.dev/attestations/vuln/trivy/v1"
   ZAP_PREDICATE_TYPE: "https://security.sigstore.dev/attestations/dast/zap/v1"
@@ -120,6 +117,8 @@ jobs:
     needs: [build-push, resolve]
     permissions:
       contents: read
+    env:
+      TRIVY_VERSION: "0.58.1"
     strategy:
       fail-fast: true
       matrix:
@@ -199,7 +198,11 @@ jobs:
     permissions:
       contents: read
     env:
-      ZAP_IMG: ghcr.io/zaproxy/zaproxy@sha256:8e79e827afb9e8bdba390c829eb3062062cdb407570559e2ddebd49130c00a59
+      ZAP_IMG: ghcr.io/zaproxy/zaproxy:sha256-4bef6bcb753a95aa2f69f36e400a77dcc47ced2d10d26902d52f616fa292f5e1 # v2.17.0
+      ZAP_TARGET_FRONTEND: "http://127.0.0.1:4173"
+      ZAP_TARGET_BACKEND: "http://127.0.0.1:8080"
+      ZAP_CONTEXT_FILE: ${{ github.workspace }}/.zap/context.context
+      ZAP_RULES_FILE: ${{ github.workspace }}/.zap/rules.tsv
       HEALTH_TIMEOUT: "120" # seconds
       COMPOSE_PROJECT_NAME: dast-${{ github.run_id }}-${{ github.run_attempt }} 
 
@@ -231,16 +234,13 @@ jobs:
         working-directory: app
         run: |
           set -euo pipefail
-
-          # Keep secrets OUT of workspace: use RUNNER_TEMP
+          
           SECRETS_DIR="${RUNNER_TEMP}/compose-secrets"
           ENV_FILE=".env"
 
           rm -f "$ENV_FILE"
           rm -rf "$SECRETS_DIR"
           mkdir -p "$SECRETS_DIR"
-
-          # Non-secret env vars
           {
             echo "ADMIN_USER=${{ vars.ADMIN_USER }}"
             echo "DB_USER=${{ vars.DB_USER }}"
@@ -248,7 +248,7 @@ jobs:
             echo "COMPOSE_PROJECT_NAME=${{ env.COMPOSE_PROJECT_NAME }}"
             echo "SECRETS_PATH=${SECRETS_DIR}"
           } >> "$ENV_FILE"
-          chmod 600 "$ENV_FILE"
+          chmod 644 "$ENV_FILE"
 
           # Compose secrets files
           printf "%s" "${{ secrets.JWT_SECRET }}" > "${SECRETS_DIR}/jwt_secret.txt"
@@ -282,7 +282,7 @@ jobs:
           echo "⏳ Waiting for Backend..."
           timeout 90s bash -c 'until curl -s http://127.0.0.1:8080/health > /dev/null; do sleep 5; done'
           echo "⏳ Waiting for Worker..."
-          timeout 90s bash -c 'until curl -s http://127.0.0.1:8090/ready > /dev/null; do sleep 5; done'
+          timeout 90s bash -c 'until docker compose exec worker wget -qO- http://127.0.0.1:8090/ready > /dev/null; do sleep 5; done' 
           echo "⏳ Waiting for Frontend..."
           timeout 90s bash -c 'until curl -s http://127.0.0.1:4173 > /dev/null; do sleep 5; done'
           docker compose ps
@@ -294,6 +294,8 @@ jobs:
           set -euo pipefail
           mkdir -p zap-out
           chmod 777 zap-out
+          cp "$ZAP_CONTEXT_FILE" zap-out/context.context
+          cp "$ZAP_RULES_FILE"   zap-out/rules.tsv
 
           VOL_PATH="$(pwd)/zap-out"
           echo "ZAP volume: $VOL_PATH"
@@ -304,6 +306,8 @@ jobs:
             -v "$VOL_PATH:/zap/wrk/:rw" \
             "${{ env.ZAP_IMG }}" zap-baseline.py \
             -t "${{ env.ZAP_TARGET_FRONTEND }}" \
+            -n /zap/wrk/context.context \
+            -c /zap/wrk/rules.tsv \
             -r zap-frontend.html \
             -J zap-frontend.json \
             -I || true
@@ -323,6 +327,8 @@ jobs:
             -v "$VOL_PATH:/zap/wrk/:rw" \
             "${{ env.ZAP_IMG }}" zap-baseline.py \
             -t "${{ env.ZAP_TARGET_BACKEND }}" \
+            -n /zap/wrk/context.context \
+            -c /zap/wrk/rules.tsv \
             -r zap-backend.html \
             -J zap-backend.json \
             -I || true
@@ -395,10 +401,6 @@ jobs:
             image_repo: app-stayhealthy-worker
           - name: frontend
             image_repo: app-stayhealthy-frontend
-    #env:
-      # COSIGN_LOG_LEVEL: debug
-      # COSIGN_DOCKER_MEDIA_TYPES: "1"
-      # COSIGN_REGISTRY_REFERRERS_MODE: legacy
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
