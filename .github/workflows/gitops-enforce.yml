@@ -76,7 +76,7 @@ jobs:
           fi
 
           if [[ "$WR_EFFECTIVE_REF" != refs/* ]]; then
-            vWR_EFFECTIVE_REF="refs/tags/$WR_EFFECTIVE_REF"
+            WR_EFFECTIVE_REF="refs/tags/$WR_EFFECTIVE_REF"
           fi
 
           if [[ "$WR_EFFECTIVE_REF" != refs/tags/* ]]; then
