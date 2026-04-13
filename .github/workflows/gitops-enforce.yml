@@ -69,9 +69,14 @@ jobs:
           fi
 
           WR_EFFECTIVE_REF="${WR_REF:-$WR_HEAD_REF}"
+
           if [[ -z "$WR_EFFECTIVE_REF" ]]; then
             echo "::error::Missing upstream release ref for workflow_run trigger."
             exit 1
+          fi
+
+          if [[ "$WR_EFFECTIVE_REF" != refs/* ]]; then
+            WR_EFFECTIVE_REF="refs/tags/$WR_EFFECTIVE_REF"
           fi
 
           if [[ "$WR_EFFECTIVE_REF" != refs/tags/* ]]; then
@@ -139,10 +144,10 @@ jobs:
             echo "::error::Could not resolve release ref for run ${RUN_ID}."
             exit 1
           fi
-
-          if [[ "$RELEASE_EFFECTIVE_REF" != refs/tags/* ]]; then
-            echo "::error::Release run ${RUN_ID} must originate from a tag push (ref: ${RELEASE_EFFECTIVE_REF})."
-            exit 1
+          
+          if [[ "$RELEASE_EFFECTIVE_REF" != refs/tags/v*.*.* && "$RELEASE_EFFECTIVE_REF" != v*.*.* ]]; then 
+            echo "::error::Release run ${RUN_ID} must originate from a tag push (ref: ${RELEASE_EFFECTIVE_REF})." 
+            exit 1 
           fi
 
           test -n "$RELEASE_SHA" || (echo "::error::Could not resolve head SHA for release run ${RUN_ID}."; exit 1)
