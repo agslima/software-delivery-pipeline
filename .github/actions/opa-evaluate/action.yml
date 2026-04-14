@@ -1,0 +1,70 @@
+name: "OPA Evaluate Supply Chain Risk"
+
+inputs:
+  evidence-file:
+    required: true
+  policy-file:
+    required: true
+  threshold:
+    required: true
+  exposure:
+    required: true
+  criticality:
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install OPA
+      shell: bash
+      run: |
+        curl -L -o opa https://openpolicyagent.org/downloads/latest/opa_linux_amd64_static
+        chmod +x opa
+        sudo mv opa /usr/local/bin/
+
+    - name: Inject Context
+      shell: bash
+      run: |
+        jq \
+          --arg exposure "${{ inputs.exposure }}" \
+          --arg criticality "${{ inputs.criticality }}" \
+          --argjson threshold "${{ inputs.threshold }}" \
+          '
+          . + {
+            context: {
+              exposure: $exposure,
+              criticality: $criticality
+            },
+            policy: {
+              threshold: $threshold
+            }
+          }
+          ' "${{ inputs.evidence-file }}" > enriched.json
+
+    - name: Evaluate Policy
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        RESULT=$(opa eval \
+          --format=json \
+          --input enriched.json \
+          --data "${{ inputs.policy-file }}" \
+          "data.supplychain")
+
+        echo "$RESULT"
+
+        echo "$RESULT" > decision.json
+
+        if ! echo "$RESULT" | grep -q '"allow": true'; then
+          echo "::error::Policy denied"
+          exit 1
+        fi
+
+    - name: Extract Risk Score
+      shell: bash
+      run: |
+        opa eval \
+          --input enriched.json \
+          --data "${{ inputs.policy-file }}" \
+          "data.supplychain.risk_score"
