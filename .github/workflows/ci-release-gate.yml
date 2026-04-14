@@ -125,10 +125,16 @@ jobs:
         include:
           - name: backend
             image_repo: app-stayhealthy-backend
+            exposure: public
+            criticality: high
           - name: worker
             image_repo: app-stayhealthy-worker
+            exposure: internal
+            criticality: medium
           - name: frontend
             image_repo: app-stayhealthy-frontend
+            exposure: public
+            criticality: medium
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
