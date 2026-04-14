@@ -37,20 +37,20 @@ runs:
     - name: Run ZAP (Frontend)
       shell: bash
       run: |
-        bash ${{ github.action_path }}/scripts/run-zap.sh \
+        bash ${{ github.action_path }}/scripts/security/dast-release/run-zap.sh \
           "${{ inputs.target_frontend }}" frontend zap-out "${{ inputs.zap_image }}"
 
     - name: Run ZAP (Backend)
       shell: bash
       run: |
-        bash ${{ github.action_path }}/scripts/run-zap.sh \
+        bash ${{ github.action_path }}/scripts/security/dast-release/run-zap.sh \
           "${{ inputs.target_backend }}" backend zap-out "${{ inputs.zap_image }}"
 
     - name: Normalize Results
       shell: bash
       run: |
-        bash ${{ github.action_path }}/scripts/normalize.sh zap-out/zap-frontend.json > zap-out/frontend.norm.json
-        bash ${{ github.action_path }}/scripts/normalize.sh zap-out/zap-backend.json > zap-out/backend.norm.json
+        bash ${{ github.action_path }}/scripts/security/dast-release/normalize.sh zap-out/zap-frontend.json > zap-out/frontend.norm.json
+        bash ${{ github.action_path }}/scripts/security/dast-release/normalize.sh zap-out/zap-backend.json > zap-out/backend.norm.json
 
     - name: Merge Signals
       shell: bash
@@ -68,7 +68,7 @@ runs:
       id: opa
       shell: bash
       run: |
-        bash ${{ github.action_path }}/scripts/evaluate.sh \
+        bash ${{ github.action_path }}/scripts/security/dast-release/evaluate.sh \
           zap-out/combined.json \
           ${{ github.action_path }}/${{ inputs.policy_path }} \
           > decision.json
