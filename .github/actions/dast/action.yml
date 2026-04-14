@@ -1,0 +1,86 @@
+name: "DAST OPA Gate"
+description: "Run ZAP, normalize results, evaluate with OPA"
+
+inputs:
+  zap_image:
+    required: true
+  target_frontend:
+    required: true
+  target_backend:
+    required: true
+  context_file:
+    required: true
+  rules_file:
+    required: true
+  policy_path:
+    required: false
+    default: policy/
+
+outputs:
+  decision:
+    description: "OPA decision (allow/deny)"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Prepare workspace
+      shell: bash
+      run: |
+        mkdir -p zap-out
+
+    - name: Copy context + rules
+      shell: bash
+      run: |
+        cp "${{ inputs.context_file }}" zap-out/context.context
+        cp "${{ inputs.rules_file }}" zap-out/rules.tsv
+
+    - name: Run ZAP (Frontend)
+      shell: bash
+      run: |
+        bash ${{ github.action_path }}/scripts/run-zap.sh \
+          "${{ inputs.target_frontend }}" frontend zap-out "${{ inputs.zap_image }}"
+
+    - name: Run ZAP (Backend)
+      shell: bash
+      run: |
+        bash ${{ github.action_path }}/scripts/run-zap.sh \
+          "${{ inputs.target_backend }}" backend zap-out "${{ inputs.zap_image }}"
+
+    - name: Normalize Results
+      shell: bash
+      run: |
+        bash ${{ github.action_path }}/scripts/normalize.sh zap-out/zap-frontend.json > zap-out/frontend.norm.json
+        bash ${{ github.action_path }}/scripts/normalize.sh zap-out/zap-backend.json > zap-out/backend.norm.json
+
+    - name: Merge Signals
+      shell: bash
+      run: |
+        jq -s '{
+          sources: .,
+          summary: {
+            high: (map(.summary.high) | add),
+            medium: (map(.summary.medium) | add),
+            low: (map(.summary.low) | add)
+          }
+        }' zap-out/*.norm.json > zap-out/combined.json
+
+    - name: Evaluate Policy (OPA)
+      id: opa
+      shell: bash
+      run: |
+        bash ${{ github.action_path }}/scripts/evaluate.sh \
+          zap-out/combined.json \
+          ${{ github.action_path }}/${{ inputs.policy_path }} \
+          > decision.json
+
+        DECISION=$(jq -r '.allow' decision.json)
+        echo "decision=$DECISION" >> "$GITHUB_OUTPUT"
+
+    - name: Enforce Policy
+      shell: bash
+      run: |
+        if [ "${{ steps.opa.outputs.decision }}" != "true" ]; then
+          echo "::error::DAST policy failed"
+          cat decision.json
+          exit 1
+        fi
