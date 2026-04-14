@@ -1,16 +1,25 @@
-name: "OPA Evaluate Supply Chain Risk"
+name: "OPA Supply Chain Policy"
+
+description: "Evaluate supply chain risk using versioned OPA policies"
 
 inputs:
   evidence-file:
     required: true
-  policy-file:
+  policy-bundle:
     required: true
+    description: "Path to policy bundle (e.g., policy/bundles/v1)"
   threshold:
     required: true
   exposure:
     required: true
   criticality:
     required: true
+
+outputs:
+  decision:
+    description: "allow or deny"
+  risk_score:
+    description: "calculated risk score"
 
 runs:
   using: "composite"
@@ -22,7 +31,7 @@ runs:
         chmod +x opa
         sudo mv opa /usr/local/bin/
 
-    - name: Inject Context
+    - name: Prepare Input
       shell: bash
       run: |
         jq \
@@ -42,6 +51,7 @@ runs:
           ' "${{ inputs.evidence-file }}" > enriched.json
 
     - name: Evaluate Policy
+      id: eval
       shell: bash
       run: |
         set -euo pipefail
@@ -49,22 +59,34 @@ runs:
         RESULT=$(opa eval \
           --format=json \
           --input enriched.json \
-          --data "${{ inputs.policy-file }}" \
+          --data "${{ inputs.policy-bundle }}" \
           "data.supplychain")
 
+        echo "$RESULT" > decision.json
         echo "$RESULT"
 
-        echo "$RESULT" > decision.json
-
-        if ! echo "$RESULT" | grep -q '"allow": true'; then
-          echo "::error::Policy denied"
-          exit 1
+        if echo "$RESULT" | grep -q '"allow": true'; then
+          echo "decision=allow" >> $GITHUB_OUTPUT
+        else
+          echo "decision=deny" >> $GITHUB_OUTPUT
         fi
 
     - name: Extract Risk Score
+      id: risk
       shell: bash
       run: |
-        opa eval \
+        SCORE=$(opa eval \
+          --format=raw \
           --input enriched.json \
-          --data "${{ inputs.policy-file }}" \
-          "data.supplychain.risk_score"
+          --data "${{ inputs.policy-bundle }}" \
+          "data.supplychain.risk_score")
+
+        echo "risk_score=$SCORE" >> $GITHUB_OUTPUT
+
+    - name: Fail if Denied
+      shell: bash
+      run: |
+        if [ "${{ steps.eval.outputs.decision }}" = "deny" ]; then
+          echo "::error::Policy denied"
+          exit 1
+        fi
