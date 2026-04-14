@@ -1,0 +1,5 @@
+{
+  "version": "v1",
+  "description": "Basic severity-weighted risk scoring",
+  "inputs": ["vulnerabilities", "context", "policy.threshold"]
+}
