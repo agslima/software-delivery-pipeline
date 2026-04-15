@@ -6,7 +6,6 @@ resources:
   - worker.yaml
   - frontend.yaml
   - pdb.yaml
-  - secrets.example.yaml
 
 images:
   - name: docker.io/agslima/app-stayhealthy-backend
