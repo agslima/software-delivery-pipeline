@@ -320,7 +320,7 @@ jobs:
             kyverno apply "$POLICY" \
               --resource /tmp/prod.yaml \
               --audit-warn=false \
-              --registry \
+              --registry --v=6 \
               --detailed-results > "$out" 2>&1 || true
 
             cat "$out" | tee -a "$LOG_FILE"
