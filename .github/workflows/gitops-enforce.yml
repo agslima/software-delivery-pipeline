@@ -219,7 +219,6 @@ jobs:
               --type "${{ env.ZAP_PREDICATE_TYPE }}" \
               --certificate-oidc-issuer "${{ env.OIDC_ISSUER }}" \
               --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*" 
-              #\ > /dev/null
 
             echo "🧾 Verifying SBOM attestation..."
             cosign verify-attestation "$IMAGE" \
@@ -254,15 +253,15 @@ jobs:
           test -f "$FILE" || (echo "::error::Missing $FILE"; exit 1)
 
           yq -i '
-            (.images[] | select(.name == "backend-canary") | .digest) = strenv(BACKEND_DIGEST)
+            (.images[] | select(.name == "index.docker.io/agslima/app-stayhealthy-backend") | .digest) = strenv(BACKEND_DIGEST)
           ' "$FILE"
 
           yq -i '
-            (.images[] | select(.name == "docker.io/agslima/app-stayhealthy-worker") | .digest) = strenv(WORKER_DIGEST)
+            (.images[] | select(.name == "index.docker.io/agslima/app-stayhealthy-worker") | .digest) = strenv(WORKER_DIGEST)
           ' "$FILE"
 
           yq -i '
-            (.images[] | select(.name == "docker.io/agslima/app-stayhealthy-frontend") | .digest) = strenv(FRONTEND_DIGEST)
+            (.images[] | select(.name == "index.docker.io/agslima/app-stayhealthy-frontend") | .digest) = strenv(FRONTEND_DIGEST)
           ' "$FILE"
 
           echo "✅ Updated prod overlay:"
@@ -320,7 +319,7 @@ jobs:
             kyverno apply "$POLICY" \
               --resource /tmp/prod.yaml \
               --audit-warn=false \
-              --registry --v=6 \
+              --registry \
               --detailed-results > "$out" 2>&1 || true
 
             cat "$out" | tee -a "$LOG_FILE"
