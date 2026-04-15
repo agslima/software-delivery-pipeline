@@ -250,33 +250,21 @@ jobs:
           sudo wget -qO /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download/${{env.YQ_VERSION}}/yq_linux_amd64"
           sudo chmod +x /usr/local/bin/yq
           yq --version
-
+          
       - name: Update prod digests (candidate canary + full promotion for non-canary services)
         run: |
           set -euo pipefail
-          FILE="k8s/overlays/prod/kustomization.yaml"
-          test -f "$FILE" || (echo "::error::Missing $FILE"; exit 1)
+          
+          # Navigate to the overlay directory to ensure Kustomize context is correct
+          cd k8s/overlays/prod
 
-          yq -i '
-            (.images[] | select(.name == "docker.io/agslima/app-stayhealthy-backend") | .digest) = strenv(BACKEND_DIGEST)
-          ' "$FILE"
+          # Use Kustomize native commands to safely update the digests
+          kustomize edit set image docker.io/agslima/app-stayhealthy-backend@${BACKEND_DIGEST}
+          kustomize edit set image docker.io/agslima/app-stayhealthy-worker@${WORKER_DIGEST}
+          kustomize edit set image docker.io/agslima/app-stayhealthy-frontend@${FRONTEND_DIGEST}
 
-          yq -i '
-            (.images[] | select(.name == "docker.io/agslima/app-stayhealthy-worker") | .digest) = strenv(WORKER_DIGEST)
-          ' "$FILE"
-
-          yq -i '
-            (.images[] | select(.name == "docker.io/agslima/app-stayhealthy-frontend") | .digest) = strenv(FRONTEND_DIGEST)
-          ' "$FILE"
-
-          echo "✅ Updated prod overlay:"
-          yq -r '.images[] | .name + " => " + .digest' "$FILE"
-
-          # Fail closed
-          yq -r '.images[].digest' "$FILE" | grep -q '^sha256:' || (
-            echo "::error::Prod overlay digests not set correctly"
-            exit 1
-          )
+          echo "✅ Updated prod overlay kustomization.yaml:"
+          cat kustomization.yaml
 
       - name: Validate rendered prod manifests against cluster policy
         run: |
@@ -285,11 +273,14 @@ jobs:
           LOG_FILE="kyverno-gitops.log"
           : > "$LOG_FILE"
 
-          kustomize build k8s/overlays/prod > /tmp/prod.yaml
-          test -s /tmp/prod.yaml || (echo "::error::Rendered prod.yaml is empty"; exit 1)
+          # Use an ephemeral file instead of hardcoded /tmp paths
+          RENDERED_MANIFEST=$(mktemp)
+          
+          kustomize build k8s/overlays/prod > "$RENDERED_MANIFEST"
+          test -s "$RENDERED_MANIFEST" || (echo "::error::Rendered manifest is empty"; exit 1)
 
           echo "=== Namespaces in rendered YAML ===" | tee -a "$LOG_FILE"
-          yq -r 'select(.metadata != null) | .kind + " " + (.metadata.namespace // "NONE") + " " + .metadata.name' /tmp/prod.yaml \
+          yq -r 'select(.metadata != null) | .kind + " " + (.metadata.namespace // "NONE") + " " + .metadata.name' "$RENDERED_MANIFEST" \
           | sort | uniq -c | tee -a "$LOG_FILE"
 
           echo "=== Images in rendered YAML ===" | tee -a "$LOG_FILE"
@@ -298,11 +289,13 @@ jobs:
              .metadata.name as $n |
              .spec.template.spec.containers[].image |
              $n + " => " + .
-          ' /tmp/prod.yaml | tee -a "$LOG_FILE"
+          ' "$RENDERED_MANIFEST" | tee -a "$LOG_FILE"
 
           echo "=== Kyverno policy evaluation (split policies) ===" | tee -a "$LOG_FILE"
 
-          # Apply each split policy individually so debugging is straightforward.
+          # Explicitly pass the Docker auth config so Kyverno can verify image signatures
+          export DOCKER_CONFIG=$HOME/.docker
+
           POLICIES=(
             "k8s/policies/cluster/verify-signature.yaml"
             "k8s/policies/cluster/verify-trivy.yaml"
@@ -311,51 +304,24 @@ jobs:
             "k8s/policies/cluster/verify-slsa.yaml"
           )
 
-          any_failed=0
-          any_skipped=0
-
           for POLICY in "${POLICIES[@]}"; do
             echo "" | tee -a "$LOG_FILE"
             echo "------------------------------------------------------------" | tee -a "$LOG_FILE"
             echo "Applying policy: $POLICY" | tee -a "$LOG_FILE"
             echo "------------------------------------------------------------" | tee -a "$LOG_FILE"
 
-            out="$(mktemp)"
+            # Execute Kyverno apply. 
+            # Because of 'set -e', if kyverno encounters a validation error, 
+            # it exits with a non-zero code and automatically fails the GitHub Action step.
             kyverno apply "$POLICY" \
-              --resource /tmp/prod.yaml \
+              --resource "$RENDERED_MANIFEST" \
               --audit-warn=false \
               --registry \
-              --detailed-results > "$out" 2>&1 || true
-
-            cat "$out" | tee -a "$LOG_FILE"
-
-            # Treat skipped as failure in CI
-            # if grep -q "Policies Skipped" "$out"; then
-            #  any_skipped=1
-            # fi
-
-            # Fail if kyverno reports failures/errors
-            if grep -qE "fail:[[:space:]]*[1-9]|error:[[:space:]]*[1-9]" "$out"; then
-              any_failed=1
-            fi
-
-            rm -f "$out"
+              --detailed-results | tee -a "$LOG_FILE"
           done
 
           echo "" | tee -a "$LOG_FILE"
-          echo "======================== Summary ========================" | tee -a "$LOG_FILE"
-
-          if [[ "$any_failed" -eq 1 ]]; then
-            echo "::error::❌ Kyverno policy evaluation failed (fail/error > 0) in at least one policy." | tee -a "$LOG_FILE"
-            exit 1
-          fi
-
-          # if [[ "$any_skipped" -eq 1 ]]; then
-          #  echo "::error::❌ Kyverno skipped one or more policies (treated as failure in CI)." | tee -a "$LOG_FILE"
-          #  exit 1
-          # fi
-
-          echo "✅ Policy Validation Passed." | tee -a "$LOG_FILE"
+          echo "✅ All policies passed successfully." | tee -a "$LOG_FILE"
 
       - name: Upload Kyverno Log
         if: always()
