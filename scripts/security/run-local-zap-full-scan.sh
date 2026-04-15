@@ -566,7 +566,7 @@ github_env_set "SECRETS_PATH" "$SECRETS_PATH"
 github_env_set "COMPOSE_NETWORK" "$COMPOSE_NETWORK"
 
 echo "Starting compose environment: ${COMPOSE_PROJECT_NAME}"
-compose up -d --build
+compose up -d --build || compose logs
 
 if ! docker network inspect "$COMPOSE_NETWORK" >/dev/null 2>&1; then
   echo "::error::Could not determine compose network for project ${COMPOSE_PROJECT_NAME}"
