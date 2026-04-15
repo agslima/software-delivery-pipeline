@@ -166,7 +166,9 @@ cleanup() {
 trap cleanup EXIT
 
 compose() {
-  docker compose --env-file "$DAST_ENV_FILE" -p "$COMPOSE_PROJECT_NAME" -f "${APP_DIR}/docker-compose.yml" "$@"
+  docker compose --env-file "$DAST_ENV_FILE" -p "$COMPOSE_PROJECT_NAME" -f "${APP_DIR}/docker-compose.yml || docker compose --env-file "$DAST_ENV_FILE" -p "$COMPOSE_PROJECT_NAME" -f "${APP_DIR}/docker-compose.yml logs -t" "$@"
+}
+logs -t" "$@"
 }
 
 assert_host_port_available() {
