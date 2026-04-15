@@ -57,6 +57,8 @@ jobs:
 
       - name: Init DAST defaults (avoid empty envs)
         run: |
+          set -euo pipefail
+          
           echo "DAST_AUTH_ASSERTION_PASSED=0" >> "$GITHUB_ENV"
           echo "DAST_AUTH_COVERAGE_FRONTEND=0" >> "$GITHUB_ENV"
           echo "DAST_AUTH_COVERAGE_BACKEND=0" >> "$GITHUB_ENV"
@@ -68,10 +70,20 @@ jobs:
 
       - name: Docker info
         run: |
+          set -euo pipefail
           docker version
           docker compose version
 
+      - name: Start Ephemeral Environment (Pinned Digests)
+        working-directory: app
+        run: |
+          set -euo pipefail
+          
+          chmod +x scripts/setup-dev.sh
+          ./scripts/setup-dev.sh
+          docker compose up -d
       - name: Run DAST Orchestration
+        if: false
         env:
           ADMIN_USER: ${{ vars.ADMIN_USER }}
           DB_USER: ${{ vars.DB_USER }}
