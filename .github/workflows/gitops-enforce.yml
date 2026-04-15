@@ -255,13 +255,17 @@ jobs:
         run: |
           set -euo pipefail
           
-          # Navigate to the overlay directory to ensure Kustomize context is correct
           cd k8s/overlays/prod
 
-          # Use Kustomize native commands to safely update the digests
-          kustomize edit set image docker.io/agslima/app-stayhealthy-backend@${BACKEND_DIGEST}
-          kustomize edit set image docker.io/agslima/app-stayhealthy-worker@${WORKER_DIGEST}
-          kustomize edit set image docker.io/agslima/app-stayhealthy-frontend@${FRONTEND_DIGEST}
+          # Use the explicit oldName=newName@digest syntax to preserve index.docker.io
+          kustomize edit set image \
+            docker.io/agslima/app-stayhealthy-backend=index.docker.io/agslima/app-stayhealthy-backend@${BACKEND_DIGEST}
+          
+          kustomize edit set image \
+            docker.io/agslima/app-stayhealthy-worker=index.docker.io/agslima/app-stayhealthy-worker@${WORKER_DIGEST}
+          
+          kustomize edit set image \
+            docker.io/agslima/app-stayhealthy-frontend=index.docker.io/agslima/app-stayhealthy-frontend@${FRONTEND_DIGEST}
 
           echo "✅ Updated prod overlay kustomization.yaml:"
           cat kustomization.yaml
