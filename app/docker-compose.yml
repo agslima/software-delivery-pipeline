@@ -211,11 +211,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp:uid=1000,gid=1000,mode=1777
-    command:
-      - /bin/sh
-      - -c
-      - >-
-        node src/infra/db/run-migrations.js bootstrap
+    command:  ["node", "src/infra/db/run-migrations.js", "bootstrap"]
 
   postgres:
     image: postgres:15-alpine
