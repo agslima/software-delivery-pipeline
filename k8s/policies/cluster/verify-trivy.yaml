@@ -38,6 +38,6 @@ spec:
                           url: https://rekor.sigstore.dev
               conditions:
                 - all:
-                    - key: "{{ predicate.result || '' }}"
+                    - key: "{{ result || '' }}"
                       operator: Equals
                       value: "PASS"
