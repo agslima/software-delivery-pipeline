@@ -62,19 +62,24 @@
             <pollheaders/>
             <pollfreq>60</pollfreq>
             <pollunits>REQUESTS</pollunits>
+            <loggedin>\QWelcome back\E</loggedin>
+            <loggedout>\Q Sign Out\E</loggedout>
             <browser>
                 <loginpageurl>http:localhost:8080/api/v2/auth/login</loginpageurl>
                 <browserid>firefox-headless</browserid>
                 <loginpagewait>5</loginpagewait>
                 <stepdelay>0</stepdelay>
                 <steps>
-                    <step>true;1;VXNlcm5hbWUgRWxlbWVudA==;VVNFUk5BTUU=;Y3NzOmlucHV0W3R5cGU9ImRhc3QtYWRtaW5AZXhhbXBsZS50ZXN0Il0=;;;1000;VXNlckNyZWRlbnRpYWxz;30;6;U0hBMQ==;</step>
-                    <step>true;2;UGFzc3dvcmQgRWxlbWVudA==;UEFTU1dPUkQ=;Y3NzOmlucHV0W3R5cGU9IkNoYW5nZU1lMTIzIUNoYW5nZU1lMTIzISJd;;;1000;VXNlckNyZWRlbnRpYWxz;30;6;U0hBMQ==;</step>
+                    <step>true;1;VXNlcm5hbWUgRWxlbWVudA==;VVNFUk5BTUU=;Y3NzOmlucHV0W3R5cGU9ImVtYWlsIl0=;;;1000;VXNlckNyZWRlbnRpYWxz;30;6;U0hBMQ==;</step>
+                    <step>true;2;UGFzc3dvcmQgRWxlbWVudA==;UEFTU1dPUkQ=;Y3NzOmlucHV0W3R5cGU9InBhc3N3b3JkIl0=;;;1000;VXNlckNyZWRlbnRpYWxz;30;6;U0hBMQ==;</step>
                     <step>true;3;U3VibWl0IEVsZW1lbnQ=;Q0xJQ0s=;Y3NzOmlucHV0W3R5cGU9InN1Ym1pdCJd;;;1000;VXNlckNyZWRlbnRpYWxz;30;6;U0hBMQ==;</step>
                 </steps>
             </browser>
         </authentication>
-        <forceduser>-1</forceduser>
+        <users>
+            <user>16;true;ZGFzdC1hZG1pbg==;6;X19aQVBfVVNFUk5BTUVfXw==~X19aQVBfUEFTU1dPUkRfXw==~~30~6~U0hBMQ==~</user>
+        </users>
+        <forceduser>16</forceduser>
         <session>
             <type>0</type>
         </session>
