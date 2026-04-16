@@ -258,18 +258,14 @@ jobs:
           
           cd k8s/overlays/prod
 
-          # Use the explicit oldName=newName@digest syntax to preserve index.docker.io
-          kustomize edit set image \
-            docker.io/agslima/app-stayhealthy-backend=index.docker.io/agslima/app-stayhealthy-backend@${BACKEND_DIGEST}
-          
-          kustomize edit set image \
-            docker.io/agslima/app-stayhealthy-worker=index.docker.io/agslima/app-stayhealthy-worker@${WORKER_DIGEST}
-          
-          kustomize edit set image \
-            docker.io/agslima/app-stayhealthy-frontend=index.docker.io/agslima/app-stayhealthy-frontend@${FRONTEND_DIGEST}
+          # Set the digest directly onto the docker.io reference
+          kustomize edit set image docker.io/agslima/app-stayhealthy-backend@${BACKEND_DIGEST}
+          kustomize edit set image docker.io/agslima/app-stayhealthy-worker@${WORKER_DIGEST}
+          kustomize edit set image docker.io/agslima/app-stayhealthy-frontend@${FRONTEND_DIGEST}
 
           echo "✅ Updated prod overlay kustomization.yaml:"
           cat kustomization.yaml
+
 
       - name: Validate rendered prod manifests against cluster policy
         run: |
@@ -321,7 +317,7 @@ jobs:
             kyverno apply "$POLICY" \
               --resource "$RENDERED_MANIFEST" \
               --audit-warn=false \
-              --registry --v=2 \
+              --registry --v=4 \
               --detailed-results | tee -a "$LOG_FILE"
           done
 
