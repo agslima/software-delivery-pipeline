@@ -268,9 +268,9 @@ jobs:
           cat kustomization.yaml
 
 
-      - name: Validate rendered prod manifests against cluster policy
+            - name: Validate rendered prod manifests against cluster policy
         env:
-          # Pass secrets securely into the environment
+          # Securely pass credentials into the environment
           DOCKER_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
           DOCKER_PASSWORD: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
         run: |
@@ -279,22 +279,30 @@ jobs:
           LOG_FILE="kyverno-gitops.log"
           : > "$LOG_FILE"
 
-          # 1. Manually build an explicit Docker keychain covering all Hub aliases
+          echo "=== 1. Building strict index.docker.io keychain ===" | tee -a "$LOG_FILE"
           mkdir -p "$HOME/.docker"
+          # Base64 encode the credentials to bypass the docker/login-action restrictions
           AUTH=$(printf "%s:%s" "${DOCKER_USERNAME}" "${DOCKER_PASSWORD}" | base64 | tr -d '\n')
           
+          # Explicitly map the token to the index.docker.io alias
           cat <<EOF > "$HOME/.docker/config.json"
           {
             "auths": {
-              "https://index.docker.io/v1/": { "auth": "${AUTH}" },
-              "docker.io": { "auth": "${AUTH}" },
               "index.docker.io": { "auth": "${AUTH}" }
             }
           }
           EOF
           export DOCKER_CONFIG="$HOME/.docker"
 
-          # 2. Render Kustomize
+          echo "=== 2. Enforcing index.docker.io in Kustomize ===" | tee -a "$LOG_FILE"
+          # Temporarily enter the overlay to inject the newName mapping
+          pushd k8s/overlays/prod
+          kustomize edit set image docker.io/agslima/app-stayhealthy-backend=index.docker.io/agslima/app-stayhealthy-backend@${BACKEND_DIGEST}
+          kustomize edit set image docker.io/agslima/app-stayhealthy-worker=index.docker.io/agslima/app-stayhealthy-worker@${WORKER_DIGEST}
+          kustomize edit set image docker.io/agslima/app-stayhealthy-frontend=index.docker.io/agslima/app-stayhealthy-frontend@${FRONTEND_DIGEST}
+          popd
+
+          # Render the manifest
           RENDERED_MANIFEST=$(mktemp)
           kustomize build k8s/overlays/prod > "$RENDERED_MANIFEST"
           test -s "$RENDERED_MANIFEST" || (echo "::error::Rendered manifest is empty"; exit 1)
@@ -330,12 +338,13 @@ jobs:
             kyverno apply "$POLICY" \
               --resource "$RENDERED_MANIFEST" \
               --audit-warn=false \
-              --registry --v=6 \
+              --registry --v=4 \
               --detailed-results | tee -a "$LOG_FILE"
           done
 
           echo "" | tee -a "$LOG_FILE"
           echo "✅ All policies passed successfully." | tee -a "$LOG_FILE"
+
 
       - name: Upload Kyverno Log
         if: always()
