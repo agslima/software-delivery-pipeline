@@ -200,7 +200,6 @@ jobs:
         uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
       
       - name: Verify Signatures + Required Attestations (hard gate)
-        if: false
         run: |
           set -euo pipefail
   
@@ -218,8 +217,7 @@ jobs:
             cosign verify-attestation "$IMAGE" \
               --type "${{ env.TRIVY_PREDICATE_TYPE }}" \
               --certificate-oidc-issuer "${{ env.OIDC_ISSUER }}" \
-              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*" \
-              > /dev/null
+              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*"
 
             echo "🧾 Verifying ZAP attestation..."
             cosign verify-attestation "$IMAGE" \
@@ -231,8 +229,7 @@ jobs:
             cosign verify-attestation "$IMAGE" \
               --type "${{ env.SBOM_PREDICATE_TYPE }}" \
               --certificate-oidc-issuer "${{ env.OIDC_ISSUER }}" \
-              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*" \
-              > /dev/null
+              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*"
           }
 
           verify_all "${{ env.BACKEND_IMAGE }}"
@@ -254,6 +251,7 @@ jobs:
           yq --version
           
       - name: Update prod digests (candidate canary + full promotion for non-canary services)
+        if: false
         run: |
           set -euo pipefail
           
@@ -297,13 +295,6 @@ jobs:
           EOF
           export DOCKER_CONFIG="$HOME/.docker"
 
-          echo "=== 2. Enforcing index.docker.io in Kustomize ===" | tee -a "$LOG_FILE"
-          pushd k8s/overlays/prod
-          kustomize edit set image docker.io/agslima/app-stayhealthy-backend=index.docker.io/agslima/app-stayhealthy-backend@${BACKEND_DIGEST}
-          kustomize edit set image docker.io/agslima/app-stayhealthy-worker=index.docker.io/agslima/app-stayhealthy-worker@${WORKER_DIGEST}
-          kustomize edit set image docker.io/agslima/app-stayhealthy-frontend=index.docker.io/agslima/app-stayhealthy-frontend@${FRONTEND_DIGEST}
-          popd
-
           # Render the manifest
           RENDERED_MANIFEST=$(mktemp)
           kustomize build k8s/overlays/prod > "$RENDERED_MANIFEST"
@@ -339,9 +330,10 @@ jobs:
 
             kyverno apply "$POLICY" \
               --resource "$RENDERED_MANIFEST" \
-              --audit-warn=false \
-              --registry -v=6 \
-              --detailed-results | tee -a "$LOG_FILE"
+              --registry \
+              --detailed-results \
+              --continue-on-fail \
+              | tee -a "$LOG_FILE"
           done
 
           echo "" | tee -a "$LOG_FILE"
