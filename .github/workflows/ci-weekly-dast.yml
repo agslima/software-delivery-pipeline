@@ -74,7 +74,8 @@ jobs:
           docker version
           docker compose version
 
-      - name: Start Ephemeral Environment (Pinned Digests)
+      - name: Start Docker compose
+        if: false
         working-directory: app
         run: |
           set -euo pipefail
@@ -82,8 +83,9 @@ jobs:
           chmod +x scripts/setup-dev.sh
           ./scripts/setup-dev.sh
           docker compose up -d
+          
       - name: Run DAST Orchestration
-        if: false
+        if: true
         env:
           ADMIN_USER: ${{ vars.ADMIN_USER }}
           DB_USER: ${{ vars.DB_USER }}
