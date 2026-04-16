@@ -268,7 +268,7 @@ jobs:
           cat kustomization.yaml
 
 
-            - name: Validate rendered prod manifests against cluster policy
+      - name: Validate rendered prod manifests against cluster policy
         env:
           # Securely pass credentials into the environment
           DOCKER_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
