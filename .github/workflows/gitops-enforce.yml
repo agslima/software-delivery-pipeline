@@ -294,9 +294,6 @@ jobs:
 
           echo "=== Kyverno policy evaluation (split policies) ===" | tee -a "$LOG_FILE"
 
-          # Explicitly pass the Docker auth config so Kyverno can verify image signatures
-          export DOCKER_CONFIG=$HOME/.docker
-
           POLICIES=(
             "k8s/policies/cluster/verify-signature.yaml"
             "k8s/policies/cluster/verify-trivy.yaml"
