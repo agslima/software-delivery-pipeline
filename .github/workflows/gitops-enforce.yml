@@ -330,7 +330,7 @@ jobs:
             kyverno apply "$POLICY" \
               --resource "$RENDERED_MANIFEST" \
               --audit-warn=false \
-              --registry \
+              --registry --v=6 \
               --detailed-results | tee -a "$LOG_FILE"
           done
 
