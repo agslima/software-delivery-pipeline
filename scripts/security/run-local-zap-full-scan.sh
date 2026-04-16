@@ -136,7 +136,7 @@ SECRETS_PATH="${SECRETS_PATH:-$(mktemp -d /tmp/zap-local-secrets.XXXXXX)}"
 STAGED_CONTEXT_DIR="${STAGED_CONTEXT_DIR:-$(mktemp -d /tmp/zap-context.XXXXXX)}"
 OUT_DIR="${APP_DIR}/zap-out"
 DAST_ENV_FILE="${DAST_ENV_FILE:-${APP_DIR}/.env.zap.local}"
-COMPOSE_NETWORK="${COMPOSE_PROJECT_NAME}_app_network"
+# COMPOSE_NETWORK="${COMPOSE_PROJECT_NAME}_app_network"
 FE_FILE="${OUT_DIR}/zap-frontend.json"
 BE_FILE="${OUT_DIR}/zap-backend.json"
 SUMMARY_FILE="${OUT_DIR}/summary.md"
@@ -166,9 +166,7 @@ cleanup() {
 trap cleanup EXIT
 
 compose() {
-  docker compose --env-file "$DAST_ENV_FILE" -p "$COMPOSE_PROJECT_NAME" -f "${APP_DIR}/docker-compose.yml || docker compose --env-file "$DAST_ENV_FILE" -p "$COMPOSE_PROJECT_NAME" -f "${APP_DIR}/docker-compose.yml logs -t" "$@"
-}
-logs -t" "$@"
+  docker compose --env-file "$DAST_ENV_FILE" -p "$COMPOSE_PROJECT_NAME" -f "${APP_DIR}/docker-compose.yml" "$@"
 }
 
 assert_host_port_available() {
