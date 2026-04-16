@@ -25,11 +25,11 @@ services:
     depends_on:
       backend:
         condition: service_healthy
-    
+
     # Network Attachment
     networks:
       - app_network
-    
+
     # Least Privilege
     cap_drop: ["ALL"]
     security_opt:
@@ -42,8 +42,7 @@ services:
       - /tmp:uid=101,gid=101,mode=1777
       - /var/run:uid=101,gid=101,mode=0755
       - /var/cache/nginx:uid=101,gid=101,mode=0755
-      #- /etc/nginx/conf.d:uid=101,gid=101,mode=0755
-      - /etc/nginx/ssl:uid=101,gid=101,mode=0755 
+      - /etc/nginx/ssl:uid=101,gid=101,mode=0755
     # Resource limits apply only in Swarm mode. Keeping out of compose to avoid warnings.
 
     healthcheck:
@@ -59,7 +58,7 @@ services:
       dockerfile: docker/Dockerfile.server
     ports:
       - "8080:8080"
-    
+
     # Network Attachment
     networks:
       - app_network
@@ -68,7 +67,7 @@ services:
       NODE_ENV: production
       PORT: "8080"
       LOG_LEVEL: info
-      CORS_ORIGIN: "http://frontend:8080,http://localhost:4173,http://127.0.0.1:4173"
+      # CORS_ORIGIN: "http://frontend:8080,http://localhost:4173,http://127.0.0.1:4173"
       ENFORCE_TLS: ${ENFORCE_TLS:-false}
       DATA_ENCRYPTION_KEY_ID: ${DATA_ENCRYPTION_KEY_ID:-v1}
       DATA_ENCRYPTION_KEYS: ${DATA_ENCRYPTION_KEYS:-}
@@ -89,12 +88,12 @@ services:
       OIDC_REQUIRED_AMR: ${OIDC_REQUIRED_AMR:-mfa}
       OIDC_REQUIRED_ACR: ${OIDC_REQUIRED_ACR:-}
       OIDC_CLOCK_TOLERANCE_SECONDS: ${OIDC_CLOCK_TOLERANCE_SECONDS:-5}
-      
+
       # Secrets
       ADMIN_USER: ${ADMIN_USER}
       ADMIN_PASS_FILE: /run/secrets/admin_pass
       JWT_SECRET_FILE: /run/secrets/jwt_secret
-      
+
       DB_HOST: postgres
       DB_USER: ${DB_USER}
       DB_NAME: ${DB_NAME}
@@ -105,23 +104,23 @@ services:
       - admin_pass
       - db_pass
       - data_encryption_key
-      
+
     depends_on:
       db-bootstrap:
         condition: service_completed_successfully
       postgres:
         condition: service_healthy
-    
+
     cap_drop: ["ALL"]
     security_opt:
       - no-new-privileges:true
     restart: unless-stopped
-    read_only: true   
-    
+    read_only: true
+
     # Node Alpine UID (1000)
     tmpfs:
       - /tmp:uid=1000,gid=1000,mode=1777
-      
+
     # Resource limits apply only in Swarm mode. Keeping out of compose to avoid warnings.
 
     healthcheck:
@@ -215,7 +214,7 @@ services:
 
   postgres:
     image: postgres:15-alpine
-    
+
     networks:
       - app_network
 
@@ -229,9 +228,9 @@ services:
 
     volumes:
       - pgdata:/var/lib/postgresql/data
-    
+
     # Resource limits apply only in Swarm mode. Keeping out of compose to avoid warnings.
-    
+
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB || exit 1"]

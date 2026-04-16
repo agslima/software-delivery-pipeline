@@ -524,7 +524,7 @@ github_env_set "MED_BLOCK_BE" "0"
 mkdir -p "$(dirname "$DAST_ENV_FILE")"
 mkdir -p "$SECRETS_PATH"
 mkdir -p "$OUT_DIR"
-chmod 777  "$OUT_DIR" # chmod -R u+rwX,go+rX "$OUT_DIR"
+chmod 755  "$OUT_DIR" # chmod -R u+rwX,go+rX "$OUT_DIR"
 
 validate_context_file "$ZAP_CONTEXT_FILE"
 test -f "$ZAP_RULES_FILE" || { echo "::error::Missing rules file $ZAP_RULES_FILE"; exit 1; }

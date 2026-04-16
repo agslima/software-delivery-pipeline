@@ -13,7 +13,7 @@ const readSecretFile = (secretPath) => {
       return fs.readFileSync(secretPath, 'utf8').trim();
     }
   } catch {
-    // Ignore secret file access errors and fall back to environment variables.
+    console.error(`Failed to read secret at ${secretPath}:`, error.message);
   }
 
   return undefined;
@@ -40,8 +40,8 @@ const readSecret = (secretName, envVar) => {
   const fileFromEnv = process.env[`${envVar}_FILE`];
   if (fileFromEnv) {
     const value = readSecretFile(fileFromEnv);
-    if (value) return value;
-  }
+    if (value !== undefined) return value;
+  } 
 
   const secretPath = `/run/secrets/${secretName}`;
   const secretValue = readSecretFile(secretPath);

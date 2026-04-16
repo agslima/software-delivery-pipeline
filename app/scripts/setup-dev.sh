@@ -41,7 +41,7 @@ if [[ ! -d "$SECRETS_DIR" ]]; then
 else
     echo "   -> Secrets directory exists. Skipping."
 fi
-chmod 700 "$SECRETS_DIR"
+chmod 755 "$SECRETS_DIR"
 
 # random_hex generates a hexadecimal string representing the requested number of random bytes and writes it to stdout.
 # bytes is the number of bytes to generate; output contains 2*bytes hex characters. If secure randomness is unavailable, a non-cryptographic timestamp is used as a fallback.
@@ -57,7 +57,7 @@ random_hex() {
     fi
 }
 
-# generate_secret writes a random hexadecimal secret to SECRETS_DIR/<filename> if the file does not exist and ensures the file is chmod 600; the optional second argument sets the byte length of the secret (default 32).
+# generate_secret writes a random hexadecimal secret to SECRETS_DIR/<filename> if the file does not exist and ensures the file is chmod 644; the optional second argument sets the byte length of the secret (default 32).
 generate_secret() {
     local filename=$1
     local bytes=${2:-32}
@@ -69,7 +69,7 @@ generate_secret() {
     else
         echo "   -> Secret exists: ${filename} (Skipping)"
     fi
-    chmod 600 "$filepath"
+    chmod 644 "$filepath"
 }
 
 # Generate random local secrets
