@@ -156,6 +156,7 @@ jobs:
           echo "release_sha=$RELEASE_SHA" >> "$GITHUB_OUTPUT"
 
       - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 #v4.1.0
+        if: false
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
@@ -268,15 +269,33 @@ jobs:
 
 
       - name: Validate rendered prod manifests against cluster policy
+        env:
+          # Pass secrets securely into the environment
+          DOCKER_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
         run: |
           set -euo pipefail
 
           LOG_FILE="kyverno-gitops.log"
           : > "$LOG_FILE"
 
-          # Use an ephemeral file instead of hardcoded /tmp paths
-          RENDERED_MANIFEST=$(mktemp)
+          # 1. Manually build an explicit Docker keychain covering all Hub aliases
+          mkdir -p "$HOME/.docker"
+          AUTH=$(printf "%s:%s" "${DOCKER_USERNAME}" "${DOCKER_PASSWORD}" | base64 | tr -d '\n')
           
+          cat <<EOF > "$HOME/.docker/config.json"
+          {
+            "auths": {
+              "https://index.docker.io/v1/": { "auth": "${AUTH}" },
+              "docker.io": { "auth": "${AUTH}" },
+              "index.docker.io": { "auth": "${AUTH}" }
+            }
+          }
+          EOF
+          export DOCKER_CONFIG="$HOME/.docker"
+
+          # 2. Render Kustomize
+          RENDERED_MANIFEST=$(mktemp)
           kustomize build k8s/overlays/prod > "$RENDERED_MANIFEST"
           test -s "$RENDERED_MANIFEST" || (echo "::error::Rendered manifest is empty"; exit 1)
 
@@ -308,13 +327,10 @@ jobs:
             echo "Applying policy: $POLICY" | tee -a "$LOG_FILE"
             echo "------------------------------------------------------------" | tee -a "$LOG_FILE"
 
-            # Execute Kyverno apply. 
-            # Because of 'set -e', if kyverno encounters a validation error, 
-            # it exits with a non-zero code and automatically fails the GitHub Action step.
             kyverno apply "$POLICY" \
               --resource "$RENDERED_MANIFEST" \
               --audit-warn=false \
-              --registry --v=4 \
+              --registry \
               --detailed-results | tee -a "$LOG_FILE"
           done
 
