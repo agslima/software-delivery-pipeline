@@ -20,9 +20,9 @@ spec:
               namespaces: ["prod", "production"]
       verifyImages:
         - imageReferences:
-            - "index.docker.io/agslima/app-stayhealthy-backend*"
-            - "index.docker.io/agslima/app-stayhealthy-worker*"
-            - "index.docker.io/agslima/app-stayhealthy-frontend*"
+            - "docker.io/agslima/app-stayhealthy-backend*"
+            - "docker.io/agslima/app-stayhealthy-worker*"
+            - "docker.io/agslima/app-stayhealthy-frontend*"
           failureAction: Enforce
           attestors:
             - entries:
