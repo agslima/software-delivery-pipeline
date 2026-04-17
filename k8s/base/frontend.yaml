@@ -39,7 +39,7 @@ spec:
 
       containers:
         - name: frontend
-          image: index.docker.io/agslima/app-stayhealthy-frontend
+          image: docker.io/agslima/app-stayhealthy-frontend
           imagePullPolicy: Always     
           ports:
             - containerPort: 8080
