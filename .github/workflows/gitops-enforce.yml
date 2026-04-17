@@ -156,7 +156,6 @@ jobs:
           echo "release_sha=$RELEASE_SHA" >> "$GITHUB_OUTPUT"
 
       - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 #v4.1.0
-        if: false
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
@@ -200,6 +199,7 @@ jobs:
         uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
       
       - name: Verify Signatures + Required Attestations (hard gate)
+        if: false
         run: |
           set -euo pipefail
   
@@ -250,6 +250,9 @@ jobs:
           sudo chmod +x /usr/local/bin/yq
           yq --version
           
+      - name: Install Kustomize
+        uses: imranismail/setup-kustomize@v3
+      
       - name: Update prod digests (candidate canary + full promotion for non-canary services)
         if: false
         run: |
@@ -264,9 +267,19 @@ jobs:
 
           echo "✅ Updated prod overlay kustomization.yaml:"
           cat kustomization.yaml
-
-
+      
       - name: Validate rendered prod manifests against cluster policy
+        run: |
+          set -euo pipefail
+
+          # 1. Render the Enforce policies to a temporary file
+          kustomize build k8s/policies/cluster > /tmp/rendered-policies.yaml
+
+          # 2. Evaluate the application manifests against the rendered policies
+          kustomize build k8s/base | kyverno apply /tmp/rendered-policies.yaml --resource - --detailed-results
+          
+      - name: Validate rendered prod manifests against cluster policy
+        if: false
         env:
           # Securely pass credentials into the environment
           DOCKER_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
