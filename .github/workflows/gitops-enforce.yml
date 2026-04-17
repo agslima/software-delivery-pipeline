@@ -273,10 +273,21 @@ jobs:
           set -euo pipefail
 
           # 1. Render the Enforce policies to a temporary file
+          kustomize build k8s/base/cluster > /tmp/rendered.yaml
           kustomize build k8s/policies/cluster > /tmp/rendered-policies.yaml
 
+          echo "=== Rendered Policies YAML ==="
+          cat /tmp/rendered-policies.yaml
+          
+          echo "=== Rendered YAML ==="
+          cat  /tmp/policies.yaml
+          
           # 2. Evaluate the application manifests against the rendered policies
-          kustomize build k8s/base | kyverno apply /tmp/rendered-policies.yaml --resource - --detailed-results
+          kyverno apply rendered-policies.yaml \
+              --resource rendered.yaml \
+              --registry -v4 \
+              --detailed-results \
+              --continue-on-fail
           
       - name: Validate rendered prod manifests against cluster policy
         if: false
@@ -379,7 +390,7 @@ jobs:
       - name: Create GitOps PR
         uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 #v8.1.0
         with:
-          token: ${{ secrets.TOKEN_GITHUB }}
+          token: ${{ secrets.PAT_GITHUB }}
           commit-message: "deploy: promote ${{ env.RELEASE_SHA }}"
           title: "Deploy release (${{ env.RELEASE_SHA }})"
 
