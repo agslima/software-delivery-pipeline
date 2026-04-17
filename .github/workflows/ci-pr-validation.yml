@@ -226,14 +226,3 @@ jobs:
           format: table
           exit-code: "1"
           skip-dirs: ${{ steps.vars.outputs.CONFIG_SKIP_DIRS }}
-      
-      - name: 🚨 Notify Slack on Failure
-        if: failure() && steps.trivy-scan.outcome == 'failure'
-        uses: rtCamp/action-slack-notify@v2
-        env:
-          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
-          SLACK_COLOR: '#ff0000'
-          SLACK_TITLE: 'Security Gate Blocked Merge'
-          SLACK_MESSAGE: 'Trivy found Critical vulnerabilities. Auto-merge has been aborted.'
-          SLACK_USERNAME: 'Security Bot'
-          SLACK_ICON: 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png'
