@@ -237,11 +237,20 @@ jobs:
           verify_all "${{ env.FRONTEND_IMAGE }}"
           echo "✅ All signatures & attestations verified."
 
+      - name: Install go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.20'
+          check-latest: true
+      
       - name: Install Kyverno CLI
         uses: kyverno/action-install-cli@fcee92fca5c883169ef9927acf543e0b5fc58289 # v0.2.0
         with:
-          release: 'v1.17.1'
+          release: 'main'
           verify: true
+
+      - name: Check install
+        run: kyverno version
 
       - name: Install yq
         run: |
@@ -251,7 +260,7 @@ jobs:
           yq --version
           
       - name: Install Kustomize
-        uses: imranismail/setup-kustomize@v3
+        uses: imranismail/setup-kustomize@53f941b41dca13ed61874bbc6b4b6e1562877530 # v3.0.0
       
       - name: Update prod digests (candidate canary + full promotion for non-canary services)
         if: false
@@ -268,28 +277,6 @@ jobs:
           echo "✅ Updated prod overlay kustomization.yaml:"
           cat kustomization.yaml
       
-      - name: Validate rendered prod manifests against cluster policy
-        if: false
-        run: |
-          set -euo pipefail
-
-          # 1. Render the Enforce policies to a temporary file
-          kustomize build k8s/base > /tmp/rendered.yaml
-          kustomize build k8s/policies/cluster > /tmp/rendered-policies.yaml
-
-          echo "=== Rendered Policies YAML ==="
-          cat /tmp/rendered-policies.yaml
-          
-          echo "=== Rendered YAML ==="
-          cat  /tmp/rendered.yaml
-          
-          # 2. Evaluate the application manifests against the rendered policies
-          kyverno apply /tmp/rendered-policies.yaml \
-              --resource /tmp/rendered.yaml \
-              --registry -v4 \
-              --detailed-results \
-              --continue-on-fail
-          
       - name: Validate rendered prod manifests against cluster policy
         env:
           # Securely pass credentials into the environment
@@ -322,8 +309,6 @@ jobs:
           RENDERED_MANIFEST=$(mktemp)
           kustomize build k8s/overlays/prod > "$RENDERED_MANIFEST"
           test -s "$RENDERED_MANIFEST" || (echo "::error::Rendered manifest is empty"; exit 1)
-          
-          cat "$RENDERED_MANIFEST"
 
           echo "=== Namespaces in rendered YAML ===" | tee -a "$LOG_FILE"
           yq -r 'select(.metadata != null) | .kind + " " + (.metadata.namespace // "NONE") + " " + .metadata.name' "$RENDERED_MANIFEST" \
@@ -355,14 +340,13 @@ jobs:
 
             kyverno apply "$POLICY" \
               --resource "$RENDERED_MANIFEST" \
-              --registry -v=6 \
+              --registry \
               --detailed-results \
               --continue-on-fail \
               | tee -a "$LOG_FILE"
           done
 
           echo "" | tee -a "$LOG_FILE"
-          echo "✅ All policies passed successfully." | tee -a "$LOG_FILE"
 
 
       - name: Upload Kyverno Log
