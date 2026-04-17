@@ -291,7 +291,6 @@ jobs:
               --continue-on-fail
           
       - name: Validate rendered prod manifests against cluster policy
-        if: false
         env:
           # Securely pass credentials into the environment
           DOCKER_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
