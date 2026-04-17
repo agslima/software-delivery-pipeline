@@ -238,15 +238,15 @@ jobs:
           echo "✅ All signatures & attestations verified."
 
       - name: Install go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
-          go-version: '1.20'
+          go-version: '1.25'
           check-latest: true
       
       - name: Install Kyverno CLI
         uses: kyverno/action-install-cli@fcee92fca5c883169ef9927acf543e0b5fc58289 # v0.2.0
         with:
-          release: 'main'
+          release: '1.17.1'
           verify: true
 
       - name: Check install
