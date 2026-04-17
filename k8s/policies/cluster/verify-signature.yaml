@@ -2,10 +2,6 @@ apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
   name: verify-signature
-  annotations:
-    policies.kyverno.io/title: Verify image signature (keyless)
-    policies.kyverno.io/category: Supply Chain Security
-    policies.kyverno.io/severity: critical
 spec:
   validationFailureAction: Enforce
   background: false
@@ -17,7 +13,9 @@ spec:
           - resources:
               kinds: 
                 - Deployment
-              namespaces: ["prod", "production"]
+              namespaces:
+                - prod
+                - production
       verifyImages:
         - imageReferences:
             - docker.io/agslima/app-stayhealthy-backend*
@@ -27,7 +25,7 @@ spec:
           attestors:
             - entries:
                 - keyless:
-                    issuer: https://token.actions.githubusercontent.com
+                    issuerRegExp: '^https://token\.actions\.githubusercontent\.com$'
                     subjectRegExp: '^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*$'
                     rekor:
                       url: https://rekor.sigstore.dev
