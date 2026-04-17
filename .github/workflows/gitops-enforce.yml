@@ -283,8 +283,8 @@ jobs:
           cat  /tmp/rendered.yaml
           
           # 2. Evaluate the application manifests against the rendered policies
-          kyverno apply rendered-policies.yaml \
-              --resource rendered.yaml \
+          kyverno apply /tmp/rendered-policies.yaml \
+              --resource /tmp/rendered.yaml \
               --registry -v4 \
               --detailed-results \
               --continue-on-fail
