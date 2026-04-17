@@ -24,7 +24,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: worker
-          image: index.docker.io/agslima/app-stayhealthy-worker
+          image: docker.io/agslima/app-stayhealthy-worker
           imagePullPolicy: Always
           command: ["node", "src/worker/server.js"]
           ports:
