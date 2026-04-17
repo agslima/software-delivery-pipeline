@@ -6,6 +6,7 @@ metadata:
     policies.kyverno.io/title: Verify image signature (keyless)
     policies.kyverno.io/category: Supply Chain Security
     policies.kyverno.io/severity: critical
+    pod-policies.kyverno.io/autogen-controllers: Deployment,StatefulSet,DaemonSet,Job,CronJob
 spec:
   validationFailureAction: Enforce
   background: false
@@ -15,7 +16,7 @@ spec:
       match:
         any:
           - resources:
-              kinds: ["Pod", "Deployment"]
+              kinds: ["Pod"]
               namespaces: ["prod", "production"]
       verifyImages:
         - imageReferences:
@@ -30,6 +31,6 @@ spec:
             - entries:
                 - keyless:
                     issuer: "https://token.actions.githubusercontent.com"
-                    subject: "https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*$"
+                    subjectRegExp: "^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*$"
                     rekor:
                       url: "https://rekor.sigstore.dev"
