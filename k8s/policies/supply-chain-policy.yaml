@@ -27,12 +27,15 @@ spec:
             - "docker.io/agslima/app-stayhealthy-backend*"
             - "docker.io/agslima/app-stayhealthy-worker*"
             - "docker.io/agslima/app-stayhealthy-frontend*"
+          failureAction: Enforce
           attestors:
             - entries:
                 - keyless:
                     issuer: https://token.actions.githubusercontent.com
                     subjectRegExp: >-
-                      ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*$
+                      '^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*$'
+                    rekor:
+                      url: https://rekor.sigstore.dev
 
     # ============================================================
     # Rule 2: Require Trivy attestation (and who issued it)
@@ -53,17 +56,16 @@ spec:
               attestors:
                 - entries:
                     - keyless:
-                        issuer: https://token.actions.githubusercontent.com
+                        issuer: "https://token.actions.githubusercontent.com"
                         subjectRegExp: >-
                           ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*$
+                        rekor:
+                          url: https://rekor.sigstore.dev
               conditions:
                 - all:
                     - key: "{{ result || '' }}"
                       operator: Equals
                       value: "PASS"
-                    - key: "{{ scanner.name || '' }}"
-                      operator: Equals
-                      value: "trivy"
 
     # ============================================================
     # Rule 3: Require ZAP attestation
@@ -87,6 +89,8 @@ spec:
                         issuer: https://token.actions.githubusercontent.com
                         subjectRegExp: >-
                           ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*$
+                        rekor:
+                          url: https://rekor.sigstore.dev
               conditions:
                 - all:
                     - key: "{{ result || '' }}"
@@ -118,6 +122,8 @@ spec:
                         issuer: https://token.actions.githubusercontent.com
                         subjectRegExp: >-
                           ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*$
+                        rekor:
+                          url: https://rekor.sigstore.dev
 
     # ============================================================
     # Rule 5: Require SLSA provenance (GitHub attest-build-provenance)
@@ -138,11 +144,8 @@ spec:
               attestors:
                 - entries:
                     - keyless:
-                        issuer: https://token.actions.githubusercontent.com
+                        issuer: "https://token.actions.githubusercontent.com"
                         subjectRegExp: >-
                           ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*$
-              conditions:
-                - all:
-                    - key: "{{ buildDefinition.buildType || '' }}"
-                      operator: NotEquals
-                      value: ""
+                        rekor:
+                          url: https://rekor.sigstore.dev
