@@ -19,14 +19,17 @@ spec:
               namespaces: ["prod", "production"]
       verifyImages:
         - imageReferences:
+            - "docker.io/agslima/app-stayhealthy-backend@*"
+            - "docker.io/agslima/app-stayhealthy-worker@*"  
+            - "docker.io/agslima/app-stayhealthy-frontend@*"
             - "index.docker.io/agslima/app-stayhealthy-backend@*"
             - "index.docker.io/agslima/app-stayhealthy-worker@*"  
             - "index.docker.io/agslima/app-stayhealthy-frontend@*"
+          failureAction: Enforce
           attestors:
             - entries:
                 - keyless:
-                    issuer: https://token.actions.githubusercontent.com
-                    subjectRegExp: >-
-                      ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*$
+                    issuer: "https://token.actions.githubusercontent.com"
+                    subject: "https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*$"
                     rekor:
-                      url: https://rekor.sigstore.dev
+                      url: "https://rekor.sigstore.dev"
