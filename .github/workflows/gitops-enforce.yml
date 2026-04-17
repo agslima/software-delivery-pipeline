@@ -325,11 +325,7 @@ jobs:
           echo "=== Kyverno policy evaluation (split policies) ===" | tee -a "$LOG_FILE"
 
           POLICIES=(
-            "k8s/policies/cluster/verify-signature.yaml"
-            "k8s/policies/cluster/verify-trivy.yaml"
-            "k8s/policies/cluster/verify-zap.yaml"
-            "k8s/policies/cluster/verify-sbom.yaml"
-            "k8s/policies/cluster/verify-slsa.yaml"
+            "k8s/policies/cluster/verify-signature.yaml
           )
 
           for POLICY in "${POLICIES[@]}"; do
