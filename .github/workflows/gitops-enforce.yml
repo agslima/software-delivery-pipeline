@@ -338,7 +338,7 @@ jobs:
             echo "Applying policy: $POLICY" | tee -a "$LOG_FILE"
             echo "------------------------------------------------------------" | tee -a "$LOG_FILE"
 
-            kyverno apply "k8s/policies/supply-chain-policy.yaml" \
+            kyverno apply "$POLICY" \
               --resource "$RENDERED_MANIFEST" \
               --registry \
               --detailed-results \
