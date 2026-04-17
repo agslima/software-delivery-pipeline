@@ -27,5 +27,10 @@ spec:
                 - keyless:
                     issuer: https://token.actions.githubusercontent.com
                     subjectRegExp: '^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*$'
+                    additionalExtensions:
+                      githubWorkflowTrigger: push
+                      githubWorkflowSha: '{{WORKFLOW_COMMIT_SHA}}'
+                      githubWorkflowName: '{{WORKFLOW_NAME}}'
+                      githubWorkflowRepository: '{{WORKFLOW_ORGANIZATION}}/{{WORKFLOW_REPOSITORY}}'
                     rekor:
                       url: https://rekor.sigstore.dev
