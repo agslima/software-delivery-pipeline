@@ -29,8 +29,8 @@ spec:
                     subjectRegExp: '^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*$'
                     additionalExtensions:
                       githubWorkflowTrigger: push
-                      githubWorkflowSha: '{{WORKFLOW_COMMIT_SHA}}'
-                      githubWorkflowName: '{{WORKFLOW_NAME}}'
-                      githubWorkflowRepository: '{{WORKFLOW_ORGANIZATION}}/{{WORKFLOW_REPOSITORY}}'
+                      githubWorkflowSha: 050f3d981ac5780300fb01fd49d417194e0d2ec7
+                      githubWorkflowName: Realease
+                      githubWorkflowRepository: agslima/software-delivery-pipeline
                     rekor:
                       url: https://rekor.sigstore.dev
