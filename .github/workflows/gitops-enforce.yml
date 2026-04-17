@@ -334,8 +334,7 @@ jobs:
 
             kyverno apply "$POLICY" \
               --resource "$RENDERED_MANIFEST" \
-              --registry \
-              --detailed-results \
+              --detailed-results -v=6 \
               --continue-on-fail \
               | tee -a "$LOG_FILE"
           done
