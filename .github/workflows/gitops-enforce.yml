@@ -280,7 +280,7 @@ jobs:
           cat /tmp/rendered-policies.yaml
           
           echo "=== Rendered YAML ==="
-          cat  /tmp/policies.yaml
+          cat  /tmp/rendered.yaml
           
           # 2. Evaluate the application manifests against the rendered policies
           kyverno apply rendered-policies.yaml \
