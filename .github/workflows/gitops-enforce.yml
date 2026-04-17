@@ -273,7 +273,7 @@ jobs:
           set -euo pipefail
 
           # 1. Render the Enforce policies to a temporary file
-          kustomize build k8s/base/cluster > /tmp/rendered.yaml
+          kustomize build k8s/base > /tmp/rendered.yaml
           kustomize build k8s/policies/cluster > /tmp/rendered-policies.yaml
 
           echo "=== Rendered Policies YAML ==="
