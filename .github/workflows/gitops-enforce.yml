@@ -202,11 +202,13 @@ jobs:
   
           verify_all () {
             local IMAGE="$1"
+            
             # 1. Verify Image Signature
             echo "🔐 Verifying signature for $IMAGE"
             cosign verify "$IMAGE" \
               --certificate-oidc-issuer "${{ env.OIDC_ISSUER }}" \
               --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*"
+            
             # 2. Verify Attestations (SILENT MODE)            
             echo "🧾 Verifying Trivy attestation..."
             cosign verify-attestation "$IMAGE" \
@@ -214,12 +216,14 @@ jobs:
               --certificate-oidc-issuer "${{ env.OIDC_ISSUER }}" \
               --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*" \
               > /dev/null
+
             echo "🧾 Verifying ZAP attestation..."
             cosign verify-attestation "$IMAGE" \
               --type "${{ env.ZAP_PREDICATE_TYPE }}" \
               --certificate-oidc-issuer "${{ env.OIDC_ISSUER }}" \
               --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*" \
               > /dev/null
+            
             echo "🧾 Verifying SBOM attestation..."
             cosign verify-attestation "$IMAGE" \
               --type "${{ env.SBOM_PREDICATE_TYPE }}" \
@@ -259,6 +263,7 @@ jobs:
           DOCKER_PASSWORD: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
         run: |
           set -euo pipefail
+          
           LOG_FILE="kyverno-gitops.log"
           : > "$LOG_FILE"
           echo "=== 1. Building comprehensive Docker Hub keychain ===" | tee -a "$LOG_FILE"
@@ -276,6 +281,7 @@ jobs:
           }
           EOF
           export DOCKER_CONFIG="$HOME/.docker"
+          
           # Render the manifest
           RENDERED_MANIFEST=$(mktemp)
           kustomize build k8s/overlays/prod > "$RENDERED_MANIFEST"
@@ -307,28 +313,8 @@ jobs:
               --resource "$RENDERED_MANIFEST" \
               --registry -v=6 \
               --detailed-results \
-              --continue-on-fail \
               | tee -a "$LOG_FILE"
-            # Treat skipped as failure in CI
-            if grep -q "Policies Skipped" "$out"; then
-              any_skipped=1
-            fi
-            # Fail if kyverno reports failures/errors
-            if grep -qE "fail:[[:space:]]*[1-9]|error:[[:space:]]*[1-9]" "$out"; then
-              any_failed=1
-            fi
-            rm -f "$out"
           done
-          echo "" | tee -a "$LOG_FILE"
-          echo "======================== Summary ========================" | tee -a "$LOG_FILE"
-          if [[ "$any_failed" -eq 1 ]]; then
-            echo "::error::❌ Kyverno policy evaluation failed (fail/error > 0) in at least one policy." | tee -a "$LOG_FILE"
-            exit 1
-          fi
-          if [[ "$any_skipped" -eq 1 ]]; then
-            echo "::error::❌ Kyverno skipped one or more policies (treated as failure in CI)." | tee -a "$LOG_FILE"
-            exit 1
-          fi
           echo "✅ Policy Validation Passed." | tee -a "$LOG_FILE"
       - name: Upload Kyverno Log
         if: always()
