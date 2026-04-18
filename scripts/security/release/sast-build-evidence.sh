@@ -45,23 +45,21 @@ jq '
 
 # Merge all signals
 jq -n \
-  --argfile t trivy.json \
-  --argfile c codeql.json \
-  --argfile v vex.json \
+  --slurpfile t trivy.json \
+  --slurpfile c codeql.json \
+  --slurpfile v vex.json \
 '
 {
   vulnerabilities:
     [
-      $t[] as $tv |
+      $t[0][] as $tv |
       {
         id: $tv.id,
         severity: $tv.severity,
         package: $tv.package,
-        reachable: (
-          ($c[] | select(.id == $tv.id)) != null
-        ),
+        reachable: any($c[0][]; .id == $tv.id),
         exploitable: (
-          ($v[] | select(.id == $tv.id) | .exploitable) // true
+          first($v[0][] | select(.id == $tv.id) | .exploitable) // true
         )
       }
     ]
