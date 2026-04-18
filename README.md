@@ -224,7 +224,7 @@ To validate that the governance model works in practice, the application describ
 
 You do not need to rely on README claims alone. The release artifacts can be independently verified.
 
-**Prerequisite:** Install [Cosign](https://docs.sigstore.dev/system_config/installation/)
+**Prerequisite:** Install [Cosign](https://docs.sigstore.dev/cosign/system_config/installation/)
 
 ### 1. Verify the Signature
 
@@ -232,7 +232,7 @@ Check that the image was signed by this specific GitHub Repository's CI pipeline
 
 ```bash
 # 1. Export a release image digest (backend or frontend)
-export IMAGE="docker.io/agslima/app-stayhealthy-backend@sha256:<digest>"
+export IMAGE="docker.io/agslima/app-stayhealthy-backend@sha256:6fd327984db33ec24cd6a138fe7aa6c858a5f3f608011cc0248d1723671711e2"
 
 # 2. Verify the signature against the OpenID Connect (OIDC) identity
 cosign verify "$IMAGE" \
