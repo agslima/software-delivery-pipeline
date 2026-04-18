@@ -13,14 +13,15 @@ spec:
           - resources:
               kinds: 
                 - Deployment
+                - Pod
               namespaces:
                 - prod
                 - production
       verifyImages:
         - imageReferences:
-            - index.docker.io/agslima/app-stayhealthy-backend*
-            - index.docker.io/agslima/app-stayhealthy-worker*
-            - index.docker.io/agslima/app-stayhealthy-frontend*
+            - index.docker.io/agslima/app-stayhealthy-backend@*
+            - index.docker.io/agslima/app-stayhealthy-worker@*
+            - index.docker.io/agslima/app-stayhealthy-frontend@*
           failureAction: Enforce
           attestors:
             - entries:
@@ -29,7 +30,6 @@ spec:
                     subjectRegExp: '^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*$'
                     additionalExtensions:
                       githubWorkflowTrigger: push
-                      githubWorkflowSha: 050f3d981ac5780300fb01fd49d417194e0d2ec7
                       githubWorkflowName: Realease
                       githubWorkflowRepository: agslima/software-delivery-pipeline
                     rekor:
