@@ -146,10 +146,7 @@ jobs:
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
       - name: Install Trivy
-        run: |
-          set -euo pipefail
-          curl -sfL "https://raw.githubusercontent.com/aquasecurity/trivy/v${{ env.TRIVY_VERSION }}/contrib/install.sh" | sh -s -- -b /usr/local/bin
-          trivy --version
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
 
       - name: Scan Image (JSON)
         run: |
