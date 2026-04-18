@@ -91,7 +91,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: backend
-          image: backend-canary
+          image: backend-canary@*
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
