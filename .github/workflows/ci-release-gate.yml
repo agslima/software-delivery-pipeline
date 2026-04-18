@@ -16,7 +16,6 @@ env:
   SBOM_PREDICATE_TYPE: "https://spdx.dev/Document"
 
 jobs:
-
   # ==================================================================
   # JOB 0: Resolve Tag + Checkout Deterministically
   # ==================================================================
@@ -28,14 +27,12 @@ jobs:
     outputs:
       release_tag: ${{ steps.tag.outputs.release_tag }}
     steps:
-
       - name: Set Release Tag
         id: tag
         env:
           REF_NAME: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-
           echo "release_tag=$REF_NAME" >> "$GITHUB_OUTPUT"
 
   # ==================================================================
@@ -48,7 +45,7 @@ jobs:
     environment: production
     permissions:
       contents: read
-      packages: write
+      id-token: write
     strategy:
       fail-fast: true
       matrix:
@@ -70,28 +67,51 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ needs.resolve.outputs.release_tag }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd #v4.0.0
-
+      - name: Install cosign
+        uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+        with:
+          # buildkit v0.28.1
+          driver-opts: |
+            image=moby/buildkit@sha256:a82d1ab899cda51aade6fe818d71e4b58c4079e047a0cf29dbb93b2b0465ea69
       - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 #v4.1.0
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
+      - name: Set up build args for container image
+        run: |
+            echo "GIT_TAG=$(if [ -z "`git status --porcelain`" ]; then git describe --exact-match --tags HEAD 2>/dev/null; fi)" >> $GITHUB_ENV
+            echo "GIT_COMMIT=$(git rev-parse HEAD)" >> $GITHUB_ENV
+            echo "BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_ENV
+            echo "GIT_TREE_STATE=$(if [ -z "`git status --porcelain`" ]; then echo "clean" ; else echo "dirty"; fi)" >> $GITHUB_ENV
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be
+        with:
+          large-packages: false
+          docker-images: false
+          swap-storage: false
+          tool-cache: false
       - name: Build & Push
         id: build
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.file }}
-          push: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          provenance: true
+          sbom: true
+          push: true
           tags: |
             ${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}:${{ needs.resolve.outputs.release_tag }}
             ${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}:${{ github.sha }}
-
+          build-args: |
+            GIT_TAG=${{env.GIT_TAG}}
+            GIT_COMMIT=${{env.GIT_COMMIT}}
+            GIT_TREE_STATE=${{env.GIT_TREE_STATE}}
+            BUILD_DATE=${{env.BUILD_DATE}}
       - name: Export Digest Artifact
         run: |
           set -euo pipefail
@@ -100,14 +120,13 @@ jobs:
           test -n "$DIGEST" || (echo "::error::Digest empty"; exit 1)
           echo "$DIGEST" > "digests/digest-${{ matrix.name }}"
           echo "IMAGE=${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@$DIGEST" >> "$GITHUB_ENV"
-
       - name: Upload Digest Artifact
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f #v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a #v7.0.1
         with:
           name: digest-${{ matrix.name }}
           path: digests/digest-${{ matrix.name }}
           retention-days: 30
-
+      
   # ==================================================================
   # JOB 2: Trivy Scan (1 run per image digest) + gate
   # ==================================================================
@@ -188,7 +207,7 @@ jobs:
           echo "✅ Trivy Gate Passed"
 
       - name: Upload Trivy Artifact
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f #v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a #v7.0.1
         with:
           name: trivy-results-${{ matrix.name }}
           path: trivy-${{ matrix.name }}.json
@@ -364,7 +383,7 @@ jobs:
 
       - name: Upload ZAP Artifacts
         if: always()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f #v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a #v7.0.1
         with:
           name: zap-results
           path: app/zap-out/
@@ -444,6 +463,28 @@ jobs:
           name: zap-results
           path: zap-downloads
 
+      - name: Sign image
+        env:
+          IMAGE: docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@$DIGEST
+          COSIGN_REPOSITORY: docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/signatures
+        run: |
+          set -euo pipefail
+          
+          echo "COSIGN_REPOSITORY=$COSIGN_REPOSITORY"
+          echo "Signing image: $IMAGE"
+          echo "Signing starts: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+
+          cosign sign --yes "$IMAGE" \
+            -a "repo=${{ github.repository }}" \
+            -a "workflow=${{ github.workflow }}" \
+            -a "ref=${{ github.sha }}"
+            --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
+            --certificate-identity-regexp="^https://github.com/${{ github.repository }}/.github/workflows/.*@.*$"
+
+          echo "Signing finished: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          echo "Checking artifacts in registry..."
+          cosign tree "$IMAGE"
+          
       - name: Create & Push Trivy Attestation (from scan artifact)
         if: startsWith(github.ref, 'refs/tags/')
         run: |
@@ -461,15 +502,13 @@ jobs:
               timestamp: (now | todate)
             }
           ' "$FILE" > trivy-attestation.json
-
-      - name: Attest Trivy
+      - name: Trivy Attestation (from scan artifact)
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           cosign attest --yes \
             --predicate trivy-attestation.json \
             --type "${{ env.TRIVY_PREDICATE_TYPE }}" \
-            "$IMAGE"
-            
+            "$IMAGE"  
       - name: Create & Push ZAP Attestation (from DAST artifacts)
         if: startsWith(github.ref, 'refs/tags/')
         run: |
@@ -491,23 +530,13 @@ jobs:
               timestamp: (now | todate)
             }
           ' > zap-attestation.json
-          
-      - name: Attest ZAP
+      - name: ZAP Attestation (from DAST artifacts)
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           cosign attest --yes \
             --predicate zap-attestation.json \
             --type "${{ env.ZAP_PREDICATE_TYPE }}" \
             "$IMAGE"
-
-      - name: Sign Image
-        if: startsWith(github.ref, 'refs/tags/')
-        run: |
-          set -euo pipefail
-          cosign version
-          echo "IMAGE=$IMAGE"
-          cosign sign --yes "$IMAGE"
-
       - name: Verify Signature (OIDC identity)
         if: startsWith(github.ref, 'refs/tags/')
         run: |
