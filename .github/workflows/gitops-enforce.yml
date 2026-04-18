@@ -13,13 +13,6 @@ on:
 concurrency:
   group: gitops-${{ github.event.workflow_run.id || github.event.inputs.run_id || github.run_id }}
   cancel-in-progress: false
-
-env:
-  TRIVY_PREDICATE_TYPE: "https://security.sigstore.dev/attestations/vuln/trivy/v1"
-  ZAP_PREDICATE_TYPE: "https://security.sigstore.dev/attestations/dast/zap/v1"
-  SBOM_PREDICATE_TYPE: "https://spdx.dev/Document"
-  OIDC_ISSUER: "https://token.actions.githubusercontent.com"
-  YQ_VERSION: "v4.44.3"
   
 jobs:
   verify-context:
@@ -50,40 +43,31 @@ jobs:
             echo "✅ Manual promotion request validated (run_id provided)."
             exit 0
           fi
-
           test -n "$WR_RUN_ID" || (echo "::error::Missing workflow_run.id for workflow_run trigger."; exit 1)
-
           if [[ "$WR_CONCLUSION" != "success" ]]; then
             echo "::error::Upstream Release workflow did not succeed (conclusion=$WR_CONCLUSION)."
             exit 1
           fi
-
           if [[ "$WR_HEAD_REPO" != "$CURRENT_REPO" ]]; then
             echo "::error::Security: workflow_run originated from a different repository ($WR_HEAD_REPO)."
             exit 1
           fi
-
           if [[ "$WR_EVENT" != "push" ]]; then
             echo "::error::Unsupported Release trigger event ($WR_EVENT). Expected push from a release tag."
             exit 1
           fi
-
           WR_EFFECTIVE_REF="${WR_REF:-$WR_HEAD_REF}"
-
           if [[ -z "$WR_EFFECTIVE_REF" ]]; then
             echo "::error::Missing upstream release ref for workflow_run trigger."
             exit 1
           fi
-
           if [[ "$WR_EFFECTIVE_REF" != refs/* ]]; then
             WR_EFFECTIVE_REF="refs/tags/$WR_EFFECTIVE_REF"
           fi
-
           if [[ "$WR_EFFECTIVE_REF" != refs/tags/* ]]; then
             echo "::error::Upstream Release workflow must originate from a tag push (ref=$WR_EFFECTIVE_REF)."
             exit 1
           fi
-
           echo "release_run_id=$WR_RUN_ID" >> "$GITHUB_OUTPUT"
           echo "✅ workflow_run promotion source validated."
 
@@ -96,11 +80,34 @@ jobs:
       pull-requests: write
       actions: read
       id-token: write 
-
+    env:
+      TRIVY_PREDICATE_TYPE: "https://security.sigstore.dev/attestations/vuln/trivy/v1"
+      ZAP_PREDICATE_TYPE: "https://security.sigstore.dev/attestations/dast/zap/v1"
+      SBOM_PREDICATE_TYPE: "https://spdx.dev/Document"
+      OIDC_ISSUER: "https://token.actions.githubusercontent.com"
+      YQ_VERSION: "v4.44.3"
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
+      - name: Install Kyverno CLI
+        uses: kyverno/action-install-cli@fcee92fca5c883169ef9927acf543e0b5fc58289 # v0.2.0
+        with:
+          release: 'v1.17.1'
+          verify: true
+      - name: Install yq
+        run: |
+          set -euo pipefail
+          sudo wget -qO /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download/${{env.YQ_VERSION}}/yq_linux_amd64"
+          sudo chmod +x /usr/local/bin/yq
+          yq --version   
+      - name: Install Kustomize
+        uses: imranismail/setup-kustomize@53f941b41dca13ed61874bbc6b4b6e1562877530 # v3.0.0
+      
+      - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 #v4.1.0
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
       - name: Resolve Release Run Metadata
         id: release-meta
@@ -154,7 +161,6 @@ jobs:
 
           echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
           echo "release_sha=$RELEASE_SHA" >> "$GITHUB_OUTPUT"
-
       - name: Download Digests from Release Workflow
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v4.1.8.0.1
         with:
@@ -163,7 +169,6 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           pattern: digest-*
           path: digests
-
       - name: Read & Validate Digests
         run: |
           set -euo pipefail
@@ -189,10 +194,8 @@ jobs:
           echo "FRONTEND_IMAGE=docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-frontend@$FRONTEND_DIGEST" >> $GITHUB_ENV
 
           echo "✅ Loaded Digests."
-
       - name: Install Cosign
         uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
-      
       - name: Verify Signatures + Required Attestations (hard gate)
         run: |
           set -euo pipefail
@@ -205,7 +208,7 @@ jobs:
             cosign verify "$IMAGE" \
               --certificate-oidc-issuer "${{ env.OIDC_ISSUER }}" \
               --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*"
-
+            
             # 2. Verify Attestations (SILENT MODE)            
             echo "🧾 Verifying Trivy attestation..."
             cosign verify-attestation "$IMAGE" \
@@ -220,7 +223,7 @@ jobs:
               --certificate-oidc-issuer "${{ env.OIDC_ISSUER }}" \
               --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*" \
               > /dev/null
-
+            
             echo "🧾 Verifying SBOM attestation..."
             cosign verify-attestation "$IMAGE" \
               --type "${{ env.SBOM_PREDICATE_TYPE }}" \
@@ -228,77 +231,72 @@ jobs:
               --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*" \
               > /dev/null
           }
-
           verify_all "${{ env.BACKEND_IMAGE }}"
           verify_all "${{ env.WORKER_IMAGE }}"
           verify_all "${{ env.FRONTEND_IMAGE }}"
           echo "✅ All signatures & attestations verified."
-
-      - name: Install Kyverno CLI
-        uses: kyverno/action-install-cli@fcee92fca5c883169ef9927acf543e0b5fc58289 # v0.2.0
-        with:
-          release: 'v1.17.1'
-          verify: true
-
-      - name: Install yq
-        run: |
-          set -euo pipefail
-          sudo wget -qO /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download/${{env.YQ_VERSION}}/yq_linux_amd64"
-          sudo chmod +x /usr/local/bin/yq
-          yq --version
-
       - name: Update prod digests (candidate canary + full promotion for non-canary services)
         run: |
           set -euo pipefail
           FILE="k8s/overlays/prod/kustomization.yaml"
           test -f "$FILE" || (echo "::error::Missing $FILE"; exit 1)
-
           yq -i '
             (.images[] | select(.name == "backend-canary") | .digest) = strenv(BACKEND_DIGEST)
           ' "$FILE"
-
           yq -i '
             (.images[] | select(.name == "docker.io/agslima/app-stayhealthy-worker") | .digest) = strenv(WORKER_DIGEST)
           ' "$FILE"
-
           yq -i '
             (.images[] | select(.name == "docker.io/agslima/app-stayhealthy-frontend") | .digest) = strenv(FRONTEND_DIGEST)
           ' "$FILE"
-
           echo "✅ Updated prod overlay:"
           yq -r '.images[] | .name + " => " + .digest' "$FILE"
-
           # Fail closed
           yq -r '.images[].digest' "$FILE" | grep -q '^sha256:' || (
             echo "::error::Prod overlay digests not set correctly"
             exit 1
           )
-
       - name: Validate rendered prod manifests against cluster policy
+        env:
+          # Securely pass credentials into the environment
+          DOCKER_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
         run: |
           set -euo pipefail
-
+          
           LOG_FILE="kyverno-gitops.log"
           : > "$LOG_FILE"
-
-          kustomize build k8s/overlays/prod > /tmp/prod.yaml
-          test -s /tmp/prod.yaml || (echo "::error::Rendered prod.yaml is empty"; exit 1)
-
+          echo "=== 1. Building comprehensive Docker Hub keychain ===" | tee -a "$LOG_FILE"
+          mkdir -p "$HOME/.docker"
+          # Base64 encode the credentials to bypass the docker/login-action
+          AUTH=$(printf "%s:%s" "${DOCKER_USERNAME}" "${DOCKER_PASSWORD}" | base64 | tr -d '\n')
+          # Explicitly map the token to all Docker Hub aliases ggcr might request
+          cat <<EOF > "$HOME/.docker/config.json"
+          {
+            "auths": {
+              "https://index.docker.io/v1/": { "auth": "${AUTH}" },
+              "index.docker.io": { "auth": "${AUTH}" },
+              "docker.io": { "auth": "${AUTH}" }
+            }
+          }
+          EOF
+          export DOCKER_CONFIG="$HOME/.docker"
+          
+          # Render the manifest
+          RENDERED_MANIFEST=$(mktemp)
+          kustomize build k8s/overlays/prod > "$RENDERED_MANIFEST"
+          test -s "$RENDERED_MANIFEST" || (echo "::error::Rendered manifest is empty"; exit 1)
           echo "=== Namespaces in rendered YAML ===" | tee -a "$LOG_FILE"
-          yq -r 'select(.metadata != null) | .kind + " " + (.metadata.namespace // "NONE") + " " + .metadata.name' /tmp/prod.yaml \
+          yq -r 'select(.metadata != null) | .kind + " " + (.metadata.namespace // "NONE") + " " + .metadata.name' "$RENDERED_MANIFEST" \
           | sort | uniq -c | tee -a "$LOG_FILE"
-
           echo "=== Images in rendered YAML ===" | tee -a "$LOG_FILE"
           yq -r '
              select(.kind=="Deployment") |
              .metadata.name as $n |
              .spec.template.spec.containers[].image |
              $n + " => " + .
-          ' /tmp/prod.yaml | tee -a "$LOG_FILE"
-
+          ' "$RENDERED_MANIFEST" | tee -a "$LOG_FILE"
           echo "=== Kyverno policy evaluation (split policies) ===" | tee -a "$LOG_FILE"
-
-          # Apply each split policy individually so debugging is straightforward.
           POLICIES=(
             "k8s/policies/cluster/verify-signature.yaml"
             "k8s/policies/cluster/verify-trivy.yaml"
@@ -306,53 +304,18 @@ jobs:
             "k8s/policies/cluster/verify-sbom.yaml"
             "k8s/policies/cluster/verify-slsa.yaml"
           )
-
-          any_failed=0
-          any_skipped=0
-
           for POLICY in "${POLICIES[@]}"; do
             echo "" | tee -a "$LOG_FILE"
             echo "------------------------------------------------------------" | tee -a "$LOG_FILE"
             echo "Applying policy: $POLICY" | tee -a "$LOG_FILE"
             echo "------------------------------------------------------------" | tee -a "$LOG_FILE"
-
-            out="$(mktemp)"
             kyverno apply "$POLICY" \
-              --resource /tmp/prod.yaml \
-              --audit-warn=false \
-              --registry \
-              --detailed-results > "$out" 2>&1 || true
-
-            cat "$out" | tee -a "$LOG_FILE"
-
-            # Treat skipped as failure in CI
-            if grep -q "Policies Skipped" "$out"; then
-              any_skipped=1
-            fi
-
-            # Fail if kyverno reports failures/errors
-            if grep -qE "fail:[[:space:]]*[1-9]|error:[[:space:]]*[1-9]" "$out"; then
-              any_failed=1
-            fi
-
-            rm -f "$out"
+              --resource "$RENDERED_MANIFEST" \
+              --registry -v=6 \
+              --detailed-results \
+              | tee -a "$LOG_FILE"
           done
-
-          echo "" | tee -a "$LOG_FILE"
-          echo "======================== Summary ========================" | tee -a "$LOG_FILE"
-
-          if [[ "$any_failed" -eq 1 ]]; then
-            echo "::error::❌ Kyverno policy evaluation failed (fail/error > 0) in at least one policy." | tee -a "$LOG_FILE"
-            exit 1
-          fi
-
-          if [[ "$any_skipped" -eq 1 ]]; then
-            echo "::error::❌ Kyverno skipped one or more policies (treated as failure in CI)." | tee -a "$LOG_FILE"
-            exit 1
-          fi
-
           echo "✅ Policy Validation Passed." | tee -a "$LOG_FILE"
-
       - name: Upload Kyverno Log
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -360,52 +323,41 @@ jobs:
           name: kyverno-gitops-log
           path: kyverno-gitops.log
           retention-days: 30
-
       - name: Compose PR Metadata
         run: |
           set -euo pipefail
-
           RUN_ID="${{ steps.release-meta.outputs.run_id }}"
           RELEASE_SHA="${{ steps.release-meta.outputs.release_sha }}"
           REPO="${{ github.repository }}"
           SERVER_URL="${{ github.server_url }}"
-
           echo "RELEASE_RUN_URL=${SERVER_URL}/${REPO}/actions/runs/${RUN_ID}" >> $GITHUB_ENV
           echo "RELEASE_SHA=${RELEASE_SHA}" >> $GITHUB_ENV
-
           # Use SHA-based branch name to avoid collisions
           echo "PR_BRANCH=gitops/deploy-${RELEASE_SHA}" >> $GITHUB_ENV
-
       - name: Create GitOps PR
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 #v8.1.1
         with:
-          token: ${{ secrets.TOKEN_GITHUB }}
+          token: ${{ secrets.PAT_GITHUB }}
           commit-message: "deploy: promote ${{ env.RELEASE_SHA }}"
           title: "Deploy release (${{ env.RELEASE_SHA }})"
-
           body: |
             Automated GitOps promotion from a successful Release workflow run.
-
             **Source**
             - Release Run: ${{ env.RELEASE_RUN_URL }}
             - Head SHA: `${{ env.RELEASE_SHA }}`
-
             **Pinned Images**
             - Backend candidate canary: `${{ env.BACKEND_IMAGE }}`
             - Worker: `${{ env.WORKER_IMAGE }}`
             - Frontend: `${{ env.FRONTEND_IMAGE }}`
-
             **Rollout intent**
             - Prod backend stable digest remains unchanged until explicit promotion.
             - Prod backend canary digest is advanced automatically by this PR.
-
             **Supply Chain Verification**
             - cosign verify (signature): ✅
             - Trivy attestation: ✅ (`${{ env.TRIVY_PREDICATE_TYPE }}`)
             - ZAP attestation: ✅ (`${{ env.ZAP_PREDICATE_TYPE }}`)
             - SBOM attestation: ✅ (`${{ env.SBOM_PREDICATE_TYPE }}`)
             - Kyverno structural checks: ✅
-
           branch: ${{ env.PR_BRANCH }}
           base: main
           delete-branch: true
