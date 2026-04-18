@@ -6,6 +6,7 @@ high := input.summary.high
 medium := input.summary.medium
 
 # Environment-aware (future-proof)
+default env := "dev"
 env := input.env
 
 # ---- Rules ----
