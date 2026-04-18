@@ -388,7 +388,7 @@ jobs:
     needs: [dast-analysis, build-push, trivy-scan, resolve]
     environment: production
     permissions:
-      contents: write
+      contents: read
       id-token: write
       attestations: write
     env:
