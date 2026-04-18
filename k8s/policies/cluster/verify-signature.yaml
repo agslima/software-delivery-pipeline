@@ -30,7 +30,7 @@ spec:
                     subjectRegExp: '^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*$'
                     additionalExtensions:
                       githubWorkflowTrigger: push
-                      githubWorkflowName: Realease
+                      githubWorkflowName: Release
                       githubWorkflowRepository: agslima/software-delivery-pipeline
                     rekor:
                       url: https://rekor.sigstore.dev
