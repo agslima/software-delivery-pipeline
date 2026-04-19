@@ -16,11 +16,11 @@ jobs:
       id: build
       uses: google/oss-fuzz/infra/cifuzz/actions/build_fuzzers@master
       with:
-        oss-fuzz-project-name: 'software-delivery-pipeline'
+        oss-fuzz-project-name: 'github.com/agslima/software-delivery-pipeline'
     - name: Run Fuzzers
       uses: google/oss-fuzz/infra/cifuzz/actions/run_fuzzers@master
       with:
-        oss-fuzz-project-name: 'software-delivery-pipeline'
+        oss-fuzz-project-name: 'github.com/agslima/software-delivery-pipeline'
         fuzz-seconds: 600
         output-sarif: true
     - name: Upload Crash
