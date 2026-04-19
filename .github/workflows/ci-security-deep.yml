@@ -7,7 +7,8 @@ on:
   pull_request:  # add itself for testing changes to this workflow
     paths:
       - '.github/workflows/ci-security-deep.yml'
-
+permissions:
+      contents: read
 concurrency:
   group: ci-security-deep-${{ github.ref }}
   cancel-in-progress: false
