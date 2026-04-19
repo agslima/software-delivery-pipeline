@@ -6,7 +6,7 @@ on:
     - cron: '0 0 * * 0' # Runs at 00:00, only on Sunday.
     
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
 
 jobs:
