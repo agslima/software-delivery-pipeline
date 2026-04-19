@@ -43,89 +43,56 @@ jobs:
     runs-on: ubuntu-latest
     needs: [resolve]
     environment: production
+    timeout-minutes: 60
     permissions:
       contents: read
+      packages: write
       id-token: write
+    outputs:
+      app-backend-digest: ${{ steps.release-backend.outputs.digest }}
+      app-frotend-digest: ${{ steps.release-frontend.outputs.digest }}
+      app-worker-digest: ${{ steps.release-worker.outputs.digest }}
     strategy:
       fail-fast: true
       matrix:
         include:
-          - name: backend
-            context: app
-            file: app/docker/Dockerfile.server
-            image_repo: app-stayhealthy-backend
-          - name: worker
-            context: app
-            file: app/docker/Dockerfile.worker
-            image_repo: app-stayhealthy-worker
-          - name: frontend
-            context: app
-            file: app/docker/Dockerfile.client
-            image_repo: app-stayhealthy-frontend
+          - component: backend
+            main-path: app
+            container_file: app/docker/Dockerfile.server
+            container_name: app-stayhealthy-backend
+          - component: worker
+            main-path: app
+            container_file: app/docker/Dockerfile.worker
+            container_name: app-stayhealthy-worker
+          - componnent: frontend
+            main-path: app
+            container_file: app/docker/Dockerfile.client
+            container_name: app-stayhealthy-frontend
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
-          fetch-depth: 0
+          fetch-tags: true
           ref: ${{ needs.resolve.outputs.release_tag }}
-      - name: Install cosign
-        uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
-      - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+  
+      - name: Publish Backend
+        id: release-backend
+        uses: ./.github/workflows/image-reuse.yaml
         with:
-          # buildkit v0.28.1
-          driver-opts: |
-            image=moby/buildkit@sha256:a82d1ab899cda51aade6fe818d71e4b58c4079e047a0cf29dbb93b2b0465ea69
-      - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 #v4.1.0
-        with:
-          username: ${{ secrets.DOCKER_HUB_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
-
-      - name: Set up build args for container image
-        run: |
-            echo "GIT_TAG=$(if [ -z "`git status --porcelain`" ]; then git describe --exact-match --tags HEAD 2>/dev/null; fi)" >> $GITHUB_ENV
-            echo "GIT_COMMIT=$(git rev-parse HEAD)" >> $GITHUB_ENV
-            echo "BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_ENV
-            echo "GIT_TREE_STATE=$(if [ -z "`git status --porcelain`" ]; then echo "clean" ; else echo "dirty"; fi)" >> $GITHUB_ENV
-      - name: Free Disk Space (Ubuntu)
-        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be
-        with:
-          large-packages: false
-          docker-images: false
-          swap-storage: false
-          tool-cache: false
-      - name: Build & Push
-        id: build
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
-        with:
-          context: ${{ matrix.context }}
-          file: ${{ matrix.file }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          provenance: true
-          sbom: true
+          makefile-target: app-publish-backend
+          ghcr: ghcr.io
+          ghrc-registry-username: ${{ github.actor }}
+          ghrc-registry-password: ${{ secrets.GITHUB_TOKEN }}
+          ghrc-repository: ${{ github.repository_owner }}
+          docker: docker.io
+          docker-username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          docker-password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+          docker-repository: ${{}}
+          version: ${{ github.ref_name }}
+          platforms: linux/amd64,linux/arm64
           push: true
-          tags: |
-            ${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}:${{ needs.resolve.outputs.release_tag }}
-            ${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}:${{ github.sha }}
-          build-args: |
-            GIT_TAG=${{env.GIT_TAG}}
-            GIT_COMMIT=${{env.GIT_COMMIT}}
-            GIT_TREE_STATE=${{env.GIT_TREE_STATE}}
-            BUILD_DATE=${{env.BUILD_DATE}}
-      - name: Export Digest Artifact
-        run: |
-          set -euo pipefail
-          mkdir -p digests
-          DIGEST="${{ steps.build.outputs.digest }}"
-          test -n "$DIGEST" || (echo "::error::Digest empty"; exit 1)
-          echo "$DIGEST" > "digests/digest-${{ matrix.name }}"
-          echo "IMAGE=${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@$DIGEST" >> "$GITHUB_ENV"
-      - name: Upload Digest Artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a #v7.0.1
-        with:
-          name: digest-${{ matrix.name }}
-          path: digests/digest-${{ matrix.name }}
-          retention-days: 30
+          sign-image: true
+          signature-repository: ghcr.io/${{ github.repository_owner }}/${{ github.repository }}/app-stayhealthy/backend
+          main-path: ./app/docker
       
   # ==================================================================
   # JOB 2: Trivy Scan (1 run per image digest) + gate
