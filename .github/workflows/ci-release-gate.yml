@@ -86,7 +86,7 @@ jobs:
           docker: docker.io
           docker-username: ${{ secrets.DOCKER_HUB_USERNAME }}
           docker-password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
-          docker-repository: ${{}}
+          docker-repository: agslima/app-stayhealthy-backend
           version: ${{ github.ref_name }}
           platforms: linux/amd64,linux/arm64
           push: true
