@@ -133,8 +133,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: write
-      security-events: write
+      pull-requests: read
+      security-events: read
     env:
       TRIVY_CACHE_DIR: ${{ github.workspace }}/.trivy-cache
     steps:

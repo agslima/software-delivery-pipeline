@@ -9,6 +9,8 @@ on:
   workflow_run:
     workflows: ["Release"]
     types: [completed]
+permissions:
+      contents: read
 
 concurrency:
   group: gitops-${{ github.event.workflow_run.id || github.event.inputs.run_id || github.run_id }}
