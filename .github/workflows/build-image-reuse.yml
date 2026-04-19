@@ -77,7 +77,6 @@ jobs:
       - name: Setup tags for container image as a CSV type
         run: |
           IMAGE_TAGS=$(for str in \
-            ${{ inputs.quay_image_name }} \
             ${{ inputs.ghcr_image_name }} \
             ${{ inputs.docker_image_name}}; do
             echo -n "${str}",;done | sed 's/,$//')
@@ -88,7 +87,6 @@ jobs:
       - name: Setup image namespace for signing, strip off the tag
         run: |
           TAGS=$(for tag in \
-            ${{ inputs.quay_image_name }} \
             ${{ inputs.ghcr_image_name }} \
             ${{ inputs.docker_image_name}}; do
             echo -n "${tag}" | awk -F ":" '{print $1}' -;done)
@@ -132,13 +130,15 @@ jobs:
         id: image
         uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f #v7.1.0
         with:
-          context: .
+          context: ${{ inputs.contex }}
           platforms: ${{ inputs.platforms }}
           push: ${{ inputs.push }}
           tags: ${{ env.TAGS }}
           target: ${{ inputs.target }}
-          provenance: false
-          sbom: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: ${{ inputs.provenance }}
+          sbom: ${{ inputs.sbom }}
           build-args: |
             GIT_TAG=${{env.GIT_TAG}}
             GIT_COMMIT=${{env.GIT_COMMIT}}
@@ -156,3 +156,19 @@ jobs:
             "$signing_tag"@${{ steps.image.outputs.digest }}
           done
         if: ${{ inputs.push }}
+        
+      - name: Export Digest Artifact
+        run: |
+          set -euo pipefail
+          mkdir -p digests
+          DIGEST="${{ steps.build.outputs.digest }}"
+          test -n "$DIGEST" || (echo "::error::Digest empty"; exit 1)
+          echo "$DIGEST" > "digests/digest-${{ matrix.name }}"
+          echo "IMAGE=${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@$DIGEST" >> "$GITHUB_ENV"
+      
+      - name: Upload Digest Artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a #v7.0.1
+        with:
+          name: digest-${{ matrix.name }}
+          path: digests/digest-${{ matrix.name }}
+          retention-days: 30
