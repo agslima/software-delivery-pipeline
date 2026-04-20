@@ -39,13 +39,14 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - name: Checkout repository (full history)
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      with:
+        fetch-depth: 0
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd
-    - name: Login to Docker Hub
-      uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121
-      with:
-        username: ${{ inputs.dockerhub_username }}
-        password: ${{ inputs.dockerhub_token }}
+    - name: Install Cosign
+      uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003
     - name: Free Disk Space (Ubuntu)
       uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be
       with:
@@ -53,6 +54,11 @@ runs:
         docker-images: false
         swap-storage: false
         tool-cache: false
+    - name: Login to Docker Hub
+      uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121
+      with:
+        username: ${{ inputs.dockerhub_username }}
+        password: ${{ inputs.dockerhub_token }}
     - name: Login to GitHub Container Registry
       uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121
       with:
@@ -62,10 +68,19 @@ runs:
     - name: Set up build args for container image
       shell: bash
       run: |
-        echo "GIT_TAG=$(if [ -z "`git status --porcelain`" ]; then git describe --exact-match --tags HEAD 2>/dev/null; fi)" >> $GITHUB_ENV
-        echo "GIT_COMMIT=$(git rev-parse HEAD)" >> $GITHUB_ENV
+        echo "GIT_COMMIT=${GITHUB_SHA}" >> $GITHUB_ENV
+        if git describe --exact-match --tags HEAD >/dev/null 2>&1; then
+          echo "GIT_TAG=$(git describe --tags)" >> $GITHUB_ENV
+        else
+          echo "GIT_TAG=" >> $GITHUB_ENV
+        fi
+        if [ -z "$(git status --porcelain)" ]; then
+          echo "GIT_TREE_STATE=clean" >> $GITHUB_ENV
+        else
+          echo "GIT_TREE_STATE=dirty" >> $GITHUB_ENV
+        fi
         echo "BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_ENV
-        echo "GIT_TREE_STATE=$(if [ -z "`git status --porcelain`" ]; then echo "clean" ; else echo "dirty"; fi)" >> $GITHUB_ENV  
+        
     - name: Build & Push
       id: build
       uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f
@@ -85,12 +100,10 @@ runs:
             GIT_TREE_STATE=${{env.GIT_TREE_STATE}}
         tags: |
           docker.io/${{ inputs.dockerhub_username }}/${{ inputs.image_repo }}:${{ inputs.release_tag }}
-          docker.io/${{ inputs.dockerhub_username }}/${{ inputs.image_repo }}:${{ inputs.github_sha }}
-          ghcr.io/${{ github.repository }}/${{ inputs.image_repo }}:${{ inputs.release_tag }}
-          ghcr.io/${{ github.repository }}/${{ inputs.image_repo }}:${{ inputs.github_sha }}
-
+          docker.io/${{ inputs.dockerhub_username }}/${{ inputs.image_repo }}:${{ github.sha }}
+          ghcr.io/${{ github.repository_owner }}/${{ github.repository }}/${{ inputs.image_repo }}:${{ inputs.release_tag }}
+          ghcr.io/${{ github.repository_owner }}/${{ github.repository }}/${{ inputs.image_repo }}:${{ github.sha }}
     - name: Export Digest Artifact
-      id: digest
       shell: bash
       run: |
         set -euo pipefail
@@ -101,19 +114,23 @@ runs:
         echo "$DIGEST" > "digests/digest-${{ inputs.component_name }}"
         # Export to GITHUB_ENV so subsequent steps can use it natively
         echo "IMAGE_DIGEST=$DIGEST" >> $GITHUB_ENV
-
     - name: Upload Digest Artifact
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
       with:
         name: digest-${{ inputs.component_name }}
         path: digests/digest-${{ inputs.component_name }}
         retention-days: 30
-
+    - name: Prepare image references
+      shell: bash
+      run: |
+        set -euo pipefail
+        echo "DOCKERHUB_IMAGE=docker.io/${{ inputs.dockerhub_username }}/${{ inputs.image_repo }}@${{ env.IMAGE_DIGEST }}" >> $GITHUB_ENV
+        echo "GHCR_IMAGE=ghcr.io/${{ github.repository_owner }}/${{ github.repository }}/${{ inputs.image_repo }}@${{ env.IMAGE_DIGEST }}" >> $GITHUB_ENV
     - name: Sign Images with Cosign
       shell: bash    
       env:
           DOCKERHUB_IMAGE: docker.io/${{ inputs.dockerhub_username }}/${{ inputs.image_repo }}@${{ env.IMAGE_DIGEST }}
-          GHCR_IMAGE: ghcr.io/${{ github.repository }}/${{ inputs.image_repo }}@${{ env.IMAGE_DIGEST }}
+          GHCR_IMAGE: ghcr.io/${{ github.repository_owner }}/${{ github.repository }}/${{ inputs.image_repo }}@${{ env.IMAGE_DIGEST }}
       run: |
           set -euo pipefail
           
