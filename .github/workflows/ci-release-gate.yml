@@ -37,13 +37,9 @@ jobs:
 
   run-trivy:
     name: Run Trivy
-    runs-on: ubuntu-latest
     permissions:
       contents: read
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
-      - name: Run Trivy vulnerability scanner in repo mode
-        uses:  ./.github/workflows/ci-security-deep.yml
+    uses: ./.github/workflows/ci-security-deep.yml
         
   # ==================================================================
   # JOB 1: Build + Push (Digest is the artifact identity)
@@ -60,22 +56,19 @@ jobs:
       id-token: write
     outputs:
       app-backend-digest: ${{ steps.release-backend.outputs.digest }}
-      app-frotend-digest: ${{ steps.release-frontend.outputs.digest }}
+      app-frontend-digest: ${{ steps.release-frontend.outputs.digest }}
       app-worker-digest: ${{ steps.release-worker.outputs.digest }}
     strategy:
       fail-fast: true
       matrix:
         include:
           - component: backend
-            main-path: app
             container_file: app/docker/Dockerfile.server
             container_name: app-stayhealthy-backend
           - component: worker
-            main-path: app
             container_file: app/docker/Dockerfile.worker
             container_name: app-stayhealthy-worker
           - componnent: frontend
-            main-path: app
             container_file: app/docker/Dockerfile.client
             container_name: app-stayhealthy-frontend
     steps:
@@ -84,18 +77,15 @@ jobs:
           fetch-tags: true
           ref: ${{ needs.resolve.outputs.release_tag }}
   
-      - name: Publish Backend
+      - name: Publish ${{ matrix.component }} image
         id: release-backend
         uses: ./.github/workflows/image-reuse.yaml
         with:
-          makefile-target: app-publish-backend
+          makefile-target:
           ghcr: ghcr.io
           ghrc-registry-username: ${{ github.actor }}
-          ghrc-registry-password: ${{ secrets.GITHUB_TOKEN }}
           ghrc-repository: ${{ github.repository_owner }}
           docker: docker.io
-          docker-username: ${{ secrets.DOCKER_HUB_USERNAME }}
-          docker-password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
           docker-repository: agslima/app-stayhealthy-backend
           version: ${{ github.ref_name }}
           platforms: linux/amd64,linux/arm64
@@ -107,7 +97,39 @@ jobs:
           cache-to: type=gha,mode=max
           signature-repository: ghcr.io/${{ github.repository_owner }}/${{ github.repository }}/app-stayhealthy/backend
           main-path: ./app/docker
-      
+      secrets:
+          docker-username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          docker-password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+          ghrc-registry-password: ${{ secrets.GITHUB_TOKEN }}
+        
+    
+  generate-slsa-provenance:
+    needs: [build-push] 
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - component: backend
+            digest: ${{ needs.build-push.outputs.app-backend-digest }}
+            container_name: app-stayhealthy-backend
+          - component: worker
+            digest: ${{ needs.build-push.outputs.app-worker-digest }}
+            container_name: app-stayhealthy-worker
+          - component: frontend
+            digest: ${{ needs.build-push.outputs.app-frontend-digest }}
+            container_name: app-stayhealthy-frontend
+    permissions:
+      id-token: write   # To sign the provenance.
+      packages: write   # To upload assets to release.
+      actions: read     # To read the workflow path.
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
+    with:
+      image: ghcr.io/${{ github.repository_owner }}/${{ matrix.container_name }}
+      digest: ${{ matrix.digest }}
+      registry-username: ${{ github.actor }}
+    secrets:
+      registry-password: ${{ secrets.GITHUB_TOKEN }}
+       
   # ==================================================================
   # JOB 2: Trivy Scan (1 run per image digest) + gate
   # ==================================================================
@@ -131,7 +153,7 @@ jobs:
             image_repo: app-stayhealthy-worker
             exposure: internal
             criticality: medium
-          - name: frontend
+          - name: fronend
             image_repo: app-stayhealthy-frontend
             exposure: public
             criticality: medium
@@ -193,7 +215,7 @@ jobs:
           name: trivy-results-${{ matrix.name }}
           path: trivy-${{ matrix.name }}.json
           retention-days: 30
-
+     
   # ==================================================================
   # JOB 3: DAST (compose uses the exact digests) + gate
   # ==================================================================
