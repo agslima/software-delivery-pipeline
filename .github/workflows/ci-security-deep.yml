@@ -131,7 +131,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: [security-governance]
-    if: needs.security-governance.result == 'failure'
+    if: ${{ failure() && needs.security-governance.result == 'failure' }}
     permissions:
       contents: read
       issues: write
