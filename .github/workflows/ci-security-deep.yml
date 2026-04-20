@@ -4,6 +4,7 @@ on:
   schedule:
     - cron: "0 2 * * *"
   workflow_dispatch: {}  # allow manual runs for testing
+  workflow_call: {} # allow workflow calls
   pull_request:  # add itself for testing changes to this workflow
     paths:
       - '.github/workflows/ci-security-deep.yml'
@@ -74,6 +75,7 @@ jobs:
           cache-dir: ~/.cache/trivy
       # 3. GOVERNANCE DATA (Full Scan)    
       - name: Generate Governance JSON
+        if: always()
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
         with:
           scan-type: 'fs'
@@ -117,13 +119,14 @@ jobs:
       # Governance gate
       # Switch to using OPA in the future. 
       - name: Enforce Risk Acceptance Policy
+        continue-on-error: true
         id: gate
         run: |
           set -euo pipefail
           chmod +x scripts/check-security-debt.sh
           ./scripts/check-security-debt.sh trivy-governance.json
       - name: Fail job if gate failed
-        if: steps.gate.outcome == 'failure'
+        if: ${{ steps.gate.outcome == 'failure' }}
         run: exit 1
 
   create-issue:
