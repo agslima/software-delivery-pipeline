@@ -92,23 +92,43 @@ jobs:
           ghcr_username: ${{ github.repository_owner }}
           ghcr_token: ${{ secrets.GITHUB_TOKEN }}
           platforms: linux/amd64,linux/arm64
-          signature-repository: ghcr.io/${{ github.repository_owner }}/${{ github.repository }}/${{ matrix.container_name }}
+          signature-repository: ghcr.io/${{ github.repository_owner }}/signatures
 
   download-digest:
-    name: Download Diges5
+    name: Download Digests
     runs-on: ubuntu-latest
-    needs: [build-push]
+    needs: [build-push, resolve]
     permissions:
       contents: read
     outputs:
-      app-backend-digest: ${{ steps.release-backend.outputs.digest }}
-      app-frontend-digest: ${{ steps.release-frontend.outputs.digest }}
-      app-worker-digest: ${{ steps.release-worker.outputs.digest }}
-  
+      app-backend-digest: ${{ steps.read-digests.outputs.backend }}
+      app-frontend-digest: ${{ steps.read-digests.outputs.frontend }}
+      app-worker-digest: ${{ steps.read-digests.outputs.worker }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.resolve.outputs.release_tag }}
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v4.1.8.0.1
+        with:
+          pattern: digest-*
+          path: digests
+          merge-multiple: true
+      - name: Read Digests and Set Outputs
+        id: read-digests
+        run: |
+          set -euo pipefail  
+          BACKEND_DIGEST=$(cat digests/digest-backend)
+          FRONTEND_DIGEST=$(cat digests/digest-frontend)
+          WORKER_DIGEST=$(cat digests/digest-worker)
+          echo "backend=$BACKEND_DIGEST" >> "$GITHUB_OUTPUT"
+          echo "frontend=$FRONTEND_DIGEST" >> "$GITHUB_OUTPUT"
+          echo "worker=$WORKER_DIGEST" >> "$GITHUB_OUTPUT"
+                    
   generate-slsa-provenance:
     needs: [download-digest] 
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         include:
           - component: backend
@@ -465,28 +485,6 @@ jobs:
         with:
           name: zap-results
           path: zap-downloads
-
-      - name: Sign image
-        env:
-          IMAGE: docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@$DIGEST
-          COSIGN_REPOSITORY: docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/signatures
-        run: |
-          set -euo pipefail
-          
-          echo "COSIGN_REPOSITORY=$COSIGN_REPOSITORY"
-          echo "Signing image: $IMAGE"
-          echo "Signing starts: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-
-          cosign sign --yes "$IMAGE" \
-            -a "repo=${{ github.repository }}" \
-            -a "workflow=${{ github.workflow }}" \
-            -a "ref=${{ github.sha }}"
-            --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
-            --certificate-identity-regexp="^https://github.com/${{ github.repository }}/.github/workflows/.*@.*$"
-
-          echo "Signing finished: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-          echo "Checking artifacts in registry..."
-          cosign tree "$IMAGE"
           
       - name: Create & Push Trivy Attestation (from scan artifact)
         if: startsWith(github.ref, 'refs/tags/')
