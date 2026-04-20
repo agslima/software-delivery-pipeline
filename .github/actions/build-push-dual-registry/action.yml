@@ -33,9 +33,11 @@ inputs:
     description: 'GitHub Token for GHCR authentication'
     required: true
   platforms:
-    description: ' Container platforms'
+    description: 'Container platforms'
     required: true
-
+  signature-repository:
+    deascription: 'Repository to storage all signatures'
+    required: false
 runs:
   using: "composite"
   steps:
@@ -101,8 +103,8 @@ runs:
         tags: |
           docker.io/${{ inputs.dockerhub_username }}/${{ inputs.image_repo }}:${{ inputs.release_tag }}
           docker.io/${{ inputs.dockerhub_username }}/${{ inputs.image_repo }}:${{ github.sha }}
-          ghcr.io/${{ github.repository_owner }}/${{ github.repository }}/${{ inputs.image_repo }}:${{ inputs.release_tag }}
-          ghcr.io/${{ github.repository_owner }}/${{ github.repository }}/${{ inputs.image_repo }}:${{ github.sha }}
+          ghcr.io/${{ github.repository_owner }}/${{ inputs.image_repo }}:${{ inputs.release_tag }}
+          ghcr.io/${{ github.repository_owner }}/${{ inputs.image_repo }}:${{ github.sha }}
     - name: Export Digest Artifact
       shell: bash
       run: |
@@ -125,39 +127,33 @@ runs:
       run: |
         set -euo pipefail
         echo "DOCKERHUB_IMAGE=docker.io/${{ inputs.dockerhub_username }}/${{ inputs.image_repo }}@${{ env.IMAGE_DIGEST }}" >> $GITHUB_ENV
-        echo "GHCR_IMAGE=ghcr.io/${{ github.repository_owner }}/${{ github.repository }}/${{ inputs.image_repo }}@${{ env.IMAGE_DIGEST }}" >> $GITHUB_ENV
+        echo "GHCR_IMAGE=ghcr.io/${{ github.repository_owner }}/${{ inputs.image_repo }}@${{ env.IMAGE_DIGEST }}" >> $GITHUB_ENV
     - name: Sign Images with Cosign
       shell: bash    
       env:
-          DOCKERHUB_IMAGE: docker.io/${{ inputs.dockerhub_username }}/${{ inputs.image_repo }}@${{ env.IMAGE_DIGEST }}
-          GHCR_IMAGE: ghcr.io/${{ github.repository_owner }}/${{ github.repository }}/${{ inputs.image_repo }}@${{ env.IMAGE_DIGEST }}
+        COSIGN_REPOSITORY: ${{ inputs.signature-repository }}
+        COSIGN_EXPERIMENTAL: "true"
       run: |
           set -euo pipefail
           
           echo "Signing starts: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-
-          # Sign DockerHub Image
           echo "Signing DockerHub image: $DOCKERHUB_IMAGE"
           cosign sign --yes "$DOCKERHUB_IMAGE" \
             -a "repo=${{ github.repository }}" \
             -a "workflow=${{ github.workflow }}" \
-            -a "ref=${{ github.sha }}" \
-            --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
-            --certificate-identity-regexp="^https://github.com/${{ github.repository }}/.github/workflows/.*@.*$"
-
-          # Sign GHCR Image
+            -a "workflow_ref=${{ github.workflow_ref }}" \
+            -a "ref=${{ github.sha }}"
+            
           echo "Signing GHCR image: $GHCR_IMAGE"
           cosign sign --yes "$GHCR_IMAGE" \
             -a "repo=${{ github.repository }}" \
             -a "workflow=${{ github.workflow }}" \
-            -a "ref=${{ github.sha }}" \
-            --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
-            --certificate-identity-regexp="^https://github.com/${{ github.repository }}/.github/workflows/.*@.*$"
-
+            -a "workflow_ref=${{ github.workflow_ref }}" \
+            -a "ref=${{ github.sha }}"
+            
           echo "Signing finished: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           
           echo "Checking artifacts in DockerHub registry..."
           cosign tree "$DOCKERHUB_IMAGE"
-          
           echo "Checking artifacts in GHCR registry..."
           cosign tree "$GHCR_IMAGE"
