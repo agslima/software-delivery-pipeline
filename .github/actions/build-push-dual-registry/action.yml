@@ -84,10 +84,10 @@ runs:
             BUILD_DATE=${{env.BUILD_DATE}}
             GIT_TREE_STATE=${{env.GIT_TREE_STATE}}
         tags: |
-          ${{ inputs.dockerhub_username }}/${{ inputs.image_repo }}:${{ inputs.release_tag }}
-          ${{ inputs.dockerhub_username }}/${{ inputs.image_repo }}:${{ inputs.github_sha }}
-          ghcr.io/${{ inputs.ghcr_username }}/${{ github.repository }}/${{ inputs.image_repo }}:${{ inputs.release_tag }}
-          ghcr.io/${{ inputs.ghcr_username }}/${{ github.repository }}/${{ inputs.image_repo }}:${{ inputs.github_sha }}
+          docker.io/${{ inputs.dockerhub_username }}/${{ inputs.image_repo }}:${{ inputs.release_tag }}
+          docker.io/${{ inputs.dockerhub_username }}/${{ inputs.image_repo }}:${{ inputs.github_sha }}
+          ghcr.io/${{ github.repository }}/${{ inputs.image_repo }}:${{ inputs.release_tag }}
+          ghcr.io/${{ github.repository }}/${{ inputs.image_repo }}:${{ inputs.github_sha }}
 
     - name: Export Digest Artifact
       id: digest
@@ -95,9 +95,12 @@ runs:
       run: |
         set -euo pipefail
         mkdir -p digests
+        # Grab the digest directly from the build step output
         DIGEST="${{ steps.build.outputs.digest }}"
         test -n "$DIGEST" || (echo "::error::Digest empty"; exit 1)
         echo "$DIGEST" > "digests/digest-${{ inputs.component_name }}"
+        # Export to GITHUB_ENV so subsequent steps can use it natively
+        echo "IMAGE_DIGEST=$DIGEST" >> $GITHUB_ENV
 
     - name: Upload Digest Artifact
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -106,50 +109,38 @@ runs:
         path: digests/digest-${{ inputs.component_name }}
         retention-days: 30
 
-    - shell: bash    
+    - name: Sign Images with Cosign
+      shell: bash    
       env:
-          IMAGE: docker.io/${{ inputs.dockerhub_username }}/${{ inputs.image_repo }}@$DIGEST
-          COSIGN_REPOSITORY: docker.io/${{ inputs.dockerhub_username }}/${{ inputs.image_repo }}
+          DOCKERHUB_IMAGE: docker.io/${{ inputs.dockerhub_username }}/${{ inputs.image_repo }}@${{ env.IMAGE_DIGEST }}
+          GHCR_IMAGE: ghcr.io/${{ github.repository }}/${{ inputs.image_repo }}@${{ env.IMAGE_DIGEST }}
       run: |
           set -euo pipefail
           
-          echo "COSIGN_REPOSITORY=$COSIGN_REPOSITORY"
-          echo "Signing image: $IMAGE"
           echo "Signing starts: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
 
-          cosign sign --yes "$IMAGE" \
+          # Sign DockerHub Image
+          echo "Signing DockerHub image: $DOCKERHUB_IMAGE"
+          cosign sign --yes "$DOCKERHUB_IMAGE" \
             -a "repo=${{ github.repository }}" \
             -a "workflow=${{ github.workflow }}" \
-            -a "ref=${{ github.sha }}"
+            -a "ref=${{ github.sha }}" \
+            --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
+            --certificate-identity-regexp="^https://github.com/${{ github.repository }}/.github/workflows/.*@.*$"
+
+          # Sign GHCR Image
+          echo "Signing GHCR image: $GHCR_IMAGE"
+          cosign sign --yes "$GHCR_IMAGE" \
+            -a "repo=${{ github.repository }}" \
+            -a "workflow=${{ github.workflow }}" \
+            -a "ref=${{ github.sha }}" \
             --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
             --certificate-identity-regexp="^https://github.com/${{ github.repository }}/.github/workflows/.*@.*$"
 
           echo "Signing finished: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-          echo "Checking artifacts in registry..."
-          cosign tree "$IMAGE"
-    
-    - shell: bash
-      if: ${{ inputs.sign-image == 'true' }}
-      env:
-        COSIGN_REPOSITORY: ${{ inputs.signature-repository }}
-      run: |
-        set -e
-        cosign sign --yes \
-          -a "repo=${{ github.repository }}" \
-          -a "workflow=${{ github.workflow }}" \
-          -a "ref=${{ github.sha }}" \
-          -a "kind=image" \
-          ${{ steps.digest.outputs.digest }}
-    
-    - shell: bash
-      env:
-        COSIGN_REPOSITORY: ${{ inputs.sbom-repository }}
-      run: |
-        cosign attach sbom --sbom ./${{ inputs.sbom-name }}-bom.cdx.json --type cyclonedx ${{ steps.ko-publish.outputs.digest }}
-    - shell: bash
-      id: digest
-      run: |
-        echo "The image generated is: ${{ steps.ko-publish.outputs.digest }}"
-        DIGEST=$(echo ${{ steps.ko-publish.outputs.digest }} | cut -d '@' -f2)
-        echo "Digest from image is: $DIGEST"
-        echo "digest=$DIGEST" >> $GITHUB_OUTPUT
+          
+          echo "Checking artifacts in DockerHub registry..."
+          cosign tree "$DOCKERHUB_IMAGE"
+          
+          echo "Checking artifacts in GHCR registry..."
+          cosign tree "$GHCR_IMAGE"
