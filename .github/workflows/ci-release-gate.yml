@@ -79,7 +79,7 @@ jobs:
   
       - name: Publish ${{ matrix.component }} image
         id: release-backend
-        uses: ./.github/workflows/image-reuse.yaml
+        uses: ./.github/actions/image-reuse/action.yml
         with:
           makefile-target:
           ghcr: ghcr.io
@@ -90,14 +90,8 @@ jobs:
           version: ${{ github.ref_name }}
           platforms: linux/amd64,linux/arm64
           push: true
-          sign-image: true
-          provenance: true
-          sbom: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
           signature-repository: ghcr.io/${{ github.repository_owner }}/${{ github.repository }}/app-stayhealthy/backend
           main-path: ./app/docker
-      secrets:
           docker-username: ${{ secrets.DOCKER_HUB_USERNAME }}
           docker-password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
           ghrc-registry-password: ${{ secrets.GITHUB_TOKEN }}
