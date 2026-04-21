@@ -33,26 +33,23 @@ inputs:
     description: 'GitHub Token for GHCR authentication'
     required: true
   platforms:
-    description: ' Container platforms'
+    description: 'Container platforms'
     required: true
-
+  signature-repository:
+    description: 'Repository to storage all signatures'
+    required: true
 runs:
   using: "composite"
   steps:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd
+    - name: Install Cosign
+      uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003
     - name: Login to Docker Hub
       uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121
       with:
         username: ${{ inputs.dockerhub_username }}
         password: ${{ inputs.dockerhub_token }}
-    - name: Free Disk Space (Ubuntu)
-      uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be
-      with:
-        large-packages: false
-        docker-images: false
-        swap-storage: false
-        tool-cache: false
     - name: Login to GitHub Container Registry
       uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121
       with:
@@ -62,10 +59,19 @@ runs:
     - name: Set up build args for container image
       shell: bash
       run: |
-        echo "GIT_TAG=$(if [ -z "`git status --porcelain`" ]; then git describe --exact-match --tags HEAD 2>/dev/null; fi)" >> $GITHUB_ENV
-        echo "GIT_COMMIT=$(git rev-parse HEAD)" >> $GITHUB_ENV
+        echo "GIT_COMMIT=${GITHUB_SHA}" >> $GITHUB_ENV
+        if git describe --exact-match --tags HEAD >/dev/null 2>&1; then
+          echo "GIT_TAG=$(git describe --tags)" >> $GITHUB_ENV
+        else
+          echo "GIT_TAG=" >> $GITHUB_ENV
+        fi
+        if [ -z "$(git status --porcelain)" ]; then
+          echo "GIT_TREE_STATE=clean" >> $GITHUB_ENV
+        else
+          echo "GIT_TREE_STATE=dirty" >> $GITHUB_ENV
+        fi
         echo "BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_ENV
-        echo "GIT_TREE_STATE=$(if [ -z "`git status --porcelain`" ]; then echo "clean" ; else echo "dirty"; fi)" >> $GITHUB_ENV  
+        
     - name: Build & Push
       id: build
       uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f
@@ -76,80 +82,72 @@ runs:
         platforms: ${{ inputs.platforms }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
-        provenance: true
-        sbom: true
+        provenance: false
+        sbom: false
         build-args: |
             GIT_TAG=${{env.GIT_TAG}}
             GIT_COMMIT=${{env.GIT_COMMIT}}
             BUILD_DATE=${{env.BUILD_DATE}}
             GIT_TREE_STATE=${{env.GIT_TREE_STATE}}
         tags: |
-          ${{ inputs.dockerhub_username }}/${{ inputs.image_repo }}:${{ inputs.release_tag }}
-          ${{ inputs.dockerhub_username }}/${{ inputs.image_repo }}:${{ inputs.github_sha }}
-          ghcr.io/${{ inputs.ghcr_username }}/${{ github.repository }}/${{ inputs.image_repo }}:${{ inputs.release_tag }}
-          ghcr.io/${{ inputs.ghcr_username }}/${{ github.repository }}/${{ inputs.image_repo }}:${{ inputs.github_sha }}
-
+          docker.io/${{ inputs.dockerhub_username }}/${{ inputs.image_repo }}:${{ inputs.release_tag }}
+          docker.io/${{ inputs.dockerhub_username }}/${{ inputs.image_repo }}:${{ github.sha }}
+          ghcr.io/${{ github.repository_owner }}/${{ inputs.image_repo }}:${{ inputs.release_tag }}
+          ghcr.io/${{ github.repository_owner }}/${{ inputs.image_repo }}:${{ github.sha }}
     - name: Export Digest Artifact
-      id: digest
       shell: bash
       run: |
         set -euo pipefail
         mkdir -p digests
+        # Grab the digest directly from the build step output
         DIGEST="${{ steps.build.outputs.digest }}"
         test -n "$DIGEST" || (echo "::error::Digest empty"; exit 1)
         echo "$DIGEST" > "digests/digest-${{ inputs.component_name }}"
-
+        # Export to GITHUB_ENV so subsequent steps can use it natively
+        echo "IMAGE_DIGEST=$DIGEST" >> $GITHUB_ENV
     - name: Upload Digest Artifact
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
       with:
         name: digest-${{ inputs.component_name }}
         path: digests/digest-${{ inputs.component_name }}
         retention-days: 30
-
-    - shell: bash    
-      env:
-          IMAGE: docker.io/${{ inputs.dockerhub_username }}/${{ inputs.image_repo }}@$DIGEST
-          COSIGN_REPOSITORY: docker.io/${{ inputs.dockerhub_username }}/${{ inputs.image_repo }}
+    - name: Prepare image references
+      shell: bash
       run: |
-          set -euo pipefail
-          
-          echo "COSIGN_REPOSITORY=$COSIGN_REPOSITORY"
-          echo "Signing image: $IMAGE"
-          echo "Signing starts: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-
-          cosign sign --yes "$IMAGE" \
-            -a "repo=${{ github.repository }}" \
-            -a "workflow=${{ github.workflow }}" \
-            -a "ref=${{ github.sha }}"
-            --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
-            --certificate-identity-regexp="^https://github.com/${{ github.repository }}/.github/workflows/.*@.*$"
-
-          echo "Signing finished: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-          echo "Checking artifacts in registry..."
-          cosign tree "$IMAGE"
-    
-    - shell: bash
-      if: ${{ inputs.sign-image == 'true' }}
+        set -euo pipefail
+        echo "DOCKERHUB_IMAGE=docker.io/${{ inputs.dockerhub_username }}/${{ inputs.image_repo }}@${{ env.IMAGE_DIGEST }}" >> $GITHUB_ENV
+        echo "GHCR_IMAGE=ghcr.io/${{ github.repository_owner }}/${{ inputs.image_repo }}@${{ env.IMAGE_DIGEST }}" >> $GITHUB_ENV
+    - name: Sign Images with Cosign
+      shell: bash    
       env:
         COSIGN_REPOSITORY: ${{ inputs.signature-repository }}
       run: |
-        set -e
-        cosign sign --yes \
-          -a "repo=${{ github.repository }}" \
-          -a "workflow=${{ github.workflow }}" \
-          -a "ref=${{ github.sha }}" \
-          -a "kind=image" \
-          ${{ steps.digest.outputs.digest }}
-    
-    - shell: bash
-      env:
-        COSIGN_REPOSITORY: ${{ inputs.sbom-repository }}
-      run: |
-        cosign attach sbom --sbom ./${{ inputs.sbom-name }}-bom.cdx.json --type cyclonedx ${{ steps.ko-publish.outputs.digest }}
-    - shell: bash
-      id: digest
-      run: |
-        echo "The image generated is: ${{ steps.ko-publish.outputs.digest }}"
-        DIGEST=$(echo ${{ steps.ko-publish.outputs.digest }} | cut -d '@' -f2)
-        echo "Digest from image is: $DIGEST"
-        echo "digest=$DIGEST" >> $GITHUB_OUTPUT
+          set -euo pipefail
+          echo "Using COSIGN_REPOSITORY=$COSIGN_REPOSITORY"
+          echo "Signing starts: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          echo "Signing DockerHub image: $DOCKERHUB_IMAGE"
+          cosign sign --yes "$DOCKERHUB_IMAGE" \
+            -a "repo=${{ github.repository }}" \
+            -a "workflow=${{ github.workflow }}" \
+            -a "workflow_ref=${{ github.workflow_ref }}" \
+            -a "ref=${{ github.sha }}"
+            
+          echo "Signing GHCR image: $GHCR_IMAGE"
+          cosign sign --yes "$GHCR_IMAGE" \
+            -a "repo=${{ github.repository }}" \
+            -a "workflow=${{ github.workflow }}" \
+            -a "workflow_ref=${{ github.workflow_ref }}" \
+            -a "ref=${{ github.sha }}"
+            
+          echo "Signing finished: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          echo "Verifying DockerHub image signature..."
+          cosign verify \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            --certificate-identity-regexp "^https://github.com/${{ github.repository }}/\\.github/workflows/ci-release-gate\\.yml@refs/tags/v.+$" \
+            "$DOCKERHUB_IMAGE" >/dev/null
+
+          echo "Verifying GHCR image signature..."
+          cosign verify \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            --certificate-identity-regexp "^https://github.com/${{ github.repository }}/\\.github/workflows/ci-release-gate\\.yml@refs/tags/v.+$" \
+            "$GHCR_IMAGE" >/dev/null
