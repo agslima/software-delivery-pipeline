@@ -1,0 +1,80 @@
+name: 'Generate SBOM and Attest'
+description: 'Generates SBOM and build provenance attestation for container images'
+
+inputs:
+  image_name:
+    description: 'Full image name (without tag or digest)'
+    required: true
+  image_digest:
+    description: 'Image digest (sha256:...)'
+    required: true
+  registry_password:
+    description: 'Registry password for authentication'
+    required: true
+  sbom-type:
+    description: 'SBOM Type (eg. CPX, SPDX)'
+    required: true
+  sbom-repository:
+    description: 'Repository to save SBOM (GHCR, Docker)'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Authenticate to GHCR
+      uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef  # v3.6.0
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ inputs.registry_password }}
+
+    - name: Derive safe filename
+      id: name
+      shell: bash
+      run: |
+        IMAGE="${{ inputs.image_name }}"
+        SAFE="$(basename "${IMAGE%%:*}")"  # strip tag if present, then basename
+        echo "safe=$SAFE" >> "$GITHUB_OUTPUT"
+
+    
+    - name: Generate SBOM
+      uses: anchore/sbom-action@8e94d75ddd33f69f691467e42275782e4bfefe84  # v0.20.9
+      with:
+        image: "${{ inputs.image_name }}@${{ inputs.image_digest }}"
+        format: spdx-json
+        output-file: sbom-${{ steps.name.outputs.safe }}.spdx.json
+        upload-artifact: true
+        upload-release-assets: auto
+    
+    - name: Verify SBOM file
+      id: find-sbom
+      shell: bash
+      run: |
+        SBOM_FILE="sbom-${{ steps.name.outputs.safe }}.spdx.json"
+        if [ ! -f "$SBOM_FILE" ]; then
+          echo "::error::SBOM file not found: $SBOM_FILE"
+          exit 1
+        fi
+        echo "sbom_file=$SBOM_FILE" >> "$GITHUB_OUTPUT"
+
+    - name: Install Cosign
+      uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad  # v4.0.0
+
+    - name: Cosign SBOM attestation
+      shell: bash
+      env:
+        COSIGN_EXPERIMENTAL: "1"
+        COSIGN_REPOSITORY: ${{ inputs.sbom-repository }}
+      run: |
+        cosign attest \
+          --yes \
+          --predicate "${{ steps.find-sbom.outputs.sbom_file }}" \
+          --type ${{ inputs.sbom-type }} \
+          "${{ inputs.image_name }}@${{ inputs.image_digest }}"
+
+    - name: Attest build provenance
+      uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a  # v3.0.0
+      with:
+        subject-name: ${{ inputs.image_name }}
+        subject-digest: ${{ inputs.image_digest }}
+        push-to-registry: true
