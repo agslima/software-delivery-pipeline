@@ -39,7 +39,10 @@ runs:
       shell: bash
       run: |
         IMAGE="${{ inputs.image_name }}"
-        SAFE="$(basename "${IMAGE%%:*}")"
+        REGISTRY="${{ inputs.registry }}"
+        SAFE_REGISTRY="$(printf '%s' "$REGISTRY" | tr -c '[:alnum:]._-' '-')"
+        SAFE_IMAGE="$(basename "${IMAGE%%:*}")"
+        SAFE="${SAFE_REGISTRY}-${SAFE_IMAGE}"
         echo "safe=$SAFE" >> "$GITHUB_OUTPUT"
     
     - name: Generate SBOM
