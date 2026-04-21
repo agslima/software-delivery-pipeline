@@ -4,10 +4,12 @@ on:
   schedule:
     - cron: "0 2 * * *"
   workflow_dispatch: {}  # allow manual runs for testing
+  workflow_call: {} # allow workflow calls
   pull_request:  # add itself for testing changes to this workflow
     paths:
       - '.github/workflows/ci-security-deep.yml'
-
+permissions:
+      contents: read
 concurrency:
   group: ci-security-deep-${{ github.ref }}
   cancel-in-progress: false
@@ -22,28 +24,31 @@ jobs:
     permissions:
       contents: read
       actions: read
-      pull-requests: write
       security-events: write
-      issues: write
+    outputs:
+      gate_failed: ${{ steps.gate.outcome == 'failure' }} 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
           fetch-depth: 0
-
       - name: Secret Scanning (Gitleaks)
         uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+      - name: Cache Trivy DB
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: |
+            ~/.cache/trivy
+          key: ${{ runner.os }}-trivy-${{ github.workflow }}-${{ github.ref_name }}
+          restore-keys: |
+            ${{ runner.os }}-trivy-${{ github.workflow }}-
+            ${{ runner.os }}-trivy-
       - name: Set scan skip dirs
         id: vars
         run: |
-          # Keep policy fixtures in FS dependency scope, but exclude them from config misconfig scans
-          # because test fixtures intentionally include insecure manifests.
           echo "FS_SKIP_DIRS=node_modules,dist,build,vendor,coverage,.git,.cache,.venv,tmp" >> "$GITHUB_OUTPUT"
           echo "CONFIG_SKIP_DIRS=k8s/tests,node_modules,dist,build,vendor,coverage,.git,.cache,.venv,tmp" >> "$GITHUB_OUTPUT"
-      
-      # TRIVY
       - name: Trivy Scan - Infrastructure
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
         with:
@@ -54,8 +59,7 @@ jobs:
           severity: 'HIGH,CRITICAL'
           skip-dirs: ${{ steps.vars.outputs.CONFIG_SKIP_DIRS }}
           hide-progress: true
-        continue-on-error: true
-
+          cache-dir: ~/.cache/trivy
       # 2. CODE SCAN (Vulns & Secrets only)
       - name: Trivy Scan - Code
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
@@ -68,10 +72,10 @@ jobs:
           severity: 'MEDIUM,HIGH,CRITICAL'
           skip-dirs: ${{ steps.vars.outputs.FS_SKIP_DIRS }}
           hide-progress: true
-        continue-on-error: true
-
+          cache-dir: ~/.cache/trivy
       # 3. GOVERNANCE DATA (Full Scan)    
       - name: Generate Governance JSON
+        if: always()
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
         with:
           scan-type: 'fs'
@@ -81,7 +85,7 @@ jobs:
           output: 'trivy-governance.json'
           severity: 'MEDIUM,HIGH,CRITICAL'
           skip-dirs: ${{ steps.vars.outputs.CONFIG_SKIP_DIRS }}
-
+          cache-dir: ~/.cache/trivy
       # Explicit output checks (The Gatekeeper)
       - name: Validate Scanner Outputs
         run: |
@@ -90,23 +94,20 @@ jobs:
           test -s trivy-code.sarif || (echo "::error::Missing/empty trivy-code.sarif"; exit 1)
           test -s trivy-infra.sarif || (echo "::error::Missing/empty trivy-infra.sarif"; exit 1)
           echo "✅ Trivy outputs verified."
-
       # Reporting (Only runs if Validation passed)
       - name: Upload Trivy SARIF (Code)
-        uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13 #v4.0.0
+        uses: github/codeql-action/upload-sarif@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 #v4.0.0
         with:
           sarif_file: trivy-code.sarif
           category: code
-
       - name: Upload Trivy SARIF (Infra)
-        uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13 # v4.0.0
+        uses: github/codeql-action/upload-sarif@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 # v4.0.0
         with:
           sarif_file: trivy-infra.sarif
           category: infrastructure
-
       # Upload artifacts
       - name: Upload Trivy Artifacts
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f #v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a #v7.0.1
         if: always()
         with:
           name: trivy-deep-scan
@@ -115,17 +116,30 @@ jobs:
             trivy-code.sarif
             trivy-infra.sarif
           retention-days: 2
-
       # Governance gate
+      # Switch to using OPA in the future. 
       - name: Enforce Risk Acceptance Policy
+        continue-on-error: true
+        id: gate
         run: |
           set -euo pipefail
           chmod +x scripts/check-security-debt.sh
           ./scripts/check-security-debt.sh trivy-governance.json
+      - name: Fail job if gate failed
+        if: ${{ steps.gate.outcome == 'failure' }}
+        run: exit 1
 
-      # Auto-create issue on failure (idempotent per day)
-      - name: Create Issue on Failure
-        if: failure()
+  create-issue:
+    name: Create Issue on Failure
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [security-governance]
+    if: ${{ failure() && needs.security-governance.result == 'failure' }}
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Create Issue (idempotent per day)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -136,18 +150,15 @@ jobs:
           **Workflow:** CI – Security Deep Scan
           **Date (UTC):** ${TODAY}
           **Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
           **What to check**
           - Download artifact: \`trivy-deep-scan\`
           - Review Security tab SARIF alerts
           - Validate Trivy DB/network health if outputs are missing
           EOF
           )
-
           # Create only if not already created today
           if gh issue list --limit 50 --search "$TITLE" --json title | grep -q "$TITLE"; then
             echo "Issue already exists for today."
             exit 0
           fi
-
           gh issue create --title "$TITLE" --body "$BODY" --label "security" --label "governance"

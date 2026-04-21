@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - verify-sbom.yaml
+  - verify-signature.yaml
+  - verify-slsa.yaml
+  - verify-trivy.yaml
+  - verify-zap.yaml
+
+commonLabels:
+  platform.security/domain: supply-chain
+  platform.security/managed-by: kustomize

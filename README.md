@@ -7,7 +7,7 @@
 
 ## A Reference Implementation for CI/CD Governance, Supply Chain Security, and Runtime Policy Enforcement
 
-[![CI – PR Validation](https://github.com/agslima/software-delivery-pipeline/actions/workflows/ci-pr-validation.yml/badge.svg)](https://github.com/agslima/software-delivery-pipeline/actions/workflows/ci-pr-validation.yml)
+<!--[![CI – PR Validation](https://github.com/agslima/software-delivery-pipeline/actions/workflows/ci-pr-validation.yml/badge.svg)](https://github.com/agslima/software-delivery-pipeline/actions/workflows/ci-pr-validation.yml)-->
 [![CI – Release Gate](https://github.com/agslima/software-delivery-pipeline/actions/workflows/ci-release-gate.yml/badge.svg)](https://github.com/agslima/software-delivery-pipeline/actions/workflows/ci-release-gate.yml)
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=agslima_software-delivery-pipeline&metric=security_rating&token=fc36aa04e8597e3ef994141f2c98064a72019cd0)](https://sonarcloud.io/summary/new_code?id=agslima_software-delivery-pipeline)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=agslima_software-delivery-pipeline&metric=coverage&token=fc36aa04e8597e3ef994141f2c98064a72019cd0)](https://sonarcloud.io/summary/new_code?id=agslima_software-delivery-pipeline)
@@ -38,7 +38,7 @@ This is a full-stack reference implementation of a governed delivery pipeline, d
 - Runtime admission validation tied to build identity
 
 > [!NOTE]
-> The Single Page Application (SPA) logic is intentionally simple. The value of this repository lies in the **delivery architecture, security controls, and governance model**. For more details about the application, please see the **[`app/readme.md`](https://github.com/agslima/software-delivery-pipeline/tree/main/app)**.
+> The Single Page Application (SPA) logic is intentionally simple. The value of this repository lies in the **delivery architecture, security controls, and governance model**. For more details about the application, please see the **[`app/README.md`](https://github.com/agslima/software-delivery-pipeline/tree/main/app)**.
 ---
 
 ## Architectural Goals
@@ -224,7 +224,7 @@ To validate that the governance model works in practice, the application describ
 
 You do not need to rely on README claims alone. The release artifacts can be independently verified.
 
-**Prerequisite:** Install [Cosign](https://docs.sigstore.dev/system_config/installation/)
+**Prerequisite:** Install [Cosign](https://docs.sigstore.dev/cosign/system_config/installation/)
 
 ### 1. Verify the Signature
 
@@ -232,7 +232,7 @@ Check that the image was signed by this specific GitHub Repository's CI pipeline
 
 ```bash
 # 1. Export a release image digest (backend or frontend)
-export IMAGE="docker.io/agslima/app-stayhealthy-backend@sha256:<digest>"
+export IMAGE="docker.io/agslima/app-stayhealthy-backend@sha256:6fd327984db33ec24cd6a138fe7aa6c858a5f3f608011cc0248d1723671711e2"
 
 # 2. Verify the signature against the OpenID Connect (OIDC) identity
 cosign verify "$IMAGE" \
@@ -242,8 +242,9 @@ cosign verify "$IMAGE" \
 
 ## Local Development & Testing
 
-Use the root README for the command map, and use [`app/readme.md`](app/readme.md#quickstart-local-development) for the application-specific environment setup, database bootstrap, and local runtime prerequisites.
+Use the root README for the command map, and use [`app/README.md`](app/README.md#quickstart-local-development) for the application-specific environment setup, database bootstrap, and local runtime prerequisites.
 
+<!--
 ### Prerequisites
 
 - **Node.js 24.13.0** (required by `app/server` and `app/client`)
@@ -287,7 +288,7 @@ npm --prefix app/client run dev
 ```
 
 The backend package lives in `app/server`; the frontend package lives in `app/client`. The application README remains the detailed source for local credentials, migrations, seed data, and verification URLs.
-
+-->
 ---
 
 ## Documentation Index
@@ -330,6 +331,7 @@ For detailed implementation guides, please refer to:
 - ❌ A framework comparison
 - ❌ A zero-vulnerability application
 - ❌ Immune to privileged administrative bypass outside the modeled trust boundaries
+
 ---
 
 ## Role Alignment
