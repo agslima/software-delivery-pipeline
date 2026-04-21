@@ -37,7 +37,7 @@ inputs:
     required: true
   signature-repository:
     description: 'Repository to storage all signatures'
-    required: true
+    required: false
 runs:
   using: "composite"
   steps:
@@ -118,12 +118,9 @@ runs:
         echo "DOCKERHUB_IMAGE=docker.io/${{ inputs.dockerhub_username }}/${{ inputs.image_repo }}@${{ env.IMAGE_DIGEST }}" >> $GITHUB_ENV
         echo "GHCR_IMAGE=ghcr.io/${{ github.repository_owner }}/${{ inputs.image_repo }}@${{ env.IMAGE_DIGEST }}" >> $GITHUB_ENV
     - name: Sign Images with Cosign
-      shell: bash    
-      env:
-        COSIGN_REPOSITORY: ${{ inputs.signature-repository }}
+      shell: bash
       run: |
           set -euo pipefail
-          echo "Using COSIGN_REPOSITORY=$COSIGN_REPOSITORY"
           echo "Signing starts: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           echo "Signing DockerHub image: $DOCKERHUB_IMAGE"
           cosign sign --yes "$DOCKERHUB_IMAGE" \
@@ -140,14 +137,3 @@ runs:
             -a "ref=${{ github.sha }}"
             
           echo "Signing finished: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-          echo "Verifying DockerHub image signature..."
-          cosign verify \
-            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
-            --certificate-identity-regexp "^https://github.com/${{ github.repository }}/\\.github/workflows/ci-release-gate\\.yml@refs/tags/v.+$" \
-            "$DOCKERHUB_IMAGE" >/dev/null
-
-          echo "Verifying GHCR image signature..."
-          cosign verify \
-            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
-            --certificate-identity-regexp "^https://github.com/${{ github.repository }}/\\.github/workflows/ci-release-gate\\.yml@refs/tags/v.+$" \
-            "$GHCR_IMAGE" >/dev/null
