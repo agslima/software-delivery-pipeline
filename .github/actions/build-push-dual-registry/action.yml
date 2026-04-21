@@ -45,13 +45,6 @@ runs:
       uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd
     - name: Install Cosign
       uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003
-    - name: Free Disk Space (Ubuntu)
-      uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be
-      with:
-        large-packages: false
-        docker-images: false
-        swap-storage: false
-        tool-cache: false
     - name: Login to Docker Hub
       uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121
       with:
@@ -89,8 +82,8 @@ runs:
         platforms: ${{ inputs.platforms }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
-        provenance: true
-        sbom: true
+        provenance: false
+        sbom: false
         build-args: |
             GIT_TAG=${{env.GIT_TAG}}
             GIT_COMMIT=${{env.GIT_COMMIT}}
@@ -128,10 +121,9 @@ runs:
       shell: bash    
       env:
         COSIGN_REPOSITORY: ${{ inputs.signature-repository }}
-        COSIGN_EXPERIMENTAL: "true"
       run: |
           set -euo pipefail
-          
+          echo "Using COSIGN_REPOSITORY=$COSIGN_REPOSITORY"
           echo "Signing starts: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           echo "Signing DockerHub image: $DOCKERHUB_IMAGE"
           cosign sign --yes "$DOCKERHUB_IMAGE" \
@@ -148,7 +140,6 @@ runs:
             -a "ref=${{ github.sha }}"
             
           echo "Signing finished: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-          
           echo "Checking artifacts in DockerHub registry..."
           cosign tree "$DOCKERHUB_IMAGE"
           echo "Checking artifacts in GHCR registry..."
