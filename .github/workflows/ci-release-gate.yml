@@ -33,8 +33,11 @@ jobs:
     needs: resolve
     permissions:
       contents: read
+      security-events: write # Required to upload SARIF
+      issues: write          # Required to open an incident issue on failure
+      actions: read          # Required for workflow context resolution
     uses: ./.github/workflows/ci-security-deep.yml
-        
+
   build-push:
     name: Build & Push (Digest)
     runs-on: ubuntu-latest
