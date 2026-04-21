@@ -42,7 +42,7 @@ jobs:
     name: Build & Push (Digest)
     runs-on: ubuntu-latest
     needs: [resolve, run-trivy]
-    environment: production
+    # environment: production
     timeout-minutes: 60
     permissions:
       contents: read
