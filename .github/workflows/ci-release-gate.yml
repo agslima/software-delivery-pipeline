@@ -57,7 +57,7 @@ jobs:
             context: app
             container_file: app/docker/Dockerfile.worker
             container_name: app-stayhealthy-worker
-          - componnent: frontend
+          - component: frontend
             context: app
             container_file: app/docker/Dockerfile.client
             container_name: app-stayhealthy-frontend
