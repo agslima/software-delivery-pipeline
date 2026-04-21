@@ -46,7 +46,7 @@ jobs:
       packages: write
       id-token: write
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         include:
           - component: backend
@@ -173,7 +173,7 @@ jobs:
       attestations: write
       packages: write
     env:
-      SBOM_PREDICATE_TYPE: "https://spdx.dev/Document"
+      SBOM_PREDICATE_TYPE: "https://spdx.dev/Document/v3.0.1"
     strategy:
       fail-fast: true
       matrix:
@@ -193,7 +193,6 @@ jobs:
           fetch-depth: 0
           ref: ${{ needs.resolve.outputs.release_tag }}
       - name: Generate SBOM and Attest - GHCR
-        if: startsWith(github.ref, 'refs/tags/')
         uses: ./.github/actions/sbom-and-attest
         with:
           image_name: ghcr.io/${{ github.repository_owner }}/${{ matrix.container_name }}
@@ -203,7 +202,6 @@ jobs:
           sbom-type: ${{ env.SBOM_PREDICATE_TYPE }}
           sbom-repository: ghcr.io/${{ github.repository_owner }}/sbom
       - name: Generate SBOM and Attest - Docker
-        if: startsWith(github.ref, 'refs/tags/')
         uses: ./.github/actions/sbom-and-attest
         with:
           image_name: docker.io/${{ vars.DOCKER_HUB_USERNAME }}/${{ matrix.container_name }}
