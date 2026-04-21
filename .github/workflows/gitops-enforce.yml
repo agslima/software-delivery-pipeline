@@ -92,6 +92,10 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
+      
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
+      
       - name: Install Kyverno CLI
         uses: kyverno/action-install-cli@fcee92fca5c883169ef9927acf543e0b5fc58289 # v0.2.0
         with:
@@ -182,8 +186,6 @@ jobs:
           echo "WORKER_IMAGE=docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-worker@$WORKER_DIGEST" >> $GITHUB_ENV
           echo "FRONTEND_IMAGE=docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-frontend@$FRONTEND_DIGEST" >> $GITHUB_ENV
           echo "✅ Loaded Digests."
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
       - name: Verify Signatures + Required Attestations (hard gate)
         run: |
           set -euo pipefail
