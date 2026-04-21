@@ -85,7 +85,7 @@ jobs:
     env:
       TRIVY_PREDICATE_TYPE: "https://security.sigstore.dev/attestations/vuln/trivy/v1"
       ZAP_PREDICATE_TYPE: "https://security.sigstore.dev/attestations/dast/zap/v1"
-      SBOM_PREDICATE_TYPE: "https://spdx.dev/Document"
+      SBOM_PREDICATE_TYPE: "https://spdx.dev/Document/v3.0.1"
       OIDC_ISSUER: "https://token.actions.githubusercontent.com"
       YQ_VERSION: "v4.44.3"
     steps:
