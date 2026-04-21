@@ -143,11 +143,11 @@ runs:
           echo "Verifying DockerHub image signature..."
           cosign verify \
             --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
-            --certificate-identity-regexp "^https://github.com/${{ github.repository }}/\\.github/workflows/ci-release-gate\\.yml@refs/tags/.+$" \
+            --certificate-identity-regexp "^https://github.com/${{ github.repository }}/\\.github/workflows/ci-release-gate\\.yml@refs/tags/v.+$" \
             "$DOCKERHUB_IMAGE" >/dev/null
 
           echo "Verifying GHCR image signature..."
           cosign verify \
             --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
-            --certificate-identity-regexp "^https://github.com/${{ github.repository }}/\\.github/workflows/ci-release-gate\\.yml@refs/tags/.+$" \
+            --certificate-identity-regexp "^https://github.com/${{ github.repository }}/\\.github/workflows/ci-release-gate\\.yml@refs/tags/v.+$" \
             "$GHCR_IMAGE" >/dev/null
