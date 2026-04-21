@@ -43,6 +43,7 @@ runs:
         image: "${{ inputs.image_name }}@${{ inputs.image_digest }}"
         format: spdx-json
         output-file: sbom-${{ steps.name.outputs.safe }}.spdx.json
+        artifact-name: sbom-${{ steps.name.outputs.safe }}.spdx.json
         upload-artifact: true
         upload-release-assets: auto
     
