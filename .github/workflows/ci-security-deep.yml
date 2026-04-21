@@ -4,14 +4,30 @@ on:
   schedule:
     - cron: "0 2 * * *"
   workflow_dispatch: {}  # allow manual runs for testing
-  workflow_call: {} # allow workflow calls
+  workflow_call:
+    inputs:
+      fs_skip_dirs:
+        description: 'Directories to skip for FS scan'
+        required: false
+        type: string
+        default: 'node_modules,dist,build,vendor,coverage,.git,.cache,.venv,tmp'
+      config_skip_dirs:
+        description: 'Directories to skip for Config scan'
+        required: false
+        type: string
+        default: 'k8s/tests,node_modules,dist,build,vendor,coverage,.git,.cache,.venv,tmp'
+      policy_script_path:
+        description: 'Path to the risk acceptance script in the caller repository'
+        required: false
+        type: string
+        default: 'scripts/check-security-debt.sh'
   pull_request:  # add itself for testing changes to this workflow
     paths:
       - '.github/workflows/ci-security-deep.yml'
 permissions:
       contents: read
 concurrency:
-  group: ci-security-deep-${{ github.ref }}
+  group: ci-security-deep-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
