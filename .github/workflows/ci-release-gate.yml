@@ -198,8 +198,9 @@ jobs:
           image_name: ghcr.io/${{ github.repository_owner }}/${{ matrix.container_name }}
           image_digest: ${{ matrix.digest }}
           registry: ghcr.io
+          registry_username: ${{ github.actor }}
           registry_password: ${{ secrets.GITHUB_TOKEN }}
-          sbom-type: ${{ env.SBOM_PREDICATE_TYPE }}
+          sbom-predicate-type: ${{ env.SBOM_PREDICATE_TYPE }}
           sbom-repository: ghcr.io/${{ github.repository_owner }}/sbom
       - name: Generate SBOM and Attest - Docker
         uses: ./.github/actions/sbom-and-attest
@@ -207,6 +208,7 @@ jobs:
           image_name: docker.io/${{ vars.DOCKER_HUB_USERNAME }}/${{ matrix.container_name }}
           image_digest: ${{ matrix.digest }}
           registry: docker.io
+          registry_username: ${{ vars.DOCKER_HUB_USERNAME }}
           registry_password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
           sbom-predicate-type: ${{ env.SBOM_PREDICATE_TYPE }}
           sbom-repository: docker.io/${{ vars.DOCKER_HUB_USERNAME }}/sbom
