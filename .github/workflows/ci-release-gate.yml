@@ -198,6 +198,7 @@ jobs:
         with:
           image_name: ghcr.io/${{ github.repository_owner }}/${{ matrix.container_name }}
           image_digest: ${{ matrix.digest }}
+          registry: ghcr.io
           registry_password: ${{ secrets.GITHUB_TOKEN }}
           sbom-type: ${{ env.SBOM_PREDICATE_TYPE }}
           sbom-repository: ghcr.io/${{ github.repository_owner }}/sbom
@@ -207,6 +208,7 @@ jobs:
         with:
           image_name: docker.io/${{ vars.DOCKER_HUB_USERNAME }}/${{ matrix.container_name }}
           image_digest: ${{ matrix.digest }}
+          registry: docker.io
           registry_password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
           sbom-type: ${{ env.SBOM_PREDICATE_TYPE }}
           sbom-repository: docker.io/${{ vars.DOCKER_HUB_USERNAME }}/sbom
