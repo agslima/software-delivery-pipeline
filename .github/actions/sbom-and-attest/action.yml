@@ -17,8 +17,8 @@ inputs:
   registry_password:
     description: 'Registry password or token for authentication'
     required: true
-  sbom-type:
-    description: 'SBOM Type (e.g., spdx, cyclonedx)'
+  sbom-predicate-type:
+    description: 'Predicate type URI (e.g., https://spdx.dev/Document)'
     required: true
   sbom-repository:
     description: 'Repository to save SBOM via Cosign'
@@ -71,15 +71,9 @@ runs:
       env:
         COSIGN_REPOSITORY: ${{ inputs.sbom-repository }}
       run: |
+        echo "Using COSIGN_REPOSITORY=$COSIGN_REPOSITORY"
         cosign attest \
           --yes \
           --predicate "${{ steps.find-sbom.outputs.sbom_file }}" \
-          --type ${{ inputs.sbom-type }} \
+          --type ${{ inputs.sbom-predicate-type }} \
           "${{ inputs.image_name }}@${{ inputs.image_digest }}"
-    
-    - name: Attest build provenance
-      uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a  # v3.0.0
-      with:
-        subject-name: ${{ inputs.image_name }}
-        subject-digest: ${{ inputs.image_digest }}
-        push-to-registry: true
