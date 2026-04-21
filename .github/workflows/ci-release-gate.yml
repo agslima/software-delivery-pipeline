@@ -208,5 +208,5 @@ jobs:
           image_digest: ${{ matrix.digest }}
           registry: docker.io
           registry_password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
-          sbom-type: ${{ env.SBOM_PREDICATE_TYPE }}
+          sbom-predicate-type: ${{ env.SBOM_PREDICATE_TYPE }}
           sbom-repository: docker.io/${{ vars.DOCKER_HUB_USERNAME }}/sbom
