@@ -380,7 +380,7 @@ jobs:
 
             kyverno apply "$POLICY" \
               --resource "$RENDERED_MANIFEST" \
-              --registry \
+              --registry -v=6 \
               --detailed-results \
               --output json \
               > result.json
