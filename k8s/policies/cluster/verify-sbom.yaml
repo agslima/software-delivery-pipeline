@@ -20,17 +20,14 @@ spec:
       verifyImages:
         - imageReferences:
             - "index.docker.io/agslima/app-stayhealthy-backend@*"  
-            - "docker.io/agslima/app-stayhealthy-backend@*"  
             - "index.docker.io/agslima/app-stayhealthy-worker@*"  
-            - "docker.io/agslima/app-stayhealthy-worker@*"  
             - "index.docker.io/agslima/app-stayhealthy-frontend@*"  
-            - "docker.io/agslima/app-stayhealthy-frontend@*"
           attestations:
-            - predicateType: "https://spdx.dev/Document/v3.0.1"
+            - predicateType: "https://spdx.dev/Document"
               attestors:
                 - entries:
                     - keyless:
-                        issuer: https://token.actions.githubusercontent.com
-                        subjectRegExp: '^https://github.com/agslima/software-delivery-pipeline/\\.github/workflows/ci-release-gate\\.yml@refs/tags/v.+$'
+                        issuer: "https://token.actions.githubusercontent.com"
+                        subjectRegExp: "^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate.yml@refs/tags/v[0-9].[0-9].[0-9]$"
                         rekor:
-                          url: https://rekor.sigstore.dev
+                          url: "https://rekor.sigstore.dev"
