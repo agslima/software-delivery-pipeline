@@ -26,12 +26,11 @@ spec:
             - "index.docker.io/agslima/app-stayhealthy-frontend@*"  
             - "docker.io/agslima/app-stayhealthy-frontend@*"
           attestations:
-            - predicateType: "https://spdx.dev/Document"
+            - predicateType: "https://spdx.dev/Document/v3.0.1"
               attestors:
                 - entries:
                     - keyless:
                         issuer: https://token.actions.githubusercontent.com
-                        subjectRegExp: >-
-                          ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*$
+                        subjectRegExp: "^https://github.com/${{ github.repository }}/\\.github/workflows/ci-release-gate\\.yml@refs/tags/v.+$"
                         rekor:
                           url: https://rekor.sigstore.dev
