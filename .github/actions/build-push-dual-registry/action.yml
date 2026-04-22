@@ -79,16 +79,20 @@ runs:
         context: ${{ inputs.context }}
         file: ${{ inputs.file }}
         push: true
+        pull: true
         platforms: ${{ inputs.platforms }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+        no-cache: true
         provenance: false
         sbom: false
+        labels: |
+          org.opencontainers.image.revision=${{ github.sha }}
+          org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          org.opencontainers.image.version=${{ inputs.release_tag }}
         build-args: |
-            GIT_TAG=${{env.GIT_TAG}}
-            GIT_COMMIT=${{env.GIT_COMMIT}}
-            BUILD_DATE=${{env.BUILD_DATE}}
-            GIT_TREE_STATE=${{env.GIT_TREE_STATE}}
+          GIT_TAG=${{env.GIT_TAG}}
+          GIT_COMMIT=${{env.GIT_COMMIT}}
+          BUILD_DATE=${{env.BUILD_DATE}}
+          GIT_TREE_STATE=${{env.GIT_TREE_STATE}}
         tags: |
           docker.io/${{ inputs.dockerhub_username }}/${{ inputs.image_repo }}:${{ inputs.release_tag }}
           docker.io/${{ inputs.dockerhub_username }}/${{ inputs.image_repo }}:${{ github.sha }}
