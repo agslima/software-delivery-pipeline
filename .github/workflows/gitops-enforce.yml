@@ -270,7 +270,6 @@ jobs:
               --resource "$RENDERED_MANIFEST" \
               --registry -v=6 \
               --detailed-results \
-              --continue-on-error \
               --continue-on-fail \
               | tee -a "$LOG_FILE"
           done
