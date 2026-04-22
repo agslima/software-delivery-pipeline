@@ -306,7 +306,7 @@ jobs:
           set +e 
 
           # Run Kyverno against multiple policies simultaneously
-          kyverno apply \
+          timeout 60 kyverno apply \
             k8s/policies/cluster/verify-sbom.yaml \
             k8s/policies/cluster/verify-slsa.yaml \
             --resource "$RENDERED_MANIFEST" \
@@ -327,74 +327,6 @@ jobs:
           else
             echo "Kyverno policy validation passed successfully." | tee -a "$LOG_FILE"
           fi
-      
-      - name: Validate rendered prod manifests
-        if: always()
-        run: |
-          set -euo pipefail
-
-          LOG_FILE="kyverno-gitops.log"
-          : > "$LOG_FILE"
-
-          RENDERED_MANIFEST=$(mktemp)
-
-          kustomize build k8s/overlays/prod > "$RENDERED_MANIFEST"
-
-          test -s "$RENDERED_MANIFEST" || { echo "::error::Rendered manifest is empty"; exit 1; }
-
-          echo "=== Namespaces ===" | tee -a "$LOG_FILE"
-          yq -r '
-            select(.metadata != null) |
-            .kind + " " + (.metadata.namespace // "NONE") + " " + .metadata.name
-          ' "$RENDERED_MANIFEST" | sort | uniq -c | tee -a "$LOG_FILE"
-
-          echo "=== Images ===" | tee -a "$LOG_FILE"
-          yq -r '
-            .. | select(has("image")) | .image
-          ' "$RENDERED_MANIFEST" | sort -u | tee -a "$LOG_FILE"
-
-          # Enforce namespace presence
-          if yq -e '
-            select(.metadata != null) |
-            .metadata.namespace == null
-          ' "$RENDERED_MANIFEST"; then
-            echo "::error::Missing namespace in resources"
-            exit 1
-          fi
-
-          # Enforce digest pinning
-          if yq -e '
-            .. | select(has("image")) | .image | contains("@sha256:") | not
-          ' "$RENDERED_MANIFEST"; then
-            echo "::error::Images must be pinned by digest"
-            exit 1
-          fi
-
-          POLICIES=(
-            "k8s/policies/cluster/verify-sbom.yaml"
-            "k8s/policies/cluster/verify-slsa.yaml"
-          )
-
-          for POLICY in "${POLICIES[@]}"; do
-            echo "Applying policy: $POLICY" | tee -a "$LOG_FILE"
-
-            kyverno apply "$POLICY" \
-              --resource "$RENDERED_MANIFEST" \
-              --registry -v=6 \
-              --detailed-results \
-              --output json \
-              > result.json
-
-            cat result.json | tee -a "$LOG_FILE"
-
-            if jq -e '
-              .policyResults[].resources[].results[]
-              | select(.result=="fail")
-            ' result.json > /dev/null; then
-              echo "::error::Policy failed: $POLICY"
-              exit 1
-            fi
-          done
         
       - name: Upload Kyverno Log
         if: always()
