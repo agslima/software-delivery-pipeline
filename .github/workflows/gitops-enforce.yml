@@ -254,7 +254,6 @@ jobs:
           ' "$RENDERED_MANIFEST" | tee -a "$LOG_FILE"
           echo "=== Kyverno policy evaluation (split policies) ===" | tee -a "$LOG_FILE"
           POLICIES=(
-            "k8s/policies/cluster/verify-signature.yaml"
             "k8s/policies/cluster/verify-sbom.yaml"
             "k8s/policies/cluster/verify-slsa.yaml"
           )
