@@ -23,7 +23,7 @@ spec:
             - "index.docker.io/agslima/app-stayhealthy-worker@*"  
             - "index.docker.io/agslima/app-stayhealthy-frontend@*"  
           attestations:
-            - predicateType: "https://spdx.dev/Document"
+            - predicateType: "https://spdx.dev/Document/v3.0.1"
               attestors:
                 - entries:
                     - keyless:
