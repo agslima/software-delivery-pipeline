@@ -212,6 +212,7 @@ jobs:
           verify_all "${{ env.FRONTEND_IMAGE }}"
           echo "✅ All signatures & attestations verified."
       - name: Update prod digests (candidate canary + full promotion for non-canary services)
+        if: false
         run: |
           set -euo pipefail
           FILE="k8s/overlays/prod/kustomization.yaml"
@@ -239,24 +240,6 @@ jobs:
           DOCKER_PASSWORD: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
         run: |
           set -euo pipefail
-          
-          LOG_FILE="kyverno-gitops.log"
-          : > "$LOG_FILE"
-          echo "=== 1. Building comprehensive Docker Hub keychain ===" | tee -a "$LOG_FILE"
-          mkdir -p "$HOME/.docker"
-          # Base64 encode the credentials to bypass the docker/login-action
-          AUTH=$(printf "%s:%s" "${DOCKER_USERNAME}" "${DOCKER_PASSWORD}" | base64 | tr -d '\n')
-          # Explicitly map the token to all Docker Hub aliases ggcr might request
-          cat <<EOF > "$HOME/.docker/config.json"
-          {
-            "auths": {
-              "https://index.docker.io/v1/": { "auth": "${AUTH}" },
-              "index.docker.io": { "auth": "${AUTH}" },
-              "docker.io": { "auth": "${AUTH}" }
-            }
-          }
-          EOF
-          export DOCKER_CONFIG="$HOME/.docker"
           
           # Render the manifest
           RENDERED_MANIFEST=$(mktemp)
