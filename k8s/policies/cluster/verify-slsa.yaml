@@ -10,25 +10,30 @@ spec:
   validationFailureAction: Enforce
   background: false
   webhookTimeoutSeconds: 30
-
   rules:
     - name: require-slsa-provenance
       match:
         any:
           - resources:
-              kinds: ["Pod", "Deployment"]
-              namespaces: ["prod", "production"]
+              kinds:
+                - Pod
+                - Deployment
+              namespaces:
+                - prod
+                - production
       verifyImages:
         - imageReferences:
-            - "index.docker.io/agslima/app-stayhealthy-backend@*"  
-            - "index.docker.io/agslima/app-stayhealthy-worker@*"
-            - "index.docker.io/agslima/app-stayhealthy-frontend@*"
+            - index.docker.io/agslima/app-stayhealthy-backend@*
+            - index.docker.io/agslima/app-stayhealthy-worker@*
+            - index.docker.io/agslima/app-stayhealthy-frontend@*
+          failureAction: Enforce
           attestations:
-            - predicateType: "https://slsa.dev/provenance/v1"
+            - predicateType: 'https://slsa.dev/provenance/v1'
               attestors:
                 - entries:
                     - keyless:
-                        issuer: "https://token.actions.githubusercontent.com"
-                        subjectRegExp: "^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate.yml@refs/tags/v[0-9].[0-9].[0-9]$"
+                        issuer: 'https://token.actions.githubusercontent.com'
+                        subjectRegExp: >-
+                          ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate.yml@refs/tags/v.+$
                         rekor:
-                          url: 'https://rekor.sigstore.dev"
+                          url: 'https://rekor.sigstore.dev'
