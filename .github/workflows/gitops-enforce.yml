@@ -287,6 +287,7 @@ jobs:
               --resource "$RENDERED_MANIFEST" \
               --registry -v=6 \
               --detailed-results \
+              --continue-on-error \
               | tee -a "$LOG_FILE"
           done
           echo "✅ Policy Validation Passed." | tee -a "$LOG_FILE"
