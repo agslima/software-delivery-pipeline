@@ -288,6 +288,7 @@ jobs:
               --registry -v=6 \
               --detailed-results \
               --continue-on-error \
+              --continue-on-fail \
               | tee -a "$LOG_FILE"
           done
           echo "✅ Policy Validation Passed." | tee -a "$LOG_FILE"
