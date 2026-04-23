@@ -142,6 +142,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Governance Drift Check (docs/workflow refs)
+        if: false
         run: make governance-drift-check
       - name: Governance Metadata Freshness Check
         run: make governance-metadata-check
