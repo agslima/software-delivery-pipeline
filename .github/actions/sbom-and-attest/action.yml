@@ -1,0 +1,79 @@
+name: 'Generate SBOM and Attest'
+description: 'Generates SBOM and build provenance attestation for container images'
+
+inputs:
+  image_name:
+    description: 'Full image name (without tag or digest)'
+    required: true
+  image_digest:
+    description: 'Image digest (sha256:...)'
+    required: true
+  registry:
+    description: 'Target container registry (e.g., ghcr.io, docker.io)'
+    required: true
+  registry_username:
+    description: 'Registry username for authentication'
+    required: true
+  registry_password:
+    description: 'Registry password or token for authentication'
+    required: true
+  sbom-predicate-type:
+    description: 'Predicate type URI (e.g., https://spdx.dev/Document)'
+    required: false
+  sbom-repository:
+    description: 'Repository to save SBOM via Cosign'
+    required: false
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Authenticate to Registry
+      uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef  # v3.6.0
+      with:
+        registry: ${{ inputs.registry }}
+        username: ${{ inputs.registry_username }}
+        password: ${{ inputs.registry_password }}
+    
+    - name: Derive safe filename
+      id: name
+      shell: bash
+      run: |
+        IMAGE="${{ inputs.image_name }}"
+        REGISTRY="${{ inputs.registry }}"
+        SAFE_REGISTRY="$(printf '%s' "$REGISTRY" | tr -c '[:alnum:]._-' '-')"
+        SAFE_IMAGE="$(basename "${IMAGE%%:*}")"
+        SAFE="${SAFE_REGISTRY}-${SAFE_IMAGE}"
+        echo "safe=$SAFE" >> "$GITHUB_OUTPUT"
+    
+    - name: Generate SBOM
+      uses: anchore/sbom-action@8e94d75ddd33f69f691467e42275782e4bfefe84  # v0.20.9
+      with:
+        image: "${{ inputs.image_name }}@${{ inputs.image_digest }}"
+        format: spdx-json
+        output-file: sbom-${{ steps.name.outputs.safe }}.spdx.json
+        artifact-name: sbom-${{ steps.name.outputs.safe }}.spdx.json
+        upload-artifact: true
+        upload-release-assets: true
+    
+    - name: Verify SBOM file
+      id: find-sbom
+      shell: bash
+      run: |
+        SBOM_FILE="sbom-${{ steps.name.outputs.safe }}.spdx.json"
+        if [ ! -f "$SBOM_FILE" ]; then
+          echo "::error::SBOM file not found: $SBOM_FILE"
+          exit 1
+        fi
+        echo "sbom_file=$SBOM_FILE" >> "$GITHUB_OUTPUT"
+    
+    - name: Install Cosign
+      uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad  # v4.0.0
+    
+    - name: Cosign SBOM attestation
+      shell: bash
+      run: |
+        cosign attest \
+          --yes \
+          --predicate "${{ steps.find-sbom.outputs.sbom_file }}" \
+          --type spdxjson \
+          "${{ inputs.image_name }}@${{ inputs.image_digest }}"

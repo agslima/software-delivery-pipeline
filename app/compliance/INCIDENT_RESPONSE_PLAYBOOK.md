@@ -1,4 +1,4 @@
-# Incident Response Playbook (Phase 3)
+# Incident Response Playbook
 
 ## 1. Purpose
 

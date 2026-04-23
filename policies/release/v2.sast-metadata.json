@@ -1,0 +1,5 @@
+{
+  "version": "v2",
+  "description": "Reachability + exploitability aware risk scoring",
+  "inputs": ["vulnerabilities", "context", "policy.threshold"]
+}

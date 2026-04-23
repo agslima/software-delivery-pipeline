@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import pathlib
+import subprocess
 
 import pytest
 
@@ -82,6 +83,7 @@ def test_destructive_findings_detects_drop_column(tmp_path: pathlib.Path, monkey
     )
 
     monkeypatch.setattr(check_migration_safety, "REPO_ROOT", repo_root)
+    monkeypatch.setattr(check_migration_safety, "MIGRATIONS_DIR", migration_path.parent)
 
     findings = check_migration_safety.destructive_findings(
         ["app/server/src/infra/db/migrations/20260411_cleanup.js"]
@@ -90,3 +92,45 @@ def test_destructive_findings_detects_drop_column(tmp_path: pathlib.Path, monkey
     assert findings == [
         "app/server/src/infra/db/migrations/20260411_cleanup.js:3: table.dropColumn('legacy_field');"
     ]
+
+
+def test_repository_change_requires_migration_review_ignores_query_builder_syntax_only(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    diff_output = """diff --git a/app/server/src/infra/v2/exportJobs.repository.js b/app/server/src/infra/v2/exportJobs.repository.js
+@@ -1 +1 @@
+-    const row = await withSchema(trx)('export_jobs').where({ id }).first();
++    const row = await withSchema(trx).from('export_jobs').where({ id }).first();
+"""
+
+    def fake_run(*args, **kwargs):
+        return subprocess.CompletedProcess(args=args[0], returncode=0, stdout=diff_output, stderr="")
+
+    monkeypatch.setattr(check_migration_safety.subprocess, "run", fake_run)
+
+    assert not check_migration_safety.repository_change_requires_migration_review(
+        "app/server/src/infra/v2/exportJobs.repository.js",
+        "origin/main",
+        "HEAD",
+    )
+
+
+def test_repository_change_requires_migration_review_flags_schema_token_delta(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    diff_output = """diff --git a/app/server/src/infra/v2/exportJobs.repository.js b/app/server/src/infra/v2/exportJobs.repository.js
+@@ -1 +1 @@
+-      .where({ idempotency_key: idempotencyKey })
++      .where({ export_request_key: idempotencyKey })
+"""
+
+    def fake_run(*args, **kwargs):
+        return subprocess.CompletedProcess(args=args[0], returncode=0, stdout=diff_output, stderr="")
+
+    monkeypatch.setattr(check_migration_safety.subprocess, "run", fake_run)
+
+    assert check_migration_safety.repository_change_requires_migration_review(
+        "app/server/src/infra/v2/exportJobs.repository.js",
+        "origin/main",
+        "HEAD",
+    )

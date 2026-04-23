@@ -1,4 +1,5 @@
 const baseEnv = { ...process.env };
+const request = require('supertest');
 
 const loadCreateApp = ({ trustProxy } = {}) => {
   jest.resetModules();
@@ -46,5 +47,21 @@ describe('Unit: createApp', () => {
     const app = createApp();
 
     expect(app.get('trust proxy')).toBe(true);
+  });
+
+  it('returns a JSON 404 for unknown routes', async () => {
+    const createApp = loadCreateApp();
+    const app = createApp();
+
+    const res = await request(app).get('/does-not-exist');
+
+    expect(res.status).toBe(404);
+    expect(res.headers['content-type']).toMatch(/application\/json/);
+    expect(res.body).toMatchObject({
+      error: {
+        code: 'ROUTE_NOT_FOUND',
+      },
+    });
+    expect(res.body.error.message).toContain('GET /does-not-exist');
   });
 });

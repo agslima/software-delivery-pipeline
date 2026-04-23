@@ -330,6 +330,6 @@ Reports are written to `app/zap-out/`.
 Useful overrides:
 
 ```bash
-KEEP_DAST_ENV=1 ./scripts/run-local-zap-full-scan.sh
-ZAP_LOGIN_EMAIL=security@example.test ZAP_LOGIN_PASSWORD='change-me' ./scripts/run-local-zap-full-scan.sh
+KEEP_DAST_ENV=1 ./scripts/security/run-local-zap-full-scan.sh
+ZAP_LOGIN_EMAIL=security@example.test ZAP_LOGIN_PASSWORD='change-me' ./scripts/security/run-local-zap-full-scan.sh
 ```

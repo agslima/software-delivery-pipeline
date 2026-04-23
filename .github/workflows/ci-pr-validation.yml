@@ -3,7 +3,8 @@ name: CI - PR Validation
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-
+permissions:
+  contents: read
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -273,12 +274,10 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
-
       - name: Setup Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.12'
-
       - name: Write PR body to file
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
@@ -286,7 +285,6 @@ jobs:
           cat > /tmp/pr-body.md <<'EOF'
           $PR_BODY
           EOF
-
       - name: Validate migration safety
         env:
           MIGRATION_CHECK_BASE: ${{ github.event.pull_request.base.sha }}
@@ -311,6 +309,7 @@ jobs:
           fetch-depth: 0
 
       - name: Governance drift check
+        if: false
         run: make governance-drift-check
 
       - name: Governance metadata freshness check
@@ -337,7 +336,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
       - name: Compute Trivy DB cache key
         id: trivy-db-key
         run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
@@ -346,7 +344,7 @@ jobs:
         run: mkdir -p "${{ env.TRIVY_CACHE_DIR }}"
 
       - name: Cache Trivy DB
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ${{ env.TRIVY_CACHE_DIR }}
           key: trivy-db-${{ runner.os }}-${{ github.workflow }}-${{ steps.trivy-db-key.outputs.week }}

@@ -3,16 +3,10 @@ kind: Kustomization
 namespace: production
 resources:
   - ../../base
-  - backend-rollout.yaml
-patches:
-  - path: backend-stable-patch.yaml
 images:
-  - name: docker.io/agslima/app-stayhealthy-backend
-    digest: sha256:0a99302f729b15adbd7e4e53a262eeab35e4b487bfb9e0b2bcfbf66f6ff60326
-  - name: backend-canary
-    newName: docker.io/agslima/app-stayhealthy-backend
-    digest: sha256:0a99302f729b15adbd7e4e53a262eeab35e4b487bfb9e0b2bcfbf66f6ff60326
-  - name: docker.io/agslima/app-stayhealthy-worker
-    digest: sha256:0a99302f729b15adbd7e4e53a262eeab35e4b487bfb9e0b2bcfbf66f6ff60326
-  - name: docker.io/agslima/app-stayhealthy-frontend
-    digest: sha256:adc8d33f2764db79b74b863f620ad677da28b21eca9c669d79dcee3f4627bae0
+  - name: index.docker.io/agslima/app-stayhealthy-backend
+    digest: sha256:63894d5a5cc3a0d0b5b5cc69449a79ae65e8ca7a6932687ab11b61a936a939c5
+  - name: index.docker.io/agslima/app-stayhealthy-worker
+    digest: sha256:7e709f2e4b3e0f0a776f625af1201953fd761ea86f87e64915eea9fb122fc3af
+  - name: index.docker.io/agslima/app-stayhealthy-frontend
+    digest: sha256:bc8757540d0c6c804458e234aecba05ae7620762894d0788949f57669e7a52e9

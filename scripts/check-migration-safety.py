@@ -29,6 +29,9 @@ SCHEMA_IMPACT_FILES = {
 
 MIGRATION_PATH_PREFIX = "app/server/src/infra/db/migrations/"
 MIGRATION_FILENAME = re.compile(r"^[A-Za-z0-9._-]+\.js$")
+REPOSITORY_PATH_PATTERN = re.compile(r"^app/server/src/infra/v2/.+\.repository\.js$")
+DIFF_LINE_PREFIXES = ("+++", "---", "@@")
+SCHEMA_TOKEN_PATTERN = re.compile(r"""['"]([A-Za-z][A-Za-z0-9_]*)['"]|\b([a-z][a-z0-9_]*_[a-z0-9_]*)\b""")
 
 DESTRUCTIVE_PATTERNS = (
     re.compile(r"\brenameColumn\s*\("),
@@ -191,6 +194,52 @@ def is_schema_impact_path(path_value: str) -> bool:
     return path_value.startswith("app/server/src/infra/v2/") and path_value.endswith(".repository.js")
 
 
+def load_diff_lines(base: str, head: str, path_value: str) -> tuple[list[str], list[str]]:
+    result = subprocess.run(
+        ["git", "diff", "--unified=0", f"{base}...{head}", "--", path_value],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return [], []
+
+    added_lines: list[str] = []
+    removed_lines: list[str] = []
+    for line in result.stdout.splitlines():
+        if not line or line.startswith(DIFF_LINE_PREFIXES):
+            continue
+        if line.startswith("+"):
+            added_lines.append(line[1:])
+        elif line.startswith("-"):
+            removed_lines.append(line[1:])
+    return added_lines, removed_lines
+
+
+def extract_schema_tokens(lines: Iterable[str]) -> set[str]:
+    tokens: set[str] = set()
+    for line in lines:
+        for match in SCHEMA_TOKEN_PATTERN.finditer(line):
+            token = match.group(1) or match.group(2)
+            if token:
+                tokens.add(token)
+    return tokens
+
+
+def repository_change_requires_migration_review(path_value: str, base: str, head: str) -> bool:
+    if not REPOSITORY_PATH_PATTERN.fullmatch(path_value):
+        return True
+
+    added_lines, removed_lines = load_diff_lines(base, head, path_value)
+    if not added_lines and not removed_lines:
+        return True
+
+    added_tokens = extract_schema_tokens(added_lines)
+    removed_tokens = extract_schema_tokens(removed_lines)
+    return added_tokens != removed_tokens
+
+
 def sanitize_migration_path(path_value: str) -> str:
     normalized_input = path_value.replace("\\", "/")
     if not normalized_input.startswith(MIGRATION_PATH_PREFIX):
@@ -282,7 +331,12 @@ def main() -> None:
     changed_files = args.changed_file or git_changed_files(args.base, args.head)
     pr_body = load_pr_body(args.pr_body_file)
 
-    schema_paths = sorted(path for path in changed_files if is_schema_impact_path(path))
+    schema_paths = sorted(
+        path
+        for path in changed_files
+        if is_schema_impact_path(path)
+        and repository_change_requires_migration_review(path, args.base, args.head)
+    )
     migration_paths = sorted(
         sanitize_migration_path(path)
         for path in changed_files

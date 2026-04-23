@@ -121,11 +121,13 @@ graph LR
 ## Quick Start (Docker)
 
 Initialize secrets and `.env` (idempotent):
+
 ```bash
 app/scripts/setup-dev.sh
 ```
 
 Run the stack:
+
 ```bash
 cd app
 docker compose up --build
@@ -134,6 +136,7 @@ docker compose up --build
 The `db-bootstrap` service applies the versioned migrations and demo seed data before the backend and worker start.
 
 Quick backend-only stack:
+
 ```bash
 cd app
 docker compose -f docker-compose.quick.yml up --build

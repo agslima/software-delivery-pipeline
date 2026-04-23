@@ -7,7 +7,7 @@
 
 ## A Reference Implementation for CI/CD Governance, Supply Chain Security, and Runtime Policy Enforcement
 
-[![CI – PR Validation](https://github.com/agslima/software-delivery-pipeline/actions/workflows/ci-pr-validation.yml/badge.svg)](https://github.com/agslima/software-delivery-pipeline/actions/workflows/ci-pr-validation.yml)
+<!--[![CI – PR Validation](https://github.com/agslima/software-delivery-pipeline/actions/workflows/ci-pr-validation.yml/badge.svg)](https://github.com/agslima/software-delivery-pipeline/actions/workflows/ci-pr-validation.yml)-->
 [![CI – Release Gate](https://github.com/agslima/software-delivery-pipeline/actions/workflows/ci-release-gate.yml/badge.svg)](https://github.com/agslima/software-delivery-pipeline/actions/workflows/ci-release-gate.yml)
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=agslima_software-delivery-pipeline&metric=security_rating&token=fc36aa04e8597e3ef994141f2c98064a72019cd0)](https://sonarcloud.io/summary/new_code?id=agslima_software-delivery-pipeline)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=agslima_software-delivery-pipeline&metric=coverage&token=fc36aa04e8597e3ef994141f2c98064a72019cd0)](https://sonarcloud.io/summary/new_code?id=agslima_software-delivery-pipeline)
@@ -38,7 +38,7 @@ This is a full-stack reference implementation of a governed delivery pipeline, d
 - Runtime admission validation tied to build identity
 
 > [!NOTE]
-> The Single Page Application (SPA) logic is intentionally simple. The value of this repository lies in the **delivery architecture, security controls, and governance model**. For more details about the application, please see the **[`app/readme.md`](https://github.com/agslima/software-delivery-pipeline/tree/main/app)**.
+> The Single Page Application (SPA) logic is intentionally simple. The value of this repository lies in the **delivery architecture, security controls, and governance model**. For more details about the application, please see the **[`app/README.md`](https://github.com/agslima/software-delivery-pipeline/tree/main/app)**.
 ---
 
 ## Architectural Goals
@@ -54,6 +54,7 @@ The repository is organized around three core **non-functional goals**:
 ### 2. Traceability
 
 Each released container image is tied to a specific Git commit and accompanied by verifiable supply-chain metadata:
+
 - Keyless Sigstore signature bound to CI identity
 - Build provenance
 - SBOM (SPDX)
@@ -149,6 +150,7 @@ graph TD
 - CI updates Kubernetes manifests with the **immutable image digest** of the newly signed artifact.
 - A Pull Request is automatically opened to `main` with updated digests.
 - **Constraint:** CI cannot commit to main directly; it passes the same policy checks as a human developer.
+
 ### Runtime Admission Control
 
 At deployment time, **Kyverno** enforces runtime admission checks inside the cluster.
@@ -167,12 +169,13 @@ At deployment time, **Kyverno** enforces runtime admission checks inside the clu
 - Fully auditable
 
 ---
-
+<!--
 ## Operational Evidence
 
 This section summarizes the repository’s current published vulnerability posture and links to the underlying evidence.
 
 <!-- [BEGIN_GENERATED_TABLE] -->
+<!--
 ### Automated Security Posture
 
 | Severity | Initial Count | Current Count | Status |
@@ -183,17 +186,19 @@ This section summarizes the repository’s current published vulnerability postu
 | **Low** | 345 | 16 | ℹ️ Managed Debt |
 
 *Last scanned (UTC): 2026-04-05 02:30*
-<!-- [END_GENERATED_TABLE] -->
+<!-- [END_GENERATED_TABLE]
 
 This table is **automatically generated** by the repository evidence pipeline and reflects the latest published Snyk-based vulnerability snapshot tracked under [`docs/snyk/`](docs/snyk/index.md).
 
 Interpretation:
+
 - **Baseline:** the intentionally vulnerable starting state used to validate remediation and policy behavior.
 - **Current:** the latest published scan snapshot.
 - **Critical:** always release-blocking until remediated.
 - **High:** remediation priority; release-blocking when documented policy thresholds are exceeded.
 - **Medium / Low:** allowed only when tracked as time-bound managed debt in [`docs/security-debt.md`](docs/security-debt.md).
 - **Managed Debt:** displayed when Medium or Low vulnerabilities remain open under approved governance controls.
+
 ### Case Study 🔬
 
 To validate that the governance model works in practice, the application described in [`app/readme.md`](https://github.com/agslima/software-delivery-pipeline/tree/main/app) was intentionally exercised through the pipeline with known vulnerabilities and security weaknesses. The goal was not to showcase an insecure app, but to demonstrate how the delivery system detects, blocks, tracks, and verifies remediation.
@@ -213,12 +218,13 @@ To validate that the governance model works in practice, the application describ
 >[!NOTE]
 > This section provides **governance evidence**, not the release admission decision itself. Snyk snapshots document published posture over time, but release blocking is governed by the Trivy and ZAP controls mapped in [`docs/threat-model.md`](docs/threat-model.md) and [`docs/governance.md`](docs/governance.md#readme-claims--controls-matrix).
 ---
+-->
 
 ## Verification (How to Audit)
 
 You do not need to rely on README claims alone. The release artifacts can be independently verified.
 
-**Prerequisite:** Install [Cosign](https://docs.sigstore.dev/system_config/installation/)
+**Prerequisite:** Install [Cosign](https://docs.sigstore.dev/cosign/system_config/installation/)
 
 ### 1. Verify the Signature
 
@@ -226,7 +232,7 @@ Check that the image was signed by this specific GitHub Repository's CI pipeline
 
 ```bash
 # 1. Export a release image digest (backend or frontend)
-export IMAGE="docker.io/agslima/app-stayhealthy-backend@sha256:<digest>"
+export IMAGE="docker.io/agslima/app-stayhealthy-backend@sha256:6fd327984db33ec24cd6a138fe7aa6c858a5f3f608011cc0248d1723671711e2"
 
 # 2. Verify the signature against the OpenID Connect (OIDC) identity
 cosign verify "$IMAGE" \
@@ -236,8 +242,9 @@ cosign verify "$IMAGE" \
 
 ## Local Development & Testing
 
-Use the root README for the command map, and use [`app/readme.md`](app/readme.md#quickstart-local-development) for the application-specific environment setup, database bootstrap, and local runtime prerequisites.
+Use the root README for the command map, and use [`app/README.md`](app/README.md#quickstart-local-development) for the application-specific environment setup, database bootstrap, and local runtime prerequisites.
 
+<!--
 ### Prerequisites
 
 - **Node.js 24.13.0** (required by `app/server` and `app/client`)
@@ -281,7 +288,7 @@ npm --prefix app/client run dev
 ```
 
 The backend package lives in `app/server`; the frontend package lives in `app/client`. The application README remains the detailed source for local credentials, migrations, seed data, and verification URLs.
-
+-->
 ---
 
 ## Documentation Index
@@ -324,6 +331,7 @@ For detailed implementation guides, please refer to:
 - ❌ A framework comparison
 - ❌ A zero-vulnerability application
 - ❌ Immune to privileged administrative bypass outside the modeled trust boundaries
+
 ---
 
 ## Role Alignment
