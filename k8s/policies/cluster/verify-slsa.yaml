@@ -15,7 +15,7 @@ spec:
       match:
         any:
           - resources:
-              kinds: ["Pod"]
+              kinds: ["Pod", "Deployment"]
               namespaces: ["prod", "production"]
       verifyImages:
         - imageReferences:
