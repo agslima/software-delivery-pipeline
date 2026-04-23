@@ -19,7 +19,7 @@ inputs:
     required: true
   sbom-predicate-type:
     description: 'Predicate type URI (e.g., https://spdx.dev/Document)'
-    required: true
+    required: false
   sbom-repository:
     description: 'Repository to save SBOM via Cosign'
     required: false
@@ -53,7 +53,7 @@ runs:
         output-file: sbom-${{ steps.name.outputs.safe }}.spdx.json
         artifact-name: sbom-${{ steps.name.outputs.safe }}.spdx.json
         upload-artifact: true
-        upload-release-assets: false
+        upload-release-assets: true
     
     - name: Verify SBOM file
       id: find-sbom
@@ -75,5 +75,5 @@ runs:
         cosign attest \
           --yes \
           --predicate "${{ steps.find-sbom.outputs.sbom_file }}" \
-          --type ${{ inputs.sbom-predicate-type }} \
+          --type spdxjson \
           "${{ inputs.image_name }}@${{ inputs.image_digest }}"

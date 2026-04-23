@@ -10,7 +10,6 @@ spec:
   validationFailureAction: Enforce
   background: false
   webhookTimeoutSeconds: 30
-
   rules:
     - name: require-slsa-provenance
       match:
@@ -20,20 +19,21 @@ spec:
               namespaces: ["prod", "production"]
       verifyImages:
         - imageReferences:
-            - "index.docker.io/agslima/app-stayhealthy-backend@*"  
-            - "docker.io/agslima/app-stayhealthy-backend@*"  
-            - "index.docker.io/agslima/app-stayhealthy-worker@*"  
-            - "docker.io/agslima/app-stayhealthy-worker@*"  
-            - "index.docker.io/agslima/app-stayhealthy-frontend@*"  
-            - "docker.io/agslima/app-stayhealthy-frontend@*"
-
+            - "index.docker.io/agslima/app-stayhealthy-*"
+          failureAction: Enforce
           attestations:
             - predicateType: "https://slsa.dev/provenance/v1"
               attestors:
                 - entries:
                     - keyless:
                         issuer: "https://token.actions.githubusercontent.com"
-                        subjectRegExp: >-
-                          ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*$
+                        subject: "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@refs/tags/v*"
                         rekor:
-                          url: https://rekor.sigstore.dev
+                          url: "https://rekor.sigstore.dev"
+              conditions:
+                - all:
+                    - key: "{{ payload.predicate.buildDefinition.externalParameters.source.uri }}"
+                      operator: AnyIn
+                      value: 
+                        - "git+https://github.com/agslima/software-delivery-pipeline"
+                        - "https://github.com/agslima/software-delivery-pipeline"
