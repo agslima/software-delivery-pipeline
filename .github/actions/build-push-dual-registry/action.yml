@@ -123,11 +123,14 @@ runs:
         echo "GHCR_IMAGE=ghcr.io/${{ github.repository_owner }}/${{ inputs.image_repo }}@${{ env.IMAGE_DIGEST }}" >> $GITHUB_ENV
     - name: Sign Images with Cosign
       shell: bash
+      env:
+        COSIGN_EXPERIMENTAL: "1"
       run: |
           set -euo pipefail
           echo "Signing starts: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           echo "Signing DockerHub image: $DOCKERHUB_IMAGE"
           cosign sign --yes \
+            --verbose \
             -a "repo=${{ github.repository }}" \
             -a "workflow=${{ github.workflow }}" \
             -a "workflow_ref=${{ github.workflow_ref }}" \
@@ -136,6 +139,7 @@ runs:
             
           echo "Signing GHCR image: $GHCR_IMAGE"
           cosign sign --yes \
+            --verbose \
             -a "repo=${{ github.repository }}" \
             -a "workflow=${{ github.workflow }}" \
             -a "workflow_ref=${{ github.workflow_ref }}" \
