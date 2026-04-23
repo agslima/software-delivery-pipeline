@@ -1,6 +1,21 @@
 name: Build and Push Dual Registry
-description: Builds and pushes Docker images to Docker Hub and GHCR, exporting digests.
 
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+###################################################################
+#                                                                 #
+#            Input and output argument definitions                #
+#                                                                 #
+###################################################################
+on:
+  workflow_call:
+    secrets:
+    
 inputs:
   component_name:
     description: 'Matrix component name (e.g., backend)'
@@ -38,9 +53,31 @@ inputs:
   signature-repository:
     description: 'Repository to storage all signatures'
     required: false
-runs:
-  using: "composite"
-  steps:
+outputs:
+      image-digest:
+        description: "sha256 digest of container image"
+        value: ${{ jobs.publish.outputs.image-digest }}
+
+env:
+  # disable harden runner
+  STEP_SECURITY_HARDEN_RUNNER: ${{ vars.disable_harden_runner }}
+
+jobs:
+  publish:
+    permissions:
+      contents: read
+      packages: write # Used to push images to `ghcr.io` if used.
+      id-token: write # Needed to create an OIDC token for keyless signing
+    runs-on: ubuntu-24.04
+    outputs:  
+      image-digest: ${{ steps.image.outputs.digest }}
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        if: ${{ vars.disable_harden_runner != 'true' }}
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+        with:
+          egress-policy: audit
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd
     - name: Install Cosign
@@ -57,7 +94,6 @@ runs:
         username: ${{ inputs.ghcr_username }}
         password: ${{ inputs.ghcr_token }}
     - name: Set up build args for container image
-      shell: bash
       run: |
         echo "GIT_COMMIT=${GITHUB_SHA}" >> $GITHUB_ENV
         if git describe --exact-match --tags HEAD >/dev/null 2>&1; then
@@ -99,7 +135,6 @@ runs:
           ghcr.io/${{ github.repository_owner }}/${{ inputs.image_repo }}:${{ inputs.release_tag }}
           ghcr.io/${{ github.repository_owner }}/${{ inputs.image_repo }}:${{ github.sha }}
     - name: Export Digest Artifact
-      shell: bash
       run: |
         set -euo pipefail
         mkdir -p digests
@@ -116,13 +151,11 @@ runs:
         path: digests/digest-${{ inputs.component_name }}
         retention-days: 30
     - name: Prepare image references
-      shell: bash
       run: |
         set -euo pipefail
         echo "DOCKERHUB_IMAGE=docker.io/${{ inputs.dockerhub_username }}/${{ inputs.image_repo }}@${{ env.IMAGE_DIGEST }}" >> $GITHUB_ENV
         echo "GHCR_IMAGE=ghcr.io/${{ github.repository_owner }}/${{ inputs.image_repo }}@${{ env.IMAGE_DIGEST }}" >> $GITHUB_ENV
     - name: Sign Images with Cosign
-      shell: bash
       run: |
           set -euo pipefail
           echo "Signing starts: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
