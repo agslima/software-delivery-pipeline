@@ -8,9 +8,6 @@ permissions:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
-
-permissions: {}
-
 env:
   TRIVY_CACHE_DIR: ${{ github.workspace }}/.trivy-cache
 
@@ -172,6 +169,9 @@ jobs:
           - service: frontend
             path: app/docker/Dockerfile.client
             changed: ${{ needs.changes.outputs.docker_frontend }}
+          - service: worker
+            path: app/docker/Dockerfile.worker
+            changed: ${{ needs.changes.outputs.docker_worker }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
