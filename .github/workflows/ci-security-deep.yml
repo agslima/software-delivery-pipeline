@@ -52,7 +52,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Cache Trivy DB
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: |
             ~/.cache/trivy
@@ -66,7 +66,7 @@ jobs:
           echo "FS_SKIP_DIRS=node_modules,dist,build,vendor,coverage,.git,.cache,.venv,tmp" >> "$GITHUB_OUTPUT"
           echo "CONFIG_SKIP_DIRS=k8s/tests,node_modules,dist,build,vendor,coverage,.git,.cache,.venv,tmp" >> "$GITHUB_OUTPUT"
       - name: Trivy Scan - Infrastructure
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: 'config'
           scan-ref: '.'
@@ -78,7 +78,7 @@ jobs:
           cache-dir: ~/.cache/trivy
       # 2. CODE SCAN (Vulns & Secrets only)
       - name: Trivy Scan - Code
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: 'fs'
           scan-ref: '.'
@@ -92,7 +92,7 @@ jobs:
       # 3. GOVERNANCE DATA (Full Scan)    
       - name: Generate Governance JSON
         if: always()
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: 'fs'
           scan-ref: '.'
