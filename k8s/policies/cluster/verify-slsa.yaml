@@ -28,6 +28,8 @@ spec:
                     - keyless:
                         issuer: "https://token.actions.githubusercontent.com"
                         subject: "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@refs/tags/v*"
+                        rekor:
+                          url: "https://rekor.sigstore.dev"
               conditions:
                 - all:
                     - key: "{{ payload.predicate.buildDefinition.externalParameters.source.uri }}"
