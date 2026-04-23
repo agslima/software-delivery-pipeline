@@ -2,32 +2,28 @@ name: Build and Push Dual Registry
 
 permissions:
   contents: read
-
+  
 defaults:
   run:
     shell: bash
-
-###################################################################
-#                                                                 #
-#            Input and output argument definitions                #
-#                                                                 #
-###################################################################
+    
 on:
   workflow_call:
     secrets:
+      ghcr_username:
+        description: 'GitHub Username/Repository Owner'
+        required: true
       ghcr_token:
         description: 'GitHub Token for GHCR authentication'
         required: true
-      
+      dockerhub_username:
+        description: 'Docker Hub username'
+        required: true
       dockerhub_token:
         description: 'Docker Hub access token'
         required: true
     
     inputs:
-      component_name:
-        description: 'Matrix component name (e.g., backend)'
-        required: true
-        type: string
       context:
         description: 'Build context path'
         required: true
@@ -48,14 +44,6 @@ on:
         description: 'Commit SHA'
         required: true
         type: string
-      dockerhub_username:
-        description: 'Docker Hub username'
-        required: true
-        type: string      
-      ghcr_username:
-        description: 'GitHub Username/Repository Owner'
-        required: true
-        type: string
       platforms:
         description: 'Container platforms'
         required: true
@@ -63,21 +51,21 @@ on:
     outputs:
       image-digest:
         description: "sha256 digest of container image"
-        value: ${{ jobs.publish.outputs.image-digest }}
+        value: ${{ jobs.build-publish.outputs.image-digest }}
 
 env:
   # disable harden runner
   STEP_SECURITY_HARDEN_RUNNER: ${{ vars.disable_harden_runner }}
 
 jobs:
-  publish:
+  build-publish:
     permissions:
       contents: read
       packages: write # Used to push images to `ghcr.io` if used.
       id-token: write # Needed to create an OIDC token for keyless signing
     runs-on: ubuntu-24.04
     outputs:  
-      image-digest: ${{ steps.image.outputs.digest }}
+      image-digest: ${{ steps.build.outputs.digest }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
         if: ${{ vars.disable_harden_runner != 'true' }}
@@ -91,17 +79,17 @@ jobs:
       - name: Login to Docker Hub
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121
         with:
-          username: ${{ inputs.dockerhub_username }}
-          password: ${{ inputs.dockerhub_token }}
+          username: ${{ secrets.dockerhub_username }}
+          password: ${{ secrets.dockerhub_token }}
       - name: Login to GitHub Container Registry
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121
         with:
           registry: ghcr.io
-          username: ${{ inputs.ghcr_username }}
-          password: ${{ inputs.ghcr_token }}
+          username: ${{ secrets.ghcr_username }}
+          password: ${{ secrets.ghcr_token }}
       - name: Set up build args for container image
         run: |
-          echo "GIT_COMMIT=${GITHUB_SHA}" >> $GITHUB_ENV
+          echo "GIT_COMMIT=$(git rev-parse HEAD)" >> $GITHUB_ENV
           if git describe --exact-match --tags HEAD >/dev/null 2>&1; then
             echo "GIT_TAG=$(git describe --tags)" >> $GITHUB_ENV
           else
@@ -120,9 +108,9 @@ jobs:
         with:
           context: ${{ inputs.context }}
           file: ${{ inputs.file }}
+          platforms: ${{ inputs.platforms }}
           push: true
           pull: true
-          platforms: ${{ inputs.platforms }}
           no-cache: true
           provenance: false
           sbom: false
@@ -131,13 +119,13 @@ jobs:
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.version=${{ inputs.release_tag }}
           build-args: |
-            GIT_TAG=${{env.GIT_TAG}}
-            GIT_COMMIT=${{env.GIT_COMMIT}}
-            BUILD_DATE=${{env.BUILD_DATE}}
-            GIT_TREE_STATE=${{env.GIT_TREE_STATE}}
+            GIT_TAG=${{ env.GIT_TAG }}
+            GIT_COMMIT=${{ env.GIT_COMMIT }}
+            BUILD_DATE=${{ env.BUILD_DATE }}
+            GIT_TREE_STATE=${{ env.GIT_TREE_STATE }}
           tags: |
-            docker.io/${{ inputs.dockerhub_username }}/${{ inputs.image_repo }}:${{ inputs.release_tag }}
-            docker.io/${{ inputs.dockerhub_username }}/${{ inputs.image_repo }}:${{ github.sha }}
+            docker.io/${{ secrets.dockerhub_username }}/${{ inputs.image_repo }}:${{ inputs.release_tag }}
+            docker.io/${{ secrets.dockerhub_username }}/${{ inputs.image_repo }}:${{ github.sha }}
             ghcr.io/${{ github.repository_owner }}/${{ inputs.image_repo }}:${{ inputs.release_tag }}
             ghcr.io/${{ github.repository_owner }}/${{ inputs.image_repo }}:${{ github.sha }}
       - name: Export Digest Artifact
@@ -147,13 +135,13 @@ jobs:
           # Grab the digest directly from the build step output
           DIGEST="${{ steps.build.outputs.digest }}"
           test -n "$DIGEST" || (echo "::error::Digest empty"; exit 1)
-          echo "$DIGEST" > "digests/digest-${{ inputs.component_name }}"
+          echo "$DIGEST" > "digests/digest-${{ inputs.image_repo }}"
           # Export to GITHUB_ENV so subsequent steps can use it natively
           echo "IMAGE_DIGEST=$DIGEST" >> $GITHUB_ENV
       - name: Prepare image references
         run: |
           set -euo pipefail
-          echo "DOCKERHUB_IMAGE=docker.io/${{ inputs.dockerhub_username }}/${{ inputs.image_repo }}@${{ env.IMAGE_DIGEST }}" >> $GITHUB_ENV
+          echo "DOCKERHUB_IMAGE=docker.io/${{ secrets.dockerhub_username }}/${{ inputs.image_repo }}@${{ env.IMAGE_DIGEST }}" >> $GITHUB_ENV
           echo "GHCR_IMAGE=ghcr.io/${{ github.repository_owner }}/${{ inputs.image_repo }}@${{ env.IMAGE_DIGEST }}" >> $GITHUB_ENV
       - name: Sign Images with Cosign
         run: |
@@ -181,6 +169,6 @@ jobs:
       - name: Upload Digest Artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: digest-${{ inputs.component_name }}
-          path: digests/digest-${{ inputs.component_name }}
+          name: digest-${{ inputs.image_repo }}
+          path: digests/digest-${{ inputs.image_repo }}
           retention-days: 30
