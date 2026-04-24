@@ -55,6 +55,8 @@ jobs:
       release_tag: ${{ needs.resolve.outputs.release_tag }}
       github_sha: ${{ github.sha }}
       platforms: linux/amd64
+      sbom-repository: ghcr.io/${{ github.repository_owner }}/sbom
+      signature-repository: ghcr.io/${{ github.repository_owner }}/signatures
     secrets:
       dockerhub_username: ${{ vars.DOCKER_HUB_USERNAME }}
       dockerhub_token: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
@@ -79,6 +81,8 @@ jobs:
       release_tag: ${{ needs.resolve.outputs.release_tag }}
       github_sha: ${{ github.sha }}
       platforms: linux/amd64
+      sbom-repository: ghcr.io/${{ github.repository_owner }}/sbom
+      signature-repository: ghcr.io/${{ github.repository_owner }}/signatures
     secrets:
       dockerhub_username: ${{ vars.DOCKER_HUB_USERNAME }}
       dockerhub_token: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
@@ -103,6 +107,8 @@ jobs:
       release_tag: ${{ needs.resolve.outputs.release_tag }}
       github_sha: ${{ github.sha }}
       platforms: linux/amd64
+      sbom-repository: ghcr.io/${{ github.repository_owner }}/sbom
+      signature-repository: ghcr.io/${{ github.repository_owner }}/signatures
     secrets:
       dockerhub_username: ${{ vars.DOCKER_HUB_USERNAME }}
       dockerhub_token: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
