@@ -166,9 +166,44 @@ jobs:
               "$GHCR_IMAGE"
               
             echo "Signing finished: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            
       - name: Upload Digest Artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: digest-${{ inputs.image_repo }}
           path: digests/digest-${{ inputs.image_repo }}
+          retention-days: 30
+          
+      - name: Generate SBOM
+        uses: anchore/sbom-action@8e94d75ddd33f69f691467e42275782e4bfefe84 # v0.20.9
+        with:
+          # Targets the GHCR image to generate the SBOM (since digests match, the SBOM is identical)
+          image: "ghcr.io/${{ github.repository_owner }}/${{ inputs.image_repo }}@${{ env.IMAGE_DIGEST }}"
+          format: spdx-json
+          output-file: sbom-${{ inputs.image_repo }}.spdx.json
+          artifact-name: sbom-${{ inputs.image_repo }}.spdx.json
+          upload-artifact: true
+          upload-release-assets: auto
+            
+      - name: Cosign SBOM attestation
+        run: |
+          # Define both registry targets that share the exact same image digest
+          IMAGES=(
+            "ghcr.io/${{ github.repository_owner }}/${{ inputs.image_repo }}@${{ env.IMAGE_DIGEST }}"
+            "docker.io/${{ secrets.dockerhub_username }}/${{ inputs.image_repo }}@${{ env.IMAGE_DIGEST }}"
+          )
+          for IMAGE in "${IMAGES[@]}"; do
+            echo "Attesting SBOM to $IMAGE"
+            cosign attest \
+              --yes \
+              --verbose \
+              --predicate "sbom-${{ inputs.image_repo }}.spdx.json" \
+              --type spdxjson \
+              "$IMAGE"
+          done
+      - name: Upload SBOM Artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: sbom-${{ inputs.image_repo }}
+          path: sbom-${{ inputs.image_repo }}.spdx.json
           retention-days: 30
