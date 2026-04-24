@@ -1,0 +1,116 @@
+name: Trivy Release
+
+permissions:
+  contents: read
+  
+defaults:
+  run:
+    shell: bash
+    
+on:
+  workflow_call:
+    secrets:
+      ghcr_username:
+        description: 'GitHub Username/Repository Owner'
+        required: true
+      ghcr_token:
+        description: 'GitHub Token for GHCR authentication'
+        required: true
+      dockerhub_username:
+        description: 'Docker Hub username'
+        required: true
+      dockerhub_token:
+        description: 'Docker Hub access token'
+        required: true
+    
+    inputs:  
+      image_repo:
+        description: 'Base image repository name'
+        required: true
+        type: string
+      digest_artifact_name:
+        description: 'Digest artifact suffix; defaults to image_repo when omitted'
+        required: true
+        type: string
+        default: ''
+
+
+jobs:
+  trivy-release:
+    permissions:
+      contents: read
+      packages: write # Used to push images to `ghcr.io` if used.
+      id-token: write # Needed to create an OIDC token for keyless signing
+    runs-on: ubuntu-24.04
+    outputs:  
+      image-digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 #v4.1.0
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+
+      - name: Install Trivy
+        uses: aquasecurity/setup-trivy@3fb12ec12f41e471780db15c232d5dd185dcb514 # v0.2.6
+        with:
+          version: v0.68.2
+          cache: true
+
+      - name: Scan Image (JSON)
+        run: |
+          set -euo pipefail
+          DIGEST="$(cat digests/digest-${{ matrix.name }})"
+          IMAGE="${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@$DIGEST"
+          echo "Scanning $IMAGE"
+
+          trivy image \
+            --format json \
+            --output "trivy-${{ matrix.name }}.json" \
+            "$IMAGE"
+
+          # Explicit output checks (fail closed)
+          test -s "trivy-${{ matrix.name }}.json" || (echo "::error::Trivy JSON missing/empty"; exit 1)
+          jq -e '.Results? | type=="array"' "trivy-${{ matrix.name }}.json" >/dev/null
+
+      - name: Gate (CRITICAL>0 or HIGH>5)
+        run: |
+          set -euo pipefail
+          FILE="trivy-${{ matrix.name }}.json"
+          CRIT=$(jq '[.Results[]? | (.Vulnerabilities // [])[] | select(.Severity=="CRITICAL")] | length' "$FILE")
+          HIGH=$(jq '[.Results[]? | (.Vulnerabilities // [])[] | select(.Severity=="HIGH")] | length' "$FILE")
+          echo "CRITICAL=$CRIT HIGH=$HIGH"
+
+          if [ "$CRIT" -gt 0 ] || [ "$HIGH" -gt 5 ]; then
+            echo "::error::⛔ Trivy Gate Failed for ${{ matrix.name }} (CRIT=$CRIT HIGH=$HIGH)"
+            exit 1
+          fi
+          echo "✅ Trivy Gate Passed"
+          
+      - name: Create & Push ZAP Attestation (from DAST artifacts)
+        run: |
+          set -euo pipefail
+          FE="zap-downloads/zap-frontend.json"
+          BE="zap-downloads/zap-backend.json"
+          test -s "$FE" || (echo "::error::Missing ZAP FE json"; exit 1)
+          test -s "$BE" || (echo "::error::Missing ZAP BE json"; exit 1)
+
+          HIGH_FE=$(jq '[.site[]? | .alerts[]? | select(.riskcode=="3")] | length' "$FE")
+          HIGH_BE=$(jq '[.site[]? | .alerts[]? | select(.riskcode=="3")] | length' "$BE")
+          HIGH=$((HIGH_FE + HIGH_BE))
+
+          jq -n --argjson high "$HIGH" '
+            {
+              scanner: { name: "owasp-zap", uri: "https://www.zaproxy.org/" },
+              summary: { high: $high },
+              result: (if ($high > 0) then "FAIL" else "PASS" end),
+              timestamp: (now | todate)
+            }
+          ' > zap-attestation.json
+      - name: ZAP Attestation (from DAST artifacts)
+        run: |
+          cosign attest --yes \
+            --predicate zap-attestation.json \
+            --type "${{ env.ZAP_PREDICATE_TYPE }}" \
+            "$IMAGE"
+
+      

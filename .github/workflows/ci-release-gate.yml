@@ -191,4 +191,55 @@ jobs:
     secrets:
       registry-password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
   
-  
+  trivy-scan:
+    name: Trivy Scan (Digest Gate)
+    needs: [ build-push-frontend, build-push-backend, build-push-worker ]
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: backend
+            image_repo: app-stayhealthy-backend
+            image_digest: ${{ needs.build-push-backend.outputs.image_digest }}
+            exposure: public
+            criticality: high            
+          - name: worker
+            image_repo: app-stayhealthy-worker
+            image_digest: ${{ needs.build-push-worker.outputs.image_digest }}
+            exposure: internal
+            criticality: medium
+          - name: fronend
+            image_repo: app-stayhealthy-frontend
+            image_digest: ${{ needs.build-push-frontend.outputs.image_digest }}
+            exposure: public
+            criticality: medium      
+    uses: ./.github/workflows/trivy-release.yml
+    with:
+      image_repo: ${{ matrix.image_repo }}
+      digest_artifact_name: ${{ matrix.image_digest }}
+    secrets:
+      dockerhub_username: ${{ vars.DOCKER_HUB_USERNAME }}
+      dockerhub_token: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}    
+      
+     
+  dast-analysis:
+    name: DAST (Digest-based)
+    needs: [ build-push-frontend, build-push-backend, build-push-worker ]
+    permissions:
+      contents: read
+    uses: ./.github/workflows/dast-release.yml
+    with:
+      fetch-depth: 0
+      ref: ${{ needs.resolve.outputs.release_tag }}
+
+
+      
+
+
+     
+
+
+
+    
