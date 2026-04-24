@@ -220,12 +220,11 @@ jobs:
             "ghcr.io/${{ github.repository_owner }}/${{ inputs.image_repo }}@${{ env.IMAGE_DIGEST }}"
             "docker.io/${{ secrets.dockerhub_username }}/${{ inputs.image_repo }}@${{ env.IMAGE_DIGEST }}"
           )
-          for IMAGE in "${IMAGES[@]}"; do"
+          for IMAGE in "${IMAGES[@]}"; do
             echo "Attesting SBOM to $IMAGE"
             cosign attest \
               --yes \
               --predicate "sbom-${{ inputs.image_repo }}.spdx.json" \
               --type spdxjson \
-              "$IMAGE" \
-              > /dev/null
+              "$IMAGE"
           done
