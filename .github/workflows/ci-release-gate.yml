@@ -3,8 +3,7 @@ name: "Release"
 on:
   push:
     tags:
-      - 'v*.*.*'
-      
+      - 'v*.*.*'    
 permissions:
   contents: read
 concurrency:
@@ -14,7 +13,7 @@ concurrency:
 jobs:
   resolve:
     name: Resolve Release Tag
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest    
     permissions:
       contents: read
     outputs:
@@ -38,180 +37,219 @@ jobs:
       actions: read          # Required for workflow context resolution
     uses: ./.github/workflows/ci-security-deep.yml
 
-  build-push:
-    name: Build & Push (Digest)
-    runs-on: ubuntu-latest
+  build-push-backend:
+    name: Build & Push
     needs: [resolve, run-trivy]
-    environment: production
-    timeout-minutes: 60
     permissions:
       contents: read
       packages: write
       id-token: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - component: backend
-            context: app
-            container_file: app/docker/Dockerfile.server
-            container_name: app-stayhealthy-backend
-          - component: worker
-            context: app
-            container_file: app/docker/Dockerfile.worker
-            container_name: app-stayhealthy-worker
-          - component: frontend
-            context: app
-            container_file: app/docker/Dockerfile.client
-            container_name: app-stayhealthy-frontend
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
-        with:
-          fetch-tags: true
-          ref: ${{ needs.resolve.outputs.release_tag }}
-      - name: Build and Push Dual Registry
-        uses: ./.github/actions/build-push-dual-registry
-        with:
-          component_name: ${{ matrix.component }}
-          context: ${{ matrix.context }}
-          file: ${{ matrix.container_file }}
-          image_repo: ${{ matrix.container_name }}
-          release_tag: ${{ needs.resolve.outputs.release_tag }}
-          github_sha: ${{ github.sha }}
-          dockerhub_username: ${{ vars.DOCKER_HUB_USERNAME }}
-          dockerhub_token: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
-          ghcr_username: ${{ github.repository_owner }}
-          ghcr_token: ${{ secrets.GITHUB_TOKEN }}
-          platforms: linux/amd64
-          signature-repository: ghcr.io/${{ github.repository_owner }}/signatures
-
-  download-digest:
-    name: Download Digests
-    runs-on: ubuntu-latest
-    needs: [build-push]
+      attestations: write
+    uses: ./.github/workflows/build-push-dual-registry.yml
+    with:
+      environment: production
+      context: app
+      file: app/docker/Dockerfile.server
+      image_repo: app-stayhealthy-backend
+      digest_artifact_name: backend
+      release_tag: ${{ needs.resolve.outputs.release_tag }}
+      github_sha: ${{ github.sha }}
+      platforms: linux/amd64
+    secrets:
+      dockerhub_username: ${{ vars.DOCKER_HUB_USERNAME }}
+      dockerhub_token: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+      ghcr_username: ${{ github.repository_owner }}
+      ghcr_token: ${{ secrets.GITHUB_TOKEN }}
+                    
+  build-push-frontend:
+    name: Build & Push
+    needs: [resolve, run-trivy]
     permissions:
       contents: read
-    outputs:
-      app-backend-digest: ${{ steps.read-digests.outputs.backend }}
-      app-frontend-digest: ${{ steps.read-digests.outputs.frontend }}
-      app-worker-digest: ${{ steps.read-digests.outputs.worker }}
-    steps:
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v4.1.8.0.1
-        with:
-          pattern: digest-*
-          path: digests
-          merge-multiple: true
-      - name: Read Digests and Set Outputs
-        id: read-digests
-        run: |
-          set -euo pipefail  
-          BACKEND_DIGEST=$(cat digests/digest-backend)
-          FRONTEND_DIGEST=$(cat digests/digest-frontend)
-          WORKER_DIGEST=$(cat digests/digest-worker)
-          echo "backend=$BACKEND_DIGEST" >> "$GITHUB_OUTPUT"
-          echo "frontend=$FRONTEND_DIGEST" >> "$GITHUB_OUTPUT"
-          echo "worker=$WORKER_DIGEST" >> "$GITHUB_OUTPUT"
-                    
-  generate-slsa-provenance-ghcr:
-    needs: [download-digest, build-push] 
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - component: backend
-            digest: ${{ needs.download-digest.outputs.app-backend-digest }}
-            container_name: app-stayhealthy-backend
-          - component: worker
-            digest: ${{ needs.download-digest.outputs.app-worker-digest }}
-            container_name: app-stayhealthy-worker
-          - component: frontend
-            digest: ${{ needs.download-digest.outputs.app-frontend-digest }}
-            container_name: app-stayhealthy-frontend
+      packages: write
+      id-token: write
+      attestations: write 
+    uses: ./.github/workflows/build-push-dual-registry.yml
+    with:
+      environment: production
+      context: app
+      file: app/docker/Dockerfile.client
+      image_repo: app-stayhealthy-frontend
+      digest_artifact_name: frontend
+      release_tag: ${{ needs.resolve.outputs.release_tag }}
+      github_sha: ${{ github.sha }}
+      platforms: linux/amd64
+    secrets:
+      dockerhub_username: ${{ vars.DOCKER_HUB_USERNAME }}
+      dockerhub_token: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+      ghcr_username: ${{ github.repository_owner }}
+      ghcr_token: ${{ secrets.GITHUB_TOKEN }}
+
+  build-push-worker:
+    name: Build & Push
+    needs: [resolve, run-trivy]
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    uses: ./.github/workflows/build-push-dual-registry.yml
+    with:
+      environment: production
+      context: app
+      file: app/docker/Dockerfile.worker
+      image_repo: app-stayhealthy-worker
+      digest_artifact_name: worker
+      release_tag: ${{ needs.resolve.outputs.release_tag }}
+      github_sha: ${{ github.sha }}
+      platforms: linux/amd64
+    secrets:
+      dockerhub_username: ${{ vars.DOCKER_HUB_USERNAME }}
+      dockerhub_token: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+      ghcr_username: ${{ github.repository_owner }}
+      ghcr_token: ${{ secrets.GITHUB_TOKEN }}
+  
+  generate-slsa-provenance-backend-ghcr:
+    needs: [build-push-backend]
+    if: false
     permissions:
       id-token: write   # To sign the provenance.
       packages: write   # To upload assets to release.
       actions: read     # To read the workflow path.
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
     with:
-      image: ghcr.io/${{ github.repository_owner }}/${{ matrix.container_name }}
-      digest: ${{ matrix.digest }}
-      registry-username: ${{ github.actor }}
+      image: ghcr.io/${{ github.repository_owner }}/app-stayhealthy-backend
+      digest: ${{ needs.build-push-backend.outputs.image-digest }}
+      registry-username: ${{ github.repository_owner }}
     secrets:
       registry-password: ${{ secrets.GITHUB_TOKEN }}
 
-  generate-slsa-provenance-docker:
-    needs: [download-digest, build-push] 
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - component: backend
-            digest: ${{ needs.download-digest.outputs.app-backend-digest }}
-            container_name: app-stayhealthy-backend
-          - component: worker
-            digest: ${{ needs.download-digest.outputs.app-worker-digest }}
-            container_name: app-stayhealthy-worker
-          - component: frontend
-            digest: ${{ needs.download-digest.outputs.app-frontend-digest }}
-            container_name: app-stayhealthy-frontend
+  generate-slsa-provenance-frontend-ghcr:
+    needs: [build-push-frontend]
+    if: false
     permissions:
       id-token: write   # To sign the provenance.
       packages: write   # To upload assets to release.
       actions: read     # To read the workflow path.
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
     with:
-      image: docker.io/${{ vars.DOCKER_HUB_USERNAME }}/${{ matrix.container_name }}
-      digest: ${{ matrix.digest }}
+      image: ghcr.io/${{ github.repository_owner }}/app-stayhealthy-frontend
+      digest: ${{ needs.build-push-frontend.outputs.image-digest }}
+      registry-username: ${{ github.repository_owner }}
+    secrets:
+      registry-password: ${{ secrets.GITHUB_TOKEN }}
+  
+  generate-slsa-provenance-worker-ghcr:
+    needs: [build-push-worker]
+    if: false
+    permissions:
+      id-token: write   # To sign the provenance.
+      packages: write   # To upload assets to release.
+      actions: read     # To read the workflow path.
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
+    with:
+      image: ghcr.io/${{ github.repository_owner }}/app-stayhealthy-worker
+      digest: ${{ needs.build-push-worker.outputs.image-digest }}
+      registry-username: ${{ github.repository_owner }}
+    secrets:
+      registry-password: ${{ secrets.GITHUB_TOKEN }}
+  
+  generate-slsa-provenance-backend-docker:
+    needs: [build-push-backend]
+    if: false
+    permissions:
+      id-token: write   # To sign the provenance.
+      packages: write   # To upload assets to release.
+      actions: read     # To read the workflow path.
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
+    with:
+      image: docker.io/${{ vars.DOCKER_HUB_USERNAME }}/app-stayhealthy-backend
+      digest: ${{ needs.build-push-backend.outputs.image-digest }}
       registry-username: ${{ vars.DOCKER_HUB_USERNAME }}
     secrets:
-      registry-password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }} 
-      
-  attest-sbom:
-    name: Attest SBOM
-    runs-on: ubuntu-latest
-    needs: [resolve, build-push, download-digest, generate-slsa-provenance-ghcr, generate-slsa-provenance-docker]
+      registry-password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+
+  generate-slsa-provenance-frontend-docker:
+    needs: [build-push-frontend]
+    if: false
     permissions:
-      contents: write
+      id-token: write   # To sign the provenance.
+      packages: write   # To upload assets to release.
+      actions: read     # To read the workflow path.
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
+    with:
+      image: docker.io/${{ vars.DOCKER_HUB_USERNAME }}/app-stayhealthy-frontend
+      digest: ${{ needs.build-push-frontend.outputs.image-digest }}
+      registry-username: ${{ vars.DOCKER_HUB_USERNAME }}
+    secrets:
+      registry-password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+  
+  generate-slsa-provenance-worker-docker:
+    needs: [build-push-worker]
+    if: false
+    permissions:
+      id-token: write   # To sign the provenance.
+      packages: write   # To upload assets to release.
+      actions: read     # To read the workflow path.
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
+    with:
+      image: docker.io/${{ vars.DOCKER_HUB_USERNAME }}/app-stayhealthy-worker
+      digest: ${{ needs.build-push-worker.outputs.image-digest }}
+      registry-username: ${{ vars.DOCKER_HUB_USERNAME }}
+    secrets:
+      registry-password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+  
+  trivy-scan:
+    name: Trivy Scan (Digest Gate)
+    needs: [ build-push-frontend, build-push-backend, build-push-worker ]
+    permissions:
+      contents: read
+      packages: write # Used to push images to `ghcr.io` if used.
+      id-token: write # Needed to create an OIDC token for keyless signing
+      attestations: write # Needed to upload attestations to the GitHub registry      
+    uses: ./.github/workflows/trivy-release.yml
+    with:
+      image-digest-backend: ${{ needs.build-push-backend.outputs.image-digest }}
+      image-digest-frontend: ${{ needs.build-push-frontend.outputs.image-digest }}
+      image-digest-worker: ${{ needs.build-push-worker.outputs.image-digest }}
+    secrets:
+      dockerhub_username: ${{ vars.DOCKER_HUB_USERNAME }}
+      dockerhub_token: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+      ghcr_username: ${{ github.repository_owner }}
+      ghcr_token: ${{ secrets.GITHUB_TOKEN }}
+     
+  dast-analysis:
+    name: DAST (Digest-based)
+    needs: [ build-push-frontend, build-push-backend, build-push-worker ]
+    permissions:
+      contents: read
       id-token: write
+      packages: write # Used to pull images from `ghcr.io` if used.
       attestations: write
-      packages: write
-    env:
-      SBOM_PREDICATE_TYPE: "https://spdx.dev/Document/v3.0.1"
-    strategy:
-      fail-fast: true
-      matrix:
-        include:
-          - component: backend
-            digest: ${{ needs.download-digest.outputs.app-backend-digest }}
-            container_name: app-stayhealthy-backend
-          - component: worker
-            digest: ${{ needs.download-digest.outputs.app-worker-digest }}
-            container_name: app-stayhealthy-worker
-          - component: frontend
-            digest: ${{ needs.download-digest.outputs.app-frontend-digest }}
-            container_name: app-stayhealthy-frontend
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
-        with:
-          fetch-depth: 0
-          ref: ${{ needs.resolve.outputs.release_tag }}
-      - name: Generate SBOM and Attest - GHCR
-        uses: ./.github/actions/sbom-and-attest
-        with:
-          image_name: ghcr.io/${{ github.repository_owner }}/${{ matrix.container_name }}
-          image_digest: ${{ matrix.digest }}
-          registry: ghcr.io
-          registry_username: ${{ github.actor }}
-          registry_password: ${{ secrets.GITHUB_TOKEN }}
-          sbom-predicate-type: ${{ env.SBOM_PREDICATE_TYPE }}
-          sbom-repository: ghcr.io/${{ github.repository_owner }}/sbom
-      - name: Generate SBOM and Attest - Docker
-        uses: ./.github/actions/sbom-and-attest
-        with:
-          image_name: docker.io/${{ vars.DOCKER_HUB_USERNAME }}/${{ matrix.container_name }}
-          image_digest: ${{ matrix.digest }}
-          registry: docker.io
-          registry_username: ${{ vars.DOCKER_HUB_USERNAME }}
-          registry_password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
-          sbom-predicate-type: ${{ env.SBOM_PREDICATE_TYPE }}
-          sbom-repository: docker.io/${{ vars.DOCKER_HUB_USERNAME }}/sbom
+    uses: ./.github/workflows/dast-release.yml
+    with:
+      image-digest-backend: ${{ needs.build-push-backend.outputs.image-digest }}
+      image-digest-frontend: ${{ needs.build-push-frontend.outputs.image-digest }}
+      image-digest-worker: ${{ needs.build-push-worker.outputs.image-digest }}
+    secrets:
+      dockerhub_username: ${{ vars.DOCKER_HUB_USERNAME }}
+      dockerhub_token: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+      ghcr_username: ${{ github.repository_owner }}
+      ghcr_token: ${{ secrets.GITHUB_TOKEN }}
+      ADMIN_PASS: ${{ vars.ADMIN_PASS }}
+      DB_PASS: ${{ vars.DB_PASS }}
+      DB_USER: ${{ vars.DB_USER }}
+      DB_NAME: ${{ vars.DB_NAME }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      DATA_ENCRYPTION_KEY: ${{ secrets.DATA_ENCRYPTION_KEY }}
+      ADMIN_USER: ${{ vars.ADMIN_USER }}
+
+
+      
+
+
+     
+
+
+
+    

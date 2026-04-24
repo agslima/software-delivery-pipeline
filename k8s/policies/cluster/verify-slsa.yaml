@@ -22,18 +22,35 @@ spec:
             - "index.docker.io/agslima/app-stayhealthy-*"
           failureAction: Enforce
           attestations:
-            - predicateType: "https://slsa.dev/provenance/v1"
+            - predicateType: "https://slsa.dev/provenance/v0.2"
               attestors:
                 - entries:
                     - keyless:
                         issuer: "https://token.actions.githubusercontent.com"
-                        subject: "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@refs/tags/v*"
+                        subjectRegExp: >-
+                          ^https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3\.yml@refs/tags/v2\.1\.0$
                         rekor:
                           url: "https://rekor.sigstore.dev"
               conditions:
                 - all:
-                    - key: "{{ payload.predicate.buildDefinition.externalParameters.source.uri }}"
-                      operator: AnyIn
-                      value: 
-                        - "git+https://github.com/agslima/software-delivery-pipeline"
-                        - "https://github.com/agslima/software-delivery-pipeline"
+                    - key: "{{ payload.predicateType || '' }}"
+                      operator: Equals
+                      value: "https://slsa.dev/provenance/v0.2"
+                    - key: "{{ payload.predicate.builder.id || '' }}"
+                      operator: Equals
+                      value: "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@refs/tags/v2.1.0"
+                    - key: "{{ payload.predicate.buildType || '' }}"
+                      operator: Equals
+                      value: "https://github.com/slsa-framework/slsa-github-generator/container@v1"
+                    - key: "{{ payload.predicate.invocation.configSource.entryPoint || '' }}"
+                      operator: Equals
+                      value: ".github/workflows/ci-release-gate.yml"
+                    - key: "{{ payload.predicate.invocation.environment.github_event_name || '' }}"
+                      operator: Equals
+                      value: "push"
+                    - key: "{{ regex_match('^git\\+https://github.com/agslima/software-delivery-pipeline@refs/tags/v[0-9]+\\.[0-9]+\\.[0-9]+$', payload.predicate.invocation.configSource.uri || '') }}"
+                      operator: Equals
+                      value: true
+                    - key: "{{ regex_match('^refs/tags/v[0-9]+\\.[0-9]+\\.[0-9]+$', payload.predicate.invocation.environment.github_ref || '') }}"
+                      operator: Equals
+                      value: true

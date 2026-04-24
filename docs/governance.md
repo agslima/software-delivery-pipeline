@@ -11,7 +11,7 @@ Within the trust boundaries described below, promotion toward production depends
 ## Governance Metadata and Freshness
 
 - **Validation cadence:** Quarterly
-- **Last validated:** 2026-04-11
+- **Last validated:** 2026-04-23
 
 Governance metadata must remain current enough to support audit credibility. The repository enforces freshness with:
 
@@ -325,7 +325,7 @@ Use this table during reviews to ensure governance controls remain mapped to act
 | Scheduled deep security evidence | `.github/workflows/ci-security-deep.yml` -> `security-governance` | Artifacts and SARIF generated; issue raised on failure |
 | Release vulnerability gate by immutable digest | `.github/workflows/ci-release-gate.yml` -> `trivy-scan` | Release blocks on policy thresholds (`CRITICAL > 0` or `HIGH > 5`) for backend, worker, and frontend images |
 | Release DAST gate | `.github/workflows/ci-release-gate.yml` -> `dast-analysis` | Release blocks on DAST gate criteria |
-| Artifact signing, SBOM, and provenance attestations | `.github/workflows/ci-release-gate.yml` -> `sign-and-attest` | Attestations bound to trusted workflow identity for each deployable image |
+| Artifact signing, SBOM, and provenance attestations | `.github/workflows/ci-release-gate.yml` -> `build-push-*`, `generate-slsa-provenance-*-*` | Attestations bound to trusted workflow identity for each deployable image |
 | GitOps promotion manifest validation | `.github/workflows/gitops-enforce.yml` -> `gitops` | Promotion PR creation stops if Kyverno CLI policy evaluation fails; worker/frontend digests advance directly and backend canary digest advances without implicitly promoting stable |
 | Backend release-in-progress governance | `k8s/overlays/prod/backend-rollout.yaml`; `docs/rollout-gates-policy.md`; `docs/canary-promotion-checklist.md` | Backend canary promotion requires explicit evidence, stable/canary distinction, and defined rollback triggers |
 
@@ -335,21 +335,21 @@ Current documented posture is **SLSA Build L2 with L3-aligned controls in progre
 
 Why this statement is defensible:
 
-- provenance is generated in the trusted release workflow via `actions/attest-build-provenance` and tied to immutable backend, worker, and frontend image digests
+- provenance is generated in the trusted release workflow via `slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0` and tied to immutable backend, worker, and frontend image digests
 - release builds, scanning gates, signing, and attestations run in hosted CI with workflow identity constraints
-- runtime and GitOps verification validate signature and required attestations, including SLSA provenance, before promotion or deployment
+- runtime and GitOps verification validate signature and required attestations, including explicit SLSA builder identity, predicate type, build type, workflow entry point, and tag-based source expectations, before promotion or deployment
 - some SLSA L3 expectations, such as independently validated hermetic or reproducible builds, are not yet fully evidenced in this repository
 
 The active sequencing and pilot record for those remaining L3-aligned controls live in [`docs/slsa-l3-sequencing-plan.md`](slsa-l3-sequencing-plan.md) and [`docs/slsa-l3-pilot-retrospective.md`](slsa-l3-pilot-retrospective.md).
 
 | SLSA requirement (build track) | Implemented control | Evidence source / workflow artifact |
 | :--- | :--- | :--- |
-| Provenance is generated for build outputs | `actions/attest-build-provenance` emits provenance for each release image digest | `.github/workflows/ci-release-gate.yml` (`sign-and-attest` job), registry attestation with predicate `https://slsa.dev/provenance/v1` |
+| Provenance is generated for build outputs | `slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0` emits provenance for each release image digest | `.github/workflows/ci-release-gate.yml` (`generate-slsa-provenance-*-*` jobs), registry attestation with predicate `https://slsa.dev/provenance/v0.2` |
 | Provenance is bound to immutable artifact identity | Build and promotion use digest-pinned images; attestations and signatures reference digest subjects for backend, worker, and frontend | `digest-*` artifacts from the release workflow and digest-based image references in GitOps promotion |
-| Trusted builder identity | OIDC-based keyless identity restricted to the release workflow on tag refs | Cosign verify identity regex in release verification and Kyverno `verify-slsa` policy subject regex |
-| Build steps are policy-gated before trust is granted | Trivy and ZAP release gates must pass before `sign-and-attest` runs | `.github/workflows/ci-release-gate.yml` (`trivy-scan`, `dast-analysis`, `sign-and-attest`) |
+| Trusted builder identity | OIDC-based keyless identity is pinned to `generator_container_slsa3.yml@refs/tags/v2.1.0` for SLSA provenance attestations | GitOps `cosign verify-attestation` uses exact builder identity and Kyverno `verify-slsa` pins the same subject regex |
+| Build steps are policy-gated before trust is granted | The repository security gate and image build jobs must pass before the provenance jobs run | `.github/workflows/ci-release-gate.yml` (`run-trivy`, `build-push-*`, `generate-slsa-provenance-*-*`) |
 | Non-falsifiable evidence retained for audit | Trivy and ZAP outputs, SBOMs, digests, and Kyverno logs uploaded as workflow artifacts | Release artifacts `trivy-results-*`, `zap-results`, `sbom-*`, `digest-*`, and GitOps artifact `kyverno-gitops-log` |
-| Admission and runtime enforce provenance presence | Kyverno policy requires SLSA provenance attestation from a trusted issuer and workflow | `k8s/policies/cluster/verify-slsa.yaml` and GitOps `kyverno apply` output/log |
+| Admission and runtime enforce explicit provenance expectations | GitOps and Kyverno require the trusted builder, `https://slsa.dev/provenance/v0.2`, build type `https://github.com/slsa-framework/slsa-github-generator/container@v1`, workflow entry point `.github/workflows/ci-release-gate.yml`, GitHub event `push`, and tag-based source refs from this repository | `k8s/policies/cluster/verify-slsa.yaml`, `.github/workflows/gitops-enforce.yml`, and GitOps `kyverno apply` output/log |  
 
 Treat this table as the requirement-by-requirement source of truth. Update it whenever workflow jobs, predicate types, or admission policies change.
 
@@ -398,10 +398,20 @@ cosign verify "$IMAGE" \
 Verify SLSA provenance:
 
 ```bash
+export RELEASE_TAG="v1.2.3"
+
+slsa-verifier verify-image "$IMAGE" \
+  --builder-id "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml" \
+  --source-uri "github.com/agslima/software-delivery-pipeline" \
+  --source-tag "$RELEASE_TAG"
+
 cosign verify-attestation "$IMAGE" \
-  --type "https://slsa.dev/provenance/v1" \
-  --certificate-identity-regexp "^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\\.yml@refs/tags/v.*" \
-  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" | jq .payload -r | base64 -d | jq .
+  --type "https://slsa.dev/provenance/v0.2" \
+  --certificate-identity "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@refs/tags/v2.1.0" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  | jq -r '.[0].payload' \
+  | base64 -d \
+  | jq '{predicateType, buildType: .predicate.buildType, builder: .predicate.builder.id, configSource: .predicate.invocation.configSource, githubRef: .predicate.invocation.environment.github_ref, githubEvent: .predicate.invocation.environment.github_event_name}'
 ```
 
 Verify active rules:

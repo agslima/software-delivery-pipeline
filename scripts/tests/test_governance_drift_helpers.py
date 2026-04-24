@@ -543,10 +543,50 @@ def test_command_anchor_slug_for_complex_heading(capsys):
 
 
 def _load_cluster_policy(filename: str) -> dict:
-    """Load and parse a cluster policy YAML file."""
+    """
+    Load a Kubernetes ClusterPolicy YAML file from the repository policies directory and return its parsed contents.
+    
+    Returns:
+        policy (dict): Parsed YAML mapping representing the ClusterPolicy document.
+    """
     policy_path = K8S_POLICIES_DIR / filename
     with policy_path.open(encoding="utf-8") as fh:
         return yaml.safe_load(fh)
+
+
+def _first_attestation(filename: str) -> dict:
+    """
+    Retrieve the first attestation mapping from a cluster policy document.
+    
+    Parameters:
+        filename (str): Filename of the cluster policy YAML file (relative to the k8s/policies/cluster directory).
+    
+    Returns:
+        dict: The attestation mapping located at `spec.rules[0].verifyImages[0].attestations[0]`.
+    
+    Raises:
+        KeyError: If the loaded document does not contain the expected `spec.rules[0].verifyImages[0].attestations[0]` structure.
+    """
+    doc = _load_cluster_policy(filename)
+    return doc["spec"]["rules"][0]["verifyImages"][0]["attestations"][0]
+
+
+def _condition_map(filename: str) -> dict[str, dict]:
+    """
+    Build a mapping of attestation condition keys to their condition objects for the first attestation in the given policy file.
+    
+    Parameters:
+        filename (str): Name of the cluster policy YAML file located in the k8s/policies/cluster directory.
+    
+    Returns:
+        dict[str, dict]: A dictionary mapping each condition's `key` to the condition object from the attestation's `conditions[0].all` list.
+    """
+    attestation = _first_attestation(filename)
+    condition_group = attestation.get("conditions", [])[0]
+    return {
+        condition["key"]: condition
+        for condition in condition_group.get("all", [])
+    }
 
 
 @pytest.mark.parametrize("policy_file", [
@@ -670,13 +710,67 @@ def test_verify_sbom_uses_spdx_predicate_type():
 
 
 def test_verify_slsa_uses_slsa_predicate_type():
-    doc = _load_cluster_policy("verify-slsa.yaml")
-    predicate_types = []
-    for rule in doc["spec"].get("rules", []):
-        for verify_block in rule.get("verifyImages", []):
-            for attestation in verify_block.get("attestations", []):
-                predicate_types.append(attestation.get("predicateType", ""))
-    assert any("slsa.dev" in pt for pt in predicate_types)
+    attestation = _first_attestation("verify-slsa.yaml")
+    assert attestation.get("predicateType") == "https://slsa.dev/provenance/v0.2"
+
+
+def test_verify_slsa_trusts_pinned_container_generator_identity():
+    """
+    Asserts the SLSA attestation trusts a pinned GitHub Actions generator container identity.
+    
+    Checks that the first attestation's first attestor entry contains a `keyless.subjectRegExp`
+    exactly matching the pinned GitHub Actions generator container tag:
+    "^https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3\.yml@refs/tags/v2\.1\.0$"
+    """
+    attestation = _first_attestation("verify-slsa.yaml")
+    keyless = attestation["attestors"][0]["entries"][0]["keyless"]
+    assert keyless.get("subjectRegExp") == (
+        "^https://github.com/slsa-framework/slsa-github-generator/"
+        ".github/workflows/generator_container_slsa3\\.yml@refs/tags/v2\\.1\\.0$"
+    )
+
+
+def test_verify_slsa_requires_expected_build_contract_conditions():
+    """
+    Assert the SLSA cluster policy's first attestation enforces the expected build contract condition values.
+    
+    Verifies that the policy's condition map contains the following exact values:
+    - The builder id equals the pinned GitHub Actions generator release URL.
+    - The buildType equals the pinned generator container type URL.
+    - The invocation.configSource.entryPoint equals ".github/workflows/ci-release-gate.yml".
+    - The invocation.environment.github_event_name equals "push".
+    """
+    conditions = _condition_map("verify-slsa.yaml")
+    assert conditions["{{ payload.predicate.builder.id || '' }}"]["value"] == (
+        "https://github.com/slsa-framework/slsa-github-generator/"
+        ".github/workflows/generator_container_slsa3.yml@refs/tags/v2.1.0"
+    )
+    assert conditions["{{ payload.predicate.buildType || '' }}"]["value"] == (
+        "https://github.com/slsa-framework/slsa-github-generator/container@v1"
+    )
+    assert conditions["{{ payload.predicate.invocation.configSource.entryPoint || '' }}"]["value"] == (
+        ".github/workflows/ci-release-gate.yml"
+    )
+    assert conditions["{{ payload.predicate.invocation.environment.github_event_name || '' }}"]["value"] == "push"
+
+
+def test_verify_slsa_requires_tagged_repo_source_expectations():
+    conditions = _condition_map("verify-slsa.yaml")
+    matches = {
+        key: value
+        for key, value in conditions.items()
+        if "regex_match" in key
+    }
+    config_source = next(
+        value for key, value in matches.items()
+        if "payload.predicate.invocation.configSource.uri" in key
+    )
+    github_ref = next(
+        value for key, value in matches.items()
+        if "payload.predicate.invocation.environment.github_ref" in key
+    )
+    assert config_source["value"] is True
+    assert github_ref["value"] is True
 
 
 def test_verify_trivy_uses_trivy_predicate_type():
