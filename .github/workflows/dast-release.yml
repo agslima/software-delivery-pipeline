@@ -166,7 +166,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          VOL_PATH="$(pwd)/zap-out"In line 293, inplement the attestation of my image in GHCR too
+          VOL_PATH="$(pwd)/zap-out" 
 
           docker run --rm \
             --network host \
@@ -234,20 +234,20 @@ jobs:
       id-token: write
       attestations: write
     env:
-      ZAP_PREDICATE_TYPE: "https://security.sigstore.dev/attestation/dast/zap/v1"
+      ZAP_PREDICATE_TYPE: "https://security.sigstore.dev/attestations/dast/zap/v1"
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: backend
             image_repo: app-stayhealthy-backend
-            image_digest: ${{ inputs.image_digest_backend }}
+            image_digest: ${{ inputs.image_digest-backend }}
           - name: worker
             image_repo: app-stayhealthy-worker
-            image_digest: ${{ inputs.image_digest_worker }}
+            image_digest: ${{ inputs.image_digest-worker }}
           - name: frontend
             image_repo: app-stayhealthy-frontend
-            image_digest: ${{ inputs.image_digest_frontend }}
+            image_digest: ${{ inputs.image_digest-frontend }}
     steps:
       - name: Download DAST artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v4.1.8.0.1

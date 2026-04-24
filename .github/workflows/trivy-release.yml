@@ -78,17 +78,17 @@ jobs:
       - name: Scan Image (JSON)
         run: |
           set -euo pipefail
-          DIGEST="${{ matrix.image_digest }}"
+          DIGEST="${{ matrix.image-digest }}"
           IMAGE="docker.io/${{ secrets.dockerhub_username }}/${{ matrix.image_repo }}@$DIGEST"
           echo "Scanning $IMAGE"
 
           trivy image \
             --format json \
-            --output "trivy-${{ inputs.name }}.json" \
+            --output "trivy-${{ matrix.name }}.json" \
             "$IMAGE"
 
           # Explicit output checks (fail closed)
-          test -s "trivy-${{ inputs.name }}.json" || (echo "::error::Trivy JSON missing/empty"; exit 1)
+          test -s "trivy-${{ matrix.name }}.json" || (echo "::error::Trivy JSON missing/empty"; exit 1)
           jq -e '.Results? | type=="array"' "trivy-${{ matrix.name }}.json" >/dev/null
 
       - name: Upload Trivy Scan Artifact
@@ -100,13 +100,13 @@ jobs:
       - name: Gate (CRITICAL>0 or HIGH>5)
         run: |
           set -euo pipefail
-          FILE="trivy-${{ inputs.name }}.json"
+          FILE="trivy-${{ matrix.name }}.json"
           CRIT=$(jq '[.Results[]? | (.Vulnerabilities // [])[] | select(.Severity=="CRITICAL")] | length' "$FILE")
           HIGH=$(jq '[.Results[]? | (.Vulnerabilities // [])[] | select(.Severity=="HIGH")] | length' "$FILE")
           echo "CRITICAL=$CRIT HIGH=$HIGH"
 
           if [ "$CRIT" -gt 0 ] || [ "$HIGH" -gt 5 ]; then
-            echo "::error::⛔ Trivy Gate Failed for ${{ inputs.name }} (CRIT=$CRIT HIGH=$HIGH)"
+            echo "::error::⛔ Trivy Gate Failed for ${{ matrix.name }} (CRIT=$CRIT HIGH=$HIGH)"
             exit 1
           fi
           echo "✅ Trivy Gate Passed"
@@ -120,7 +120,7 @@ jobs:
       id-token: write
       attestations: write
     env:
-      TRIVY_PREDICATE_TYPE: "https://security.sigstore.dev/attestation/vuln/trivy/v1"
+      TRIVY_PREDICATE_TYPE: "https://security.sigstore.dev/attestations/vuln/trivy/v1"
       TRIVY_VERSION: "v0.68.2"
     strategy:
       fail-fast: false
@@ -147,7 +147,7 @@ jobs:
           username: ${{ secrets.dockerhub_username }}
           password: ${{ secrets.dockerhub_token }}
       - name: GHCR Login
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 `#v4.1.0`  
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 #v4.1.0  
         with:  
           registry: ghcr.io  
           username: ${{ secrets.ghcr_username }}  
@@ -162,7 +162,7 @@ jobs:
       - name: Read Digest
         run: |
           set -euo pipefail
-          DIGEST="${{ matrix.image_digest }}"
+          DIGEST="${{ matrix.image-digest }}"
           echo "DIGEST=$DIGEST" >> "$GITHUB_ENV"
           echo "DOCKER_IMAGE=docker.io/${{ secrets.dockerhub_username }}/${{ matrix.image_repo }}@$DIGEST" >> "$GITHUB_ENV"
           echo "GHCR_IMAGE=ghcr.io/${{ secrets.ghcr_username }}/${{ matrix.image_repo }}@$DIGEST" >> "$GITHUB_ENV"
