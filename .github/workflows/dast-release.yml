@@ -1,7 +1,53 @@
-dast-analysis:
+name: 'Generate SBOM and Attest'
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+###################################################################
+#                                                                 #
+#            Input and output argument definitions                #
+#                                                                 #
+###################################################################
+on:
+  workflow_call:
+    secrets:
+      registry_password:
+        description: 'Registry password or token for authentication'
+        required: true
+    inputs:
+      image_name:
+        description: 'Full image name (without tag or digest)'
+        required: true
+        type: string
+      image_digest:
+        description: 'Image digest (sha256:...)'
+        required: true
+        type: string
+      registry:
+        description: 'Target container registry (e.g., ghcr.io, docker.io)'
+        required: true
+        type: string
+      registry_username:
+        description: 'Registry username for authentication'
+        required: true
+        type: string
+      sbom-predicate-type:
+        description: 'Predicate type URI (e.g., https://spdx.dev/Document)'
+        required: false
+        type: string
+      sbom-repository:
+        description: 'Repository to save SBOM via Cosign'
+        required: false
+        type: string
+        
+jobs:
+  dast-analysis:
     name: DAST (Digest-based)
     runs-on: ubuntu-latest
-    needs: [ build-push-frontend, build-push-backend, build-push-worker ]
     permissions:
       contents: read
     env:
@@ -171,7 +217,7 @@ dast-analysis:
   sign-and-attest:
     name: Sign & Attest (Governed)
     runs-on: ubuntu-latest
-    needs: [ dast-analysis, trivy-scan ]
+    needs: [ dast-analysis]
     environment: production
     permissions:
       contents: read
@@ -183,13 +229,13 @@ dast-analysis:
         include:
           - name: backend
             image_repo: app-stayhealthy-backend
-            image_digest: ${{ needs.build-push-backend.outputs.image_digest }}
+            image_digest: ${{ inputs.image_digest_backend }}
           - name: worker
             image_repo: app-stayhealthy-worker
-            image_digest: ${{ needs.build-push-worker.outputs.image_digest }}
+            image_digest: ${{ inputs.image_digest_worker }}
           - name: frontend
             image_repo: app-stayhealthy-frontend
-            image_digest: ${{ needs.build-push-frontend.outputs.image_digest }}
+            image_digest: ${{ inputs.image_digest_backend }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
