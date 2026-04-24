@@ -202,7 +202,6 @@ jobs:
   trivy-scan:
     name: Trivy Scan (Digest Gate)
     needs: [ build-push-frontend, build-push-backend, build-push-worker ]
-    if: false
     permissions:
       contents: read
       packages: write # Used to push images to `ghcr.io` if used.
@@ -222,7 +221,6 @@ jobs:
   dast-analysis:
     name: DAST (Digest-based)
     needs: [ build-push-frontend, build-push-backend, build-push-worker ]
-    if: false
     permissions:
       contents: read
       id-token: write

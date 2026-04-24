@@ -10,7 +10,7 @@ on:
     workflows: ["Release"]
     types: [completed]
 permissions:
-      contents: read
+  contents: read
 
 concurrency:
   group: gitops-${{ github.event.workflow_run.id || github.event.inputs.run_id || github.run_id }}
@@ -288,19 +288,19 @@ jobs:
           verify_all "${{ env.WORKER_IMAGE }}"
           verify_all "${{ env.FRONTEND_IMAGE }}"
           echo "✅ All signatures & attestations verified."
-      - name: Update prod digests (candidate canary + full promotion for non-canary services)
+      - name: Update prod overlay digests
         run: |
           set -euo pipefail
           FILE="k8s/overlays/prod/kustomization.yaml"
           test -f "$FILE" || (echo "::error::Missing $FILE"; exit 1)
           yq -i '
-            (.images[] | select(.name == "docker.io/agslima/app-stayhealthy-backend") | .digest) = strenv(BACKEND_DIGEST)
+            (.images[] | select(.name == "index.docker.io/agslima/app-stayhealthy-backend") | .digest) = strenv(BACKEND_DIGEST)
           ' "$FILE"
           yq -i '
-            (.images[] | select(.name == "docker.io/agslima/app-stayhealthy-worker") | .digest) = strenv(WORKER_DIGEST)
+            (.images[] | select(.name == "index.docker.io/agslima/app-stayhealthy-worker") | .digest) = strenv(WORKER_DIGEST)
           ' "$FILE"
           yq -i '
-            (.images[] | select(.name == "docker.io/agslima/app-stayhealthy-frontend") | .digest) = strenv(FRONTEND_DIGEST)
+            (.images[] | select(.name == "index.docker.io/agslima/app-stayhealthy-frontend") | .digest) = strenv(FRONTEND_DIGEST)
           ' "$FILE"
           echo "✅ Updated prod overlay:"
           yq -r '.images[] | .name + " => " + .digest' "$FILE"
@@ -434,7 +434,7 @@ jobs:
             - Release Run: ${{ env.RELEASE_RUN_URL }}
             - Head SHA: `${{ env.RELEASE_SHA }}`
             **Pinned Images**
-            - Backend candidate canary: `${{ env.BACKEND_IMAGE }}`
+            - Backend digest: `${{ env.BACKEND_IMAGE }}`
             - Worker: `${{ env.WORKER_IMAGE }}`
             - Frontend: `${{ env.FRONTEND_IMAGE }}`
             **Rollout intent**
