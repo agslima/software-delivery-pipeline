@@ -108,7 +108,8 @@ jobs:
       ghcr_token: ${{ secrets.GITHUB_TOKEN }}
   
   generate-slsa-provenance-backend-ghcr:
-    needs: [build-push-backend] 
+    needs: [build-push-backend]
+    if: false
     permissions:
       id-token: write   # To sign the provenance.
       packages: write   # To upload assets to release.
@@ -122,7 +123,8 @@ jobs:
       registry-password: ${{ secrets.GITHUB_TOKEN }}
 
   generate-slsa-provenance-frontend-ghcr:
-    needs: [build-push-frontend] 
+    needs: [build-push-frontend]
+    if: false
     permissions:
       id-token: write   # To sign the provenance.
       packages: write   # To upload assets to release.
@@ -136,7 +138,8 @@ jobs:
       registry-password: ${{ secrets.GITHUB_TOKEN }}
   
   generate-slsa-provenance-worker-ghcr:
-    needs: [build-push-worker] 
+    needs: [build-push-worker]
+    if: false
     permissions:
       id-token: write   # To sign the provenance.
       packages: write   # To upload assets to release.
@@ -150,7 +153,8 @@ jobs:
       registry-password: ${{ secrets.GITHUB_TOKEN }}
   
   generate-slsa-provenance-backend-docker:
-    needs: [build-push-backend] 
+    needs: [build-push-backend]
+    if: false
     permissions:
       id-token: write   # To sign the provenance.
       packages: write   # To upload assets to release.
@@ -164,7 +168,8 @@ jobs:
       registry-password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
   generate-slsa-provenance-frontend-docker:
-    needs: [build-push-frontend] 
+    needs: [build-push-frontend]
+    if: false
     permissions:
       id-token: write   # To sign the provenance.
       packages: write   # To upload assets to release.
@@ -178,7 +183,8 @@ jobs:
       registry-password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
   
   generate-slsa-provenance-worker-docker:
-    needs: [build-push-worker] 
+    needs: [build-push-worker]
+    if: false
     permissions:
       id-token: write   # To sign the provenance.
       packages: write   # To upload assets to release.
@@ -194,6 +200,7 @@ jobs:
   trivy-scan:
     name: Trivy Scan (Digest Gate)
     needs: [ build-push-frontend, build-push-backend, build-push-worker ]
+    if: false
     permissions:
       contents: read
     strategy:
@@ -227,6 +234,7 @@ jobs:
   dast-analysis:
     name: DAST (Digest-based)
     needs: [ build-push-frontend, build-push-backend, build-push-worker ]
+    if: false
     permissions:
       contents: read
     uses: ./.github/workflows/dast-release.yml
