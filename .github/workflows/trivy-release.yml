@@ -186,11 +186,13 @@ jobs:
       - name: Trivy Attestations
         run: |
           cosign attest --yes \
+            --verbose \
             --predicate trivy-attestation.json \
             --type "${{ env.TRIVY_PREDICATE_TYPE }}" \
             "$DOCKER_IMAGE"
 
           cosign attest --yes \
+            --verbose \
             --predicate trivy-attestation.json \
             --type "${{ env.TRIVY_PREDICATE_TYPE }}" \
             "$GHCR_IMAGE"

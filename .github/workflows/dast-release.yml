@@ -300,11 +300,13 @@ jobs:
       - name: Push ZAP Attestations
         run: |
           cosign attest --yes \
+           --verbose \ 
             --predicate zap-attestation.json \
             --type "${{ env.ZAP_PREDICATE_TYPE }}" \
             "$DOCKER_IMAGE"
 
           cosign attest --yes \
+            --verbose \
             --predicate zap-attestation.json \
             --type "${{ env.ZAP_PREDICATE_TYPE }}" \
             "$GHCR_IMAGE"
