@@ -58,6 +58,14 @@ on:
         required: false
         type: string
         default: production
+      sbom-repository:
+        description: 'Container registry repository for SBOM artifacts (e.g. ghcr.io/owner/sbom)'
+        required: true
+        type: string
+      signature-repository:
+        description: 'Container registry repository for signature artifacts (e.g. ghcr.io/owner/signatures)'
+        required: true
+        type: string
     outputs:
       image-digest:
         description: "sha256 digest of container image"
@@ -161,8 +169,11 @@ jobs:
       - name: Sign Images with Cosign
         run: |
             set -euo pipefail
+
             echo "Signing starts: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
             echo "Signing DockerHub image: $DOCKERHUB_IMAGE"
+            export COSIGN_REPOSITORY="${{ inputs.signature-repository }}"
+            COSIGN_EXPERIMENTAL=1 \
             cosign sign --yes \
               --verbose \
               -a "repo=${{ github.repository }}" \
@@ -201,6 +212,8 @@ jobs:
           upload-release-assets: auto
             
       - name: Cosign SBOM attestation
+        env:
+          COSIGN_REPOSITORY: ${{ inputs.sbom-repository }}
         run: |
           # Define both registry targets that share the exact same image digest
           IMAGES=(
@@ -211,7 +224,6 @@ jobs:
             echo "Attesting SBOM to $IMAGE"
             cosign attest \
               --yes \
-              --verbose \
               --predicate "sbom-${{ inputs.image_repo }}.spdx.json" \
               --type spdxjson \
               "$IMAGE"

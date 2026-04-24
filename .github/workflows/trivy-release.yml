@@ -92,7 +92,7 @@ jobs:
           jq -e '.Results? | type=="array"' "trivy-${{ matrix.name }}.json" >/dev/null
 
       - name: Upload Trivy Scan Artifact
-        uses: actions/upload-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v4.1.8.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: trivy-results-${{ matrix.name }}
           path: trivy-${{ matrix.name }}.json
@@ -154,7 +154,7 @@ jobs:
           password: ${{ secrets.ghcr_token }} 
 
       - name: Download Trivy scan artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v4.1.8.0.1
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: trivy-results-${{ matrix.name }}
           path: trivy-downloads
@@ -186,13 +186,11 @@ jobs:
       - name: Trivy Attestations
         run: |
           cosign attest --yes \
-            --verbose \
             --predicate trivy-attestation.json \
             --type "${{ env.TRIVY_PREDICATE_TYPE }}" \
             "$DOCKER_IMAGE"
 
           cosign attest --yes \
-            --verbose \
             --predicate trivy-attestation.json \
             --type "${{ env.TRIVY_PREDICATE_TYPE }}" \
             "$GHCR_IMAGE"
