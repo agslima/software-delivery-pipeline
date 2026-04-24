@@ -325,7 +325,7 @@ Use this table during reviews to ensure governance controls remain mapped to act
 | Scheduled deep security evidence | `.github/workflows/ci-security-deep.yml` -> `security-governance` | Artifacts and SARIF generated; issue raised on failure |
 | Release vulnerability gate by immutable digest | `.github/workflows/ci-release-gate.yml` -> `trivy-scan` | Release blocks on policy thresholds (`CRITICAL > 0` or `HIGH > 5`) for backend, worker, and frontend images |
 | Release DAST gate | `.github/workflows/ci-release-gate.yml` -> `dast-analysis` | Release blocks on DAST gate criteria |
-| Artifact signing, SBOM, and provenance attestations | `.github/workflows/ci-release-gate.yml` -> `sign-and-attest` | Attestations bound to trusted workflow identity for each deployable image |
+| Artifact signing, SBOM, and provenance attestations | `.github/workflows/ci-release-gate.yml` -> `build-push-*`, `generate-slsa-provenance-*-*` | Attestations bound to trusted workflow identity for each deployable image |
 | GitOps promotion manifest validation | `.github/workflows/gitops-enforce.yml` -> `gitops` | Promotion PR creation stops if Kyverno CLI policy evaluation fails; worker/frontend digests advance directly and backend canary digest advances without implicitly promoting stable |
 | Backend release-in-progress governance | `k8s/overlays/prod/backend-rollout.yaml`; `docs/rollout-gates-policy.md`; `docs/canary-promotion-checklist.md` | Backend canary promotion requires explicit evidence, stable/canary distinction, and defined rollback triggers |
 
@@ -335,7 +335,7 @@ Current documented posture is **SLSA Build L2 with L3-aligned controls in progre
 
 Why this statement is defensible:
 
-- provenance is generated in the trusted release workflow via `actions/attest-build-provenance` and tied to immutable backend, worker, and frontend image digests
+- provenance is generated in the trusted release workflow via `slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0` and tied to immutable backend, worker, and frontend image digests
 - release builds, scanning gates, signing, and attestations run in hosted CI with workflow identity constraints
 - runtime and GitOps verification validate signature and required attestations, including SLSA provenance, before promotion or deployment
 - some SLSA L3 expectations, such as independently validated hermetic or reproducible builds, are not yet fully evidenced in this repository
@@ -344,10 +344,10 @@ The active sequencing and pilot record for those remaining L3-aligned controls l
 
 | SLSA requirement (build track) | Implemented control | Evidence source / workflow artifact |
 | :--- | :--- | :--- |
-| Provenance is generated for build outputs | `actions/attest-build-provenance` emits provenance for each release image digest | `.github/workflows/ci-release-gate.yml` (`sign-and-attest` job), registry attestation with predicate `https://slsa.dev/provenance/v1` |
+| Provenance is generated for build outputs | `slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0` emits provenance for each release image digest | `.github/workflows/ci-release-gate.yml` (`generate-slsa-provenance-*-*` jobs), registry attestation with predicate `https://slsa.dev/provenance/v1` |
 | Provenance is bound to immutable artifact identity | Build and promotion use digest-pinned images; attestations and signatures reference digest subjects for backend, worker, and frontend | `digest-*` artifacts from the release workflow and digest-based image references in GitOps promotion |
-| Trusted builder identity | OIDC-based keyless identity restricted to the release workflow on tag refs | Cosign verify identity regex in release verification and Kyverno `verify-slsa` policy subject regex |
-| Build steps are policy-gated before trust is granted | Trivy and ZAP release gates must pass before `sign-and-attest` runs | `.github/workflows/ci-release-gate.yml` (`trivy-scan`, `dast-analysis`, `sign-and-attest`) |
+| Trusted builder identity | OIDC-based keyless identity restricted to the SLSA container generator invoked by the release workflow on tag refs | Cosign verify identity regex in release verification and Kyverno `verify-slsa` policy subject regex |
+| Build steps are policy-gated before trust is granted | The repository security gate and image build jobs must pass before the provenance jobs run | `.github/workflows/ci-release-gate.yml` (`run-trivy`, `build-push-*`, `generate-slsa-provenance-*-*`) |
 | Non-falsifiable evidence retained for audit | Trivy and ZAP outputs, SBOMs, digests, and Kyverno logs uploaded as workflow artifacts | Release artifacts `trivy-results-*`, `zap-results`, `sbom-*`, `digest-*`, and GitOps artifact `kyverno-gitops-log` |
 | Admission and runtime enforce provenance presence | Kyverno policy requires SLSA provenance attestation from a trusted issuer and workflow | `k8s/policies/cluster/verify-slsa.yaml` and GitOps `kyverno apply` output/log |
 

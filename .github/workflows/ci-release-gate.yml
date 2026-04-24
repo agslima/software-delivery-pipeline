@@ -51,6 +51,7 @@ jobs:
       context: app
       file: app/docker/Dockerfile.server
       image_repo: app-stayhealthy-backend
+      digest_artifact_name: backend
       release_tag: ${{ needs.resolve.outputs.release_tag }}
       github_sha: ${{ github.sha }}
       platforms: linux/amd64
@@ -73,6 +74,7 @@ jobs:
       context: app
       file: app/docker/Dockerfile.client
       image_repo: app-stayhealthy-frontend
+      digest_artifact_name: frontend
       release_tag: ${{ needs.resolve.outputs.release_tag }}
       github_sha: ${{ github.sha }}
       platforms: linux/amd64
@@ -95,6 +97,7 @@ jobs:
       context: app
       file: app/docker/Dockerfile.worker
       image_repo: app-stayhealthy-worker
+      digest_artifact_name: worker
       release_tag: ${{ needs.resolve.outputs.release_tag }}
       github_sha: ${{ github.sha }}
       platforms: linux/amd64
@@ -106,14 +109,13 @@ jobs:
   
   generate-slsa-provenance-backend-ghcr:
     needs: [build-push-backend] 
-    if: false
     permissions:
       id-token: write   # To sign the provenance.
       packages: write   # To upload assets to release.
       actions: read     # To read the workflow path.
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
     with:
-      image: $ ghcr.io/${{ github.repository_owner }}/app-stayhealthy-backend
+      image: ghcr.io/${{ github.repository_owner }}/app-stayhealthy-backend
       digest: ${{ needs.build-push-backend.outputs.image-digest }}
       registry-username: ${{ github.repository_owner }}
     secrets:
@@ -121,14 +123,13 @@ jobs:
 
   generate-slsa-provenance-frontend-ghcr:
     needs: [build-push-frontend] 
-    if: false
     permissions:
       id-token: write   # To sign the provenance.
       packages: write   # To upload assets to release.
       actions: read     # To read the workflow path.
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
     with:
-      image: $ ghcr.io/${{ github.repository_owner }}/app-stayhealthy-frontend
+      image: ghcr.io/${{ github.repository_owner }}/app-stayhealthy-frontend
       digest: ${{ needs.build-push-frontend.outputs.image-digest }}
       registry-username: ${{ github.repository_owner }}
     secrets:
@@ -136,14 +137,13 @@ jobs:
   
   generate-slsa-provenance-worker-ghcr:
     needs: [build-push-worker] 
-    if: false
     permissions:
       id-token: write   # To sign the provenance.
       packages: write   # To upload assets to release.
       actions: read     # To read the workflow path.
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
     with:
-      image: $ ghcr.io/${{ github.repository_owner }}/app-stayhealthy-worker
+      image: ghcr.io/${{ github.repository_owner }}/app-stayhealthy-worker
       digest: ${{ needs.build-push-worker.outputs.image-digest }}
       registry-username: ${{ github.repository_owner }}
     secrets:
@@ -151,7 +151,6 @@ jobs:
   
   generate-slsa-provenance-backend-docker:
     needs: [build-push-backend] 
-    if: false
     permissions:
       id-token: write   # To sign the provenance.
       packages: write   # To upload assets to release.
@@ -162,11 +161,10 @@ jobs:
       digest: ${{ needs.build-push-backend.outputs.image-digest }}
       registry-username: ${{ vars.DOCKER_HUB_USERNAME }}
     secrets:
-      registry-password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }} 
-      
+      registry-password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+
   generate-slsa-provenance-frontend-docker:
     needs: [build-push-frontend] 
-    if: false
     permissions:
       id-token: write   # To sign the provenance.
       packages: write   # To upload assets to release.
@@ -181,7 +179,6 @@ jobs:
   
   generate-slsa-provenance-worker-docker:
     needs: [build-push-worker] 
-    if: false
     permissions:
       id-token: write   # To sign the provenance.
       packages: write   # To upload assets to release.
