@@ -1,4 +1,4 @@
-name: 'Generate SBOM and Attest'
+name: 'DAST Release' # Workflow for running DAST analysis on release candidates using pinned image digests
 
 permissions:
   contents: read
@@ -6,42 +6,54 @@ permissions:
 defaults:
   run:
     shell: bash
-
-###################################################################
-#                                                                 #
-#            Input and output argument definitions                #
-#                                                                 #
-###################################################################
 on:
   workflow_call:
     secrets:
-      registry_password:
-        description: 'Registry password or token for authentication'
+      ghcr_username:
+        description: 'GitHub Username/Repository Owner'
+        required: true
+      ghcr_token:
+        description: 'GitHub Token for GHCR authentication'
+        required: true
+      dockerhub_username:
+        description: 'Docker Hub username'
+        required: true
+      dockerhub_token:
+        description: 'Docker Hub access token'
+        required: true
+      JWT_SECRET:
+        description: 'JWT secret for the application (used in DAST environment)'
+        required: true
+      ADMIN_PASS:
+        description: 'Admin password for the application'
+        required: true
+      DB_PASS:
+        description: 'Database password for the application'
+        required: true
+      DATA_ENCRYPTION_KEY:
+        description: 'Data encryption key for the application'
+        required: true
+      ADMIN_USER:
+        description: 'Admin username for the application'
+        required: true
+      DB_USER:
+        description: 'Database username for the application'
+        required: true
+      DB_NAME:
+        description: 'Database name for the application'
         required: true
     inputs:
-      image_name:
-        description: 'Full image name (without tag or digest)'
+      image-digest-backend:
+        description: 'Backend image digest (sha256:...)'
         required: true
         type: string
-      image_digest:
-        description: 'Image digest (sha256:...)'
+      image-digest-frontend:
+        description: 'Frontend image digest (sha256:...)'
         required: true
         type: string
-      registry:
-        description: 'Target container registry (e.g., ghcr.io, docker.io)'
+      image-digest-worker:
+        description: 'Worker image digest (sha256:...)'
         required: true
-        type: string
-      registry_username:
-        description: 'Registry username for authentication'
-        required: true
-        type: string
-      sbom-predicate-type:
-        description: 'Predicate type URI (e.g., https://spdx.dev/Document)'
-        required: false
-        type: string
-      sbom-repository:
-        description: 'Repository to save SBOM via Cosign'
-        required: false
         type: string
         
 jobs:
@@ -60,11 +72,10 @@ jobs:
       COMPOSE_PROJECT_NAME: dast-${{ github.run_id }}-${{ github.run_attempt }} 
 
     steps:
-      - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 #v4.1.0
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
         with:
-          username: ${{ secrets.DOCKER_HUB_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
-
+          egress-policy: audit
       - name: Set Variables + Compose Secrets (file-based)
         working-directory: app
         run: |
@@ -77,9 +88,9 @@ jobs:
           rm -rf "$SECRETS_DIR"
           mkdir -p "$SECRETS_DIR"
           {
-            echo "ADMIN_USER=${{ vars.ADMIN_USER }}"
-            echo "DB_USER=${{ vars.DB_USER }}"
-            echo "DB_NAME=${{ vars.DB_NAME }}"
+            echo "ADMIN_USER=${{ secrets.ADMIN_USER }}"
+            echo "DB_USER=${{ secrets.DB_USER }}"
+            echo "DB_NAME=${{ secrets.DB_NAME }}"
             echo "COMPOSE_PROJECT_NAME=${{ env.COMPOSE_PROJECT_NAME }}"
             echo "SECRETS_PATH=${SECRETS_DIR}"
           } >> "$ENV_FILE"
@@ -99,13 +110,13 @@ jobs:
         run: |
           set -euo pipefail
 
-          BACKEND_DIGEST="$(cat ../digests/digest-backend)"
-          WORKER_DIGEST="$(cat ../digests/digest-worker)"
-          FRONTEND_DIGEST="$(cat ../digests/digest-frontend)"
+          BACKEND_DIGEST="${{ inputs.image-digest-backend }}"
+          WORKER_DIGEST="${{ inputs.image-digest-worker }}"
+          FRONTEND_DIGEST="${{ inputs.image-digest-frontend }}"
 
-          export BACKEND_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-backend@$BACKEND_DIGEST"
-          export WORKER_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-worker@$WORKER_DIGEST"
-          export FRONTEND_IMAGE="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-frontend@$FRONTEND_DIGEST"
+          export BACKEND_IMAGE="docker.io/${{ secrets.dockerhub_username }}/app-stayhealthy-backend@$BACKEND_DIGEST"
+          export WORKER_IMAGE="docker.io/${{ secrets.dockerhub_username }}/app-stayhealthy-worker@$WORKER_DIGEST"
+          export FRONTEND_IMAGE="docker.io/${{ secrets.dockerhub_username }}/app-stayhealthy-frontend@$FRONTEND_DIGEST"
 
           echo "BACKEND_IMAGE=$BACKEND_IMAGE"
           echo "WORKER_IMAGE=$WORKER_IMAGE"
@@ -155,7 +166,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          VOL_PATH="$(pwd)/zap-out"
+          VOL_PATH="$(pwd)/zap-out"In line 293, inplement the attestation of my image in GHCR too
 
           docker run --rm \
             --network host \
@@ -205,8 +216,8 @@ jobs:
         run: |
           set -euo pipefail
           rm -f .env
-          if [ -n "${COMPOSE_SECRETS_DIR:-}" ] && [ -d "${COMPOSE_SECRETS_DIR:-}" ]; then
-            rm -rf "${COMPOSE_SECRETS_DIR}"
+          if [ -n "${SECRETS_DIR:-}" ] && [ -d "${SECRETS_DIR:-}" ]; then
+            rm -rf "${SECRETS_DIR}"
           fi
 
       - name: Teardown
@@ -218,11 +229,12 @@ jobs:
     name: Sign & Attest (Governed)
     runs-on: ubuntu-latest
     needs: [ dast-analysis]
-    environment: production
     permissions:
       contents: read
       id-token: write
       attestations: write
+    env:
+      ZAP_PREDICATE_TYPE: "https://security.sigstore.dev/attestation/dast/zap/v1"
     strategy:
       fail-fast: false
       matrix:
@@ -235,57 +247,64 @@ jobs:
             image_digest: ${{ inputs.image_digest_worker }}
           - name: frontend
             image_repo: app-stayhealthy-frontend
-            image_digest: ${{ inputs.image_digest_backend }}
+            image_digest: ${{ inputs.image_digest_frontend }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
+      - name: Download DAST artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v4.1.8.0.1
         with:
-          fetch-depth: 0
-          ref: ${{ needs.resolve.outputs.release_tag }}
+          name: zap-results
+          path: zap-downloads
 
       - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 #v4.1.0
         with:
-          username: ${{ secrets.DOCKER_HUB_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+          username: ${{ secrets.dockerhub_username }}
+          password: ${{ secrets.dockerhub_token }}
+
+      - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 #v4.1.0
+        with:
+          registry: ghcr.io
+          username: ${{ secrets.ghcr_username }}
+          password: ${{ secrets.ghcr_token }}
 
       - uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 #v4.1.1
-
 
       - name: Read Digest
         run: |
           set -euo pipefail
-          DIGEST="$(cat digests/digest-${{ matrix.image_digest }})"
+          DIGEST="${{ matrix.image_digest }}"
           echo "DIGEST=$DIGEST" >> "$GITHUB_ENV"
-          echo "IMAGE=docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@$DIGEST" >> "$GITHUB_ENV"
+          echo "DOCKER_IMAGE=docker.io/${{ secrets.dockerhub_username }}/${{ matrix.image_repo }}@$DIGEST" >> "$GITHUB_ENV"
+          echo "GHCR_IMAGE=ghcr.io/${{ secrets.ghcr_username }}/${{ matrix.image_repo }}@$DIGEST" >> "$GITHUB_ENV"
 
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v4.1.8.0.1
-        with:
-          name: trivy-results-${{ matrix.name }}
-
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v4.1.8.0.1
-        with:
-          name: zap-results
-          path: zap-downloads
-        
-      - name: Create & Push Trivy Attestation (from scan artifact)
+      - name: Create ZAP Attestation (from DAST artifacts)
         run: |
           set -euo pipefail
-          FILE="trivy-${{ matrix.name }}.json"
-          test -s "$FILE" || (echo "::error::Missing trivy JSON"; exit 1)
+          FE="zap-downloads/zap-frontend.json"
+          BE="zap-downloads/zap-backend.json"
+          test -s "$FE" || (echo "::error::Missing ZAP FE json"; exit 1)
+          test -s "$BE" || (echo "::error::Missing ZAP BE json"; exit 1)
 
-          jq '
-            ([.Results[]? | (.Vulnerabilities // [])[] | select(.Severity=="CRITICAL")] | length) as $crit |
-            ([.Results[]? | (.Vulnerabilities // [])[] | select(.Severity=="HIGH")] | length) as $high |
+          HIGH_FE=$(jq '[.site[]? | .alerts[]? | select(.riskcode=="3")] | length' "$FE")
+          HIGH_BE=$(jq '[.site[]? | .alerts[]? | select(.riskcode=="3")] | length' "$BE")
+          HIGH=$((HIGH_FE + HIGH_BE))
+
+          jq -n --argjson high "$HIGH" '
             {
-              scanner: { name: "trivy", version: env.TRIVY_VERSION, uri: "https://github.com/aquasecurity/trivy" },
-              summary: { critical: $crit, high: $high },
-              result: (if ($crit > 0 or $high > 5) then "FAIL" else "PASS" end),
+              scanner: { name: "owasp-zap", uri: "https://www.zaproxy.org/" },
+              summary: { high: $high },
+              result: (if ($high > 0) then "FAIL" else "PASS" end),
               timestamp: (now | todate)
             }
-          ' "$FILE" > trivy-attestation.json
-      - name: Trivy Attestation (from scan artifact)
+          ' > zap-attestation.json
+
+      - name: Push ZAP Attestations
         run: |
           cosign attest --yes \
-            --predicate trivy-attestation.json \
-            --type "${{ env.TRIVY_PREDICATE_TYPE }}" \
-            "$IMAGE"  
-      
+            --predicate zap-attestation.json \
+            --type "${{ env.ZAP_PREDICATE_TYPE }}" \
+            "$DOCKER_IMAGE"
+
+          cosign attest --yes \
+            --predicate zap-attestation.json \
+            --type "${{ env.ZAP_PREDICATE_TYPE }}" \
+            "$GHCR_IMAGE"

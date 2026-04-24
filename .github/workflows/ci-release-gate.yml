@@ -13,8 +13,7 @@ concurrency:
 jobs:
   resolve:
     name: Resolve Release Tag
-    runs-on: ubuntu-latest
-    environment: production
+    runs-on: ubuntu-latest    
     permissions:
       contents: read
     outputs:
@@ -48,6 +47,7 @@ jobs:
       attestations: write
     uses: ./.github/workflows/build-push-dual-registry.yml
     with:
+      environment: production
       context: app
       file: app/docker/Dockerfile.server
       image_repo: app-stayhealthy-backend
@@ -71,6 +71,7 @@ jobs:
       attestations: write 
     uses: ./.github/workflows/build-push-dual-registry.yml
     with:
+      environment: production
       context: app
       file: app/docker/Dockerfile.client
       image_repo: app-stayhealthy-frontend
@@ -94,6 +95,7 @@ jobs:
       attestations: write
     uses: ./.github/workflows/build-push-dual-registry.yml
     with:
+      environment: production
       context: app
       file: app/docker/Dockerfile.worker
       image_repo: app-stayhealthy-worker
@@ -203,33 +205,19 @@ jobs:
     if: false
     permissions:
       contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: backend
-            image_repo: app-stayhealthy-backend
-            image_digest: ${{ needs.build-push-backend.outputs.image_digest }}
-            exposure: public
-            criticality: high            
-          - name: worker
-            image_repo: app-stayhealthy-worker
-            image_digest: ${{ needs.build-push-worker.outputs.image_digest }}
-            exposure: internal
-            criticality: medium
-          - name: fronend
-            image_repo: app-stayhealthy-frontend
-            image_digest: ${{ needs.build-push-frontend.outputs.image_digest }}
-            exposure: public
-            criticality: medium      
+      packages: write # Used to push images to `ghcr.io` if used.
+      id-token: write # Needed to create an OIDC token for keyless signing
+      attestations: write # Needed to upload attestations to the GitHub registry      
     uses: ./.github/workflows/trivy-release.yml
     with:
-      image_repo: ${{ matrix.image_repo }}
-      digest_artifact_name: ${{ matrix.image_digest }}
+      image-digest-backend: ${{ inputs.build-push-backend.image-digest }}
+      image-digest-frontend: ${{ inputs.build-push-frontend.image-digest }}
+      image-digest-worker: ${{ inputs.build-push-worker.image-digest }}
     secrets:
       dockerhub_username: ${{ vars.DOCKER_HUB_USERNAME }}
-      dockerhub_token: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}    
-      
+      dockerhub_token: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+      ghcr_username: ${{ github.repository_owner }}
+      ghcr_token: ${{ secrets.GITHUB_TOKEN }}
      
   dast-analysis:
     name: DAST (Digest-based)
@@ -237,10 +225,26 @@ jobs:
     if: false
     permissions:
       contents: read
+      id-token: write
+      packages: write # Used to pull images from `ghcr.io` if used.
+      attestations: write
     uses: ./.github/workflows/dast-release.yml
     with:
-      fetch-depth: 0
-      ref: ${{ needs.resolve.outputs.release_tag }}
+      image-digest-backend: ${{ inputs.build-push-backend.image-digest }}
+      image-digest-frontend: ${{ inputs.build-push-frontend.image-digest }}
+      image-digest-worker: ${{ inputs.build-push-worker.image-digest }}
+    secrets:
+      dockerhub_username: ${{ vars.DOCKER_HUB_USERNAME }}
+      dockerhub_token: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+      ghcr_username: ${{ github.repository_owner }}
+      ghcr_token: ${{ secrets.GITHUB_TOKEN }}
+      ADMIN_PASS: ${{ vars.ADMIN_PASS }}
+      DB_PASS: ${{ vars.DB_PASS }}
+      DB_USER: ${{ vars.DB_USER }}
+      DB_NAME: ${{ vars.DB_NAME }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      DATA_ENCRYPTION_KEY: ${{ secrets.DATA_ENCRYPTION_KEY }}
+      ADMIN_USER: ${{ vars.ADMIN_USER }}
 
 
       

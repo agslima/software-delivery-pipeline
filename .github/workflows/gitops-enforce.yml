@@ -91,6 +91,7 @@ jobs:
       SLSA_ATTESTATION_BUILDER_ID: "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@refs/tags/v2.1.0"
       SLSA_BUILD_TYPE: "https://github.com/slsa-framework/slsa-github-generator/container@v1"
       SLSA_WORKFLOW_ENTRYPOINT: ".github/workflows/ci-release-gate.yml"
+      BUILD_WORKFLOW_PATH: ".github/workflows/build-push-dual-registry.yml"
       OIDC_ISSUER: "https://token.actions.githubusercontent.com"
       YQ_VERSION: "v4.44.3"
     steps:
@@ -224,13 +225,13 @@ jobs:
             echo "🔐 Verifying signature for $IMAGE"
             cosign verify "$IMAGE" \
               --certificate-oidc-issuer "${{ env.OIDC_ISSUER }}" \
-              --certificate-identity-regexp "^https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate.yml@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$"
+              --certificate-identity-regexp "^https://github.com/${{ github.repository }}/${{ env.BUILD_WORKFLOW_PATH }}@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$"
             
             echo "🧾 Verifying SBOM attestation..."
             cosign verify-attestation "$IMAGE" \
               --type "${{ env.SBOM_PREDICATE_TYPE }}" \
               --certificate-oidc-issuer "${{ env.OIDC_ISSUER }}" \
-              --certificate-identity-regexp "^https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate.yml@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$" \
+              --certificate-identity-regexp "^https://github.com/${{ github.repository }}/${{ env.BUILD_WORKFLOW_PATH }}@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$" \
               > /dev/null
 
             echo "🧾 Verifying SLSA provenance attestation identity..."

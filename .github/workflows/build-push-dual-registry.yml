@@ -53,6 +53,11 @@ on:
         description: 'Container platforms'
         required: true
         type: string
+      environment:
+        description: 'Target GitHub environment for the build job (optional; use for environment context/protection)'
+        required: false
+        type: string
+        default: production
     outputs:
       image-digest:
         description: "sha256 digest of container image"
@@ -64,6 +69,8 @@ jobs:
       contents: read
       packages: write # Used to push images to `ghcr.io` if used.
       id-token: write # Needed to create an OIDC token for keyless signing
+    # This job uses the caller-provided GitHub environment value.
+    environment: ${{ inputs.environment }}
     runs-on: ubuntu-24.04
     outputs:  
       image-digest: ${{ steps.build.outputs.digest }}
@@ -122,7 +129,7 @@ jobs:
           provenance: false
           sbom: false
           labels: |
-            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.revision=${{ inputs.github_sha }}
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.version=${{ inputs.release_tag }}
           build-args: |
@@ -132,9 +139,9 @@ jobs:
             GIT_TREE_STATE=${{ env.GIT_TREE_STATE }}
           tags: |
             docker.io/${{ secrets.dockerhub_username }}/${{ inputs.image_repo }}:${{ inputs.release_tag }}
-            docker.io/${{ secrets.dockerhub_username }}/${{ inputs.image_repo }}:${{ github.sha }}
+            docker.io/${{ secrets.dockerhub_username }}/${{ inputs.image_repo }}:${{ inputs.github_sha }}
             ghcr.io/${{ github.repository_owner }}/${{ inputs.image_repo }}:${{ inputs.release_tag }}
-            ghcr.io/${{ github.repository_owner }}/${{ inputs.image_repo }}:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/${{ inputs.image_repo }}:${{ inputs.github_sha }}
       - name: Export Digest Artifact
         run: |
           set -euo pipefail
@@ -161,7 +168,7 @@ jobs:
               -a "repo=${{ github.repository }}" \
               -a "workflow=${{ github.workflow }}" \
               -a "workflow_ref=${{ github.workflow_ref }}" \
-              -a "ref=${{ github.sha }}" \
+              -a "ref=${{ inputs.github_sha }}" \
               "$DOCKERHUB_IMAGE"
               
             echo "Signing GHCR image: $GHCR_IMAGE"
@@ -170,7 +177,7 @@ jobs:
               -a "repo=${{ github.repository }}" \
               -a "workflow=${{ github.workflow }}" \
               -a "workflow_ref=${{ github.workflow_ref }}" \
-              -a "ref=${{ github.sha }}" \
+              -a "ref=${{ inputs.github_sha }}" \
               "$GHCR_IMAGE"
               
             echo "Signing finished: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
