@@ -39,8 +39,6 @@ jobs:
   trivy-release-scan:
     permissions:
       contents: read
-      packages: write # Used to push images to `ghcr.io` if used.
-      id-token: write # Needed to create an OIDC token for keyless signing
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -110,6 +108,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      packages: write
       attestations: write
     env:
       TRIVY_PREDICATE_TYPE: "https://security.sigstore.dev/attestations/vuln/trivy/v1"
