@@ -20,7 +20,6 @@ on:
       dockerhub_token:
         description: 'Docker Hub access token'
         required: true
-    
     inputs:
       image-digest-backend:
         description: 'Backend image digest (sha256:...)'
@@ -37,6 +36,8 @@ on:
 
 jobs:
   trivy-release-scan:
+    snapshot: Run Trivy Image
+    timeout-minutes: 15
     permissions:
       contents: read
     runs-on: ubuntu-24.04
@@ -72,13 +73,17 @@ jobs:
       - name: Scan Image (JSON)
         run: |
           set -euo pipefail
-          DIGEST="${{ matrix.image-digest }}"
-          IMAGE="docker.io/${{ secrets.dockerhub_username }}/${{ matrix.image_repo }}@$DIGEST"
+    
+          IMAGE="docker.io/${{ secrets.dockerhub_username }}/${{ matrix.image_repo }}@${{ matrix.image-digest }}"
+          docker pull "$IMAGE" --dry-run 2>/dev/null || \
+          (echo "::error::Image not found: $IMAGE"; exit 1)
+          
           echo "Scanning $IMAGE"
           trivy image \
             --format json \
             --output "trivy-${{ matrix.name }}.json" \
             "$IMAGE"
+          
           # Explicit output checks (fail closed)
           test -s "trivy-${{ matrix.name }}.json" || (echo "::error::Trivy JSON missing/empty"; exit 1)
           jq -e '.Results? | type=="array"' "trivy-${{ matrix.name }}.json" >/dev/null
@@ -103,6 +108,8 @@ jobs:
           
   sign-and-attest:
     name: Sign & Attest
+    timeout-minutes: 10
+    if: success()  # Ensure all scans passed
     runs-on: ubuntu-latest
     needs: [ trivy-release-scan ]
     permissions:
@@ -175,19 +182,25 @@ jobs:
         run: |
           set -euo pipefail
           echo "Signing starts: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-          IMAGES=(
-            "${{ env.DOCKER_IMAGE }}"
-            "${{ env.GHCR_IMAGE }}"
-          )
+          IMAGES=("${{ env.DOCKER_IMAGE }}" "${{ env.GHCR_IMAGE }}")
+          
+          FAILURES=()
           for IMAGE in "${IMAGES[@]}"; do
             echo "Attest image: $IMAGE"
             REPO_PATH=$(echo "$IMAGE" | cut -d'@' -f1)
             export COSIGN_REPOSITORY="$REPO_PATH"
-            cosign attest \
-              --yes \
+            if cosign attest --yes \
               --predicate trivy-attestation.json \
               --type "${{ env.TRIVY_PREDICATE_TYPE }}" \
-              "$IMAGE"
+              "$IMAGE"; then
+              echo "✅ Attested: $IMAGE"
+            else
+              FAILURES+=("$IMAGE")
+            fi
           done
+          if [ ${#FAILURES[@]} -gt 0 ]; then
+            echo "::error::Failed to attest: ${FAILURES[*]}"
+            exit 1
+          fi
           echo "Attestation finished: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           
