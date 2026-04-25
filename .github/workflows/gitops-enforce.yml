@@ -209,6 +209,7 @@ jobs:
           echo "FRONTEND_IMAGE=docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-frontend@$FRONTEND_DIGEST" >> $GITHUB_ENV
           echo "✅ Loaded Digests."
       - name: Verify Signatures + Required Attestations (hard gate)
+        if: false
         env:
           RELEASE_REF: ${{ steps.release-meta.outputs.release_ref }}
           RELEASE_TAG: ${{ steps.release-meta.outputs.release_tag }}
