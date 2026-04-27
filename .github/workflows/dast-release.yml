@@ -69,9 +69,9 @@ jobs:
       ADMIN_USER: ${{ secrets.admin_user }}
       DB_USER: ${{ secrets.db_user }}
       DB_NAME: ${{ secrets.db_name }}
-      IMAGE-DIGEST-BACKEND: ${{ inputs.image-digest-backend }}
-      IMAGE-DIGEST-FRONTEND: ${{ inputs.image-digest-frontend }}
-      IMAGE-DIGEST-WORKER: ${{ inputs.image-digest-worker }}
+      IMAGE_DIGEST_BACKEND: ${{ inputs.image-digest-backend }}
+      IMAGE_DIGEST_FRONTEND: ${{ inputs.image-digest-frontend }}
+      IMAGE_DIGEST_WORKER: ${{ inputs.image-digest-worker }}
       ZAP_IMG: ghcr.io/zaproxy/zaproxy@sha256:4bef6bcb753a95aa2f69f36e400a77dcc47ced2d10d26902d52f616fa292f5e1 # v2.17.0
       ZAP_TARGET_FRONTEND: "http://127.0.0.1:4173"
       ZAP_TARGET_BACKEND: "http://127.0.0.1:8080"
@@ -96,6 +96,12 @@ jobs:
           rm -f "$ENV_FILE"
           rm -rf "$SECRETS_DIR"
           mkdir -p "$SECRETS_DIR"
+          #Log
+          echo "ADMIN_USER=${ADMIN_USER}"
+          echo "DB_USER=${DB_USER}"
+          echo "DB_NAME=${DB_NAME}"
+          echo "COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME}"
+          echo "SECRETS_PATH=${SECRETS_DIR}"
           {
             echo "ADMIN_USER=${ADMIN_USER}"
             echo "DB_USER=${DB_USER}"
@@ -115,9 +121,9 @@ jobs:
         working-directory: app
         run: |
           set -euo pipefail
-          BACKEND_DIGEST="${IMAGE-DIGEST-BACKEND}"
-          WORKER_DIGEST="${IMAGE-DIGEST-WORKER}"
-          FRONTEND_DIGEST="${IMAGE-DIGEST-FRONTEND}"
+          BACKEND_DIGEST="${IMAGE_DIGEST_BACKEND}"
+          WORKER_DIGEST="${IMAGE_DIGEST_WORKER}"
+          FRONTEND_DIGEST="${IMAGE_DIGEST_FRONTEND}"
           export BACKEND_IMAGE="docker.io/${DOCKER_USERNAME}/app-stayhealthy-backend@${BACKEND_DIGEST}"
           export WORKER_IMAGE="docker.io/${DOCKER_USERNAME}/app-stayhealthy-worker@${WORKER_DIGEST}"
           export FRONTEND_IMAGE="docker.io/${DOCKER_USERNAME}/app-stayhealthy-frontend@${FRONTEND_DIGEST}"
@@ -256,27 +262,6 @@ jobs:
           echo "DIGEST=$DIGEST" >> "$GITHUB_ENV"
           echo "DOCKER_IMAGE=docker.io/${{ secrets.dockerhub_username }}/${{ matrix.image_repo }}@$DIGEST" >> "$GITHUB_ENV"
           echo "GHCR_IMAGE=ghcr.io/${{ secrets.ghcr_username }}/${{ matrix.image_repo }}@$DIGEST" >> "$GITHUB_ENV"
-      - name: Create ZAP Attestation (from DAST artifacts)
-        if: false # This step will be removed later
-        run: |
-          set -euo pipefail
-          FE="zap-downloads/zap-frontend.json"
-          BE="zap-downloads/zap-backend.json"
-          test -s "$FE" || (echo "::error::Missing ZAP FE json"; exit 1)
-          test -s "$BE" || (echo "::error::Missing ZAP BE json"; exit 1)
-
-          HIGH_FE=$(jq '[.site[]? | .alerts[]? | select(.riskcode=="3")] | length' "$FE")
-          HIGH_BE=$(jq '[.site[]? | .alerts[]? | select(.riskcode=="3")] | length' "$BE")
-          HIGH=$((HIGH_FE + HIGH_BE))
-
-          jq -n --argjson high "$HIGH" '
-            {
-              scanner: { name: "owasp-zap", uri: "https://www.zaproxy.org/" },
-              summary: { high: $high },
-              result: (if ($high > 0) then "FAIL" else "PASS" end),
-              timestamp: (now | todate)
-            }
-          ' > zap-attestation.json
       - name: Create ZAP Attestation (from DAST artifacts)
         run: |
           set -euo pipefail
