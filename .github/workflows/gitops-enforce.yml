@@ -246,7 +246,7 @@ jobs:
 
             echo "🧾 Verifying ZAP attestation..."
             cosign verify-attestation "$IMAGE" \
-              --type "${{ZAP_PREDICATE_TYPE}" \
+              --type "${ZAP_PREDICATE_TYPE}" \
               --certificate-oidc-issuer "${OIDC_ISSUER}" \
               --certificate-identity-regexp "^https://github.com/${{ github.repository }}/${ZAP_WORKFLOW_PATH}@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$" \
               > /dev/null
