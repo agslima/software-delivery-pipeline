@@ -104,6 +104,13 @@ jobs:
           rm -f "$ENV_FILE"
           rm -rf "$SECRETS_DIR"
           mkdir -p "$SECRETS_DIR"
+
+          ## Log env vars (without secrets) for debugging - should not contain sensitive info
+          echo "ADMIN_USER=${ADMIN_USER}"
+          echo "DB_USER=${DB_USER}"
+          echo "DB_NAME=${DB_NAME}"
+          echo "COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME}"
+          echo "SECRETS_PATH=${SECRETS_DIR}"
           {
             echo "ADMIN_USER=${ADMIN_USER}"
             echo "DB_USER=${DB_USER}"
