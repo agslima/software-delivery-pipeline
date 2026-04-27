@@ -59,11 +59,10 @@ jobs:
       admin_user: ${{ vars.ADMIN_USER }}
       db_user: ${{ vars.DB_USER }}
       db_name: ${{ vars.DB_NAME }}
-
     secrets:
       dockerhub_token: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
       ghcr_token: ${{ secrets.GITHUB_TOKEN }}
-      admin_pass: ${{ vars.ADMIN_PASS }}
-      db_pass: ${{ vars.DB_PASS }}
+      admin_pass: ${{ secrets.ADMIN_PASS }}
+      db_pass: ${{ secrets.DB_PASS }}
       jwt_secret: ${{ secrets.JWT_SECRET }}
       data_encryption_key: ${{ secrets.DATA_ENCRYPTION_KEY }}
