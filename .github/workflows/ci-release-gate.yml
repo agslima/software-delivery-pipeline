@@ -237,15 +237,16 @@ jobs:
       image-digest-backend: ${{ needs.build-push-backend.outputs.image-digest }}
       image-digest-frontend: ${{ needs.build-push-frontend.outputs.image-digest }}
       image-digest-worker: ${{ needs.build-push-worker.outputs.image-digest }}
+      DB_USER: ${{ vars.DB_USER }}
+      DB_NAME: ${{ vars.DB_NAME }}
     secrets:
       dockerhub_username: ${{ vars.DOCKER_HUB_USERNAME }}
       dockerhub_token: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
       ghcr_username: ${{ github.repository_owner }}
       ghcr_token: ${{ secrets.GITHUB_TOKEN }}
-      ADMIN_PASS: ${{ vars.ADMIN_PASS }}
-      DB_PASS: ${{ vars.DB_PASS }}
-      DB_USER: ${{ vars.DB_USER }}
-      DB_NAME: ${{ vars.DB_NAME }}
+      ADMIN_PASS: ${{ secrets.ADMIN_PASS }}
+      DB_PASS: ${{ secrets.DB_PASS }}
+      
       JWT_SECRET: ${{ secrets.JWT_SECRET }}
       DATA_ENCRYPTION_KEY: ${{ secrets.DATA_ENCRYPTION_KEY }}
       ADMIN_USER: ${{ vars.ADMIN_USER }}

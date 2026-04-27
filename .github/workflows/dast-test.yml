@@ -1,0 +1,68 @@
+name: "Test Release (DAST)"
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to build and publish (e.g., v1.2.3)'
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    name: Resolve Release Tag
+    runs-on: ubuntu-latest    
+    permissions:
+      contents: read
+    outputs:
+      release_tag: ${{ steps.tag.outputs.release_tag }}
+    steps:
+      - name: Set Release Tag
+        id: tag
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            test -n "$INPUT_TAG" || { echo "::error::tag input required"; exit 1; }
+            [[ "$INPUT_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::Invalid tag: $INPUT_TAG"; exit 1; }
+            echo "release_tag=$INPUT_TAG" >> "$GITHUB_OUTPUT"
+          else
+            echo "release_tag=$REF_NAME" >> "$GITHUB_OUTPUT"
+          fi
+  
+  dast-analysis:
+    name: DAST (Digest-based)
+    needs: [ build-push-frontend, build-push-backend, build-push-worker ]
+    permissions:
+      contents: read
+      id-token: write
+      packages: write # Used to pull images from `ghcr.io` if used.
+      attestations: write
+    uses: ./.github/workflows/dast-release.yml
+    with:
+      image-digest-backend: sha256:f67246ab58ee1e3f61494bedc98c39abc849971cacf74440d6809c61f6b12ae4
+      image-digest-frontend: sha256:84083dabe7bf0cc5ed83d03eaca2b9d36ef448d1ca3962fcdc52cc7cbca578a1
+      image-digest-worker: sha256:7ed65d609a108e98e08a2893cb12d698dace0a257714a78dcf589f4f3453a727
+      dockerhub_username: ${{ vars.DOCKER_HUB_USERNAME }}
+      ghcr_username: ${{ github.repository_owner }}
+      admin_user: ${{ vars.ADMIN_USER }}
+      db_user: ${{ vars.DB_USER }}
+      db_name: ${{ vars.DB_NAME }}
+    secrets:
+      dockerhub_token: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+      ghcr_token: ${{ secrets.GITHUB_TOKEN }}
+      admin_pass: ${{ secrets.ADMIN_PASS }}
+      db_pass: ${{ secrets.DB_PASS }}
+      jwt_secret: ${{ secrets.JWT_SECRET }}
+      data_encryption_key: ${{ secrets.DATA_ENCRYPTION_KEY }}
