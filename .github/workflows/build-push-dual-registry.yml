@@ -172,6 +172,7 @@ jobs:
             REPO_PATH=$(echo "$IMAGE" | cut -d'@' -f1)
             export COSIGN_REPOSITORY="$REPO_PATH"
             cosign sign --yes \
+              --verbose \
               -a "repo=${{ github.repository }}" \
               -a "workflow=${{ github.workflow }}" \
               -a "workflow_ref=${{ github.workflow_ref }}" \
