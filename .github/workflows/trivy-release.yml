@@ -60,6 +60,11 @@ jobs:
             image-digest: ${{ inputs.image-digest-frontend }}
             exposure: public
             criticality: medium
+    env:
+      DOCKER_USERNAME: ${{ secrets.dockerhub_username }}
+      IMAGE-DIGEST-BACKEND: ${{ inputs.image-digest-backend }}
+      IMAGE-DIGEST-FRONTEND: ${{ inputs.image-digest-frontend }}
+      IMAGE-DIGEST-WORKER: ${{ inputs.image-digest-worker }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
@@ -74,7 +79,7 @@ jobs:
         run: |
           set -euo pipefail
     
-          IMAGE="docker.io/${{ secrets.dockerhub_username }}/${{ matrix.image_repo }}@${{ matrix.image-digest }}"
+          IMAGE="docker.io/${DOCKER_USERNAME}/${{ matrix.image_repo }}@${{ matrix.image-digest }}"
           docker pull "$IMAGE" --dry-run 2>/dev/null || \
           (echo "::error::Image not found: $IMAGE"; exit 1)
           
@@ -118,8 +123,11 @@ jobs:
       packages: write
       attestations: write
     env:
+      DOCKER_USERNAME: ${{ secrets.dockerhub_username }}
+      IMAGE-DIGEST-BACKEND: ${{ inputs.image-digest-backend }}
+      IMAGE-DIGEST-FRONTEND: ${{ inputs.image-digest-frontend }}
+      IMAGE-DIGEST-WORKER: ${{ inputs.image-digest-worker }}
       TRIVY_PREDICATE_TYPE: "https://security.sigstore.dev/attestations/vuln/trivy/v1"
-      TRIVY_VERSION: "v0.70.0"
     strategy:
       fail-fast: false
       matrix:
@@ -160,8 +168,8 @@ jobs:
           set -euo pipefail
           DIGEST="${{ matrix.image-digest }}"
           echo "DIGEST=$DIGEST" >> "$GITHUB_ENV"
-          echo "DOCKER_IMAGE=docker.io/${{ secrets.dockerhub_username }}/${{ matrix.image_repo }}@$DIGEST" >> "$GITHUB_ENV"
-          echo "GHCR_IMAGE=ghcr.io/${{ secrets.ghcr_username }}/${{ matrix.image_repo }}@$DIGEST" >> "$GITHUB_ENV"
+          echo "DOCKER_IMAGE=docker.io/${DOCKER_USERNAME}/${{ matrix.image_repo }}@${DIGEST}" >> "$GITHUB_ENV"
+          echo "GHCR_IMAGE=ghcr.io/${{ github.repository_owner }}/${{ matrix.image_repo }}@${DIGEST}" >> "$GITHUB_ENV"
       - name: Create & Push Trivy Attestation (from scan artifact)
         run: |
           set -euo pipefail
@@ -182,8 +190,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "Signing starts: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-          IMAGES=("${{ env.DOCKER_IMAGE }}" "${{ env.GHCR_IMAGE }}")
-          
+          IMAGES=("$DOCKER_IMAGE" "$GHCR_IMAGE")
           FAILURES=()
           for IMAGE in "${IMAGES[@]}"; do
             echo "Attest image: $IMAGE"
@@ -191,7 +198,7 @@ jobs:
             export COSIGN_REPOSITORY="$REPO_PATH"
             if cosign attest --yes \
               --predicate trivy-attestation.json \
-              --type "${{ env.TRIVY_PREDICATE_TYPE }}" \
+              --type "$TRIVY_PREDICATE_TYPE" \
               "$IMAGE"; then
               echo "✅ Attested: $IMAGE"
             else
@@ -203,4 +210,3 @@ jobs:
             exit 1
           fi
           echo "Attestation finished: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-          
