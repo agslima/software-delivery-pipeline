@@ -1,48 +1,42 @@
-name: 'DAST Release' # Workflow for running DAST analysis on release candidates using pinned image digests
-
+name: 'DAST Release'
+# Workflow for running DAST analysis on release candidates using pinned image digests
+# Governance: docs/governance.md (Release DAST gate control)
+# Threat model: docs/threat-model.md (T-DAST-001: Runtime vulnerability discovery)
 permissions:
   contents: read
-
 defaults:
   run:
     shell: bash
 on:
   workflow_call:
-    secrets:
-      ghcr_username:
-        description: 'GitHub Username/Repository Owner'
-        required: true
+    secrets:      
       ghcr_token:
         description: 'GitHub Token for GHCR authentication'
-        required: true
-      dockerhub_username:
-        description: 'Docker Hub username'
-        required: true
+        required: true      
       dockerhub_token:
         description: 'Docker Hub access token'
         required: true
-      JWT_SECRET:
+      jwt_secret:
         description: 'JWT secret for the application (used in DAST environment)'
         required: true
-      ADMIN_PASS:
+      admin_pass:
         description: 'Admin password for the application'
         required: true
-      DB_PASS:
+      db_pass:
         description: 'Database password for the application'
         required: true
-      DATA_ENCRYPTION_KEY:
+      data_encryption_key:
         description: 'Data encryption key for the application'
         required: true
-      ADMIN_USER:
-        description: 'Admin username for the application'
-        required: true
-      DB_USER:
-        description: 'Database username for the application'
-        required: true
-      DB_NAME:
-        description: 'Database name for the application'
-        required: true
     inputs:
+      dockerhub_username:
+        description: 'Docker Hub username'
+        required: true 
+        type: string
+      ghcr_username:
+        description: 'GitHub Username/Repository Owner'
+        required: true
+        type: string
       image-digest-backend:
         description: 'Backend image digest (sha256:...)'
         required: true
@@ -55,6 +49,18 @@ on:
         description: 'Worker image digest (sha256:...)'
         required: true
         type: string
+      admin_user:
+        description: 'Admin username for the application'
+        required: true
+        type: string
+      db_user:
+        description: 'Database username for the application'
+        required: true
+        type: string
+      db_name:
+        description: 'Database name for the application'
+        required: true
+        type: string
         
 jobs:
   dast-analysis:
@@ -63,6 +69,17 @@ jobs:
     permissions:
       contents: read
     env:
+      DOCKER_USERNAME: ${{ inputs.dockerhub_username }}
+      JWT_SECRET: ${{ secrets.jwt_secret }}
+      ADMIN_USER: ${{ inputs.admin_user }}
+      DB_USER: ${{ inputs.db_user }}
+      DB_NAME: ${{ inputs.db_name }}
+      IMAGE_DIGEST_BACKEND: ${{ inputs.image-digest-backend }}
+      IMAGE_DIGEST_FRONTEND: ${{ inputs.image-digest-frontend }}
+      IMAGE_DIGEST_WORKER: ${{ inputs.image-digest-worker }}
+      ADMIN_PASS: ${{ secrets.admin_pass }}
+      DB_PASS: ${{ secrets.db_pass }}
+      DATA_ENCRYPTION_KEY: ${{ secrets.data_encryption_key }}
       ZAP_IMG: ghcr.io/zaproxy/zaproxy@sha256:4bef6bcb753a95aa2f69f36e400a77dcc47ced2d10d26902d52f616fa292f5e1 # v2.17.0
       ZAP_TARGET_FRONTEND: "http://127.0.0.1:4173"
       ZAP_TARGET_BACKEND: "http://127.0.0.1:8080"
@@ -70,7 +87,6 @@ jobs:
       ZAP_RULES_FILE: ${{ github.workspace }}/.zap/rules.tsv
       HEALTH_TIMEOUT: "120" # seconds
       COMPOSE_PROJECT_NAME: dast-${{ github.run_id }}-${{ github.run_attempt }} 
-
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
@@ -83,51 +99,48 @@ jobs:
         working-directory: app
         run: |
           set -euo pipefail
-          
           SECRETS_DIR="${RUNNER_TEMP}/compose-secrets"
           ENV_FILE=".env"
-
           rm -f "$ENV_FILE"
           rm -rf "$SECRETS_DIR"
           mkdir -p "$SECRETS_DIR"
+
+          ## Log env vars (without secrets) for debugging - should not contain sensitive info
+          echo "ADMIN_USER=${ADMIN_USER}"
+          echo "DB_USER=${DB_USER}"
+          echo "DB_NAME=${DB_NAME}"
+          echo "COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME}"
+          echo "SECRETS_PATH=${SECRETS_DIR}"
           {
-            echo "ADMIN_USER=${{ secrets.ADMIN_USER }}"
-            echo "DB_USER=${{ secrets.DB_USER }}"
-            echo "DB_NAME=${{ secrets.DB_NAME }}"
-            echo "COMPOSE_PROJECT_NAME=${{ env.COMPOSE_PROJECT_NAME }}"
+            echo "ADMIN_USER=${ADMIN_USER}"
+            echo "DB_USER=${DB_USER}"
+            echo "DB_NAME=${DB_NAME}"
+            echo "COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME}"
             echo "SECRETS_PATH=${SECRETS_DIR}"
           } >> "$ENV_FILE"
           chmod 644 "$ENV_FILE"
-
           # Compose secrets files
-          printf "%s" "${{ secrets.JWT_SECRET }}" > "${SECRETS_DIR}/jwt_secret.txt"
-          printf "%s" "${{ secrets.ADMIN_PASS }}" > "${SECRETS_DIR}/admin_pass.txt"
-          printf "%s" "${{ secrets.DB_PASS }}" > "${SECRETS_DIR}/db_pass.txt"
-          printf "%s" "${{ secrets.DATA_ENCRYPTION_KEY }}" > "${SECRETS_DIR}/data_encryption_key.txt"
-          chmod 644 "${SECRETS_DIR}"/*.txt
-
+          printf "%s" "${JWT_SECRET}" > "${SECRETS_DIR}/jwt_secret.txt"
+          printf "%s" "${ADMIN_PASS}" > "${SECRETS_DIR}/admin_pass.txt"
+          printf "%s" "${DB_PASS}" > "${SECRETS_DIR}/db_pass.txt"
+          printf "%s" "${DATA_ENCRYPTION_KEY}" > "${SECRETS_DIR}/data_encryption_key.txt"
+          chmod 755 "${SECRETS_DIR}"/*.txt
           echo "Secrets dir: ${SECRETS_DIR}"
-
       - name: Start Ephemeral Environment (Pinned Digests)
         working-directory: app
         run: |
           set -euo pipefail
-
-          BACKEND_DIGEST="${{ inputs.image-digest-backend }}"
-          WORKER_DIGEST="${{ inputs.image-digest-worker }}"
-          FRONTEND_DIGEST="${{ inputs.image-digest-frontend }}"
-
-          export BACKEND_IMAGE="docker.io/${{ secrets.dockerhub_username }}/app-stayhealthy-backend@$BACKEND_DIGEST"
-          export WORKER_IMAGE="docker.io/${{ secrets.dockerhub_username }}/app-stayhealthy-worker@$WORKER_DIGEST"
-          export FRONTEND_IMAGE="docker.io/${{ secrets.dockerhub_username }}/app-stayhealthy-frontend@$FRONTEND_DIGEST"
-
+          BACKEND_DIGEST="${IMAGE_DIGEST_BACKEND}"
+          WORKER_DIGEST="${IMAGE_DIGEST_WORKER}"
+          FRONTEND_DIGEST="${IMAGE_DIGEST_FRONTEND}"
+          export BACKEND_IMAGE="docker.io/${DOCKER_USERNAME}/app-stayhealthy-backend@${BACKEND_DIGEST}"
+          export WORKER_IMAGE="docker.io/${DOCKER_USERNAME}/app-stayhealthy-worker@${WORKER_DIGEST}"
+          export FRONTEND_IMAGE="docker.io/${DOCKER_USERNAME}/app-stayhealthy-frontend@${FRONTEND_DIGEST}"
           echo "BACKEND_IMAGE=$BACKEND_IMAGE"
           echo "WORKER_IMAGE=$WORKER_IMAGE"
           echo "FRONTEND_IMAGE=$FRONTEND_IMAGE"
-
           # Compose should reference BACKEND_IMAGE / FRONTEND_IMAGE
           docker compose -f docker-compose.prod.yml -f docker-compose.release.yml up -d
-
           echo "⏳ Waiting for Backend..."
           timeout 90s bash -c 'until curl -s http://127.0.0.1:8080/health > /dev/null; do sleep 5; done'
           echo "⏳ Waiting for Worker..."
@@ -136,20 +149,17 @@ jobs:
           timeout 90s bash -c 'until curl -s http://127.0.0.1:4173 > /dev/null; do sleep 5; done'
           docker compose ps
           echo "✅ Application is live!"
-
       - name: OWASP ZAP Baseline (Frontend)
         working-directory: app
         run: |
           set -euo pipefail
           mkdir -p zap-out
-          chmod 777 zap-out
+          chmod 755 zap-out
           cp "$ZAP_CONTEXT_FILE" zap-out/context.context
           cp "$ZAP_RULES_FILE"   zap-out/rules.tsv
-
           VOL_PATH="$(pwd)/zap-out"
           echo "ZAP volume: $VOL_PATH"
           echo "ZAP image: ${{ env.ZAP_IMG }}"
-
           docker run --rm \
             --network host \
             -v "$VOL_PATH:/zap/wrk/:rw" \
@@ -160,17 +170,13 @@ jobs:
             -r zap-frontend.html \
             -J zap-frontend.json \
             -I || true
-
           test -s "zap-out/zap-frontend.json" || (echo "::error::ZAP frontend JSON missing/empty (scanner crash?)"; exit 1)
           jq -e 'type=="object"' "zap-out/zap-frontend.json" >/dev/null
-
       - name: OWASP ZAP Baseline (Backend)
         working-directory: app
         run: |
           set -euo pipefail
-
           VOL_PATH="$(pwd)/zap-out" 
-
           docker run --rm \
             --network host \
             -v "$VOL_PATH:/zap/wrk/:rw" \
@@ -181,20 +187,15 @@ jobs:
             -r zap-backend.html \
             -J zap-backend.json \
             -I || true
-
           test -s "zap-out/zap-backend.json" || (echo "::error::ZAP backend JSON missing/empty (scanner crash?)"; exit 1)
           jq -e 'type=="object"' "zap-out/zap-backend.json" >/dev/null
-
-
       - name: Gate ZAP (High > 0)
         working-directory: app
         run: |
           set -euo pipefail
-
           for FILE in zap-out/zap-frontend.json zap-out/zap-backend.json; do
             test -s "$FILE" || (echo "::error::ZAP report missing/empty: $FILE"; exit 1)
             jq -e 'type=="object"' "$FILE" >/dev/null
-
             HIGHS=$(jq '[.site[]? | .alerts[]? | select(.riskcode=="3")] | length' "$FILE")
             echo "$FILE => High=$HIGHS"
             if [ "$HIGHS" -gt 0 ]; then
@@ -202,9 +203,7 @@ jobs:
               exit 1
             fi
           done
-
           echo "✅ DAST Gate Passed"
-
       - name: Upload ZAP Artifacts
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a #v7.0.1
@@ -212,7 +211,6 @@ jobs:
           name: zap-results
           path: app/zap-out/
           retention-days: 30
-
       - name: Cleanup Secrets + Env
         if: always()
         working-directory: app
@@ -220,9 +218,9 @@ jobs:
           set -euo pipefail
           rm -f .env
           if [ -n "${SECRETS_DIR:-}" ] && [ -d "${SECRETS_DIR:-}" ]; then
+            shred -vfzu -n 3 "${SECRETS_DIR}"/*.txt 2>/dev/null || true
             rm -rf "${SECRETS_DIR}"
           fi
-
       - name: Teardown
         if: always()
         working-directory: app
@@ -236,49 +234,47 @@ jobs:
       contents: read
       id-token: write
       attestations: write
+      packages: write
     env:
       ZAP_PREDICATE_TYPE: "https://security.sigstore.dev/attestations/dast/zap/v1"
+      ZAP_TARGET_FRONTEND: "http://127.0.0.1:4173"
+      ZAP_TARGET_BACKEND: "http://127.0.0.1:8080"
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: backend
             image_repo: app-stayhealthy-backend
-            image_digest: ${{ inputs.image_digest-backend }}
+            image_digest: ${{ inputs.image-digest-backend }}
           - name: worker
             image_repo: app-stayhealthy-worker
-            image_digest: ${{ inputs.image_digest-worker }}
+            image_digest: ${{ inputs.image-digest-worker }}
           - name: frontend
             image_repo: app-stayhealthy-frontend
-            image_digest: ${{ inputs.image_digest-frontend }}
+            image_digest: ${{ inputs.image-digest-frontend }}
     steps:
       - name: Download DAST artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v4.1.8.0.1
         with:
           name: zap-results
           path: zap-downloads
-
       - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 #v4.1.0
         with:
           username: ${{ secrets.dockerhub_username }}
           password: ${{ secrets.dockerhub_token }}
-
       - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 #v4.1.0
         with:
           registry: ghcr.io
           username: ${{ secrets.ghcr_username }}
           password: ${{ secrets.ghcr_token }}
-
       - uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 #v4.1.1
-
       - name: Read Digest
         run: |
           set -euo pipefail
           DIGEST="${{ matrix.image_digest }}"
           echo "DIGEST=$DIGEST" >> "$GITHUB_ENV"
           echo "DOCKER_IMAGE=docker.io/${{ secrets.dockerhub_username }}/${{ matrix.image_repo }}@$DIGEST" >> "$GITHUB_ENV"
-          echo "GHCR_IMAGE=ghcr.io/${{ secrets.ghcr_username }}/${{ matrix.image_repo }}@$DIGEST" >> "$GITHUB_ENV"
-
+          echo "GHCR_IMAGE=ghcr.io/${{ github.repository_owner }}/${{ matrix.image_repo }}@$DIGEST" >> "$GITHUB_ENV"
       - name: Create ZAP Attestation (from DAST artifacts)
         run: |
           set -euo pipefail
@@ -291,25 +287,47 @@ jobs:
           HIGH_BE=$(jq '[.site[]? | .alerts[]? | select(.riskcode=="3")] | length' "$BE")
           HIGH=$((HIGH_FE + HIGH_BE))
 
-          jq -n --argjson high "$HIGH" '
-            {
-              scanner: { name: "owasp-zap", uri: "https://www.zaproxy.org/" },
-              summary: { high: $high },
-              result: (if ($high > 0) then "FAIL" else "PASS" end),
-              timestamp: (now | todate)
-            }
-          ' > zap-attestation.json
-
+          jq -n \
+            --argjson high "$HIGH" \
+            --arg image_repo "${{ matrix.image_repo }}" \
+            --arg image_digest "${{ matrix.image_digest }}" \
+            --arg fe_target  "${ZAP_TARGET_FRONTEND}" \
+            --arg be_target  "${ZAP_TARGET_BACKEND}" \
+            '{
+               scanner: { name: "owasp-zap", uri: "https://www.zaproxy.org/" },
+               dast_target: { frontend: $fe_target, backend: $be_target },image_repo: $image_repo,
+               image_digest: $image_digest,
+               summary: { high: $high },
+               result: (if ($high > 0) then "FAIL" else "PASS" end),
+               timestamp: (now | todate)
+             }' > zap-attestation.json
+      
       - name: Push ZAP Attestations
         run: |
-          cosign attest --yes \
-           --verbose \ 
-            --predicate zap-attestation.json \
-            --type "${{ env.ZAP_PREDICATE_TYPE }}" \
-            "$DOCKER_IMAGE"
-
-          cosign attest --yes \
-            --verbose \
-            --predicate zap-attestation.json \
-            --type "${{ env.ZAP_PREDICATE_TYPE }}" \
-            "$GHCR_IMAGE"
+          set -euo pipefail
+          echo "Signing starts: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          IMAGES=(
+            "${DOCKER_IMAGE}"
+            "${GHCR_IMAGE}"
+          )
+          FAILURES=()
+          for IMAGE in "${IMAGES[@]}"; do
+            echo "Attest image: $IMAGE"
+            REPO_PATH=$(echo "$IMAGE" | cut -d'@' -f1)
+            export COSIGN_REPOSITORY="$REPO_PATH"
+            if cosign attest \
+              --yes \
+              --predicate zap-attestation.json \
+              --type "${{ env.ZAP_PREDICATE_TYPE }}" \
+              "$IMAGE"; then
+              echo "✅ Attested: $IMAGE"
+            else
+              FAILURES+=("$IMAGE")
+            fi
+          done
+          if [ ${#FAILURES[@]} -gt 0 ]; then
+            echo "::error::Failed to attest: ${FAILURES[*]}"
+            exit 1
+          fi
+          echo "Attestation finished: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          
