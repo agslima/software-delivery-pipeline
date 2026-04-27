@@ -36,7 +36,7 @@ on:
 
 jobs:
   trivy-release-scan:
-    snapshot: Run Trivy Image
+    name: Run Trivy Image
     timeout-minutes: 15
     permissions:
       contents: read
@@ -80,9 +80,9 @@ jobs:
           set -euo pipefail
     
           IMAGE="docker.io/${DOCKER_USERNAME}/${{ matrix.image_repo }}@${{ matrix.image-digest }}"
-          docker pull "$IMAGE" --dry-run 2>/dev/null || \
-          (echo "::error::Image not found: $IMAGE"; exit 1)
-          
+          docker manifest inspect "$IMAGE" >/dev/null 2>&1 \
+            || { echo "::error::Image not found (digest check failed)"; exit 1; }
+
           echo "Scanning $IMAGE"
           trivy image \
             --format json \
@@ -124,9 +124,7 @@ jobs:
       attestations: write
     env:
       DOCKER_USERNAME: ${{ secrets.dockerhub_username }}
-      IMAGE-DIGEST-BACKEND: ${{ inputs.image-digest-backend }}
-      IMAGE-DIGEST-FRONTEND: ${{ inputs.image-digest-frontend }}
-      IMAGE-DIGEST-WORKER: ${{ inputs.image-digest-worker }}
+      TRIVY_VERSION: v0.70.0 # Needed in the attestation predicate
       TRIVY_PREDICATE_TYPE: "https://security.sigstore.dev/attestations/vuln/trivy/v1"
     strategy:
       fail-fast: false
@@ -170,7 +168,7 @@ jobs:
           echo "DIGEST=$DIGEST" >> "$GITHUB_ENV"
           echo "DOCKER_IMAGE=docker.io/${DOCKER_USERNAME}/${{ matrix.image_repo }}@${DIGEST}" >> "$GITHUB_ENV"
           echo "GHCR_IMAGE=ghcr.io/${{ github.repository_owner }}/${{ matrix.image_repo }}@${DIGEST}" >> "$GITHUB_ENV"
-      - name: Create & Push Trivy Attestation (from scan artifact)
+      - name: Create the attestation predicate (from scan artifact)
         run: |
           set -euo pipefail
           FILE="trivy-downloads/trivy-${{ matrix.name }}.json"
