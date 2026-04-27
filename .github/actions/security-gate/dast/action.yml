@@ -28,6 +28,8 @@ runs:
     - name: Prepare workspace
       shell: bash
       run: |
+        set -euo pipefail
+        
         mkdir -p zap-out
 
     - name: Copy context + rules
@@ -36,6 +38,8 @@ runs:
         RULES_FILE: ${{ inputs.rules_file }}
       shell: bash
       run: |
+        set -euo pipefail
+
         cp "${CONTEXT_FILE}" zap-out/context.context
         cp "${RULES_FILE}" zap-out/rules.tsv
 
@@ -45,6 +49,8 @@ runs:
         ZAP_IMAGE: ${{ inputs.zap_image }}
       shell: bash
       run: |
+        set -euo pipefail
+
         bash ${{ github.action_path }}/scripts/security/dast-release/run-zap.sh \
           "${TARGET_FRONTEND}" frontend zap-out "${ZAP_IMAGE}"
 
@@ -54,18 +60,24 @@ runs:
         ZAP_IMAGE: ${{ inputs.zap_image }}
       shell: bash
       run: |
+        set -euo pipefail
+        
         bash ${{ github.action_path }}/scripts/security/dast-release/run-zap.sh \
           "${TARGET_BACKEND}" backend zap-out "${ZAP_IMAGE}"
 
     - name: Normalize Results
       shell: bash
       run: |
+        set -euo pipefail
+
         bash ${{ github.action_path }}/scripts/security/dast-release/normalize.sh zap-out/zap-frontend.json > zap-out/frontend.norm.json
         bash ${{ github.action_path }}/scripts/security/dast-release/normalize.sh zap-out/zap-backend.json > zap-out/backend.norm.json
 
     - name: Merge Signals
       shell: bash
       run: |
+        set -euo pipefail
+
         jq -s '{
           sources: .,
           summary: {
@@ -81,6 +93,8 @@ runs:
         POLICY_PATH: ${{ inputs.policy_path }}
       shell: bash
       run: |
+        set -euo pipefail
+
         bash ${{ github.action_path }}/scripts/security/dast-release/evaluate.sh \
           zap-out/combined.json \
           ${{ github.action_path }}/${POLICY_PATH} \
@@ -92,6 +106,8 @@ runs:
     - name: Enforce Policy
       shell: bash
       run: |
+        set -euo pipefail
+
         if [ "${{ steps.opa.outputs.decision }}" != "true" ]; then
           echo "::error::DAST policy failed"
           cat decision.json

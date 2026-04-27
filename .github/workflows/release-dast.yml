@@ -1,4 +1,4 @@
-name: 'DAST Release'
+name: 'Release - DAST Analysis (Digest-based)'
 # Workflow for running DAST analysis on release candidates using pinned image digests
 # Governance: docs/governance.md (Release DAST gate control)
 # Threat model: docs/threat-model.md (T-DAST-001: Runtime vulnerability discovery)
@@ -209,8 +209,9 @@ jobs:
         working-directory: app
         run: |
           set -euo pipefail
+          SECRETS_DIR="${RUNNER_TEMP}/compose-secrets"
           rm -f .env
-          if [ -n "${SECRETS_DIR:-}" ] && [ -d "${SECRETS_DIR:-}" ]; then
+          if [ -d "${SECRETS_DIR}" ]; then
             shred -vfzu -n 3 "${SECRETS_DIR}"/*.txt 2>/dev/null || true
             rm -rf "${SECRETS_DIR}"
           fi

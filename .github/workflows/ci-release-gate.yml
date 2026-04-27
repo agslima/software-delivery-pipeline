@@ -63,7 +63,7 @@ jobs:
       packages: write
       id-token: write
       attestations: write
-    uses: ./.github/workflows/build-push-dual-registry.yml
+    uses: ./.github/workflows/release-build-push-dual-registry.yml
     with:
       environment: production
       context: app
@@ -86,7 +86,7 @@ jobs:
       packages: write
       id-token: write
       attestations: write 
-    uses: ./.github/workflows/build-push-dual-registry.yml
+    uses: ./.github/workflows/release-build-push-dual-registry.yml
     with:
       environment: production
       context: app
@@ -109,7 +109,7 @@ jobs:
       packages: write
       id-token: write
       attestations: write
-    uses: ./.github/workflows/build-push-dual-registry.yml
+    uses: ./.github/workflows/release-build-push-dual-registry.yml
     with:
       environment: production
       context: app
@@ -222,7 +222,7 @@ jobs:
       packages: write # Used to push images to `ghcr.io` if used.
       id-token: write # Needed to create an OIDC token for keyless signing
       attestations: write # Needed to upload attestations to the GitHub registry      
-    uses: ./.github/workflows/trivy-release.yml
+    uses: ./.github/workflows/release-trivy.yml
     with:
       image-digest-backend: ${{ needs.build-push-backend.outputs.image-digest }}
       image-digest-frontend: ${{ needs.build-push-frontend.outputs.image-digest }}
@@ -241,7 +241,7 @@ jobs:
       id-token: write
       packages: write # Used to pull images from `ghcr.io` if used.
       attestations: write
-    uses: ./.github/workflows/dast-release.yml
+    uses: ./.github/workflows/release-dast.yml
     with:
       image-digest-backend: ${{ needs.build-push-backend.outputs.image-digest }}
       image-digest-frontend: ${{ needs.build-push-frontend.outputs.image-digest }}

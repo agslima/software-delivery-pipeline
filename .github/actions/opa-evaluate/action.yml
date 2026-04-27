@@ -25,6 +25,7 @@ runs:
     - name: Install OPA
       shell: bash
       run: |
+        set -euo pipefail
         curl -L -o opa https://openpolicyagent.org/downloads/latest/opa_linux_amd64_static
         chmod +x opa
         sudo mv opa /usr/local/bin/
@@ -36,6 +37,7 @@ runs:
         EVIDENCE_FILE: ${{ inputs.evidence-file }}
       shell: bash
       run: |
+        set -euo pipefail
         jq \
           --arg exposure "${EXPOSURE}" \
           --arg criticality "${CRITICALITY}" \
@@ -79,6 +81,7 @@ runs:
         POLICY_BUNDLE: ${{ inputs.policy-bundle }}
       shell: bash
       run: |
+        set -euo pipefail
         SCORE=$(opa eval \
           --format=raw \
           --input enriched.json \
@@ -89,6 +92,8 @@ runs:
     - name: Fail if Denied
       shell: bash
       run: |
+        set -euo pipefail
+
         if [ "${{ steps.eval.outputs.decision }}" = "deny" ]; then
           echo "::error::Policy denied"
           exit 1

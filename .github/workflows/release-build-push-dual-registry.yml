@@ -1,4 +1,4 @@
-name: Build and Push Dual Registry
+name: Release - Build and Push Dual Registry
 
 permissions:
   contents: read

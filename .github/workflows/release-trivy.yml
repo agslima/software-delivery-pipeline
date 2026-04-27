@@ -1,4 +1,4 @@
-name: Trivy Release
+name: Release - Trivy Scan & Attest
 
 permissions:
   contents: read
@@ -64,9 +64,6 @@ jobs:
             criticality: medium
     env:
       DOCKER_USERNAME: ${{ inputs.dockerhub_username }}
-      IMAGE-DIGEST-BACKEND: ${{ inputs.image-digest-backend }}
-      IMAGE-DIGEST-FRONTEND: ${{ inputs.image-digest-frontend }}
-      IMAGE-DIGEST-WORKER: ${{ inputs.image-digest-worker }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
@@ -77,6 +74,11 @@ jobs:
         with:
           version: v0.70.0
           cache: false
+      - name: Docker Hub Login  
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0  
+        with:  
+          username: ${{ inputs.dockerhub_username }}  
+          password: ${{ secrets.dockerhub_token }}  
       - name: Scan Image (JSON)
         run: |
           set -euo pipefail
