@@ -14,7 +14,6 @@ inputs:
     required: true
   criticality:
     required: true
-
 outputs:
   decision:
     description: "allow or deny"
@@ -30,14 +29,18 @@ runs:
         curl -L -o opa https://openpolicyagent.org/downloads/latest/opa_linux_amd64_static
         chmod +x opa
         sudo mv opa /usr/local/bin/
-
     - name: Prepare Input
+      env:
+        EXPOSURE: ${{ inputs.exposure }}
+        CRITICALITY: ${{ inputs.criticality }}
+        THRESHOLD: ${{ inputs.threshold }}
+        EVIDENCE_FILE: ${{ inputs.evidence-file }}
       shell: bash
       run: |
         jq \
-          --arg exposure "${{ inputs.exposure }}" \
-          --arg criticality "${{ inputs.criticality }}" \
-          --argjson threshold "${{ inputs.threshold }}" \
+          --arg exposure "${EXPOSURE}" \
+          --arg criticality "${CRITICALITY}" \
+          --argjson threshold "${THRESHOLD}" \
           '
           . + {
             context: {
@@ -48,10 +51,11 @@ runs:
               threshold: $threshold
             }
           }
-          ' "${{ inputs.evidence-file }}" > enriched.json
-
+          ' "${EVIDENCE_FILE}" > enriched.json
     - name: Evaluate Policy
       id: eval
+      env:
+        POLICY_BUNDLE: ${{ inputs.policy-bundle }}
       shell: bash
       run: |
         set -euo pipefail
@@ -59,7 +63,7 @@ runs:
         RESULT=$(opa eval \
           --format=json \
           --input enriched.json \
-          --data "${{ inputs.policy-bundle }}" \
+          --data "${POLICY_BUNDLE}" \
           "data.supplychain")
 
         echo "$RESULT" > decision.json
@@ -70,19 +74,19 @@ runs:
         else
           echo "decision=deny" >> $GITHUB_OUTPUT
         fi
-
     - name: Extract Risk Score
       id: risk
+      env:
+        POLICY_BUNDLE: ${{ inputs.policy-bundle }}
       shell: bash
       run: |
         SCORE=$(opa eval \
           --format=raw \
           --input enriched.json \
-          --data "${{ inputs.policy-bundle }}" \
+          --data "${POLICY_BUNDLE}" \
           "data.supplychain.risk_score")
 
         echo "risk_score=$SCORE" >> $GITHUB_OUTPUT
-
     - name: Fail if Denied
       shell: bash
       run: |
