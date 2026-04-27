@@ -61,6 +61,14 @@ on:
         description: 'Database name for the application'
         required: true
         type: string
+      release_tag:
+        description: 'Release tag for image'
+        required: true
+        type: string
+      github_sha:
+        description: 'Commit SHA'
+        required: true
+        type: string
         
 jobs:
   dast-analysis:
@@ -80,7 +88,7 @@ jobs:
       ADMIN_PASS: ${{ secrets.admin_pass }}
       DB_PASS: ${{ secrets.db_pass }}
       DATA_ENCRYPTION_KEY: ${{ secrets.data_encryption_key }}
-      ZAP_IMG: ghcr.io/zaproxy/zaproxy@sha256:4bef6bcb753a95aa2f69f36e400a77dcc47ced2d10d26902d52f616fa292f5e1 # v2.17.0
+      ZAP_IMG: ghcr.io/zaproxy/zaproxy@sha256:4bef6bcb753a95aa2f69f36e400a77dcc47ced2d10d26902d52f616fa292f5e1 # ZAP image v2.17.0 - Last verified: 2026-04-27 - Next review: 2026-07-27
       ZAP_TARGET_FRONTEND: "http://127.0.0.1:4173"
       ZAP_TARGET_BACKEND: "http://127.0.0.1:8080"
       ZAP_CONTEXT_FILE: ${{ github.workspace }}/.zap/context.context
@@ -104,13 +112,6 @@ jobs:
           rm -f "$ENV_FILE"
           rm -rf "$SECRETS_DIR"
           mkdir -p "$SECRETS_DIR"
-
-          ## Log env vars (without secrets) for debugging - should not contain sensitive info
-          echo "ADMIN_USER=${ADMIN_USER}"
-          echo "DB_USER=${DB_USER}"
-          echo "DB_NAME=${DB_NAME}"
-          echo "COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME}"
-          echo "SECRETS_PATH=${SECRETS_DIR}"
           {
             echo "ADMIN_USER=${ADMIN_USER}"
             echo "DB_USER=${DB_USER}"
@@ -144,7 +145,7 @@ jobs:
           echo "⏳ Waiting for Backend..."
           timeout 90s bash -c 'until curl -s http://127.0.0.1:8080/health > /dev/null; do sleep 5; done'
           echo "⏳ Waiting for Worker..."
-          timeout 90s bash -c 'until docker compose exec worker wget -qO- http://127.0.0.1:8090/ready > /dev/null; do sleep 5; done' 
+          timeout 90s bash -c 'until docker compose exec -T worker wget -qO- http://127.0.0.1:8090/ready 2>/dev/null; do sleep 5; done' || (echo "⛔ Worker failed health check"; exit 1)
           echo "⏳ Waiting for Frontend..."
           timeout 90s bash -c 'until curl -s http://127.0.0.1:4173 > /dev/null; do sleep 5; done'
           docker compose ps
@@ -237,9 +238,12 @@ jobs:
       attestations: write
       packages: write
     env:
+      RELEASE_TAG: ${{ inputs.release_tag }}
+      GITHUB_SHA: ${{ inputs.github_sha }}
       ZAP_PREDICATE_TYPE: "https://security.sigstore.dev/attestations/dast/zap/v1"
       ZAP_TARGET_FRONTEND: "http://127.0.0.1:4173"
       ZAP_TARGET_BACKEND: "http://127.0.0.1:8080"
+      DOCKER_USERNAME: ${{ inputs.dockerhub_username }}
     strategy:
       fail-fast: false
       matrix:
@@ -254,6 +258,12 @@ jobs:
             image_repo: app-stayhealthy-frontend
             image_digest: ${{ inputs.image-digest-frontend }}
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ env.GITHUB_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
       - name: Download DAST artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -274,8 +284,15 @@ jobs:
           set -euo pipefail
           DIGEST="${{ matrix.image_digest }}"
           echo "DIGEST=$DIGEST" >> "$GITHUB_ENV"
-          echo "DOCKER_IMAGE=docker.io/${{ inputs.dockerhub_username }}/${{ matrix.image_repo }}@$DIGEST" >> "$GITHUB_ENV"
-          echo "GHCR_IMAGE=ghcr.io/${{ github.repository_owner }}/${{ matrix.image_repo }}@$DIGEST" >> "$GITHUB_ENV"
+          echo "DOCKER_IMAGE=docker.io/${DOCKER_USERNAME}/${{ matrix.image_repo }}@${DIGEST}" >> "$GITHUB_ENV"
+          echo "GHCR_IMAGE=ghcr.io/${{ github.repository_owner }}/${{ matrix.image_repo }}@${DIGEST}" >> "$GITHUB_ENV"
+      - name: Verify Attestation Identity
+        run: |
+          set -euo pipefail
+          echo "Attestation Identity Check:"
+          echo "  Issuer: https://token.actions.githubusercontent.com"
+          echo "  Workflow: ${{ github.repository }}/.github/workflows/${{ github.workflow }}"
+          echo "  Ref: ${{ github.ref }}"
       - name: Create ZAP Attestation (from DAST artifacts)
         run: |
           set -euo pipefail
