@@ -247,18 +247,18 @@ jobs:
             image_digest: ${{ inputs.image-digest-frontend }}
     steps:
       - name: Download DAST artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v4.1.8.0.1
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: zap-results
           path: zap-downloads
       - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 #v4.1.0
         with:
-          username: ${{ secrets.dockerhub_username }}
+          username: ${{ inputs.dockerhub_username }}
           password: ${{ secrets.dockerhub_token }}
       - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 #v4.1.0
         with:
           registry: ghcr.io
-          username: ${{ secrets.ghcr_username }}
+          username: ${{ inputs.ghcr_username }}
           password: ${{ secrets.ghcr_token }}
       - uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 #v4.1.1
       - name: Read Digest
@@ -266,7 +266,7 @@ jobs:
           set -euo pipefail
           DIGEST="${{ matrix.image_digest }}"
           echo "DIGEST=$DIGEST" >> "$GITHUB_ENV"
-          echo "DOCKER_IMAGE=docker.io/${{ secrets.dockerhub_username }}/${{ matrix.image_repo }}@$DIGEST" >> "$GITHUB_ENV"
+          echo "DOCKER_IMAGE=docker.io/${{ inputs.dockerhub_username }}/${{ matrix.image_repo }}@$DIGEST" >> "$GITHUB_ENV"
           echo "GHCR_IMAGE=ghcr.io/${{ github.repository_owner }}/${{ matrix.image_repo }}@$DIGEST" >> "$GITHUB_ENV"
       - name: Create ZAP Attestation (from DAST artifacts)
         run: |
