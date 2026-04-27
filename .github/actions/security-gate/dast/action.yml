@@ -4,21 +4,23 @@ description: "Run ZAP, normalize results, evaluate with OPA"
 inputs:
   zap_image:
     required: true
+    description: "ZAP Docker image to use (e.g., owasp/zap2docker-stable)"
   target_frontend:
     required: true
+    description: "Frontend target URL"
   target_backend:
     required: true
+    description: "Backend target URL"
   context_file:
     required: true
+    description: "Path to context file"
   rules_file:
     required: true
+    description: "Path to rules file"
   policy_path:
     required: false
+    description: "Path to OPA policy (default: policy/)"
     default: policy/
-
-outputs:
-  decision:
-    description: "OPA decision (allow/deny)"
 
 runs:
   using: "composite"

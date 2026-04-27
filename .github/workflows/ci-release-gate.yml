@@ -72,10 +72,10 @@ jobs:
       release_tag: ${{ needs.resolve.outputs.release_tag }}
       github_sha: ${{ github.sha }}
       platforms: linux/amd64
-    secrets:
       dockerhub_username: ${{ vars.DOCKER_HUB_USERNAME }}
-      dockerhub_token: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
       ghcr_username: ${{ github.repository_owner }}
+    secrets:      
+      dockerhub_token: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
       ghcr_token: ${{ secrets.GITHUB_TOKEN }}
                     
   build-push-frontend:
@@ -95,10 +95,10 @@ jobs:
       release_tag: ${{ needs.resolve.outputs.release_tag }}
       github_sha: ${{ github.sha }}
       platforms: linux/amd64
-    secrets:
       dockerhub_username: ${{ vars.DOCKER_HUB_USERNAME }}
-      dockerhub_token: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
       ghcr_username: ${{ github.repository_owner }}
+    secrets:      
+      dockerhub_token: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
       ghcr_token: ${{ secrets.GITHUB_TOKEN }}
 
   build-push-worker:
@@ -118,10 +118,10 @@ jobs:
       release_tag: ${{ needs.resolve.outputs.release_tag }}
       github_sha: ${{ github.sha }}
       platforms: linux/amd64
-    secrets:
       dockerhub_username: ${{ vars.DOCKER_HUB_USERNAME }}
-      dockerhub_token: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
       ghcr_username: ${{ github.repository_owner }}
+    secrets:      
+      dockerhub_token: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
       ghcr_token: ${{ secrets.GITHUB_TOKEN }}
   
   generate-slsa-provenance-backend-ghcr:
@@ -227,10 +227,10 @@ jobs:
       image-digest-backend: ${{ needs.build-push-backend.outputs.image-digest }}
       image-digest-frontend: ${{ needs.build-push-frontend.outputs.image-digest }}
       image-digest-worker: ${{ needs.build-push-worker.outputs.image-digest }}
-    secrets:
-      dockerhub_username: ${{ vars.DOCKER_HUB_USERNAME }}
-      dockerhub_token: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
       ghcr_username: ${{ github.repository_owner }}
+      dockerhub_username: ${{ vars.DOCKER_HUB_USERNAME }}
+    secrets:
+      dockerhub_token: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
       ghcr_token: ${{ secrets.GITHUB_TOKEN }}
      
   dast-analysis:

@@ -5,20 +5,19 @@ description: "Evaluate supply chain risk using versioned OPA policies"
 inputs:
   evidence-file:
     required: true
+    description: "Path to evidence file (JSON) containing context and findings"
   policy-bundle:
     required: true
     description: "Path to policy bundle (e.g., policy/bundles/v1)"
   threshold:
     required: true
+    description: "Threshold for risk score"
   exposure:
     required: true
+    description: "Exposure level"
   criticality:
     required: true
-outputs:
-  decision:
-    description: "allow or deny"
-  risk_score:
-    description: "calculated risk score"
+    description: "Criticality level"
 
 runs:
   using: "composite"

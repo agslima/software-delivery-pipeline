@@ -117,7 +117,7 @@ jobs:
           printf "%s" "${ADMIN_PASS}" > "${SECRETS_DIR}/admin_pass.txt"
           printf "%s" "${DB_PASS}" > "${SECRETS_DIR}/db_pass.txt"
           printf "%s" "${DATA_ENCRYPTION_KEY}" > "${SECRETS_DIR}/data_encryption_key.txt"
-          chmod 755 "${SECRETS_DIR}"/*.txt
+          chmod 644 "${SECRETS_DIR}"/*.txt
           echo "Secrets dir: ${SECRETS_DIR}"
       - name: Start Ephemeral Environment (Pinned Digests)
         working-directory: app

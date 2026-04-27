@@ -9,16 +9,10 @@ defaults:
     
 on:
   workflow_call:
-    secrets:
-      ghcr_username:
-        description: 'GitHub Username/Repository Owner'
-        required: true
+    secrets:      
       ghcr_token:
         description: 'GitHub Token for GHCR authentication'
-        required: true
-      dockerhub_username:
-        description: 'Docker Hub username'
-        required: true
+        required: true      
       dockerhub_token:
         description: 'Docker Hub access token'
         required: true
@@ -52,6 +46,14 @@ on:
         required: false
         type: string
         default: production
+      ghcr_username:
+        description: 'GitHub Username/Repository Owner'
+        required: true
+        type: string
+      dockerhub_username:
+        description: 'Docker Hub username'
+        required: true
+        type: string
     outputs:
       image-digest:
         description: "sha256 digest of container image"
@@ -72,6 +74,7 @@ jobs:
       RELEASE_TAG: ${{ inputs.release_tag }}
       PLATFORMS: ${{ inputs.platforms }}
       GITHUB_SHA: ${{ inputs.github_sha }}
+      DOCKER_USERNAME: ${{ inputs.dockerhub_username }}
     outputs:  
       image-digest: ${{ steps.build.outputs.digest }}
     steps:
@@ -92,17 +95,15 @@ jobs:
       - name: Login to Docker Hub
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121
         with:
-          username: ${{ secrets.dockerhub_username }}
+          username: ${{ inputs.dockerhub_username }}
           password: ${{ secrets.dockerhub_token }}
       - name: Login to GitHub Container Registry
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121
         with:
           registry: ghcr.io
-          username: ${{ secrets.ghcr_username }}
+          username: ${{ inputs.ghcr_username }}
           password: ${{ secrets.ghcr_token }}
       - name: Extract build metadata
-        env:
-          DOCKER_USERNAME: ${{ secrets.dockerhub_username }}
         id: build-meta
         run: |
           echo "GIT_TREE_STATE=$(if [ -z "$(git status --porcelain)" ]; then echo "clean"; else echo "dirty"; fi)" >> $GITHUB_ENV
@@ -114,7 +115,7 @@ jobs:
         with:
           # Automatically generate tags for both GHCR and Docker.
           images: |
-            docker.io/${{ secrets.dockerhub_username }}/${{ env.IMAGE_REPO}}
+            docker.io/${{ inputs.dockerhub_username }}/${{ env.IMAGE_REPO}}
             ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_REPO }}
           tags: |
             type=raw,value=${{ env.RELEASE_TAG }},enable=${{ env.RELEASE_TAG != '' }}
