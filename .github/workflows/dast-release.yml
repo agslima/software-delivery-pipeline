@@ -9,16 +9,10 @@ defaults:
     shell: bash
 on:
   workflow_call:
-    secrets:
-      ghcr_username:
-        description: 'GitHub Username/Repository Owner'
-        required: true
+    secrets:      
       ghcr_token:
         description: 'GitHub Token for GHCR authentication'
-        required: true
-      dockerhub_username:
-        description: 'Docker Hub username'
-        required: true
+        required: true      
       dockerhub_token:
         description: 'Docker Hub access token'
         required: true
@@ -34,16 +28,15 @@ on:
       data_encryption_key:
         description: 'Data encryption key for the application'
         required: true
-      admin_user:
-        description: 'Admin username for the application'
-        required: true
-      db_user:
-        description: 'Database username for the application'
-        required: true
-      db_name:
-        description: 'Database name for the application'
-        required: true
     inputs:
+      dockerhub_username:
+        description: 'Docker Hub username'
+        required: true 
+        type: string
+      ghcr_username:
+        description: 'GitHub Username/Repository Owner'
+        required: true
+        type: string
       image-digest-backend:
         description: 'Backend image digest (sha256:...)'
         required: true
@@ -56,6 +49,18 @@ on:
         description: 'Worker image digest (sha256:...)'
         required: true
         type: string
+      admin_user:
+        description: 'Admin username for the application'
+        required: true
+        type: string
+      db_user:
+        description: 'Database username for the application'
+        required: true
+        type: string
+      db_name:
+        description: 'Database name for the application'
+        required: true
+        type: string
         
 jobs:
   dast-analysis:
@@ -64,11 +69,11 @@ jobs:
     permissions:
       contents: read
     env:
-      DOCKER_USERNAME: ${{ secrets.dockerhub_username }}
+      DOCKER_USERNAME: ${{ inputs.dockerhub_username }}
       JWT_SECRET: ${{ secrets.jwt_secret }}
-      ADMIN_USER: ${{ secrets.admin_user }}
-      DB_USER: ${{ secrets.db_user }}
-      DB_NAME: ${{ secrets.db_name }}
+      ADMIN_USER: ${{ inputs.admin_user }}
+      DB_USER: ${{ inputs.db_user }}
+      DB_NAME: ${{ inputs.db_name }}
       IMAGE_DIGEST_BACKEND: ${{ inputs.image-digest-backend }}
       IMAGE_DIGEST_FRONTEND: ${{ inputs.image-digest-frontend }}
       IMAGE_DIGEST_WORKER: ${{ inputs.image-digest-worker }}
