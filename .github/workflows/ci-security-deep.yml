@@ -173,8 +173,8 @@ jobs:
           EOF
           )
           # Create only if not already created today
-          if gh issue list --limit 50 --search "$TITLE" --json title | grep -q "$TITLE"; then
+          if gh issue list --repo "${{ github.repository }}" --limit 50 --search "$TITLE" --json title | grep -q "$TITLE"; then
             echo "Issue already exists for today."
             exit 0
           fi
-          gh issue create --title "$TITLE" --body "$BODY" --label "security" --label "governance"
+          gh issue create --repo "${{ github.repository }}" --title "$TITLE" --body "$BODY" --label "security" --label "governance"

@@ -1,0 +1,217 @@
+name: Release - Build and Push Dual Registry
+
+permissions:
+  contents: read
+  
+defaults:
+  run:
+    shell: bash
+    
+on:
+  workflow_call:
+    secrets:      
+      ghcr_token:
+        description: 'GitHub Token for GHCR authentication'
+        required: true      
+      dockerhub_token:
+        description: 'Docker Hub access token'
+        required: true
+    inputs:
+      context:
+        description: 'Build context path'
+        required: true
+        type: string
+      file:
+        description: 'Dockerfile path'
+        required: true
+        type: string
+      image_repo:
+        description: 'Base image repository name'
+        required: true
+        type: string
+      release_tag:
+        description: 'Release tag for image'
+        required: true
+        type: string
+      github_sha:
+        description: 'Commit SHA'
+        required: true
+        type: string
+      platforms:
+        description: 'Container platforms'
+        required: true
+        type: string
+      environment:
+        description: 'Target GitHub environment for the build job (optional; use for environment context/protection)'
+        required: false
+        type: string
+        default: production
+      ghcr_username:
+        description: 'GitHub Username/Repository Owner'
+        required: true
+        type: string
+      dockerhub_username:
+        description: 'Docker Hub username'
+        required: true
+        type: string
+    outputs:
+      image-digest:
+        description: "sha256 digest of container image"
+        value: ${{ jobs.build-publish.outputs.image-digest }}
+
+jobs:
+  build-publish:
+    permissions:
+      contents: read
+      packages: write # Used to push images to `ghcr.io` if used.
+      id-token: write # Needed to create an OIDC token for keyless signing
+    environment: ${{ inputs.environment }}
+    runs-on: ubuntu-24.04
+    env:
+      CONTEXT: ${{ inputs.context }}
+      FILE: ${{ inputs.file }}
+      IMAGE_REPO: ${{ inputs.image_repo }}
+      RELEASE_TAG: ${{ inputs.release_tag }}
+      PLATFORMS: ${{ inputs.platforms }}
+      GITHUB_SHA: ${{ inputs.github_sha }}
+      DOCKER_USERNAME: ${{ inputs.dockerhub_username }}
+    outputs:  
+      image-digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+        with:
+          egress-policy: audit
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ env.GITHUB_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003
+      - name: Login to Docker Hub
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121
+        with:
+          username: ${{ inputs.dockerhub_username }}
+          password: ${{ secrets.dockerhub_token }}
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121
+        with:
+          registry: ghcr.io
+          username: ${{ inputs.ghcr_username }}
+          password: ${{ secrets.ghcr_token }}
+      - name: Extract build metadata
+        id: build-meta
+        run: |
+          echo "GIT_TREE_STATE=$(if [ -z "$(git status --porcelain)" ]; then echo "clean"; else echo "dirty"; fi)" >> $GITHUB_ENV
+          echo "BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_ENV
+          echo "DOCKER_USERNAME=${{ env.DOCKER_USERNAME }}" >> $GITHUB_ENV
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
+        with:
+          # Automatically generate tags for both GHCR and Docker.
+          images: |
+            docker.io/${{ inputs.dockerhub_username }}/${{ env.IMAGE_REPO}}
+            ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_REPO }}
+          tags: |
+            type=raw,value=${{ env.RELEASE_TAG }},enable=${{ env.RELEASE_TAG != '' }}
+            type=raw,value=${{ env.GITHUB_SHA }}
+          # Generate standard OCI labels automatically
+          labels: |
+            org.opencontainers.image.revision=${{ env.GITHUB_SHA }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ env.RELEASE_TAG }}
+      - name: Build & Push
+        id: build
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f
+        with:
+          context: ${{ env.CONTEXT }}
+          file: ${{ env.FILE }}
+          platforms: ${{ env.PLATFORMS }}
+          push: true
+          pull: true
+          no-cache: true
+          provenance: false
+          sbom: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            GIT_TAG=${{ env.RELEASE_TAG }}
+            GIT_COMMIT=${{ env.GITHUB_SHA }}
+            BUILD_DATE=${{ env.BUILD_DATE }}
+            GIT_TREE_STATE=${{ env.GIT_TREE_STATE }}
+      - name: Export Digest Artifact & Prepare References
+        run: |
+          set -euo pipefail
+          mkdir -p digests
+          DIGEST_ARTIFACT_NAME="$IMAGE_REPO"
+          DIGEST="${{ steps.build.outputs.digest }}"
+          if [ -z "$DIGEST" ]; then
+            echo "::error::Digest empty"
+            exit 1
+          fi
+          echo "$DIGEST" > "digests/digest-${DIGEST_ARTIFACT_NAME}"
+          echo "DOCKER_IMAGE=docker.io/${DOCKER_USERNAME}/${IMAGE_REPO}@${DIGEST}" >> $GITHUB_ENV
+          echo "GHCR_IMAGE=ghcr.io/${{ github.repository_owner }}/${IMAGE_REPO}@${DIGEST}" >> $GITHUB_ENV
+      - name: Sign Images with Cosign
+        run: |
+          set -euo pipefail
+          echo "Signing starts: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          IMAGES=(
+            "$DOCKER_IMAGE"
+            "$GHCR_IMAGE"
+          )
+          for IMAGE in "${IMAGES[@]}"; do
+            echo "Signing image: $IMAGE"
+            
+            # Extract repository path to set COSIGN_REPOSITORY dynamically
+            REPO_PATH=$(echo "$IMAGE" | cut -d'@' -f1)
+            export COSIGN_REPOSITORY="$REPO_PATH"
+            cosign sign --yes \
+              --verbose \
+              -a "repo=${{ github.repository }}" \
+              -a "workflow=${{ github.workflow }}" \
+              -a "workflow_ref=${{ github.workflow_ref }}" \
+              -a "ref=$GITHUB_SHA" \
+              "$IMAGE"
+          done
+          echo "Signing finished: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+      - name: Generate SBOM
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          # Targets the GHCR image to generate the SBOM (since digests match, the SBOM is identical)
+          image: ${{ env.GHCR_IMAGE }}
+          format: spdx-json
+          output-file: sbom-${{ env.IMAGE_REPO }}.spdx.json
+          artifact-name: sbom-${{ env.IMAGE_REPO }}.spdx.json
+          upload-artifact: true
+          upload-release-assets: auto
+      - name: Cosign SBOM attestation
+        run: |
+          set -euo pipefail
+          echo "Signing starts: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          IMAGES=(
+            "$DOCKER_IMAGE"
+            "$GHCR_IMAGE"
+          )
+          for IMAGE in "${IMAGES[@]}"; do
+            echo "Attest image: $IMAGE"
+            REPO_PATH=$(echo "$IMAGE" | cut -d'@' -f1)
+            export COSIGN_REPOSITORY="$REPO_PATH"
+            cosign attest \
+              --yes \
+              --predicate "sbom-${IMAGE_REPO}.spdx.json" \
+              --type spdxjson \
+              "$IMAGE"
+          done
+          echo "Attestation finished: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+      - name: Upload Digest Artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: digest-${{ env.IMAGE_REPO }}
+          path: digests/digest-${{ env.IMAGE_REPO }}
+          retention-days: 30
