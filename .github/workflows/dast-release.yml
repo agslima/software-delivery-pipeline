@@ -142,7 +142,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p zap-out
-          chmod 777 zap-out
+          chmod 755 zap-out
           cp "$ZAP_CONTEXT_FILE" zap-out/context.context
           cp "$ZAP_RULES_FILE"   zap-out/rules.tsv
           VOL_PATH="$(pwd)/zap-out"
@@ -206,7 +206,8 @@ jobs:
           set -euo pipefail
           rm -f .env
           if [ -n "${SECRETS_DIR:-}" ] && [ -d "${SECRETS_DIR:-}" ]; then
-            shred -vfz -n 3 "${SECRETS_DIR}"/*.txt 2>/dev/null || rm -rf "${SECRETS_DIR}"
+            shred -vfzu -n 3 "${SECRETS_DIR}"/*.txt 2>/dev/null || true
+            rm -rf "${SECRETS_DIR}"
           fi
       - name: Teardown
         if: always()
@@ -224,13 +225,15 @@ jobs:
       packages: write
     env:
       ZAP_PREDICATE_TYPE: "https://security.sigstore.dev/attestations/dast/zap/v1"
+      ZAP_TARGET_FRONTEND: "http://127.0.0.1:4173"
+      ZAP_TARGET_BACKEND: "http://127.0.0.1:8080"
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: backend
             image_repo: app-stayhealthy-backend
-            image_digest: ${{ inputs.image-digest-backenddigest-backend }}
+            image_digest: ${{ inputs.image-digest-backend }}
           - name: worker
             image_repo: app-stayhealthy-worker
             image_digest: ${{ inputs.image-digest-worker }}
@@ -259,7 +262,7 @@ jobs:
           DIGEST="${{ matrix.image_digest }}"
           echo "DIGEST=$DIGEST" >> "$GITHUB_ENV"
           echo "DOCKER_IMAGE=docker.io/${{ secrets.dockerhub_username }}/${{ matrix.image_repo }}@$DIGEST" >> "$GITHUB_ENV"
-          echo "GHCR_IMAGE=ghcr.io/${{ secrets.ghcr_username }}/${{ matrix.image_repo }}@$DIGEST" >> "$GITHUB_ENV"
+          echo "GHCR_IMAGE=ghcr.io/${{ github.repository_owner }}/${{ matrix.image_repo }}@$DIGEST" >> "$GITHUB_ENV"
       - name: Create ZAP Attestation (from DAST artifacts)
         run: |
           set -euo pipefail
@@ -276,10 +279,11 @@ jobs:
             --argjson high "$HIGH" \
             --arg image_repo "${{ matrix.image_repo }}" \
             --arg image_digest "${{ matrix.image_digest }}" \
+            --arg fe_target  "${ZAP_TARGET_FRONTEND}" \
+            --arg be_target  "${ZAP_TARGET_BACKEND}" \
             '{
                scanner: { name: "owasp-zap", uri: "https://www.zaproxy.org/" },
-               dast_target: { frontend: "'"${{ env.ZAP_TARGET_FRONTEND }}"'", backend: "'"${{ env.ZAP_TARGET_BACKEND }}"'" },
-               image_repo: $image_repo,
+               dast_target: { frontend: $fe_target, backend: $be_target },image_repo: $image_repo,
                image_digest: $image_digest,
                summary: { high: $high },
                result: (if ($high > 0) then "FAIL" else "PASS" end),
@@ -294,14 +298,24 @@ jobs:
             "${DOCKER_IMAGE}"
             "${GHCR_IMAGE}"
           )
+          FAILURES=()
           for IMAGE in "${IMAGES[@]}"; do
             echo "Attest image: $IMAGE"
             REPO_PATH=$(echo "$IMAGE" | cut -d'@' -f1)
             export COSIGN_REPOSITORY="$REPO_PATH"
-            cosign attest \
+            if cosign attest \
               --yes \
               --predicate zap-attestation.json \
               --type "${{ env.ZAP_PREDICATE_TYPE }}" \
-              "$IMAGE"
+              "$IMAGE"; then
+              echo "✅ Attested: $IMAGE"
+            else
+              FAILURES+=("$IMAGE")
+            fi
           done
+          if [ ${#FAILURES[@]} -gt 0 ]; then
+            echo "::error::Failed to attest: ${FAILURES[*]}"
+            exit 1
+          fi
           echo "Attestation finished: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          
