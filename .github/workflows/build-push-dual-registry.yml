@@ -22,7 +22,6 @@ on:
       dockerhub_token:
         description: 'Docker Hub access token'
         required: true
-    
     inputs:
       context:
         description: 'Build context path'
@@ -115,7 +114,7 @@ jobs:
         with:
           # Automatically generate tags for both GHCR and Docker.
           images: |
-            docker.io/${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_REPO}}
+            docker.io/${{ secrets.dockerhub_username }}/${{ env.IMAGE_REPO}}
             ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_REPO }}
           tags: |
             type=raw,value=${{ env.RELEASE_TAG }},enable=${{ env.RELEASE_TAG != '' }}
@@ -129,9 +128,9 @@ jobs:
         id: build
         uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f
         with:
-          context: $CONTEXT
-          file: $FILE
-          platforms: $PLATFORMS
+          context: ${{ env.CONTEXT }}
+          file: ${{ env.FILE }}
+          platforms: ${{ env.PLATFORMS }}
           push: true
           pull: true
           no-cache: true
@@ -156,7 +155,7 @@ jobs:
           fi
           echo "$DIGEST" > "digests/digest-${DIGEST_ARTIFACT_NAME}"
           echo "DOCKER_IMAGE=docker.io/${DOCKER_USERNAME}/${IMAGE_REPO}@${DIGEST}" >> $GITHUB_ENV
-          echo "GHCR_IMAGE=ghcr.io/${{ github.repository_owner }}/${IMAGE_REPO@}${DIGEST}" >> $GITHUB_ENV
+          echo "GHCR_IMAGE=ghcr.io/${{ github.repository_owner }}/${IMAGE_REPO}@${DIGEST}" >> $GITHUB_ENV
       - name: Sign Images with Cosign
         run: |
           set -euo pipefail
@@ -184,7 +183,7 @@ jobs:
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
         with:
           # Targets the GHCR image to generate the SBOM (since digests match, the SBOM is identical)
-          image: "$GHCR_IMAGE"
+          image: ${{ env.GHCR_IMAGE }}
           format: spdx-json
           output-file: sbom-${{ env.IMAGE_REPO }}.spdx.json
           artifact-name: sbom-${{ env.IMAGE_REPO }}.spdx.json
@@ -204,7 +203,7 @@ jobs:
             export COSIGN_REPOSITORY="$REPO_PATH"
             cosign attest \
               --yes \
-              --predicate "sbom-${IMAGE-REPO}.spdx.json" \
+              --predicate "sbom-${IMAGE_REPO}.spdx.json" \
               --type spdxjson \
               "$IMAGE"
           done
