@@ -229,7 +229,7 @@ jobs:
      
   dast-analysis:
     name: DAST (Digest-based)
-    needs: [ build-push-frontend, build-push-backend, build-push-worker ]
+    needs: [ build-push-frontend, build-push-backend, build-push-worker, resolve ]
     permissions:
       contents: read
       id-token: write
