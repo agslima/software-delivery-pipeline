@@ -154,7 +154,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p zap-out
-          chmod 755 zap-out
+          chmod 777 zap-out
           cp "$ZAP_CONTEXT_FILE" zap-out/context.context
           cp "$ZAP_RULES_FILE"   zap-out/rules.tsv
           VOL_PATH="$(pwd)/zap-out"
@@ -260,12 +260,12 @@ jobs:
           path: zap-downloads
       - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 #v4.1.0
         with:
-          username: ${{ secrets.dockerhub_username }}
+          username: ${{ inputs.dockerhub_username }}
           password: ${{ secrets.dockerhub_token }}
       - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 #v4.1.0
         with:
           registry: ghcr.io
-          username: ${{ secrets.ghcr_username }}
+          username: ${{ inputs.ghcr_username }}
           password: ${{ secrets.ghcr_token }}
       - uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 #v4.1.1
       - name: Read Digest
@@ -273,7 +273,7 @@ jobs:
           set -euo pipefail
           DIGEST="${{ matrix.image_digest }}"
           echo "DIGEST=$DIGEST" >> "$GITHUB_ENV"
-          echo "DOCKER_IMAGE=docker.io/${{ secrets.dockerhub_username }}/${{ matrix.image_repo }}@$DIGEST" >> "$GITHUB_ENV"
+          echo "DOCKER_IMAGE=docker.io/${{ inputs.dockerhub_username }}/${{ matrix.image_repo }}@$DIGEST" >> "$GITHUB_ENV"
           echo "GHCR_IMAGE=ghcr.io/${{ github.repository_owner }}/${{ matrix.image_repo }}@$DIGEST" >> "$GITHUB_ENV"
       - name: Create ZAP Attestation (from DAST artifacts)
         run: |
