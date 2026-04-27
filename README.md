@@ -38,7 +38,7 @@ This is a full-stack reference implementation of a governed delivery pipeline, d
 - Runtime admission validation tied to build identity
 
 > [!NOTE]
-> The Single Page Application (SPA) logic is intentionally simple. The value of this repository lies in the **delivery architecture, security controls, and governance model**. For more details about the application, please see the **[`app/README.md`](https://github.com/agslima/software-delivery-pipeline/tree/main/app)**.
+> The **app StayHealthy** is a **Single Page Application (SPA)** with intentionally simple logic. The value of this repository lies in the **delivery architecture, security controls, and governance model**. For more details about this application, please see the **[`app/README.md`](https://github.com/agslima/app-stayhealthy-pipeline/tree/main/app)**.
 ---
 
 ## Architectural Goals
