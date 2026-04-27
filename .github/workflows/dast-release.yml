@@ -22,25 +22,25 @@ on:
       dockerhub_token:
         description: 'Docker Hub access token'
         required: true
-      JWT_SECRET:
+      jwt_secret:
         description: 'JWT secret for the application (used in DAST environment)'
         required: true
-      ADMIN_PASS:
+      admin_pass:
         description: 'Admin password for the application'
         required: true
-      DB_PASS:
+      eb_pass:
         description: 'Database password for the application'
         required: true
-      DATA_ENCRYPTION_KEY:
+      data_encryption:
         description: 'Data encryption key for the application'
         required: true
-      ADMIN_USER:
+      admin_user:
         description: 'Admin username for the application'
         required: true
-      DB_USER:
+      db_user:
         description: 'Database username for the application'
         required: true
-      DB_NAME:
+      db_name:
         description: 'Database name for the application'
         required: true
     inputs:
@@ -64,6 +64,14 @@ jobs:
     permissions:
       contents: read
     env:
+      DOCKER_USERNAME: ${{ secrets.dockerhub_username }}
+      JWT_SECRET: ${{ secrets.jwt_secret }}
+      ADMIN_USER: ${{ secrets.admin_user }}
+      DB_USER: ${{ secrets.db_user }}
+      DB_NAME: ${{ secrets.db_name }}
+      IMAGE-DIGEST-BACKEND: ${{ inputs.image-digest-backend }}
+      IMAGE-DIGEST-FRONTEND: ${{ inputs.image-digest-frontend }}
+      IMAGE-DIGEST-WORKER: ${{ inputs.image-digest-worker }}
       ZAP_IMG: ghcr.io/zaproxy/zaproxy@sha256:4bef6bcb753a95aa2f69f36e400a77dcc47ced2d10d26902d52f616fa292f5e1 # v2.17.0
       ZAP_TARGET_FRONTEND: "http://127.0.0.1:4173"
       ZAP_TARGET_BACKEND: "http://127.0.0.1:8080"
@@ -89,10 +97,10 @@ jobs:
           rm -rf "$SECRETS_DIR"
           mkdir -p "$SECRETS_DIR"
           {
-            echo "ADMIN_USER=${{ secrets.ADMIN_USER }}"
-            echo "DB_USER=${{ secrets.DB_USER }}"
-            echo "DB_NAME=${{ secrets.DB_NAME }}"
-            echo "COMPOSE_PROJECT_NAME=${{ env.COMPOSE_PROJECT_NAME }}"
+            echo "ADMIN_USER=${ADMIN_USER}"
+            echo "DB_USER=${DB_USER}"
+            echo "DB_NAME=${DB_NAME}"
+            echo "COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME}"
             echo "SECRETS_PATH=${SECRETS_DIR}"
           } >> "$ENV_FILE"
           chmod 644 "$ENV_FILE"
@@ -107,12 +115,12 @@ jobs:
         working-directory: app
         run: |
           set -euo pipefail
-          BACKEND_DIGEST="${{ inputs.image-digest-backend }}"
-          WORKER_DIGEST="${{ inputs.image-digest-worker }}"
-          FRONTEND_DIGEST="${{ inputs.image-digest-frontend }}"
-          export BACKEND_IMAGE="docker.io/${{ secrets.dockerhub_username }}/app-stayhealthy-backend@$BACKEND_DIGEST"
-          export WORKER_IMAGE="docker.io/${{ secrets.dockerhub_username }}/app-stayhealthy-worker@$WORKER_DIGEST"
-          export FRONTEND_IMAGE="docker.io/${{ secrets.dockerhub_username }}/app-stayhealthy-frontend@$FRONTEND_DIGEST"
+          BACKEND_DIGEST="${IMAGE-DIGEST-BACKEND}"
+          WORKER_DIGEST="${IMAGE-DIGEST-WORKER}"
+          FRONTEND_DIGEST="${IMAGE-DIGEST-FRONTEND}"
+          export BACKEND_IMAGE="docker.io/${DOCKER_USERNAME}/app-stayhealthy-backend@${BACKEND_DIGEST}"
+          export WORKER_IMAGE="docker.io/${DOCKER_USERNAME}/app-stayhealthy-worker@${WORKER_DIGEST}"
+          export FRONTEND_IMAGE="docker.io/${DOCKER_USERNAME}/app-stayhealthy-frontend@${FRONTEND_DIGEST}"
           echo "BACKEND_IMAGE=$BACKEND_IMAGE"
           echo "WORKER_IMAGE=$WORKER_IMAGE"
           echo "FRONTEND_IMAGE=$FRONTEND_IMAGE"
@@ -300,8 +308,8 @@ jobs:
           set -euo pipefail
           echo "Signing starts: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           IMAGES=(
-            "${{ env.DOCKER_IMAGE }}"
-            "${{ env.GHCR_IMAGE }}"
+            "${DOCKER_IMAGE }"
+            "${GHCR_IMAGE }"
           )
           for IMAGE in "${IMAGES[@]}"; do
             echo "Attest image: $IMAGE"
