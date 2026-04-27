@@ -28,10 +28,10 @@ on:
       admin_pass:
         description: 'Admin password for the application'
         required: true
-      eb_pass:
+      db_pass:
         description: 'Database password for the application'
         required: true
-      data_encryption:
+      data_encryption_key:
         description: 'Data encryption key for the application'
         required: true
       admin_user:
@@ -72,6 +72,9 @@ jobs:
       IMAGE_DIGEST_BACKEND: ${{ inputs.image-digest-backend }}
       IMAGE_DIGEST_FRONTEND: ${{ inputs.image-digest-frontend }}
       IMAGE_DIGEST_WORKER: ${{ inputs.image-digest-worker }}
+      ADMIN_PASS: ${{ secrets.admin_pass }}
+      DB_PASS: ${{ secrets.db_pass }}
+      DATA_ENCRYPTION_KEY: ${{ secrets.data_encryption_key }}
       ZAP_IMG: ghcr.io/zaproxy/zaproxy@sha256:4bef6bcb753a95aa2f69f36e400a77dcc47ced2d10d26902d52f616fa292f5e1 # v2.17.0
       ZAP_TARGET_FRONTEND: "http://127.0.0.1:4173"
       ZAP_TARGET_BACKEND: "http://127.0.0.1:8080"
@@ -96,12 +99,6 @@ jobs:
           rm -f "$ENV_FILE"
           rm -rf "$SECRETS_DIR"
           mkdir -p "$SECRETS_DIR"
-          #Log
-          echo "ADMIN_USER=${ADMIN_USER}"
-          echo "DB_USER=${DB_USER}"
-          echo "DB_NAME=${DB_NAME}"
-          echo "COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME}"
-          echo "SECRETS_PATH=${SECRETS_DIR}"
           {
             echo "ADMIN_USER=${ADMIN_USER}"
             echo "DB_USER=${DB_USER}"
@@ -111,10 +108,10 @@ jobs:
           } >> "$ENV_FILE"
           chmod 644 "$ENV_FILE"
           # Compose secrets files
-          printf "%s" "${{ secrets.JWT_SECRET }}" > "${SECRETS_DIR}/jwt_secret.txt"
-          printf "%s" "${{ secrets.ADMIN_PASS }}" > "${SECRETS_DIR}/admin_pass.txt"
-          printf "%s" "${{ secrets.DB_PASS }}" > "${SECRETS_DIR}/db_pass.txt"
-          printf "%s" "${{ secrets.DATA_ENCRYPTION_KEY }}" > "${SECRETS_DIR}/data_encryption_key.txt"
+          printf "%s" "${JWT_SECRET}" > "${SECRETS_DIR}/jwt_secret.txt"
+          printf "%s" "${ADMIN_PASS}" > "${SECRETS_DIR}/admin_pass.txt"
+          printf "%s" "${DB_PASS}" > "${SECRETS_DIR}/db_pass.txt"
+          printf "%s" "${DATA_ENCRYPTION_KEY}" > "${SECRETS_DIR}/data_encryption_key.txt"
           chmod 755 "${SECRETS_DIR}"/*.txt
           echo "Secrets dir: ${SECRETS_DIR}"
       - name: Start Ephemeral Environment (Pinned Digests)
@@ -224,6 +221,7 @@ jobs:
       contents: read
       id-token: write
       attestations: write
+      packages: write
     env:
       ZAP_PREDICATE_TYPE: "https://security.sigstore.dev/attestations/dast/zap/v1"
     strategy:
@@ -232,13 +230,13 @@ jobs:
         include:
           - name: backend
             image_repo: app-stayhealthy-backend
-            image_digest: ${{ inputs.image_digest-backend }}
+            image_digest: ${{ inputs.image-digest-backenddigest-backend }}
           - name: worker
             image_repo: app-stayhealthy-worker
-            image_digest: ${{ inputs.image_digest-worker }}
+            image_digest: ${{ inputs.image-digest-worker }}
           - name: frontend
             image_repo: app-stayhealthy-frontend
-            image_digest: ${{ inputs.image_digest-frontend }}
+            image_digest: ${{ inputs.image-digest-frontend }}
     steps:
       - name: Download DAST artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v4.1.8.0.1
@@ -293,8 +291,8 @@ jobs:
           set -euo pipefail
           echo "Signing starts: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           IMAGES=(
-            "${DOCKER_IMAGE }"
-            "${GHCR_IMAGE }"
+            "${DOCKER_IMAGE}"
+            "${GHCR_IMAGE}"
           )
           for IMAGE in "${IMAGES[@]}"; do
             echo "Attest image: $IMAGE"
