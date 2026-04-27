@@ -225,7 +225,7 @@ stage_context_file() {
   mkdir -p "$STAGED_CONTEXT_DIR"
   cp "$ZAP_CONTEXT_FILE" "$STAGED_CONTEXT_FILE"
   cp "$ZAP_CONTEXT_FILE" "$CONTEXT_ARTIFACT_FILE"
-  chmod 600 "$STAGED_CONTEXT_FILE"
+  chmod 644 "$STAGED_CONTEXT_FILE"
   chmod 644 "$CONTEXT_ARTIFACT_FILE"
   validate_context_file "$STAGED_CONTEXT_FILE"
   validate_context_file "$CONTEXT_ARTIFACT_FILE"
@@ -524,7 +524,7 @@ github_env_set "MED_BLOCK_BE" "0"
 mkdir -p "$(dirname "$DAST_ENV_FILE")"
 mkdir -p "$SECRETS_PATH"
 mkdir -p "$OUT_DIR"
-chmod 777  "$OUT_DIR" # chmod -R u+rwX,go+rX "$OUT_DIR"
+chmod 755  "$OUT_DIR" # chmod -R u+rwX,go+rX "$OUT_DIR"
 
 validate_context_file "$ZAP_CONTEXT_FILE"
 test -f "$ZAP_RULES_FILE" || { echo "::error::Missing rules file $ZAP_RULES_FILE"; exit 1; }
@@ -553,7 +553,7 @@ printf "%s" "$JWT_SECRET_VALUE" > "${SECRETS_PATH}/jwt_secret.txt"
 printf "%s" "$ADMIN_PASS_VALUE" > "${SECRETS_PATH}/admin_pass.txt"
 printf "%s" "$DB_PASS_VALUE" > "${SECRETS_PATH}/db_pass.txt"
 printf "%s" "$DATA_ENCRYPTION_KEY_VALUE" > "${SECRETS_PATH}/data_encryption_key.txt"
-chmod 600 "${SECRETS_PATH}"/*.txt
+chmod 644 "${SECRETS_PATH}"/*.txt
 
 log_mask "$ADMIN_PASS_VALUE"
 log_mask "$DB_PASS_VALUE"

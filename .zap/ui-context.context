@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<configuration>
+    <context>
+        <name>Default Context</name>
+        <desc/>
+        <inscope>true</inscope>
+        <tech>
+            <include>Db</include>
+            <include>Db.CouchDB</include>
+            <include>Db.Firebird</include>
+            <include>Db.HypersonicSQL</include>
+            <include>Db.IBM DB2</include>
+            <include>Db.MariaDB</include>
+            <include>Db.Microsoft Access</include>
+            <include>Db.Microsoft SQL Server</include>
+            <include>Db.MongoDB</include>
+            <include>Db.MySQL</include>
+            <include>Db.Oracle</include>
+            <include>Db.PostgreSQL</include>
+            <include>Db.SAP MaxDB</include>
+            <include>Db.SQLite</include>
+            <include>Db.Sybase</include>
+            <include>Framework</include>
+            <include>Framework.Next.js</include>
+            <include>Framework.React</include>
+            <include>Language</include>
+            <include>Language.ASP</include>
+            <include>Language.C</include>
+            <include>Language.JSP/Servlet</include>
+            <include>Language.Java</include>
+            <include>Language.Java.Spring</include>
+            <include>Language.JavaScript</include>
+            <include>Language.PHP</include>
+            <include>Language.Python</include>
+            <include>Language.Ruby</include>
+            <include>Language.XML</include>
+            <include>OS</include>
+            <include>OS.Linux</include>
+            <include>OS.MacOS</include>
+            <include>OS.Windows</include>
+            <include>SCM</include>
+            <include>SCM.Git</include>
+            <include>SCM.SVN</include>
+            <include>WS</include>
+            <include>WS.Apache</include>
+            <include>WS.IIS</include>
+            <include>WS.Tomcat</include>
+        </tech>
+        <urlparser>
+            <class>org.zaproxy.zap.model.StandardParameterParser</class>
+            <config>{"kvps":"&amp;","kvs":"=","struct":[]}</config>
+        </urlparser>
+        <postparser>
+            <class>org.zaproxy.zap.model.StandardParameterParser</class>
+            <config>{"kvps":"&amp;","kvs":"=","struct":[]}</config>
+        </postparser>
+        <authentication>
+            <type>6</type>
+            <strategy>EACH_RESP</strategy>
+            <pollurl/>
+            <polldata/>
+            <pollheaders/>
+            <pollfreq>60</pollfreq>
+            <pollunits>REQUESTS</pollunits>
+            <loggedin>\QWelcome back\E</loggedin>
+            <loggedout>\Q Sign Out\E</loggedout>
+            <browser>
+                <loginpageurl>http:localhost:8080/api/v2/auth/login</loginpageurl>
+                <browserid>firefox-headless</browserid>
+                <loginpagewait>5</loginpagewait>
+                <stepdelay>0</stepdelay>
+                <steps>
+                    <step>true;1;VXNlcm5hbWUgRWxlbWVudA==;VVNFUk5BTUU=;Y3NzOmlucHV0W3R5cGU9ImVtYWlsIl0=;;;1000;VXNlckNyZWRlbnRpYWxz;30;6;U0hBMQ==;</step>
+                    <step>true;2;UGFzc3dvcmQgRWxlbWVudA==;UEFTU1dPUkQ=;Y3NzOmlucHV0W3R5cGU9InBhc3N3b3JkIl0=;;;1000;VXNlckNyZWRlbnRpYWxz;30;6;U0hBMQ==;</step>
+                    <step>true;3;U3VibWl0IEVsZW1lbnQ=;Q0xJQ0s=;Y3NzOmlucHV0W3R5cGU9InN1Ym1pdCJd;;;1000;VXNlckNyZWRlbnRpYWxz;30;6;U0hBMQ==;</step>
+                </steps>
+            </browser>
+        </authentication>
+        <users>
+            <user>16;true;ZGFzdC1hZG1pbg==;6;X19aQVBfVVNFUk5BTUVfXw==~X19aQVBfUEFTU1dPUkRfXw==~~30~6~U0hBMQ==~</user>
+        </users>
+        <forceduser>16</forceduser>
+        <session>
+            <type>0</type>
+        </session>
+        <authorization>
+            <type>0</type>
+            <basic>
+                <header/>
+                <body/>
+                <logic>AND</logic>
+                <code>-1</code>
+            </basic>
+        </authorization>
+    </context>
+</configuration>
