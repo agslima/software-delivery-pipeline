@@ -142,8 +142,8 @@ jobs:
           build-args: |
             GIT_TAG=${{ env.RELEASE_TAG }}
             GIT_COMMIT=${{ env.GITHUB_SHA }}
-            BUILD_DATE=${BUILD_DATE}
-            GIT_TREE_STATE=${GIT_TREE_STATE}
+            BUILD_DATE=${{ env.BUILD_DATE }}
+            GIT_TREE_STATE=${{ env.GIT_TREE_STATE }}
       - name: Export Digest Artifact & Prepare References
         run: |
           set -euo pipefail
