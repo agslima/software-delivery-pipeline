@@ -3,7 +3,6 @@ kind: ImageValidatingPolicy
 metadata:
   name: verify-signature
 spec:
-  # Replaces 'validationFailureAction: Enforce'
   validationActions: [Deny] 
   webhookConfiguration:
     timeoutSeconds: 30
@@ -16,26 +15,17 @@ spec:
         operations: ['CREATE', 'UPDATE']
         resources: ['pods', 'deployments']
         
-  # Replaces the old verifyImages block. Uses glob arrays for cleaner reading.
   matchImageReferences:
     - glob: "*/agslima/app-stayhealthy-backend*"
     - glob: "*/agslima/app-stayhealthy-worker*"
     - glob: "*/agslima/app-stayhealthy-frontend*"
-    
-  # Declarative trusted authorities
   attestors:
     - name: githubActions
       cosign:
         keyless:
           identities:
             - issuer: "https://token.actions.githubusercontent.com"
-              
-              # LAYER 1 DEBUGGING: Keep this wildcard active to prove signatures are found.
-              subjectRegExp: ".*" 
-              
-              # LAYER 2 STRICT: Once Layer 1 passes, comment out the wildcard and uncomment this.
-              # Note: CEL regex requires escaping periods (\\.) 
-              # subjectRegExp: "^https://github\\.com/agslima/app-stayhealthy-pipeline/\\.github/workflows/ci-release-gate\\.yml@refs/tags/v.*$"
+              subjectRegExp: "^https://github\\.com/agslima/app-stayhealthy-pipeline/\\.github/workflows/release-build-push-dual-registry\\.yml@refs/tags/v.*$"
         ctlog:
           url: "https://rekor.sigstore.dev"
           
