@@ -6,15 +6,12 @@ spec:
   validationActions: [Deny] 
   webhookConfiguration:
     timeoutSeconds: 30
-  
-  # Standardized Kubernetes Admission matching
   matchConstraints:
     resourceRules:
       - apiGroups: ['', 'apps']
         apiVersions: ['v1']
         operations: ['CREATE', 'UPDATE']
         resources: ['pods', 'deployments']
-        
   matchImageReferences:
     - glob: "*/agslima/app-stayhealthy-backend*"
     - glob: "*/agslima/app-stayhealthy-worker*"
@@ -28,8 +25,6 @@ spec:
               subjectRegExp: "^https://github\\.com/agslima/app-stayhealthy-pipeline/\\.github/workflows/release-build-push-dual-registry\\.yml@refs/tags/v.*$"
         ctlog:
           url: "https://rekor.sigstore.dev"
-          
-  # CEL-based validation logic
   validations:
     - expression: >-
         images.containers.map(image, verifyImageSignatures(image, [attestors.githubActions])).all(e, e > 0)

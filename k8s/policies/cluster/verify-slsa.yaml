@@ -10,18 +10,14 @@ spec:
   validationActions: [Deny]
   webhookConfiguration:
     timeoutSeconds: 30
-
   matchConstraints:
     resourceRules:
       - apiGroups: ['', 'apps']
         apiVersions: ['v1']
         operations: ['CREATE', 'UPDATE']
         resources: ['pods', 'deployments']
-
-  # Use wildcards to catch both index.docker.io and docker.io aliases
   matchImageReferences:
     - glob: "*/agslima/app-stayhealthy-*"
-
   attestors:
     - name: slsaGenerator
       cosign:
@@ -31,19 +27,15 @@ spec:
               subjectRegExp: "^https://github\\.com/slsa-framework/slsa-github-generator/\\.github/workflows/generator_container_slsa3\\.yml@refs/tags/v2\\.1\\.0$"
         ctlog:
           url: "https://rekor.sigstore.dev"
-
   attestations:
     - name: slsaProvenance
       intoto:
-        # Matches your previous predicateType
         type: "https://slsa.dev/provenance/v0.2"
-
   validations:
     # 1. First, verify the cryptographic signature of the attestation itself
     - expression: >-
         images.containers.map(image, verifyAttestationSignatures(image, attestations.slsaProvenance, [attestors.slsaGenerator])).all(e, e > 0)
       message: "Failed to verify SLSA provenance attestation signature. Image must be attested by the official SLSA builder."
-      
     # 2. Verify the SLSA Builder details (id and buildType)
     - expression: >-
         images.containers.all(image, 
@@ -51,7 +43,6 @@ spec:
           extractPayload(image, attestations.slsaProvenance).predicate.buildType == "https://github.com/slsa-framework/slsa-github-generator/container@v1"
         )
       message: "SLSA payload validation failed: Builder ID or Build Type does not match the required slsa-github-generator v2.1.0."
-
     # 3. Verify the exact CI execution environment (entryPoint and event)
     - expression: >-
         images.containers.all(image, 
@@ -59,7 +50,6 @@ spec:
           extractPayload(image, attestations.slsaProvenance).predicate.invocation.environment.github_event_name == "push"
         )
       message: "SLSA payload validation failed: Invocation must be triggered via 'push' to the 'ci-release-gate.yml' entrypoint."
-
     # 4. Verify the semantic versioning and exact Git repository
     - expression: >-
         images.containers.all(image, 

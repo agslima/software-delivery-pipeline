@@ -345,51 +345,49 @@ jobs:
           ' "$RENDERED_MANIFEST" | tee -a "$LOG_FILE"
 
           # 3. Evaluate Policies 
-echo "=== Kyverno policy evaluation ===" | tee -a "$LOG_FILE" 
+          echo "=== Kyverno policy evaluation ===" | tee -a "$LOG_FILE"
+          POLICIES=(
+            "k8s/policies/cluster/verify-signature.yaml"
+            "k8s/policies/cluster/verify-trivy.yaml"
+            "k8s/policies/cluster/verify-zap.yaml"
+            "k8s/policies/cluster/verify-sbom.yaml"
+          )
 
-# Array of policies to evaluate
-POLICIES=(
-  "k8s/policies/cluster/verify-signature.yaml"
-  "k8s/policies/cluster/verify-trivy.yaml"
-  "k8s/policies/cluster/verify-zap.yaml"
-  "k8s/policies/cluster/verify-sbom.yaml"
-)
+          # Disable 'set -e' temporarily
+          set +e 
 
-# Disable 'set -e' temporarily
-set +e 
+          KYVERNO_EXIT_CODE=0
 
-KYVERNO_EXIT_CODE=0
+          for POLICY in "${POLICIES[@]}"; do
+            echo "Evaluating policy: $POLICY" | tee -a "$LOG_FILE"
+            
+            timeout 180 kyverno apply "$POLICY" \
+              --resource "$RENDERED_MANIFEST" \
+              --registry \
+              -v=6 \
+              --detailed-results 2>&1 | tee -a "$LOG_FILE"
+              
+            # Capture exit code of the current run
+            STEP_EXIT_CODE=${PIPESTATUS[0]}
+            
+            # If any policy fails, mark the overall pipeline as failed, but continue checking the rest
+            if [ "$STEP_EXIT_CODE" -ne 0 ]; then
+              KYVERNO_EXIT_CODE=$STEP_EXIT_CODE
+              echo "::error::Policy validation failed for $POLICY" | tee -a "$LOG_FILE"
+            fi
+          done
 
-for POLICY in "${POLICIES[@]}"; do
-  echo "Evaluating policy: $POLICY" | tee -a "$LOG_FILE"
-  
-  timeout 180 kyverno apply "$POLICY" \
-    --resource "$RENDERED_MANIFEST" \
-    --registry \
-    -v=6 \
-    --detailed-results 2>&1 | tee -a "$LOG_FILE"
-    
-  # Capture exit code of the current run
-  STEP_EXIT_CODE=${PIPESTATUS[0]}
-  
-  # If any policy fails, mark the overall pipeline as failed, but continue checking the rest
-  if [ "$STEP_EXIT_CODE" -ne 0 ]; then
-    KYVERNO_EXIT_CODE=$STEP_EXIT_CODE
-    echo "::error::Policy validation failed for $POLICY" | tee -a "$LOG_FILE"
-  fi
-done
+          # Re-enable strict error handling 
+          set -e 
 
-# Re-enable strict error handling 
-set -e 
+          echo "------------------------------------------------------------" | tee -a "$LOG_FILE" 
 
-echo "------------------------------------------------------------" | tee -a "$LOG_FILE" 
-
-if [ "$KYVERNO_EXIT_CODE" -ne 0 ]; then 
-  echo "::error::Kyverno policy validation failed. Check the logs above." | tee -a "$LOG_FILE" 
-  exit "$KYVERNO_EXIT_CODE" 
-else 
-  echo "Kyverno policy validation passed successfully." | tee -a "$LOG_FILE" 
-fi 
+          if [ "$KYVERNO_EXIT_CODE" -ne 0 ]; then 
+            echo "::error::Kyverno policy validation failed. Check the logs above." | tee -a "$LOG_FILE" 
+            exit "$KYVERNO_EXIT_CODE" 
+          else 
+            echo "Kyverno policy validation passed successfully." | tee -a "$LOG_FILE" 
+          fi 
         
       - name: Upload Kyverno Log
         if: always()

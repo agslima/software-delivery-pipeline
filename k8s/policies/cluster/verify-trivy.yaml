@@ -17,13 +17,10 @@ spec:
         apiVersions: ['v1']
         operations: ['CREATE', 'UPDATE']
         resources: ['pods', 'deployments']
-
-  # Use wildcards to catch both index.docker.io and docker.io aliases
   matchImageReferences:
     - glob: "*/agslima/app-stayhealthy-backend*"
     - glob: "*/agslima/app-stayhealthy-worker*"
     - glob: "*/agslima/app-stayhealthy-frontend*"
-
   attestors:
     - name: trivyWorkflow
       cosign:
@@ -33,11 +30,9 @@ spec:
               subjectRegExp: "^https://github\\.com/agslima/app-stayhealthy-pipeline/\\.github/workflows/release-trivy\\.yml@refs/tags/v.*$"
         ctlog:
           url: "https://rekor.sigstore.dev"
-
   attestations:
     - name: trivyScan
       intoto:
-        # Matches your specific Trivy vulnerability predicate
         type: "https://security.sigstore.dev/attestations/vuln/trivy/v1"
 
   validations:
@@ -45,7 +40,6 @@ spec:
     - expression: >-
         images.containers.map(image, verifyAttestationSignatures(image, attestations.trivyScan, [attestors.trivyWorkflow])).all(e, e > 0)
       message: "Failed to verify Trivy attestation signature. Image must be scanned and attested by the release-trivy.yml pipeline."
-      
     # 2. Extract the payload and verify the scan result equals PASS
     - expression: >-
         images.containers.all(image, 
