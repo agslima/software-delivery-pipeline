@@ -1,5 +1,5 @@
-apiVersion: kyverno.io/v1
-kind: ClusterPolicy
+apiVersion: policies.kyverno.io/v1
+kind: ImageValidatingPolicy
 metadata:
   name: verify-sbom
   annotations:
@@ -7,28 +7,43 @@ metadata:
     policies.kyverno.io/category: Supply Chain Security
     policies.kyverno.io/severity: critical
 spec:
-  validationFailureAction: Enforce
-  background: false
-  webhookTimeoutSeconds: 30
-  rules:
-    - name: require-sbom-spdx
-      match:
-        any:
-          - resources:
-              kinds: ["Pod", "Deployment"]
-              namespaces: ["prod", "production"]
-      verifyImages:
-        - imageReferences:
-            - "index.docker.io/agslima/app-stayhealthy-backend@*"  
-            - "index.docker.io/agslima/app-stayhealthy-worker@*"  
-            - "index.docker.io/agslima/app-stayhealthy-frontend@*"  
-          failureAction: Enforce
-          attestations:
-            - predicateType: "https://spdx.dev/Document"
-              attestors:
-                - entries:
-                    - keyless:
-                        issuer: "https://token.actions.githubusercontent.com"
-                        subjectRegExp: "^https://github.com/agslima/app-stayhealthy-pipeline/.github/workflows/ci-release-gate.yml@refs/tags/v.+$"
-                        rekor:
-                          url: "https://rekor.sigstore.dev"
+  validationActions: [Deny]
+  webhookConfiguration:
+    timeoutSeconds: 30
+
+  # Standard Kubernetes Admission matching
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ['', 'apps']
+        apiVersions: ['v1']
+        operations: ['CREATE', 'UPDATE']
+        resources: ['pods', 'deployments']
+
+  # Use wildcards for the registry to avoid hostname mismatches
+  matchImageReferences:
+    - glob: "*/agslima/app-stayhealthy-backend*"
+    - glob: "*/agslima/app-stayhealthy-worker*"
+    - glob: "*/agslima/app-stayhealthy-frontend*"
+
+  attestors:
+    - name: githubActions
+      cosign:
+        keyless:
+          identities:
+            - issuer: "https://token.actions.githubusercontent.com"
+              # Double-escaped periods for CEL regex parser
+              subjectRegExp: "^https://github\\.com/agslima/app-stayhealthy-pipeline/\\.github/workflows/ci-release-gate\\.yml@refs/tags/v.*$"
+        ctlog:
+          url: "https://rekor.sigstore.dev"
+
+  # Declare the expected attestation payload type
+  attestations:
+    - name: spdxSbom
+      intoto:
+        type: "https://spdx.dev/Document"
+
+  # CEL validation tying the image, the attestation type, and the attestor together
+  validations:
+    - expression: >-
+        images.containers.map(image, verifyAttestationSignatures(image, attestations.spdxSbom, [attestors.githubActions])).all(e, e > 0)
+      message: "Failed to verify SPDX SBOM attestation. Image must have an attached SBOM signed by the StayHealthy CI pipeline."
