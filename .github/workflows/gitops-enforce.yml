@@ -353,6 +353,9 @@ jobs:
           # Run Kyverno against multiple policies simultaneously
           timeout 180 kyverno apply \
             k8s/policies/cluster/verify-signature.yaml \
+            k8s/policies/cluster/verify-trivy.yaml \
+            k8s/policies/cluster/verify-zap.yaml \
+            k8s/policies/cluster/verify-sbom.yaml \
             --resource "$RENDERED_MANIFEST" \
             --registry \
             -v=6 \
@@ -401,7 +404,7 @@ jobs:
             - Release Run: ${{ env.RELEASE_RUN_URL }}
             - Head SHA: `${{ env.RELEASE_SHA }}`
             **Pinned Images**
-            - Backend digest: `${{ env.BACKEND_IMAGE }}`
+            - Backend candidate canary: `${{ env.BACKEND_IMAGE }}`
             - Worker: `${{ env.WORKER_IMAGE }}`
             - Frontend: `${{ env.FRONTEND_IMAGE }}`
             **Rollout intent**
@@ -415,4 +418,11 @@ jobs:
             - Kyverno structural checks: ✅
           branch: ${{ env.PR_BRANCH }}
           base: main
+          author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
+          signoff: true
           delete-branch: true
+          labels: |
+            automated
+          assignees: agslima
+          reviewers: agslima
+          draft: false
