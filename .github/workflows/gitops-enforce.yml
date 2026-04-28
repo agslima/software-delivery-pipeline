@@ -17,6 +17,17 @@ concurrency:
   cancel-in-progress: false
   
 jobs:
+  on-success:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - run: echo 'The triggering workflow passed'
+  on-failure:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    steps:
+      - run: echo 'The triggering workflow failed'
+      
   verify-context:
     runs-on: ubuntu-latest
     permissions:
@@ -189,6 +200,8 @@ jobs:
           pattern: digest-*
           path: digests
       - name: Read & Validate Digests
+        env:
+          DOCKER_USERNAME: ${{ vars.DOCKER_HUB_USERNAME }}
         run: |
           set -euo pipefail
           test -s digests/digest-backend || (echo "::error::digest-backend missing/empty"; exit 1)
@@ -204,12 +217,12 @@ jobs:
           echo "BACKEND_DIGEST=$BACKEND_DIGEST" >> $GITHUB_ENV
           echo "WORKER_DIGEST=$WORKER_DIGEST" >> $GITHUB_ENV
           echo "FRONTEND_DIGEST=$FRONTEND_DIGEST" >> $GITHUB_ENV
-          echo "BACKEND_IMAGE=docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-backend@$BACKEND_DIGEST" >> $GITHUB_ENV
-          echo "WORKER_IMAGE=docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-worker@$WORKER_DIGEST" >> $GITHUB_ENV
-          echo "FRONTEND_IMAGE=docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-frontend@$FRONTEND_DIGEST" >> $GITHUB_ENV
+          echo "BACKEND_IMAGE=docker.io/${DOCKER_USERNAME}/app-stayhealthy-backend@$BACKEND_DIGEST" >> $GITHUB_ENV
+          echo "WORKER_IMAGE=docker.io/${DOCKER_USERNAME}/app-stayhealthy-worker@$WORKER_DIGEST" >> $GITHUB_ENV
+          echo "FRONTEND_IMAGE=docker.io/${DOCKER_USERNAME}/app-stayhealthy-frontend@$FRONTEND_DIGEST" >> $GITHUB_ENV
           echo "✅ Loaded Digests."
       - name: Verify Signatures + Required Attestations (hard gate)
-        if: false
+        continue-on-error: true
         env:
           RELEASE_REF: ${{ steps.release-meta.outputs.release_ref }}
           RELEASE_TAG: ${{ steps.release-meta.outputs.release_tag }}
