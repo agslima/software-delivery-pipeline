@@ -4,9 +4,9 @@ namespace: production
 resources:
   - ../../base
 images:
-  - name: index.docker.io/agslima/app-stayhealthy-backend
+  - name: docker.io/agslima/app-stayhealthy-backend
     digest: sha256:63894d5a5cc3a0d0b5b5cc69449a79ae65e8ca7a6932687ab11b61a936a939c5
-  - name: index.docker.io/agslima/app-stayhealthy-worker
+  - name: docker.io/agslima/app-stayhealthy-worker
     digest: sha256:7e709f2e4b3e0f0a776f625af1201953fd761ea86f87e64915eea9fb122fc3af
-  - name: index.docker.io/agslima/app-stayhealthy-frontend
+  - name: docker.io/agslima/app-stayhealthy-frontend
     digest: sha256:bc8757540d0c6c804458e234aecba05ae7620762894d0788949f57669e7a52e9
