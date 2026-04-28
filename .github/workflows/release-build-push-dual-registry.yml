@@ -108,7 +108,7 @@ jobs:
         run: |
           echo "GIT_TREE_STATE=$(if [ -z "$(git status --porcelain)" ]; then echo "clean"; else echo "dirty"; fi)" >> $GITHUB_ENV
           echo "BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_ENV
-          echo "DOCKER_USERNAME=${{ env.DOCKER_USERNAME }}" >> $GITHUB_ENV
+          echo "DOCKER_USERNAME=${DOCKER_USERNAME}" >> $GITHUB_ENV
       - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
