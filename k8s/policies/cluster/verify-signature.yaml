@@ -27,7 +27,7 @@ spec:
             - entries:
                 - keyless:
                     issuer: "https://token.actions.githubusercontent.com"
-                    subjectRegExp: "^https://github.com/agslima/app-stayhealthy-pipeline/.github/workflows/release-build-push-dual-registry.yml@refs/tags/v.+$"
+                    subjectRegExp: "^https://github.com/agslima/app-stayhealthy-pipeline/.github/workflows/ci-release-gate.yml@refs/tags/v.+$"
                     additionalExtensions:
                       githubWorkflowTrigger: push
                       githubWorkflowName: Release
