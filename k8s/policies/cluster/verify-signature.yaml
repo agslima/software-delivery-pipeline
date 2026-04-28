@@ -23,15 +23,14 @@ spec:
             - "index.docker.io/agslima/app-stayhealthy-worker*"
             - "index.docker.io/agslima/app-stayhealthy-frontend*"
           failureAction: Enforce
-          attestations:
-            attestors:
-              - entries:
-                  - keyless:
-                      issuer: "https://token.actions.githubusercontent.com"
-                      subjectRegExp: "^https://github.com/agslima/app-stayhealthy-pipeline/.github/workflows/ci-release-gate.yml@refs/tags/v.+$"
-                      additionalExtensions:
-                        githubWorkflowTrigger: push
-                        githubWorkflowName: Release
-                        githubWorkflowRepository: "agslima/app-stayhealthy-pipeline"
-                      rekor:
-                        url: "https://rekor.sigstore.dev"
+          attestors:
+            - entries:
+                - keyless:
+                    issuer: "https://token.actions.githubusercontent.com"
+                    subjectRegExp: "^https://github.com/agslima/app-stayhealthy-pipeline/.github/workflows/ci-release-gate.yml@refs/tags/v.+$"
+                    additionalExtensions:
+                      githubWorkflowTrigger: push
+                      githubWorkflowName: Release
+                      githubWorkflowRepository: "agslima/app-stayhealthy-pipeline"
+                    rekor:
+                      url: "https://rekor.sigstore.dev"
