@@ -344,36 +344,53 @@ jobs:
             $n + " => " + .
           ' "$RENDERED_MANIFEST" | tee -a "$LOG_FILE"
 
-          # 3. Evaluate Policies
-          echo "=== Kyverno policy evaluation ===" | tee -a "$LOG_FILE"
+          # 3. Evaluate Policies 
+echo "=== Kyverno policy evaluation ===" | tee -a "$LOG_FILE" 
 
-          # Disable 'set -e' temporarily so a policy failure doesn't immediately kill the script
-          set +e 
+# Array of policies to evaluate
+POLICIES=(
+  "k8s/policies/cluster/verify-signature.yaml"
+  "k8s/policies/cluster/verify-trivy.yaml"
+  "k8s/policies/cluster/verify-zap.yaml"
+  "k8s/policies/cluster/verify-sbom.yaml"
+)
 
-          # Run Kyverno against multiple policies simultaneously
-          timeout 180 kyverno apply \
-            k8s/policies/cluster/verify-signature.yaml \
-            k8s/policies/cluster/verify-trivy.yaml \
-            k8s/policies/cluster/verify-zap.yaml \
-            k8s/policies/cluster/verify-sbom.yaml \
-            --resource "$RENDERED_MANIFEST" \
-            --registry \
-            -v=6 \
-            --detailed-results 2>&1 | tee -a "$LOG_FILE"
+# Disable 'set -e' temporarily
+set +e 
 
-          # Capture the exit code of the Kyverno evaluation pipeline
-          KYVERNO_EXIT_CODE=${PIPESTATUS[0]}
+KYVERNO_EXIT_CODE=0
 
-          # Re-enable strict error handling
-          set -e
+for POLICY in "${POLICIES[@]}"; do
+  echo "Evaluating policy: $POLICY" | tee -a "$LOG_FILE"
+  
+  timeout 180 kyverno apply "$POLICY" \
+    --resource "$RENDERED_MANIFEST" \
+    --registry \
+    -v=6 \
+    --detailed-results 2>&1 | tee -a "$LOG_FILE"
+    
+  # Capture exit code of the current run
+  STEP_EXIT_CODE=${PIPESTATUS[0]}
+  
+  # If any policy fails, mark the overall pipeline as failed, but continue checking the rest
+  if [ "$STEP_EXIT_CODE" -ne 0 ]; then
+    KYVERNO_EXIT_CODE=$STEP_EXIT_CODE
+    echo "::error::Policy validation failed for $POLICY" | tee -a "$LOG_FILE"
+  fi
+done
 
-          echo "------------------------------------------------------------" | tee -a "$LOG_FILE"
-          if [ "$KYVERNO_EXIT_CODE" -ne 0 ]; then
-            echo "::error::Kyverno policy validation failed. Check the logs above." | tee -a "$LOG_FILE"
-            exit "$KYVERNO_EXIT_CODE"
-          else
-            echo "Kyverno policy validation passed successfully." | tee -a "$LOG_FILE"
-          fi        
+# Re-enable strict error handling 
+set -e 
+
+echo "------------------------------------------------------------" | tee -a "$LOG_FILE" 
+
+if [ "$KYVERNO_EXIT_CODE" -ne 0 ]; then 
+  echo "::error::Kyverno policy validation failed. Check the logs above." | tee -a "$LOG_FILE" 
+  exit "$KYVERNO_EXIT_CODE" 
+else 
+  echo "Kyverno policy validation passed successfully." | tee -a "$LOG_FILE" 
+fi 
+        
       - name: Upload Kyverno Log
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
