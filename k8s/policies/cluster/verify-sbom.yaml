@@ -18,8 +18,6 @@ spec:
         apiVersions: ['v1']
         operations: ['CREATE', 'UPDATE']
         resources: ['pods', 'deployments']
-
-  # Use wildcards for the registry to avoid hostname mismatches
   matchImageReferences:
     - glob: "*/agslima/app-stayhealthy-backend*"
     - glob: "*/agslima/app-stayhealthy-worker*"
@@ -31,18 +29,13 @@ spec:
         keyless:
           identities:
             - issuer: "https://token.actions.githubusercontent.com"
-              # Double-escaped periods for CEL regex parser
-              subjectRegExp: "^https://github\\.com/agslima/app-stayhealthy-pipeline/\\.github/workflows/ci-release-gate\\.yml@refs/tags/v.*$"
+              subjectRegExp: "^https://github\\.com/agslima/app-stayhealthy-pipeline/\\.github/workflows/release-build-push-dual-registry\\.yml@refs/tags/v.*$"
         ctlog:
           url: "https://rekor.sigstore.dev"
-
-  # Declare the expected attestation payload type
   attestations:
     - name: spdxSbom
       intoto:
         type: "https://spdx.dev/Document"
-
-  # CEL validation tying the image, the attestation type, and the attestor together
   validations:
     - expression: >-
         images.containers.map(image, verifyAttestationSignatures(image, attestations.spdxSbom, [attestors.githubActions])).all(e, e > 0)
