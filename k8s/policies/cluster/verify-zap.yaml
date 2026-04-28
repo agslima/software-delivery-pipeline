@@ -1,5 +1,5 @@
-apiVersion: kyverno.io/v1
-kind: ClusterPolicy
+apiVersion: policies.kyverno.io/v1
+kind: ImageValidatingPolicy
 metadata:
   name: verify-zap
   annotations:
@@ -7,39 +7,46 @@ metadata:
     policies.kyverno.io/category: Supply Chain Security
     policies.kyverno.io/severity: critical
 spec:
-  validationFailureAction: Enforce
-  background: false
-  webhookTimeoutSeconds: 30
-  rules:
-    - name: require-zap-attestation
-      match:
-        any:
-          - resources:
-              kinds: ["Pod", "Deployment"]
-              namespaces: ["prod", "production"]
-      verifyImages:
-        - imageReferences:
-            - "index.docker.io/agslima/app-stayhealthy-backend@*"  
-            - "docker.io/agslima/app-stayhealthy-backend@*"  
-            - "index.docker.io/agslima/app-stayhealthy-worker@*"  
-            - "docker.io/agslima/app-stayhealthy-worker@*"  
-            - "index.docker.io/agslima/app-stayhealthy-frontend@*"  
-            - "docker.io/agslima/app-stayhealthy-frontend@*"
-          attestations:
-            - predicateType: "https://security.sigstore.dev/attestations/dast/zap/v1"
-              attestors:
-                - entries:
-                    - keyless:
-                        issuer: https://token.actions.githubusercontent.com
-                        subjectRegExp: >-
-                          ^https://github.com/agslima/app-stayhealthy-pipeline/.github/workflows/release-dast.yml@refs/tags/v.+$
-                        rekor:
-                          url: https://rekor.sigstore.dev
-              conditions:
-                - all:
-                    - key: "{{ result || '' }}"
-                      operator: Equals
-                      value: "PASS"
-                    - key: "{{ scanner.name || '' }}"
-                      operator: Equals
-                      value: "owasp-zap"
+  validationActions: [Deny]
+  webhookConfiguration:
+    timeoutSeconds: 30
+
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ['', 'apps']
+        apiVersions: ['v1']
+        operations: ['CREATE', 'UPDATE']
+        resources: ['pods', 'deployments']
+  matchImageReferences:
+    - glob: "*/agslima/app-stayhealthy-backend*"
+    - glob: "*/agslima/app-stayhealthy-worker*"
+    - glob: "*/agslima/app-stayhealthy-frontend*"
+
+  attestors:
+    - name: zapWorkflow
+      cosign:
+        keyless:
+          identities:
+            - issuer: "https://token.actions.githubusercontent.com"
+              subjectRegExp: "^https://github\\.com/agslima/app-stayhealthy-pipeline/\\.github/workflows/release-dast\\.yml@refs/tags/v.*$"
+        ctlog:
+          url: "https://rekor.sigstore.dev"
+
+  attestations:
+    - name: zapScan
+      intoto:
+        type: "https://security.sigstore.dev/attestations/dast/zap/v1"
+
+  validations:
+    # 1. Verify the cryptographic signature of the ZAP attestation
+    - expression: >-
+        images.containers.map(image, verifyAttestationSignatures(image, attestations.zapScan, [attestors.zapWorkflow])).all(e, e > 0)
+      message: "Failed to verify ZAP attestation signature. Image must be scanned and attested by the release-dast.yml pipeline."
+      
+    # 2. Extract the payload and verify the scan result and scanner name
+    - expression: >-
+        images.containers.all(image, 
+          extractPayload(image, attestations.zapScan).result == "PASS" &&
+          extractPayload(image, attestations.zapScan).scanner.name == "owasp-zap"
+        )
+      message: "ZAP DAST validation failed: The attestation payload did not report a 'PASS' result from the 'owasp-zap' scanner."
