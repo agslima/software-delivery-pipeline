@@ -28,6 +28,7 @@ spec:
             - entries:
                 - keyless:
                     issuer: "https://token.actions.githubusercontent.com"
-                    # TEMPORARILY COMMENT OUT the Subject regex to ensure basic discovery works
                     # subjectRegExp: "^https://github.com/agslima/app-stayhealthy-pipeline/.github/workflows/ci-release-gate.yml@refs/tags/v.+$"
+                    rekor:
+                      url: "https://rekor.sigstore.dev"
     
