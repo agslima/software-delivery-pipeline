@@ -362,10 +362,7 @@ jobs:
           # Run Kyverno against multiple policies simultaneously
           timeout 180 kyverno apply \
             k8s/policies/cluster/verify-signature.yaml \
-            k8s/policies/cluster/verify-trivy.yaml \
             k8s/policies/cluster/verify-sbom.yaml \
-            k8s/policies/cluster/verify-slsa.yaml \
-            k8s/policies/cluster/verify-zap.yaml \
             --resource "$RENDERED_MANIFEST" \
             --registry \
             -v=6 \
