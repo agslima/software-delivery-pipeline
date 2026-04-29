@@ -259,7 +259,7 @@ jobs:
             cosign verify-attestation "$IMAGE" \
               --type "${SLSA_PREDICATE_TYPE}" \
               --certificate-oidc-issuer "${OIDC_ISSUER}" \
-              --certificate-identity "${SLSA_ATTESTATION_BUILDER_ID}@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$" \
+              --certificate-identity "${SLSA_ATTESTATION_BUILDER_ID}" \
               > "$SLSA_ATTESTATION"
 
             echo "🔎 Verifying SLSA builder/source expectations..."
