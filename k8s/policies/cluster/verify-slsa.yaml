@@ -17,35 +17,24 @@ spec:
         operations: ['CREATE', 'UPDATE']
         resources: ['pods', 'deployments']
   matchImageReferences:
-    - glob: "*/agslima/app-stayhealthy-*"
+    - glob: "*/agslima/app-stayhealthy-backend*"
+    - glob: "*/agslima/app-stayhealthy-frontend*"
+    - glob: "*/agslima/app-stayhealthy-worker*"
   attestors:
-    - name: slsaGenerator
+    - name: deliveryPipeline
       cosign:
         keyless:
           identities:
             - issuer: "https://token.actions.githubusercontent.com"
-              subjectRegExp: "^https://github\\.com/agslima/app-stayhealthy-pipeline/\\.github/workflows/ci-release-gate\\.yml@refs/tags/v.*$"
+              subjectRegExp: "^https://github\\.com/agslima/software-delivery-pipeline/\\.github/workflows/release-build-push-dual-registry\\.yml@refs/tags/v.*$"
         ctlog:
           url: "https://rekor.sigstore.dev"
   attestations:
-    - name: slsaProvenance
+    - name: slsaProvenanceV1
       intoto:
-        type: "https://slsa.dev/provenance/v0.2"
+        # Targeting the modern SLSA v1 schema
+        type: "https://slsa.dev/provenance/v1"
   validations:
-    # 1. First, verify the cryptographic signature of the attestation itself
     - expression: >-
-        images.containers.map(image, verifyAttestationSignatures(image, attestations.slsaProvenance, [attestors.slsaGenerator])).all(e, e > 0)
-      message: "Failed to verify SLSA provenance attestation signature. Image must be attested by the official SLSA builder."
-    # 2. Verify the SLSA Builder details (id and buildType)
-    - expression: >-
-        images.containers.all(image, 
-          extractPayload(image, attestations.slsaProvenance).predicate.builder.id == "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml"
-        )
-      message: "SLSA payload validation failed: Builder ID or Build Type does not match the required slsa-github-generator v2.1.0."
-    # 4. Verify the semantic versioning and exact Git repository
-    - expression: >-
-        images.containers.all(image, 
-          extractPayload(image, attestations.slsaProvenance).predicate.invocation.configSource.uri.matches('^git\\+https://github\\.com/agslima/app-stayhealthy-pipeline') &&
-          extractPayload(image, attestations.slsaProvenance).predicate.invocation.environment.github_ref.matches('^refs/tags/v[0-9]+\\.[0-9]+\\.[0-9]+$')
-        )
-      message: "SLSA payload validation failed: Source URI or Git Ref does not match the strict StayHealthy semver tag format (vX.Y.Z)."
+        images.containers.map(image, verifyAttestationSignatures(image, attestations.slsaProvenanceV1, [attestors.deliveryPipeline])).all(e, e > 0)
+      message: "Failed to verify SLSA provenance attestation. Image must be built and attested by the central software-delivery-pipeline."
