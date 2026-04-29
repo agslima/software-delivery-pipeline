@@ -99,6 +99,8 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          token: ${{ secrets.PAT_GITHUB }}
+          persist-credentials: true
           fetch-depth: 0
       
       - name: Install go
@@ -433,9 +435,10 @@ jobs:
             - Kyverno structural checks: ✅
           branch: ${{ env.PR_BRANCH }}
           base: main
-          author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
+          author: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
           signoff: true
           delete-branch: true
+          rebase: false
           labels: |
             automated
           assignees: agslima
