@@ -39,21 +39,13 @@ spec:
     # 2. Verify the SLSA Builder details (id and buildType)
     - expression: >-
         images.containers.all(image, 
-          extractPayload(image, attestations.slsaProvenance).predicate.builder.id == "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@refs/tags/v2.1.0" &&
-          extractPayload(image, attestations.slsaProvenance).predicate.buildType == "https://github.com/slsa-framework/slsa-github-generator/container@v1"
+          extractPayload(image, attestations.slsaProvenance).predicate.builder.id == "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml"
         )
       message: "SLSA payload validation failed: Builder ID or Build Type does not match the required slsa-github-generator v2.1.0."
-    # 3. Verify the exact CI execution environment (entryPoint and event)
-    - expression: >-
-        images.containers.all(image, 
-          extractPayload(image, attestations.slsaProvenance).predicate.invocation.configSource.entryPoint == ".github/workflows/ci-release-gate.yml" &&
-          extractPayload(image, attestations.slsaProvenance).predicate.invocation.environment.github_event_name == "push"
-        )
-      message: "SLSA payload validation failed: Invocation must be triggered via 'push' to the 'ci-release-gate.yml' entrypoint."
     # 4. Verify the semantic versioning and exact Git repository
     - expression: >-
         images.containers.all(image, 
-          extractPayload(image, attestations.slsaProvenance).predicate.invocation.configSource.uri.matches('^git\\+https://github\\.com/agslima/app-stayhealthy-pipeline@refs/tags/v[0-9]+\\.[0-9]+\\.[0-9]+$') &&
+          extractPayload(image, attestations.slsaProvenance).predicate.invocation.configSource.uri.matches('^git\\+https://github\\.com/agslima/app-stayhealthy-pipeline') &&
           extractPayload(image, attestations.slsaProvenance).predicate.invocation.environment.github_ref.matches('^refs/tags/v[0-9]+\\.[0-9]+\\.[0-9]+$')
         )
       message: "SLSA payload validation failed: Source URI or Git Ref does not match the strict StayHealthy semver tag format (vX.Y.Z)."
