@@ -10,6 +10,7 @@ spec:
   validationActions: [Deny]
   webhookConfiguration:
     timeoutSeconds: 30
+
   matchConstraints:
     resourceRules:
       - apiGroups: ['', 'apps']
@@ -34,47 +35,18 @@ spec:
       intoto:
         type: "https://security.sigstore.dev/attestations/vuln/trivy/v1"
   validations:
-    # ---------------------------------------------------------
-    # 1. SIGNATURE VERIFICATIONS (Safely isolated by container type)
-    # ---------------------------------------------------------
     - expression: >-
-        !has(images.containers) || images.containers.map(image, verifyAttestationSignatures(image, attestations.trivyScan, [attestors.trivyWorkflow])).all(e, e > 0)
-      message: "Signature verification failed: Standard containers must be attested by the release-trivy.yml pipeline."
-
+        (images.containers + images.initContainers + images.ephemeralContainers).map(image, verifyAttestationSignatures(image, attestations.trivyScan, [attestors.trivyWorkflow])).all(e, e > 0)
+      message: "Failed to verify Trivy attestation signature. All images (including init and ephemeral) must be scanned and attested by the release-trivy.yml pipeline."
     - expression: >-
-        !has(images.initContainers) || images.initContainers.map(image, verifyAttestationSignatures(image, attestations.trivyScan, [attestors.trivyWorkflow])).all(e, e > 0)
-      message: "Signature verification failed: Init containers must be attested by the release-trivy.yml pipeline."
-
-    - expression: >-
-        !has(images.ephemeralContainers) || images.ephemeralContainers.map(image, verifyAttestationSignatures(image, attestations.trivyScan, [attestors.trivyWorkflow])).all(e, e > 0)
-      message: "Signature verification failed: Ephemeral containers must be attested by the release-trivy.yml pipeline."
-
-    # ---------------------------------------------------------
-    # 2. PAYLOAD VERIFICATIONS (Validating thresholds)
-    # ---------------------------------------------------------
-    - expression: >-
-        !has(images.containers) || images.containers.all(image,
-          extractPayload(image, attestations.trivyScan).scanner.name == "trivy" &&
-          extractPayload(image, attestations.trivyScan).summary.critical == 0 &&
-          extractPayload(image, attestations.trivyScan).summary.high <= 5 &&
-          extractPayload(image, attestations.trivyScan).result == "PASS"
+        (images.containers + images.initContainers + images.ephemeralContainers).all(image,
+          let payload = extractPayload(image, attestations.trivyScan);
+          payload != null &&
+          payload.scanner != null &&
+          payload.scanner.name == "trivy" &&
+          payload.summary != null &&
+          payload.summary.critical == 0 &&
+          payload.summary.high <= 5 &&
+          payload.result == "PASS"
         )
-      message: "Trivy payload validation failed for standard containers: Must report PASS with 0 critical and <= 5 high vulnerabilities."
-
-    - expression: >-
-        !has(images.initContainers) || images.initContainers.all(image,
-          extractPayload(image, attestations.trivyScan).scanner.name == "trivy" &&
-          extractPayload(image, attestations.trivyScan).summary.critical == 0 &&
-          extractPayload(image, attestations.trivyScan).summary.high <= 5 &&
-          extractPayload(image, attestations.trivyScan).result == "PASS"
-        )
-      message: "Trivy payload validation failed for init containers: Must report PASS with 0 critical and <= 5 high vulnerabilities."
-
-    - expression: >-
-        !has(images.ephemeralContainers) || images.ephemeralContainers.all(image,
-          extractPayload(image, attestations.trivyScan).scanner.name == "trivy" &&
-          extractPayload(image, attestations.trivyScan).summary.critical == 0 &&
-          extractPayload(image, attestations.trivyScan).summary.high <= 5 &&
-          extractPayload(image, attestations.trivyScan).result == "PASS"
-        )
-      message: "Trivy payload validation failed for ephemeral containers: Must report PASS with 0 critical and <= 5 high vulnerabilities."
+      message: "Trivy vulnerability scan validation failed: The attestation payload did not report a 'PASS' result for one or more containers."
