@@ -26,7 +26,7 @@ spec:
         keyless:
           identities:
             - issuer: "https://token.actions.githubusercontent.com"
-              subjectRegExp: "^https://github\\.com/agslima/software-delivery-pipeline/\\.github/workflows/release-build-push-dual-registry\\.yml@refs/tags/v.*$"
+              subjectRegExp: "^https://github\\.com/agslima/app-stayhealth-pipeline/\\.github/workflows/release-build-push-dual-registry\\.yml@refs/tags/v.*$"
         ctlog:
           url: "https://rekor.sigstore.dev"
   attestations:
