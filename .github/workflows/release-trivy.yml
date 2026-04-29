@@ -201,6 +201,8 @@ jobs:
           FAILURES=()
           for IMAGE in "${IMAGES[@]}"; do
             echo "Attest image: $IMAGE"
+            REPO_PATH=$(echo "$IMAGE" | cut -d'@' -f1)
+            export COSIGN_REPOSITORY="$REPO_PATH"
             if cosign attest --yes \
               --predicate trivy-attestation-${{ matrix.name }}.json \
               --type "$TRIVY_PREDICATE_TYPE" \
