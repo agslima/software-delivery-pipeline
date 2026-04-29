@@ -27,5 +27,5 @@ spec:
           url: "https://rekor.sigstore.dev"
   validations:
     - expression: >-
-        images.containers.map(image, verifyImageSignatures(image, [attestors.githubActions])).all(e, e > 0)
-      message: "Failed image signature verification. Image must be signed by the StayHealthy CI pipeline."
+        (images.containers + images.initContainers + images.ephemeralContainers).map(image, verifyImageSignatures(image, [attestors.githubActions])).all(e, e > 0)
+      message: "Failed image signature verification. All images (including init and ephemeral) must be signed by the StayHealthy CI pipeline."
