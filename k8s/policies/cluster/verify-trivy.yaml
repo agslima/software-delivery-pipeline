@@ -36,10 +36,10 @@ spec:
         type: "https://security.sigstore.dev/attestations/vuln/trivy/v1"
   validations:
     - expression: >-
-        images.containers.map(image, verifyAttestationSignatures(image, attestations.trivyScan, [attestors.trivyWorkflow])).all(e, e > 0)
-      message: "Failed to verify Trivy attestation signature. Image must be scanned and attested by the release-trivy.yml pipeline."
+        (images.containers + images.initContainers + images.ephemeralContainers).map(image, verifyAttestationSignatures(image, attestations.trivyScan, [attestors.trivyWorkflow])).all(e, e > 0)
+      message: "Failed to verify Trivy attestation signature. All images (including init and ephemeral) must be scanned and attested by the release-trivy.yml pipeline."
     - expression: >-
-        images.containers.all(image,
+        (images.containers + images.initContainers + images.ephemeralContainers).all(image,
           let payload = extractPayload(image, attestations.trivyScan);
           payload != null &&
           payload.scanner != null &&
@@ -49,4 +49,4 @@ spec:
           payload.summary.high <= 5 &&
           payload.result == "PASS"
         )
-      message: "Trivy vulnerability scan validation failed: The attestation payload did not report a 'PASS' result."
+      message: "Trivy vulnerability scan validation failed: The attestation payload did not report a 'PASS' result for one or more containers."
