@@ -369,7 +369,6 @@ jobs:
           author: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
           signoff: true
           delete-branch: true
-          rebase: false
           labels: |
             automated
           assignees: agslima
