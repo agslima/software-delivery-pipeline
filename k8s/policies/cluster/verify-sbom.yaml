@@ -35,5 +35,5 @@ spec:
         type: "https://spdx.dev/Document"
   validations:
     - expression: >-
-        images.containers.map(image, verifyAttestationSignatures(image, attestations.spdxSbom, [attestors.githubActions])).all(e, e > 0)
-      message: "Failed to verify SPDX SBOM attestation. Image must have an attached SBOM signed by the StayHealthy CI pipeline."
+        (images.containers + images.initContainers + images.ephemeralContainers).map(image, verifyAttestationSignatures(image, attestations.spdxSbom, [attestors.githubActions])).all(e, e > 0)
+      message: "Failed to verify SPDX SBOM attestation. All images (including init and ephemeral) must have an attached SBOM signed by the StayHealthy CI pipeline."
