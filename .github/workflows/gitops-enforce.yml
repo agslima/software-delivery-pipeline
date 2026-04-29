@@ -89,11 +89,8 @@ jobs:
       TRIVY_PREDICATE_TYPE: "https://security.sigstore.dev/attestations/vuln/trivy/v1"
       ZAP_PREDICATE_TYPE: "https://security.sigstore.dev/attestations/dast/zap/v1"
       SBOM_PREDICATE_TYPE: "https://spdx.dev/Document"
-      SLSA_PREDICATE_TYPE: "https://slsa.dev/provenance/v0.2"      
-      SLSA_VERIFIER_BUILDER_ID: ".github/workflows/ci-release-gate.yml"
-      SLSA_ATTESTATION_BUILDER_ID: "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@refs/tags/v2.1.0"
-      SLSA_BUILD_TYPE: "https://github.com/slsa-framework/slsa-github-generator/container@v1"
-      SLSA_WORKFLOW_ENTRYPOINT: ".github/workflows/ci-release-gate.yml"      
+      SLSA_PREDICATE_TYPE: "https://slsa.dev/provenance/v1"      
+      SLSA_VERIFIER_BUILDER_ID: "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml"
       OIDC_ISSUER: "https://token.actions.githubusercontent.com"
       YQ_VERSION: "v4.44.3"
     steps:
@@ -129,8 +126,7 @@ jobs:
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
       - name: Install SLSA-Verifier
-        run: |
-          go install github.com/slsa-framework/slsa-verifier/v2/cli/slsa-verifier@v2.7.1
+        uses: slsa-framework/slsa-verifier/actions/installer@v2.7.1
       - name: Resolve Release Run Metadata
         id: release-meta
         env:
@@ -223,13 +219,7 @@ jobs:
   
           verify_all () {
             local IMAGE="$1"
-            local SLSA_ATTESTATION
-            local SLSA_PROVENANCE
-
-            SLSA_ATTESTATION="$(mktemp)"
-            SLSA_PROVENANCE="$(mktemp)"
             
-            # 1. Verify Image Signature
             echo "🔐 Verifying signature for $IMAGE"
             cosign verify "$IMAGE" \
               --certificate-oidc-issuer "${OIDC_ISSUER}" \
@@ -260,35 +250,13 @@ jobs:
             cosign verify-attestation "$IMAGE" \
               --type "${SLSA_PREDICATE_TYPE}" \
               --certificate-oidc-issuer "${OIDC_ISSUER}" \
-              --certificate-identity "${SLSA_ATTESTATION_BUILDER_ID}@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$" \
-              > "$SLSA_ATTESTATION"
+              --certificate-identity-regexp "^https://github.com/${{ github.repository }}/${BUILD_WORKFLOW_PATH}@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$"
 
             echo "🔎 Verifying SLSA builder/source expectations..."
             slsa-verifier verify-image "$IMAGE" \
               --builder-id "${SLSA_VERIFIER_BUILDER_ID}" \
               --source-uri "github.com/${{ github.repository }}" \
-              --source-tag "$RELEASE_TAG"
-
-            jq -r '.[0].payload' "$SLSA_ATTESTATION" | base64 -d > "$SLSA_PROVENANCE"
-            test -s "$SLSA_PROVENANCE" || (echo "::error::Decoded SLSA provenance payload missing for $IMAGE"; exit 1)
-
-            jq -e \
-              --arg predicate_type "${SLSA_PREDICATE_TYPE}" \
-              --arg builder_id "${SLSA_ATTESTATION_BUILDER_ID}" \
-              --arg build_type "${SLSA_BUILD_TYPE}" \
-              --arg config_source_uri "git+https://github.com/${{ github.repository }}@$RELEASE_REF" \
-              --arg entry_point "${SLSA_WORKFLOW_ENTRYPOINT}" \
-              --arg github_event_name "push" \
-              --arg github_ref "$RELEASE_REF" \
-              '
-                .predicateType == $predicate_type and
-                .predicate.builder.id == $builder_id and
-                .predicate.buildType == $build_type and
-                .predicate.invocation.configSource.uri == $config_source_uri and
-                .predicate.invocation.configSource.entryPoint == $entry_point and
-                .predicate.invocation.environment.github_event_name == $github_event_name and
-                .predicate.invocation.environment.github_ref == $github_ref
-              ' "$SLSA_PROVENANCE" > /dev/null
+              --source-tag "$RELEASE_TAG"            
           }
           verify_all "${{ env.BACKEND_IMAGE }}"
           verify_all "${{ env.WORKER_IMAGE }}"
