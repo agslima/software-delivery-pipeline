@@ -99,6 +99,8 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          token: ${{ secrets.PAT_GITHUB }}
+          persist-credentials: true
           fetch-depth: 0
       
       - name: Install go
@@ -129,7 +131,6 @@ jobs:
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
       - name: Install SLSA-Verifier
-        if: false
         run: |
           go install github.com/slsa-framework/slsa-verifier/v2/cli/slsa-verifier@v2.7.1
       - name: Resolve Release Run Metadata
@@ -215,8 +216,6 @@ jobs:
           done
           echo "✅ Loaded and validated all digests successfully."
       - name: Verify Signatures + Required Attestations (hard gate)
-        if: false
-        continue-on-error: true
         env:
           RELEASE_REF: ${{ steps.release-meta.outputs.release_ref }}
           RELEASE_TAG: ${{ steps.release-meta.outputs.release_tag }}
@@ -302,13 +301,13 @@ jobs:
           FILE="k8s/overlays/prod/kustomization.yaml"
           test -f "$FILE" || (echo "::error::Missing $FILE"; exit 1)
           yq -i '
-            (.images[] | select(.name == "index.docker.io/agslima/app-stayhealthy-backend") | .digest) = strenv(BACKEND_DIGEST)
+            (.images[] | select(.name == "docker.io/agslima/app-stayhealthy-backend") | .digest) = strenv(BACKEND_DIGEST)
           ' "$FILE"
           yq -i '
-            (.images[] | select(.name == "index.docker.io/agslima/app-stayhealthy-worker") | .digest) = strenv(WORKER_DIGEST)
+            (.images[] | select(.name == "docker.io/agslima/app-stayhealthy-worker") | .digest) = strenv(WORKER_DIGEST)
           ' "$FILE"
           yq -i '
-            (.images[] | select(.name == "index.docker.io/agslima/app-stayhealthy-frontend") | .digest) = strenv(FRONTEND_DIGEST)
+            (.images[] | select(.name == "docker.io/agslima/app-stayhealthy-frontend") | .digest) = strenv(FRONTEND_DIGEST)
           ' "$FILE"
           echo "✅ Updated prod overlay:"
           yq -r '.images[] | .name + " => " + .digest' "$FILE"
@@ -320,57 +319,42 @@ jobs:
       - name: Validate rendered prod manifests
         run: |
           set -euo pipefail
-
           LOG_FILE="kyverno-gitops.log"
           : > "$LOG_FILE"
-
-          # 1. Render the manifest
-          echo "Rendering Kustomize manifests..."
+          # Render the manifest
           RENDERED_MANIFEST=$(mktemp)
           kustomize build k8s/overlays/prod > "$RENDERED_MANIFEST"
-
           test -s "$RENDERED_MANIFEST" || (echo "::error::Rendered manifest is empty"; exit 1)
-
-          # 2. Extract context for CI Logs
           echo "=== Namespaces in rendered YAML ===" | tee -a "$LOG_FILE"
           yq -r 'select(.metadata != null) | .kind + " " + (.metadata.namespace // "NONE") + " " + .metadata.name' "$RENDERED_MANIFEST" \
           | sort | uniq -c | tee -a "$LOG_FILE"
-
           echo "=== Images in rendered YAML ===" | tee -a "$LOG_FILE"
           yq -r '
-            select(.kind=="Deployment") |
-            .metadata.name as $n |
-            .spec.template.spec.containers[].image |
-            $n + " => " + .
+             select(.kind=="Deployment") |
+             .metadata.name as $n |
+             .spec.template.spec.containers[].image |
+             $n + " => " + .
           ' "$RENDERED_MANIFEST" | tee -a "$LOG_FILE"
-
-          # 3. Evaluate Policies
-          echo "=== Kyverno policy evaluation ===" | tee -a "$LOG_FILE"
-
-          # Disable 'set -e' temporarily so a policy failure doesn't immediately kill the script
-          set +e 
-
-          # Run Kyverno against multiple policies simultaneously
-          timeout 180 kyverno apply \
-            k8s/policies/cluster/verify-signature.yaml \
-            --resource "$RENDERED_MANIFEST" \
-            --registry \
-            -v=6 \
-            --detailed-results 2>&1 | tee -a "$LOG_FILE"
-
-          # Capture the exit code of the Kyverno evaluation pipeline
-          KYVERNO_EXIT_CODE=${PIPESTATUS[0]}
-
-          # Re-enable strict error handling
-          set -e
-
-          echo "------------------------------------------------------------" | tee -a "$LOG_FILE"
-          if [ "$KYVERNO_EXIT_CODE" -ne 0 ]; then
-            echo "::error::Kyverno policy validation failed. Check the logs above." | tee -a "$LOG_FILE"
-            exit "$KYVERNO_EXIT_CODE"
-          else
-            echo "Kyverno policy validation passed successfully." | tee -a "$LOG_FILE"
-          fi        
+          echo "=== Kyverno policy evaluation (split policies) ===" | tee -a "$LOG_FILE"
+          POLICIES=(
+            "k8s/policies/cluster/verify-signature.yaml"
+            "k8s/policies/cluster/verify-trivy.yaml"
+            "k8s/policies/cluster/verify-zap.yaml"
+            "k8s/policies/cluster/verify-sbom.yaml"
+            "k8s/policies/cluster/verify-slsa.yaml"
+          )
+          for POLICY in "${POLICIES[@]}"; do
+            echo "" | tee -a "$LOG_FILE"
+            echo "------------------------------------------------------------" | tee -a "$LOG_FILE"
+            echo "Applying policy: $POLICY" | tee -a "$LOG_FILE"
+            echo "------------------------------------------------------------" | tee -a "$LOG_FILE"
+            kyverno apply "$POLICY" \
+              --resource "$RENDERED_MANIFEST" \
+              --registry -v=6 \
+              --detailed-results \
+              | tee -a "$LOG_FILE"
+          done
+          echo "✅ Policy Validation Passed." | tee -a "$LOG_FILE"
       - name: Upload Kyverno Log
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -401,7 +385,7 @@ jobs:
             - Release Run: ${{ env.RELEASE_RUN_URL }}
             - Head SHA: `${{ env.RELEASE_SHA }}`
             **Pinned Images**
-            - Backend digest: `${{ env.BACKEND_IMAGE }}`
+            - Backend candidate canary: `${{ env.BACKEND_IMAGE }}`
             - Worker: `${{ env.WORKER_IMAGE }}`
             - Frontend: `${{ env.FRONTEND_IMAGE }}`
             **Rollout intent**
@@ -415,4 +399,12 @@ jobs:
             - Kyverno structural checks: ✅
           branch: ${{ env.PR_BRANCH }}
           base: main
+          author: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+          signoff: true
           delete-branch: true
+          rebase: false
+          labels: |
+            automated
+          assignees: agslima
+          reviewers: agslima
+          draft: false

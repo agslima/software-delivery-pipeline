@@ -1,5 +1,5 @@
-apiVersion: kyverno.io/v1
-kind: ClusterPolicy
+apiVersion: policies.kyverno.io/v1
+kind: ImageValidatingPolicy
 metadata:
   name: verify-slsa
   annotations:
@@ -7,50 +7,53 @@ metadata:
     policies.kyverno.io/category: Supply Chain Security
     policies.kyverno.io/severity: critical
 spec:
-  validationFailureAction: Enforce
-  background: false
-  webhookTimeoutSeconds: 30
-  rules:
-    - name: require-slsa-provenance
-      match:
-        any:
-          - resources:
-              kinds: ["Pod", "Deployment"]
-              namespaces: ["prod", "production"]
-      verifyImages:
-        - imageReferences:
-            - "index.docker.io/agslima/app-stayhealthy-*"
-          failureAction: Enforce
-          attestations:
-            - predicateType: "https://slsa.dev/provenance/v0.2"
-              attestors:
-                - entries:
-                    - keyless:
-                        issuer: "https://token.actions.githubusercontent.com"
-                        subjectRegExp: >-
-                          ^https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3\.yml@refs/tags/v2\.1\.0$
-                        rekor:
-                          url: "https://rekor.sigstore.dev"
-              conditions:
-                - all:
-                    - key: "{{ payload.predicateType || '' }}"
-                      operator: Equals
-                      value: "https://slsa.dev/provenance/v0.2"
-                    - key: "{{ payload.predicate.builder.id || '' }}"
-                      operator: Equals
-                      value: "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@refs/tags/v2.1.0"
-                    - key: "{{ payload.predicate.buildType || '' }}"
-                      operator: Equals
-                      value: "https://github.com/slsa-framework/slsa-github-generator/container@v1"
-                    - key: "{{ payload.predicate.invocation.configSource.entryPoint || '' }}"
-                      operator: Equals
-                      value: ".github/workflows/ci-release-gate.yml"
-                    - key: "{{ payload.predicate.invocation.environment.github_event_name || '' }}"
-                      operator: Equals
-                      value: "push"
-                    - key: "{{ regex_match('^git\\+https://github.com/agslima/app-stayhealthy-pipeline@refs/tags/v[0-9]+\\.[0-9]+\\.[0-9]+$', payload.predicate.invocation.configSource.uri || '') }}"
-                      operator: Equals
-                      value: true
-                    - key: "{{ regex_match('^refs/tags/v[0-9]+\\.[0-9]+\\.[0-9]+$', payload.predicate.invocation.environment.github_ref || '') }}"
-                      operator: Equals
-                      value: true
+  validationActions: [Deny]
+  webhookConfiguration:
+    timeoutSeconds: 30
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ['', 'apps']
+        apiVersions: ['v1']
+        operations: ['CREATE', 'UPDATE']
+        resources: ['pods', 'deployments']
+  matchImageReferences:
+    - glob: "*/agslima/app-stayhealthy-*"
+  attestors:
+    - name: slsaGenerator
+      cosign:
+        keyless:
+          identities:
+            - issuer: "https://token.actions.githubusercontent.com"
+              subjectRegExp: "^https://github\\.com/slsa-framework/slsa-github-generator/\\.github/workflows/generator_container_slsa3\\.yml@refs/tags/v2\\.1\\.0$"
+        ctlog:
+          url: "https://rekor.sigstore.dev"
+  attestations:
+    - name: slsaProvenance
+      intoto:
+        type: "https://slsa.dev/provenance/v0.2"
+  validations:
+    # 1. First, verify the cryptographic signature of the attestation itself
+    - expression: >-
+        images.containers.map(image, verifyAttestationSignatures(image, attestations.slsaProvenance, [attestors.slsaGenerator])).all(e, e > 0)
+      message: "Failed to verify SLSA provenance attestation signature. Image must be attested by the official SLSA builder."
+    # 2. Verify the SLSA Builder details (id and buildType)
+    - expression: >-
+        images.containers.all(image, 
+          extractPayload(image, attestations.slsaProvenance).predicate.builder.id == "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@refs/tags/v2.1.0" &&
+          extractPayload(image, attestations.slsaProvenance).predicate.buildType == "https://github.com/slsa-framework/slsa-github-generator/container@v1"
+        )
+      message: "SLSA payload validation failed: Builder ID or Build Type does not match the required slsa-github-generator v2.1.0."
+    # 3. Verify the exact CI execution environment (entryPoint and event)
+    - expression: >-
+        images.containers.all(image, 
+          extractPayload(image, attestations.slsaProvenance).predicate.invocation.configSource.entryPoint == ".github/workflows/ci-release-gate.yml" &&
+          extractPayload(image, attestations.slsaProvenance).predicate.invocation.environment.github_event_name == "push"
+        )
+      message: "SLSA payload validation failed: Invocation must be triggered via 'push' to the 'ci-release-gate.yml' entrypoint."
+    # 4. Verify the semantic versioning and exact Git repository
+    - expression: >-
+        images.containers.all(image, 
+          extractPayload(image, attestations.slsaProvenance).predicate.invocation.configSource.uri.matches('^git\\+https://github\\.com/agslima/app-stayhealthy-pipeline@refs/tags/v[0-9]+\\.[0-9]+\\.[0-9]+$') &&
+          extractPayload(image, attestations.slsaProvenance).predicate.invocation.environment.github_ref.matches('^refs/tags/v[0-9]+\\.[0-9]+\\.[0-9]+$')
+        )
+      message: "SLSA payload validation failed: Source URI or Git Ref does not match the strict StayHealthy semver tag format (vX.Y.Z)."
