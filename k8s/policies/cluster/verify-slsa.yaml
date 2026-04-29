@@ -35,6 +35,17 @@ spec:
         # Targeting the modern SLSA v1 schema
         type: "https://slsa.dev/provenance/v1"
   validations:
+    # ---------------------------------------------------------
+    # SIGNATURE VERIFICATIONS (Safely isolated by container type)
+    # ---------------------------------------------------------
     - expression: >-
-        images.containers.map(image, verifyAttestationSignatures(image, attestations.slsaProvenanceV1, [attestors.deliveryPipeline])).all(e, e > 0)
-      message: "Failed to verify SLSA provenance attestation. Image must be built and attested by the central software-delivery-pipeline."
+        !has(images.containers) || images.containers.map(image, verifyAttestationSignatures(image, attestations.slsaProvenanceV1, [attestors.deliveryPipeline])).all(e, e > 0)
+      message: "Signature verification failed: Standard containers must be built and attested by the central software-delivery-pipeline."
+      
+    - expression: >-
+        !has(images.initContainers) || images.initContainers.map(image, verifyAttestationSignatures(image, attestations.slsaProvenanceV1, [attestors.deliveryPipeline])).all(e, e > 0)
+      message: "Signature verification failed: Init containers must be built and attested by the central software-delivery-pipeline."
+      
+    - expression: >-
+        !has(images.ephemeralContainers) || images.ephemeralContainers.map(image, verifyAttestationSignatures(image, attestations.slsaProvenanceV1, [attestors.deliveryPipeline])).all(e, e > 0)
+      message: "Signature verification failed: Ephemeral containers must be built and attested by the central software-delivery-pipeline."
