@@ -59,10 +59,10 @@ jobs:
     name: Build & Push
     needs: [resolve, run-trivy]
     permissions:
-      contents: read
       packages: write
       id-token: write
       attestations: write
+      actions: read
     uses: ./.github/workflows/release-build-push-dual-registry.yml
     with:
       environment: production
@@ -82,10 +82,10 @@ jobs:
     name: Build & Push
     needs: [resolve, run-trivy]
     permissions:
-      contents: read
       packages: write
       id-token: write
       attestations: write 
+      actions: read
     uses: ./.github/workflows/release-build-push-dual-registry.yml
     with:
       environment: production
@@ -105,10 +105,10 @@ jobs:
     name: Build & Push
     needs: [resolve, run-trivy]
     permissions:
-      contents: read
       packages: write
       id-token: write
       attestations: write
+      actions: read
     uses: ./.github/workflows/release-build-push-dual-registry.yml
     with:
       environment: production
