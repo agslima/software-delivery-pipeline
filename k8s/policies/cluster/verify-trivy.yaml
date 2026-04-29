@@ -35,7 +35,7 @@ spec:
         type: "https://security.sigstore.dev/attestations/vuln/trivy/v1"
   validations:
     # ---------------------------------------------------------
-    # 1. SIGNATURE VERIFICATIONS (Safely isolated by container type)
+    # 1. SIGNATURE VERIFICATIONS
     # ---------------------------------------------------------
     - expression: >-
         !has(images.containers) || images.containers.map(image, verifyAttestationSignatures(image, attestations.trivyScan, [attestors.trivyWorkflow])).all(e, e > 0)
@@ -50,31 +50,31 @@ spec:
       message: "Signature verification failed: Ephemeral containers must be attested by the release-trivy.yml pipeline."
 
     # ---------------------------------------------------------
-    # 2. PAYLOAD VERIFICATIONS (Validating thresholds)
+    # 2. PAYLOAD VERIFICATIONS (Added .predicate to paths)
     # ---------------------------------------------------------
     - expression: >-
         !has(images.containers) || images.containers.all(image,
-          extractPayload(image, attestations.trivyScan).scanner.name == "trivy" &&
-          extractPayload(image, attestations.trivyScan).summary.critical == 0 &&
-          extractPayload(image, attestations.trivyScan).summary.high <= 5 &&
-          extractPayload(image, attestations.trivyScan).result == "PASS"
+          extractPayload(image, attestations.trivyScan).predicate.scanner.name == "trivy" &&
+          extractPayload(image, attestations.trivyScan).predicate.summary.critical == 0 &&
+          extractPayload(image, attestations.trivyScan).predicate.summary.high <= 5 &&
+          extractPayload(image, attestations.trivyScan).predicate.result == "PASS"
         )
       message: "Trivy payload validation failed for standard containers: Must report PASS with 0 critical and <= 5 high vulnerabilities."
 
     - expression: >-
         !has(images.initContainers) || images.initContainers.all(image,
-          extractPayload(image, attestations.trivyScan).scanner.name == "trivy" &&
-          extractPayload(image, attestations.trivyScan).summary.critical == 0 &&
-          extractPayload(image, attestations.trivyScan).summary.high <= 5 &&
-          extractPayload(image, attestations.trivyScan).result == "PASS"
+          extractPayload(image, attestations.trivyScan).predicate.scanner.name == "trivy" &&
+          extractPayload(image, attestations.trivyScan).predicate.summary.critical == 0 &&
+          extractPayload(image, attestations.trivyScan).predicate.summary.high <= 5 &&
+          extractPayload(image, attestations.trivyScan).predicate.result == "PASS"
         )
       message: "Trivy payload validation failed for init containers: Must report PASS with 0 critical and <= 5 high vulnerabilities."
 
     - expression: >-
         !has(images.ephemeralContainers) || images.ephemeralContainers.all(image,
-          extractPayload(image, attestations.trivyScan).scanner.name == "trivy" &&
-          extractPayload(image, attestations.trivyScan).summary.critical == 0 &&
-          extractPayload(image, attestations.trivyScan).summary.high <= 5 &&
-          extractPayload(image, attestations.trivyScan).result == "PASS"
+          extractPayload(image, attestations.trivyScan).predicate.scanner.name == "trivy" &&
+          extractPayload(image, attestations.trivyScan).predicate.summary.critical == 0 &&
+          extractPayload(image, attestations.trivyScan).predicate.summary.high <= 5 &&
+          extractPayload(image, attestations.trivyScan).predicate.result == "PASS"
         )
       message: "Trivy payload validation failed for ephemeral containers: Must report PASS with 0 critical and <= 5 high vulnerabilities."
