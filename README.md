@@ -128,7 +128,7 @@ graph TD
 - **Hadolint + OPA (Conftest) + Kubeconform:** Dockerfile and Kubernetes manifest validation during PR
 - **OWASP ZAP**: baseline scans in the release path; authenticated scheduled scans for deeper coverage
   
-### Layer 3: Supply Chain Guarantees (SLSA Level 2)
+### Layer 3: Supply Chain Guarantees (SLSA Level 3)
   
 - **Cosign (Keyless):** OIDC-bound image signing
 - **SLSA Provenance:** Verifiable build identity and process
