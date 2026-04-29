@@ -6,11 +6,4 @@ resources:
   - worker.yaml
   - frontend.yaml
   - pdb.yaml
-
-images:
-  - name: docker.io/agslima/app-stayhealthy-backend
-    digest: sha256:78fee0a3b0e4c24064aa31f31894dc4f2e64d3e02e86d6697596c8539bcb6a94
-  - name: docker.io/agslima/app-stayhealthy-worker
-    digest: sha256:0ecfd75052305775479ce193a46feaf2f67f6c923eaab69f44e4bcd75201d1c6
-  - name: docker.io/agslima/app-stayhealthy-frontend
-    digest: sha256:14139d6f879666d604938201fd6887881e37fe59b0389243c48477310bf6e2cd
+  
