@@ -35,28 +35,10 @@ spec:
         type: "https://security.sigstore.dev/attestations/dast/zap/v1"
   validations:
     - expression: >-
-        images.containers.map(image, verifyAttestationSignatures(image, attestations.zapScan, [attestors.zapWorkflow])).all(e, e > 0) &&
-        images.initContainers.map(image, verifyAttestationSignatures(image, attestations.zapScan, [attestors.zapWorkflow])).all(e, e > 0) &&
-        images.ephemeralContainers.map(image, verifyAttestationSignatures(image, attestations.zapScan, [attestors.zapWorkflow])).all(e, e > 0)
+        (images.containers + images.initContainers + images.ephemeralContainers).map(image, verifyAttestationSignatures(image, attestations.zapScan, [attestors.zapWorkflow])).all(e, e > 0)
       message: "Failed to verify ZAP attestation signature. All images (including init and ephemeral) must be scanned and attested by the release-dast.yml pipeline."
-    
-    # 2. Extract the payload and verify the scan result and scanner name across all container types
     - expression: >-
-        images.containers.all(image,
-          let payload = extractPayload(image, attestations.zapScan);
-          payload.result != null &&
-          payload.scanner != null &&
-          payload.scanner.name == "owasp-zap" &&
-          payload.result == "PASS"
-        ) &&
-        images.initContainers.all(image,
-          let payload = extractPayload(image, attestations.zapScan);
-          payload.result != null &&
-          payload.scanner != null &&
-          payload.scanner.name == "owasp-zap" &&
-          payload.result == "PASS"
-        ) &&
-        images.ephemeralContainers.all(image,
+        (images.containers + images.initContainers + images.ephemeralContainers).all(image,
           let payload = extractPayload(image, attestations.zapScan);
           payload.result != null &&
           payload.scanner != null &&
