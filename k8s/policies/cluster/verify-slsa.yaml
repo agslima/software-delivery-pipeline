@@ -26,26 +26,23 @@ spec:
         keyless:
           identities:
             - issuer: "https://token.actions.githubusercontent.com"
-              subjectRegExp: "^https://github\\.com/agslima/app-stayhealth-pipeline/\\.github/workflows/release-build-push-dual-registry\\.yml@refs/tags/v.*$"
+              subjectRegExp: "^https://github\\.com/agslima/app-stayhealthy-pipeline/\\.github/workflows/release-build-push-dual-registry\\.yml@refs/tags/v[0-9]+\\.[0-9]+\\.[0-9]+$"
         ctlog:
           url: "https://rekor.sigstore.dev"
   attestations:
     - name: slsaProvenanceV1
       intoto:
-        # Targeting the modern SLSA v1 schema
         type: "https://slsa.dev/provenance/v1"
   validations:
     # ---------------------------------------------------------
-    # SIGNATURE VERIFICATIONS (Safely isolated by container type)
+    # SIGNATURE VERIFICATIONS
     # ---------------------------------------------------------
     - expression: >-
         !has(images.containers) || images.containers.map(image, verifyAttestationSignatures(image, attestations.slsaProvenanceV1, [attestors.deliveryPipeline])).all(e, e > 0)
-      message: "Signature verification failed: Standard containers must be built and attested by the central software-delivery-pipeline."
-      
+      message: "Signature verification failed: Standard containers must be built and attested by the central app-stayhealthy-pipeline."      
     - expression: >-
         !has(images.initContainers) || images.initContainers.map(image, verifyAttestationSignatures(image, attestations.slsaProvenanceV1, [attestors.deliveryPipeline])).all(e, e > 0)
-      message: "Signature verification failed: Init containers must be built and attested by the central software-delivery-pipeline."
-      
+      message: "Signature verification failed: Init containers must be built and attested by the central app-stayhealthy-pipeline."
     - expression: >-
         !has(images.ephemeralContainers) || images.ephemeralContainers.map(image, verifyAttestationSignatures(image, attestations.slsaProvenanceV1, [attestors.deliveryPipeline])).all(e, e > 0)
-      message: "Signature verification failed: Ephemeral containers must be built and attested by the central software-delivery-pipeline."
+      message: "Signature verification failed: Ephemeral containers must be built and attested by the central app-stayhealthy-pipeline."
