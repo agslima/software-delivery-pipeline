@@ -12,8 +12,8 @@
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=agslima_software-delivery-pipeline&metric=security_rating&token=fc36aa04e8597e3ef994141f2c98064a72019cd0)](https://sonarcloud.io/summary/new_code?id=agslima_software-delivery-pipeline)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=agslima_software-delivery-pipeline&metric=coverage&token=fc36aa04e8597e3ef994141f2c98064a72019cd0)](https://sonarcloud.io/summary/new_code?id=agslima_software-delivery-pipeline)
 [![Infrastructure: Kubernetes](https://img.shields.io/badge/Infra-Kubernetes-326CE5?logo=kubernetes&logoColor=white)](https://github.com/agslima/software-delivery-pipeline/tree/main/k8s)
-[![SLSA](https://img.shields.io/badge/SLSA-Level%202-blue?logo=linuxfoundation)](https://github.com/agslima/software-delivery-pipeline/attestations)
-[![License](https://img.shields.io/badge/license-Apache%202-4EB1BA.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
+[![SLSA 3](https://slsa.dev/images/gh-badge-level3.svg)](https://slsa.dev)
+
 
 ## TL;DR
 
@@ -128,7 +128,7 @@ graph TD
 - **Hadolint + OPA (Conftest) + Kubeconform:** Dockerfile and Kubernetes manifest validation during PR
 - **OWASP ZAP**: baseline scans in the release path; authenticated scheduled scans for deeper coverage
   
-### Layer 3: Supply Chain Guarantees (SLSA Level 2)
+### Layer 3: Supply Chain Guarantees (SLSA Level 3)
   
 - **Cosign (Keyless):** OIDC-bound image signing
 - **SLSA Provenance:** Verifiable build identity and process
