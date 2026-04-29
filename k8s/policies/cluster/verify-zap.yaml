@@ -46,24 +46,25 @@ spec:
     - expression: >-
         !has(images.ephemeralContainers) || images.ephemeralContainers.map(image, verifyAttestationSignatures(image, attestations.zapScan, [attestors.zapWorkflow])).all(e, e > 0)
       message: "Signature verification failed: Ephemeral containers must be attested by the release-dast.yml pipeline."
+      
     # ---------------------------------------------------------
-    # 2. PAYLOAD VERIFICATIONS
+    # 2. PAYLOAD VERIFICATIONS (Added .predicate)
     # ---------------------------------------------------------
     - expression: >-
         !has(images.containers) || images.containers.all(image,
-          extractPayload(image, attestations.zapScan).scanner.name == "owasp-zap" &&
-          extractPayload(image, attestations.zapScan).result == "PASS"
+          extractPayload(image, attestations.zapScan).predicate.scanner.name == "owasp-zap" &&
+          extractPayload(image, attestations.zapScan).predicate.result == "PASS"
         )
       message: "ZAP DAST payload validation failed for standard containers: Must report a 'PASS' result from the 'owasp-zap' scanner."
     - expression: >-
         !has(images.initContainers) || images.initContainers.all(image,
-          extractPayload(image, attestations.zapScan).scanner.name == "owasp-zap" &&
-          extractPayload(image, attestations.zapScan).result == "PASS"
+          extractPayload(image, attestations.zapScan).predicate.scanner.name == "owasp-zap" &&
+          extractPayload(image, attestations.zapScan).predicate.result == "PASS"
         )
       message: "ZAP DAST payload validation failed for init containers: Must report a 'PASS' result from the 'owasp-zap' scanner."
     - expression: >-
         !has(images.ephemeralContainers) || images.ephemeralContainers.all(image,
-          extractPayload(image, attestations.zapScan).scanner.name == "owasp-zap" &&
-          extractPayload(image, attestations.zapScan).result == "PASS"
+          extractPayload(image, attestations.zapScan).predicate.scanner.name == "owasp-zap" &&
+          extractPayload(image, attestations.zapScan).predicate.result == "PASS"
         )
       message: "ZAP DAST payload validation failed for ephemeral containers: Must report a 'PASS' result from the 'owasp-zap' scanner."
