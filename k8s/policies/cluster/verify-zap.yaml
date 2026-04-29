@@ -34,15 +34,36 @@ spec:
       intoto:
         type: "https://security.sigstore.dev/attestations/dast/zap/v1"
   validations:
+    # ---------------------------------------------------------
+    # 1. SIGNATURE VERIFICATIONS
+    # ---------------------------------------------------------
     - expression: >-
-        (images.containers + images.initContainers + images.ephemeralContainers).map(image, verifyAttestationSignatures(image, attestations.zapScan, [attestors.zapWorkflow])).all(e, e > 0)
-      message: "Failed to verify ZAP attestation signature. All images (including init and ephemeral) must be scanned and attested by the release-dast.yml pipeline."
+        !has(images.containers) || images.containers.map(image, verifyAttestationSignatures(image, attestations.zapScan, [attestors.zapWorkflow])).all(e, e > 0)
+      message: "Signature verification failed: Standard containers must be attested by the release-dast.yml pipeline."
     - expression: >-
-        (images.containers + images.initContainers + images.ephemeralContainers).all(image,
-          let payload = extractPayload(image, attestations.zapScan);
-          payload.result != null &&
-          payload.scanner != null &&
-          payload.scanner.name == "owasp-zap" &&
-          payload.result == "PASS"
+        !has(images.initContainers) || images.initContainers.map(image, verifyAttestationSignatures(image, attestations.zapScan, [attestors.zapWorkflow])).all(e, e > 0)
+      message: "Signature verification failed: Init containers must be attested by the release-dast.yml pipeline."
+    - expression: >-
+        !has(images.ephemeralContainers) || images.ephemeralContainers.map(image, verifyAttestationSignatures(image, attestations.zapScan, [attestors.zapWorkflow])).all(e, e > 0)
+      message: "Signature verification failed: Ephemeral containers must be attested by the release-dast.yml pipeline."
+    # ---------------------------------------------------------
+    # 2. PAYLOAD VERIFICATIONS
+    # ---------------------------------------------------------
+    - expression: >-
+        !has(images.containers) || images.containers.all(image,
+          extractPayload(image, attestations.zapScan).scanner.name == "owasp-zap" &&
+          extractPayload(image, attestations.zapScan).result == "PASS"
         )
-      message: "ZAP DAST validation failed: The attestation payload did not report a 'PASS' result from the 'owasp-zap' scanner for one or more containers."
+      message: "ZAP DAST payload validation failed for standard containers: Must report a 'PASS' result from the 'owasp-zap' scanner."
+    - expression: >-
+        !has(images.initContainers) || images.initContainers.all(image,
+          extractPayload(image, attestations.zapScan).scanner.name == "owasp-zap" &&
+          extractPayload(image, attestations.zapScan).result == "PASS"
+        )
+      message: "ZAP DAST payload validation failed for init containers: Must report a 'PASS' result from the 'owasp-zap' scanner."
+    - expression: >-
+        !has(images.ephemeralContainers) || images.ephemeralContainers.all(image,
+          extractPayload(image, attestations.zapScan).scanner.name == "owasp-zap" &&
+          extractPayload(image, attestations.zapScan).result == "PASS"
+        )
+      message: "ZAP DAST payload validation failed for ephemeral containers: Must report a 'PASS' result from the 'owasp-zap' scanner."
