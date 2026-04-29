@@ -24,7 +24,7 @@ spec:
         keyless:
           identities:
             - issuer: "https://token.actions.githubusercontent.com"
-              subjectRegExp: "^https://github\\.com/slsa-framework/slsa-github-generator/\\.github/workflows/generator_container_slsa3\\.yml@refs/tags/v2\\.1\\.0$"
+              subjectRegExp: "^https://github\\.com/agslima/app-stayhealthy-pipeline/\\.github/workflows/ci-release-gate\\.yml@refs/tags/v.*$"
         ctlog:
           url: "https://rekor.sigstore.dev"
   attestations:
