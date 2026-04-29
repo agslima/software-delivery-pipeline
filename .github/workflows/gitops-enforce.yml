@@ -89,11 +89,8 @@ jobs:
       TRIVY_PREDICATE_TYPE: "https://security.sigstore.dev/attestations/vuln/trivy/v1"
       ZAP_PREDICATE_TYPE: "https://security.sigstore.dev/attestations/dast/zap/v1"
       SBOM_PREDICATE_TYPE: "https://spdx.dev/Document"
-      SLSA_PREDICATE_TYPE: "https://slsa.dev/provenance/v0.2"      
-      SLSA_VERIFIER_BUILDER_ID: ".github/workflows/ci-release-gate.yml"
+      SLSA_PREDICATE_TYPE: "https://slsa.dev/provenance/v1"      
       SLSA_ATTESTATION_BUILDER_ID: "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml"
-      SLSA_BUILD_TYPE: "https://github.com/slsa-framework/slsa-github-generator/container@v1"
-      SLSA_WORKFLOW_ENTRYPOINT: ".github/workflows/ci-release-gate.yml"      
       OIDC_ISSUER: "https://token.actions.githubusercontent.com"
       YQ_VERSION: "v4.44.3"
     steps:
