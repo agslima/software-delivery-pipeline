@@ -63,6 +63,8 @@ jobs:
   build-publish:
     permissions:
       contents: read
+      packages: write # Used to push images to `ghcr.io` if used.
+      id-token: write # Needed to create an OIDC token for keyless signing
     environment: ${{ inputs.environment }}
     runs-on: ubuntu-latest
     env:
