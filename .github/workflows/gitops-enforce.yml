@@ -98,7 +98,6 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
-          token: ${{ secrets.PAT_GITHUB }}
       
       - name: Install go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
