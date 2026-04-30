@@ -96,6 +96,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
           token: ${{ secrets.PAT_GITHUB }}
       
@@ -344,9 +345,9 @@ jobs:
       - name: Create GitOps PR
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 #v8.1.1
         with:
-          token: ${{ secrets.PAT_GITHUB }}
-          commit-message: "deploy: promote ${{ env.RELEASE_SHA }}"
-          title: "Deploy release (${{ env.RELEASE_SHA }})"
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: deploy promote ${{ env.RELEASE_SHA }}"
+          title: "chore: deploy release (${{ env.RELEASE_SHA }})"
           body: |
             Automated GitOps promotion from a successful Release workflow run.
             **Source**
@@ -367,11 +368,10 @@ jobs:
             - Kyverno structural checks: ✅
           branch: ${{ env.PR_BRANCH }}
           base: main
-          author: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+          author: github-actions[bot] <github-actions[bot]@users.noreply.github.com>
           signoff: true
           delete-branch: true
           labels: |
             automated
           assignees: agslima
-          reviewers: agslima
           draft: false
