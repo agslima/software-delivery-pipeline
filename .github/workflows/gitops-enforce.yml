@@ -96,6 +96,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
       
       - name: Install go
@@ -343,7 +344,7 @@ jobs:
       - name: Create GitOps PR
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 #v8.1.1
         with:
-          token: ${{ secrets.PAT_GITHUB }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: "chore: deploy promote ${{ env.RELEASE_SHA }}"
           title: "chore: deploy release (${{ env.RELEASE_SHA }})"
           body: |
