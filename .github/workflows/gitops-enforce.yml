@@ -215,6 +215,9 @@ jobs:
         env:
           RELEASE_REF: ${{ steps.release-meta.outputs.release_ref }}
           RELEASE_TAG: ${{ steps.release-meta.outputs.release_tag }}
+          BACKEND_IMAGE: ${{ env.BACKEND_IMAGE }}
+          WORKER_IMAGE: ${{ env.WORKER_IMAGE }}
+          FRONTEND_IMAGE: ${{ env.FRONTEND_IMAGE }}
         run: |
           set -euo pipefail
   
@@ -259,10 +262,20 @@ jobs:
               --source-uri "github.com/${{ github.repository }}" \
               --source-tag "$RELEASE_TAG"            
           }
-          verify_all "${{ env.BACKEND_IMAGE }}"
-          verify_all "${{ env.WORKER_IMAGE }}"
-          verify_all "${{ env.FRONTEND_IMAGE }}"
-          echo "✅ All signatures & attestations verified."
+          verify_all "${BACKEND_IMAGE}"
+          verify_all "${WORKER_IMAGE}"
+          verify_all "${FRONTEND_IMAGE}"
+          echo "✅ All signatures & attestations verified."     
+      - name: Update README.MD - verification section
+        env:
+          BACKEND_IMAGE: ${{ env.BACKEND_IMAGE }}
+        run: |
+          FILE="README.md"
+          test -f "$FILE" || (echo "::error::Missing $FILE"; exit 1)
+          BACKEND_REPO="${BACKEND_IMAGE%@*}"
+          sed -i "s|IMAGE=\"${BACKEND_REPO}@.*\"|IMAGE=\"${BACKEND_IMAGE}\"|g" "$FILE"
+          grep "IMAGE=\"${BACKEND_REPO}@" "$FILE"
+          grep -q "$BACKEND_IMAGE" "$FILE" || (echo "::error::BACKEND_IMAGE not found in $FILE"; exit 1)
       - name: Update prod overlay digests
         run: |
           set -euo pipefail
