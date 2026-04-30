@@ -366,11 +366,10 @@ jobs:
             - Kyverno structural checks: ✅
           branch: ${{ env.PR_BRANCH }}
           base: main
-          author: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+          author: github-actions[bot] <github-actions[bot]@users.noreply.github.com>
           signoff: true
           delete-branch: true
           labels: |
             automated
           assignees: agslima
-          reviewers: agslima
           draft: false
