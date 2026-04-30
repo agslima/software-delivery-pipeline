@@ -4,21 +4,23 @@ description: "Run ZAP, normalize results, evaluate with OPA"
 inputs:
   zap_image:
     required: true
+    description: "ZAP Docker image to use (e.g., owasp/zap2docker-stable)"
   target_frontend:
     required: true
+    description: "Frontend target URL"
   target_backend:
     required: true
+    description: "Backend target URL"
   context_file:
     required: true
+    description: "Path to context file"
   rules_file:
     required: true
+    description: "Path to rules file"
   policy_path:
     required: false
+    description: "Path to OPA policy (default: policy/)"
     default: policy/
-
-outputs:
-  decision:
-    description: "OPA decision (allow/deny)"
 
 runs:
   using: "composite"
@@ -26,35 +28,56 @@ runs:
     - name: Prepare workspace
       shell: bash
       run: |
+        set -euo pipefail
+        
         mkdir -p zap-out
 
     - name: Copy context + rules
+      env:
+        CONTEXT_FILE: ${{ inputs.context_file }}
+        RULES_FILE: ${{ inputs.rules_file }}
       shell: bash
       run: |
-        cp "${{ inputs.context_file }}" zap-out/context.context
-        cp "${{ inputs.rules_file }}" zap-out/rules.tsv
+        set -euo pipefail
+
+        cp "${CONTEXT_FILE}" zap-out/context.context
+        cp "${RULES_FILE}" zap-out/rules.tsv
 
     - name: Run ZAP (Frontend)
+      env:
+        TARGET_FRONTEND: ${{ inputs.target_frontend }}
+        ZAP_IMAGE: ${{ inputs.zap_image }}
       shell: bash
       run: |
+        set -euo pipefail
+
         bash ${{ github.action_path }}/scripts/security/dast-release/run-zap.sh \
-          "${{ inputs.target_frontend }}" frontend zap-out "${{ inputs.zap_image }}"
+          "${TARGET_FRONTEND}" frontend zap-out "${ZAP_IMAGE}"
 
     - name: Run ZAP (Backend)
+      env:
+        TARGET_BACKEND: ${{ inputs.target_backend }}
+        ZAP_IMAGE: ${{ inputs.zap_image }}
       shell: bash
       run: |
+        set -euo pipefail
+        
         bash ${{ github.action_path }}/scripts/security/dast-release/run-zap.sh \
-          "${{ inputs.target_backend }}" backend zap-out "${{ inputs.zap_image }}"
+          "${TARGET_BACKEND}" backend zap-out "${ZAP_IMAGE}"
 
     - name: Normalize Results
       shell: bash
       run: |
+        set -euo pipefail
+
         bash ${{ github.action_path }}/scripts/security/dast-release/normalize.sh zap-out/zap-frontend.json > zap-out/frontend.norm.json
         bash ${{ github.action_path }}/scripts/security/dast-release/normalize.sh zap-out/zap-backend.json > zap-out/backend.norm.json
 
     - name: Merge Signals
       shell: bash
       run: |
+        set -euo pipefail
+
         jq -s '{
           sources: .,
           summary: {
@@ -66,11 +89,15 @@ runs:
 
     - name: Evaluate Policy (OPA)
       id: opa
+      env:
+        POLICY_PATH: ${{ inputs.policy_path }}
       shell: bash
       run: |
+        set -euo pipefail
+
         bash ${{ github.action_path }}/scripts/security/dast-release/evaluate.sh \
           zap-out/combined.json \
-          ${{ github.action_path }}/${{ inputs.policy_path }} \
+          ${{ github.action_path }}/${POLICY_PATH} \
           > decision.json
 
         DECISION=$(jq -r '.allow' decision.json)
@@ -79,6 +106,8 @@ runs:
     - name: Enforce Policy
       shell: bash
       run: |
+        set -euo pipefail
+
         if [ "${{ steps.opa.outputs.decision }}" != "true" ]; then
           echo "::error::DAST policy failed"
           cat decision.json

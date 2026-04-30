@@ -12,8 +12,7 @@
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=agslima_software-delivery-pipeline&metric=security_rating&token=fc36aa04e8597e3ef994141f2c98064a72019cd0)](https://sonarcloud.io/summary/new_code?id=agslima_software-delivery-pipeline)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=agslima_software-delivery-pipeline&metric=coverage&token=fc36aa04e8597e3ef994141f2c98064a72019cd0)](https://sonarcloud.io/summary/new_code?id=agslima_software-delivery-pipeline)
 [![Infrastructure: Kubernetes](https://img.shields.io/badge/Infra-Kubernetes-326CE5?logo=kubernetes&logoColor=white)](https://github.com/agslima/software-delivery-pipeline/tree/main/k8s)
-[![SLSA](https://img.shields.io/badge/SLSA-Level%202-blue?logo=linuxfoundation)](https://github.com/agslima/software-delivery-pipeline/attestations)
-[![License](https://img.shields.io/badge/license-Apache%202-4EB1BA.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
+[![SLSA 3](https://slsa.dev/images/gh-badge-level3.svg)](https://slsa.dev)
 
 ## TL;DR
 
@@ -38,7 +37,7 @@ This is a full-stack reference implementation of a governed delivery pipeline, d
 - Runtime admission validation tied to build identity
 
 > [!NOTE]
-> The Single Page Application (SPA) logic is intentionally simple. The value of this repository lies in the **delivery architecture, security controls, and governance model**. For more details about the application, please see the **[`app/README.md`](https://github.com/agslima/software-delivery-pipeline/tree/main/app)**.
+> The **app StayHealthy** is a **Single Page Application (SPA)** with intentionally simple logic. The value of this repository lies in the **delivery architecture, security controls, and governance model**. For more details about this application, please see the **[`app/README.md`](https://github.com/agslima/app-stayhealthy-pipeline/tree/main/app)**.
 ---
 
 ## Architectural Goals
@@ -98,15 +97,17 @@ graph TD
 
     subgraph "Release Gate"
         F --> G["Build & Push (digest)"]
-        G --> H[Trivy Image Gate]
-        H --> I["DAST (ZAP baseline)"]
-        I --> J["Sign & Attest (cosign + SBOM + SLSA)"]
+        G --> H["Sign & Attest (cosign sign + SBOM)"]
+        H --> I[SLSA L3 Attestation]
+        I --> J[Trivy Image Gate]
+        J --> K["DAST (ZAP baseline)"]
     end
 
     subgraph "Delivery (GitOps)"
-        J --> K[Kyverno Validate]
-        K --> L[k8s/overlays/prod/kustomization.yaml]
-        L --> M[PR to main]
+        K --> L["Provenance validation (cosign + SLSA)" ]
+        L --> M[Kyverno Validate]
+        M --> N[Update k8s Kustomization]
+        N --> O[PR to main]
     end
 ```
 
@@ -128,7 +129,7 @@ graph TD
 - **Hadolint + OPA (Conftest) + Kubeconform:** Dockerfile and Kubernetes manifest validation during PR
 - **OWASP ZAP**: baseline scans in the release path; authenticated scheduled scans for deeper coverage
   
-### Layer 3: Supply Chain Guarantees (SLSA Level 2)
+### Layer 3: Supply Chain Guarantees (SLSA Level 3)
   
 - **Cosign (Keyless):** OIDC-bound image signing
 - **SLSA Provenance:** Verifiable build identity and process
@@ -232,11 +233,11 @@ Check that the image was signed by this specific GitHub Repository's CI pipeline
 
 ```bash
 # 1. Export a release image digest (backend or frontend)
-export IMAGE="docker.io/agslima/app-stayhealthy-backend@sha256:6fd327984db33ec24cd6a138fe7aa6c858a5f3f608011cc0248d1723671711e2"
+export IMAGE="docker.io/agslima/app-stayhealthy-backend@sha256:debecfcdbe3f7ba58e387a328016c392f0ffb296fc085625d82603cc76c1580e"
 
 # 2. Verify the signature against the OpenID Connect (OIDC) identity
 cosign verify "$IMAGE" \
-  --certificate-identity-regexp "^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\\.yml@refs/tags/v.*" \
+  --certificate-identity-regexp "^https://github.com/agslima/app-stayhealthy-pipeline/.github/workflows/release-build-push-dual-registry\\.yml@refs/tags/v.*" \
   --certificate-oidc-issuer "https://token.actions.githubusercontent.com" | jq .
 ```
 
@@ -313,7 +314,7 @@ For detailed implementation guides, please refer to:
 - **Supply Chain:** Cosign, Syft (SBOM), GitHub build provenance (SLSA)
 - **Security Analysis:** Trivy, Snyk, OWASP ZAP, Gitleaks
 - **Policy enforcement:** Kyverno
-- **Runtime platform:** Docker, Kubernetes 
+- **Runtime platform:** Docker, Kubernetes
 - **Application:** React /Node.js
   
 ---

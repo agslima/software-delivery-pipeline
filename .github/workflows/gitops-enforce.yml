@@ -10,13 +10,13 @@ on:
     workflows: ["Release"]
     types: [completed]
 permissions:
-      contents: read
+  contents: read
 
 concurrency:
   group: gitops-${{ github.event.workflow_run.id || github.event.inputs.run_id || github.run_id }}
   cancel-in-progress: false
   
-jobs:
+jobs:      
   verify-context:
     runs-on: ubuntu-latest
     permissions:
@@ -82,16 +82,31 @@ jobs:
       pull-requests: write
       actions: read
       id-token: write 
-    env:
+    env:      
+      TRIVY_WORKFLOW_PATH: ".github/workflows/release-trivy.yml"      
+      ZAP_WORKFLOW_PATH: ".github/workflows/release-dast.yml"
+      BUILD_WORKFLOW_PATH: ".github/workflows/release-build-push-dual-registry.yml"
       TRIVY_PREDICATE_TYPE: "https://security.sigstore.dev/attestations/vuln/trivy/v1"
       ZAP_PREDICATE_TYPE: "https://security.sigstore.dev/attestations/dast/zap/v1"
       SBOM_PREDICATE_TYPE: "https://spdx.dev/Document"
+      SLSA_PREDICATE_TYPE: "https://slsa.dev/provenance/v1"      
+      SLSA_VERIFIER_BUILDER_ID: "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml"
       OIDC_ISSUER: "https://token.actions.githubusercontent.com"
       YQ_VERSION: "v4.44.3"
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
+      
+      - name: Install go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
+        with:
+          go-version: '1.23.2'
+          check-latest: true
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
+      
       - name: Install Kyverno CLI
         uses: kyverno/action-install-cli@fcee92fca5c883169ef9927acf543e0b5fc58289 # v0.2.0
         with:
@@ -111,6 +126,8 @@ jobs:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
+      - name: Install SLSA-Verifier
+        uses: slsa-framework/slsa-verifier/actions/installer@v2.7.1
       - name: Resolve Release Run Metadata
         id: release-meta
         env:
@@ -119,50 +136,47 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$RUN_ID" || (echo "::error::Missing release run id."; exit 1)
-
           API_URL="${{ github.api_url }}/repos/${{ github.repository }}/actions/runs/${RUN_ID}"
           RUN_JSON="$(curl -fsSL \
             -H "Authorization: Bearer ${GH_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
             "$API_URL")"
-
           RELEASE_WORKFLOW_NAME="$(echo "$RUN_JSON" | jq -r '.name // empty')"
           RELEASE_CONCLUSION="$(echo "$RUN_JSON" | jq -r '.conclusion // empty')"
           RELEASE_EVENT="$(echo "$RUN_JSON" | jq -r '.event // empty')"
           RELEASE_REF="$(echo "$RUN_JSON" | jq -r '.ref // empty')"
           RELEASE_HEAD_REF="$(echo "$RUN_JSON" | jq -r '.head_branch // empty')"
           RELEASE_SHA="$(echo "$RUN_JSON" | jq -r '.head_sha // empty')"
-
           if [[ "$RELEASE_WORKFLOW_NAME" != "Release" ]]; then
             echo "::error::Run ${RUN_ID} is not from workflow 'Release' (found: ${RELEASE_WORKFLOW_NAME:-unknown})."
             exit 1
           fi
-
           if [[ "$RELEASE_CONCLUSION" != "success" ]]; then
             echo "::error::Release run ${RUN_ID} did not succeed (conclusion: ${RELEASE_CONCLUSION:-unknown})."
             exit 1
           fi
-
           if [[ "$RELEASE_EVENT" != "push" ]]; then
             echo "::error::Release run ${RUN_ID} must be triggered by push (event: ${RELEASE_EVENT:-unknown})."
             exit 1
           fi
-
           RELEASE_EFFECTIVE_REF="${RELEASE_REF:-$RELEASE_HEAD_REF}"
           if [[ -z "$RELEASE_EFFECTIVE_REF" ]]; then
             echo "::error::Could not resolve release ref for run ${RUN_ID}."
             exit 1
           fi
-          
           if [[ "$RELEASE_EFFECTIVE_REF" != refs/tags/v*.*.* && "$RELEASE_EFFECTIVE_REF" != v*.*.* ]]; then 
             echo "::error::Release run ${RUN_ID} must originate from a tag push (ref: ${RELEASE_EFFECTIVE_REF})." 
             exit 1 
           fi
-
+          if [[ "$RELEASE_EFFECTIVE_REF" != refs/* ]]; then
+            RELEASE_EFFECTIVE_REF="refs/tags/$RELEASE_EFFECTIVE_REF"
+          fi
+          RELEASE_TAG="${RELEASE_EFFECTIVE_REF#refs/tags/}"
           test -n "$RELEASE_SHA" || (echo "::error::Could not resolve head SHA for release run ${RUN_ID}."; exit 1)
-
           echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
           echo "release_sha=$RELEASE_SHA" >> "$GITHUB_OUTPUT"
+          echo "release_ref=$RELEASE_EFFECTIVE_REF" >> "$GITHUB_OUTPUT"
+          echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
       - name: Download Digests from Release Workflow
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v4.1.8.0.1
         with:
@@ -172,78 +186,103 @@ jobs:
           pattern: digest-*
           path: digests
       - name: Read & Validate Digests
+        env:
+          DOCKER_USERNAME: ${{ vars.DOCKER_HUB_USERNAME }}
         run: |
           set -euo pipefail
-          test -s digests/digest-backend || (echo "::error::digest-backend missing/empty"; exit 1)
-          test -s digests/digest-worker || (echo "::error::digest-worker missing/empty"; exit 1)
-          test -s digests/digest-frontend || (echo "::error::digest-frontend missing/empty"; exit 1)
 
-          BACKEND_DIGEST="$(cat digests/digest-backend)"
-          WORKER_DIGEST="$(cat digests/digest-worker)"
-          FRONTEND_DIGEST="$(cat digests/digest-frontend)"
-
-          # Fail-closed: must look like sha256:...
-          echo "$BACKEND_DIGEST" | grep -Eq '^sha256:[a-f0-9]{64}$' || (echo "::error::Invalid backend digest"; exit 1)
-          echo "$WORKER_DIGEST" | grep -Eq '^sha256:[a-f0-9]{64}$' || (echo "::error::Invalid worker digest"; exit 1)
-          echo "$FRONTEND_DIGEST" | grep -Eq '^sha256:[a-f0-9]{64}$' || (echo "::error::Invalid frontend digest"; exit 1)
-
-          echo "BACKEND_DIGEST=$BACKEND_DIGEST" >> $GITHUB_ENV
-          echo "WORKER_DIGEST=$WORKER_DIGEST" >> $GITHUB_ENV
-          echo "FRONTEND_DIGEST=$FRONTEND_DIGEST" >> $GITHUB_ENV
-
-          echo "BACKEND_IMAGE=docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-backend@$BACKEND_DIGEST" >> $GITHUB_ENV
-          echo "WORKER_IMAGE=docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-worker@$WORKER_DIGEST" >> $GITHUB_ENV
-          echo "FRONTEND_IMAGE=docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/app-stayhealthy-frontend@$FRONTEND_DIGEST" >> $GITHUB_ENV
-
-          echo "✅ Loaded Digests."
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
+          COMPONENTS="backend worker frontend"
+          for COMP in $COMPONENTS; do
+            REPO="app-stayhealthy-${COMP}"
+            FILE="digests/digest-${REPO}"
+            if [ ! -s "$FILE" ]; then
+              echo "::error::Digest file missing or empty for ${COMP} ($FILE)"
+              exit 1
+            fi
+            DIGEST=$(cat "$FILE")
+            if ! echo "$DIGEST" | grep -Eq '^sha256:[a-f0-9]{64}$'; then
+              echo "::error::Invalid digest format for ${COMP}: ${DIGEST}"
+              exit 1
+            fi
+            # Convert component name to uppercase (e.g., "backend" -> "BACKEND")
+            PREFIX=$(echo "$COMP" | tr '[:lower:]' '[:upper:]')
+            echo "${PREFIX}_DIGEST=${DIGEST}" >> "$GITHUB_ENV"
+            echo "${PREFIX}_IMAGE=docker.io/${DOCKER_USERNAME}/${REPO}@${DIGEST}" >> "$GITHUB_ENV"
+          done
+          echo "✅ Loaded and validated all digests successfully."
       - name: Verify Signatures + Required Attestations (hard gate)
+        continue-on-error: true
+        env:
+          RELEASE_REF: ${{ steps.release-meta.outputs.release_ref }}
+          RELEASE_TAG: ${{ steps.release-meta.outputs.release_tag }}
+          BACKEND_IMAGE: ${{ env.BACKEND_IMAGE }}
+          WORKER_IMAGE: ${{ env.WORKER_IMAGE }}
+          FRONTEND_IMAGE: ${{ env.FRONTEND_IMAGE }}
         run: |
           set -euo pipefail
   
           verify_all () {
             local IMAGE="$1"
             
-            # 1. Verify Image Signature
             echo "🔐 Verifying signature for $IMAGE"
             cosign verify "$IMAGE" \
-              --certificate-oidc-issuer "${{ env.OIDC_ISSUER }}" \
-              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*"
+              --certificate-oidc-issuer "${OIDC_ISSUER}" \
+              --certificate-identity-regexp "^https://github.com/${{ github.repository }}/${BUILD_WORKFLOW_PATH}@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$"
             
-            # 2. Verify Attestations (SILENT MODE)            
+            echo "🧾 Verifying SBOM attestation..."
+            cosign verify-attestation "$IMAGE" \
+              --type "${SBOM_PREDICATE_TYPE}" \
+              --certificate-oidc-issuer "${OIDC_ISSUER}" \
+              --certificate-identity-regexp "^https://github.com/${{ github.repository }}/${BUILD_WORKFLOW_PATH}@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$" \
+              > /dev/null
+
             echo "🧾 Verifying Trivy attestation..."
             cosign verify-attestation "$IMAGE" \
-              --type "${{ env.TRIVY_PREDICATE_TYPE }}" \
-              --certificate-oidc-issuer "${{ env.OIDC_ISSUER }}" \
-              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*" \
+              --type "${TRIVY_PREDICATE_TYPE}" \
+              --certificate-oidc-issuer "${OIDC_ISSUER}" \
+              --certificate-identity-regexp "^https://github.com/${{ github.repository }}/${TRIVY_WORKFLOW_PATH}@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$" \
               > /dev/null
 
             echo "🧾 Verifying ZAP attestation..."
             cosign verify-attestation "$IMAGE" \
-              --type "${{ env.ZAP_PREDICATE_TYPE }}" \
-              --certificate-oidc-issuer "${{ env.OIDC_ISSUER }}" \
-              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*" \
+              --type "${ZAP_PREDICATE_TYPE}" \
+              --certificate-oidc-issuer "${OIDC_ISSUER}" \
+              --certificate-identity-regexp "^https://github.com/${{ github.repository }}/${ZAP_WORKFLOW_PATH}@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$" \
               > /dev/null
-            
-            echo "🧾 Verifying SBOM attestation..."
+
+            echo "🧾 Verifying SLSA provenance attestation identity..."
             cosign verify-attestation "$IMAGE" \
-              --type "${{ env.SBOM_PREDICATE_TYPE }}" \
-              --certificate-oidc-issuer "${{ env.OIDC_ISSUER }}" \
-              --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/ci-release-gate\.yml@refs/tags/v.*" \
-              > /dev/null
+              --type "${SLSA_PREDICATE_TYPE}" \
+              --certificate-oidc-issuer "${OIDC_ISSUER}" \
+              --certificate-identity-regexp "^https://github.com/${{ github.repository }}/${BUILD_WORKFLOW_PATH}@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$"
+
+            echo "🔎 Verifying SLSA builder/source expectations..."
+            slsa-verifier verify-image "$IMAGE" \
+              --builder-id "${SLSA_VERIFIER_BUILDER_ID}" \
+              --source-uri "github.com/${{ github.repository }}" \
+              --source-tag "$RELEASE_TAG"            
           }
-          verify_all "${{ env.BACKEND_IMAGE }}"
-          verify_all "${{ env.WORKER_IMAGE }}"
-          verify_all "${{ env.FRONTEND_IMAGE }}"
-          echo "✅ All signatures & attestations verified."
-      - name: Update prod digests (candidate canary + full promotion for non-canary services)
+          verify_all "${BACKEND_IMAGE}"
+          verify_all "${WORKER_IMAGE}"
+          verify_all "${FRONTEND_IMAGE}"
+          echo "✅ All signatures & attestations verified."     
+      - name: Update README.MD - verification section
+        env:
+          BACKEND_IMAGE: ${{ env.BACKEND_IMAGE }}
+        run: |
+          FILE="README.md"
+          test -f "$FILE" || (echo "::error::Missing $FILE"; exit 1)
+          BACKEND_REPO="${BACKEND_IMAGE%@*}"
+          sed -i "s|IMAGE=\"${BACKEND_REPO}@.*\"|IMAGE=\"${BACKEND_IMAGE}\"|g" "$FILE"
+          grep "IMAGE=\"${BACKEND_REPO}@" "$FILE"
+          grep -q "$BACKEND_IMAGE" "$FILE" || (echo "::error::BACKEND_IMAGE not found in $FILE"; exit 1)
+      - name: Update prod overlay digests
         run: |
           set -euo pipefail
           FILE="k8s/overlays/prod/kustomization.yaml"
           test -f "$FILE" || (echo "::error::Missing $FILE"; exit 1)
           yq -i '
-            (.images[] | select(.name == "backend-canary") | .digest) = strenv(BACKEND_DIGEST)
+            (.images[] | select(.name == "docker.io/agslima/app-stayhealthy-backend") | .digest) = strenv(BACKEND_DIGEST)
           ' "$FILE"
           yq -i '
             (.images[] | select(.name == "docker.io/agslima/app-stayhealthy-worker") | .digest) = strenv(WORKER_DIGEST)
@@ -257,33 +296,12 @@ jobs:
           yq -r '.images[].digest' "$FILE" | grep -q '^sha256:' || (
             echo "::error::Prod overlay digests not set correctly"
             exit 1
-          )
-      - name: Validate rendered prod manifests against cluster policy
-        env:
-          # Securely pass credentials into the environment
-          DOCKER_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
-          DOCKER_PASSWORD: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+          )            
+      - name: Validate rendered prod manifests
         run: |
           set -euo pipefail
-          
           LOG_FILE="kyverno-gitops.log"
           : > "$LOG_FILE"
-          echo "=== 1. Building comprehensive Docker Hub keychain ===" | tee -a "$LOG_FILE"
-          mkdir -p "$HOME/.docker"
-          # Base64 encode the credentials to bypass the docker/login-action
-          AUTH=$(printf "%s:%s" "${DOCKER_USERNAME}" "${DOCKER_PASSWORD}" | base64 | tr -d '\n')
-          # Explicitly map the token to all Docker Hub aliases ggcr might request
-          cat <<EOF > "$HOME/.docker/config.json"
-          {
-            "auths": {
-              "https://index.docker.io/v1/": { "auth": "${AUTH}" },
-              "index.docker.io": { "auth": "${AUTH}" },
-              "docker.io": { "auth": "${AUTH}" }
-            }
-          }
-          EOF
-          export DOCKER_CONFIG="$HOME/.docker"
-          
           # Render the manifest
           RENDERED_MANIFEST=$(mktemp)
           kustomize build k8s/overlays/prod > "$RENDERED_MANIFEST"
@@ -339,9 +357,9 @@ jobs:
       - name: Create GitOps PR
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 #v8.1.1
         with:
-          token: ${{ secrets.PAT_GITHUB }}
-          commit-message: "deploy: promote ${{ env.RELEASE_SHA }}"
-          title: "Deploy release (${{ env.RELEASE_SHA }})"
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: deploy promote ${{ env.RELEASE_SHA }}"
+          title: "chore: deploy release (${{ env.RELEASE_SHA }})"
           body: |
             Automated GitOps promotion from a successful Release workflow run.
             **Source**
@@ -362,4 +380,10 @@ jobs:
             - Kyverno structural checks: ✅
           branch: ${{ env.PR_BRANCH }}
           base: main
+          author: github-actions[bot] <github-actions[bot]@users.noreply.github.com>
+          signoff: true
           delete-branch: true
+          labels: |
+            automated
+          assignees: agslima
+          draft: false

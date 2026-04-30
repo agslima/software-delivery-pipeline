@@ -1,5 +1,5 @@
-apiVersion: kyverno.io/v1
-kind: ClusterPolicy
+apiVersion: policies.kyverno.io/v1
+kind: ImageValidatingPolicy
 metadata:
   name: verify-zap
   annotations:
@@ -7,39 +7,64 @@ metadata:
     policies.kyverno.io/category: Supply Chain Security
     policies.kyverno.io/severity: critical
 spec:
-  validationFailureAction: Enforce
-  background: false
-  webhookTimeoutSeconds: 30
-  rules:
-    - name: require-zap-attestation
-      match:
-        any:
-          - resources:
-              kinds: ["Pod", "Deployment"]
-              namespaces: ["prod", "production"]
-      verifyImages:
-        - imageReferences:
-            - "index.docker.io/agslima/app-stayhealthy-backend@*"  
-            - "docker.io/agslima/app-stayhealthy-backend@*"  
-            - "index.docker.io/agslima/app-stayhealthy-worker@*"  
-            - "docker.io/agslima/app-stayhealthy-worker@*"  
-            - "index.docker.io/agslima/app-stayhealthy-frontend@*"  
-            - "docker.io/agslima/app-stayhealthy-frontend@*"
-          attestations:
-            - predicateType: "https://security.sigstore.dev/attestations/dast/zap/v1"
-              attestors:
-                - entries:
-                    - keyless:
-                        issuer: https://token.actions.githubusercontent.com
-                        subjectRegExp: >-
-                          ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*$
-                        rekor:
-                          url: https://rekor.sigstore.dev
-              conditions:
-                - all:
-                    - key: "{{ result || '' }}"
-                      operator: Equals
-                      value: "PASS"
-                    - key: "{{ scanner.name || '' }}"
-                      operator: Equals
-                      value: "owasp-zap"
+  validationActions: [Deny]
+  webhookConfiguration:
+    timeoutSeconds: 30
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ['', 'apps']
+        apiVersions: ['v1']
+        operations: ['CREATE', 'UPDATE']
+        resources: ['pods', 'deployments']
+  matchImageReferences:
+    - glob: "*/agslima/app-stayhealthy-backend*"
+    - glob: "*/agslima/app-stayhealthy-worker*"
+    - glob: "*/agslima/app-stayhealthy-frontend*"
+  attestors:
+    - name: zapWorkflow
+      cosign:
+        keyless:
+          identities:
+            - issuer: "https://token.actions.githubusercontent.com"
+              subjectRegExp: "^https://github\\.com/agslima/app-stayhealthy-pipeline/\\.github/workflows/release-dast\\.yml@refs/tags/v.*$"
+        ctlog:
+          url: "https://rekor.sigstore.dev"
+  attestations:
+    - name: zapScan
+      intoto:
+        type: "https://security.sigstore.dev/attestations/dast/zap/v1"
+  validations:
+    # ---------------------------------------------------------
+    # 1. SIGNATURE VERIFICATIONS
+    # ---------------------------------------------------------
+    - expression: >-
+        !has(images.containers) || images.containers.map(image, verifyAttestationSignatures(image, attestations.zapScan, [attestors.zapWorkflow])).all(e, e > 0)
+      message: "Signature verification failed: Standard containers must be attested by the release-dast.yml pipeline."
+    - expression: >-
+        !has(images.initContainers) || images.initContainers.map(image, verifyAttestationSignatures(image, attestations.zapScan, [attestors.zapWorkflow])).all(e, e > 0)
+      message: "Signature verification failed: Init containers must be attested by the release-dast.yml pipeline."
+    - expression: >-
+        !has(images.ephemeralContainers) || images.ephemeralContainers.map(image, verifyAttestationSignatures(image, attestations.zapScan, [attestors.zapWorkflow])).all(e, e > 0)
+      message: "Signature verification failed: Ephemeral containers must be attested by the release-dast.yml pipeline."
+      
+    # ---------------------------------------------------------
+    # 2. PAYLOAD VERIFICATIONS (Added .predicate)
+    # ---------------------------------------------------------
+    - expression: >-
+        !has(images.containers) || images.containers.all(image,
+          extractPayload(image, attestations.zapScan).predicate.scanner.name == "owasp-zap" &&
+          extractPayload(image, attestations.zapScan).predicate.result == "PASS"
+        )
+      message: "ZAP DAST payload validation failed for standard containers: Must report a 'PASS' result from the 'owasp-zap' scanner."
+    - expression: >-
+        !has(images.initContainers) || images.initContainers.all(image,
+          extractPayload(image, attestations.zapScan).predicate.scanner.name == "owasp-zap" &&
+          extractPayload(image, attestations.zapScan).predicate.result == "PASS"
+        )
+      message: "ZAP DAST payload validation failed for init containers: Must report a 'PASS' result from the 'owasp-zap' scanner."
+    - expression: >-
+        !has(images.ephemeralContainers) || images.ephemeralContainers.all(image,
+          extractPayload(image, attestations.zapScan).predicate.scanner.name == "owasp-zap" &&
+          extractPayload(image, attestations.zapScan).predicate.result == "PASS"
+        )
+      message: "ZAP DAST payload validation failed for ephemeral containers: Must report a 'PASS' result from the 'owasp-zap' scanner."

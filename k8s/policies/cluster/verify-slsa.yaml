@@ -1,5 +1,5 @@
-apiVersion: kyverno.io/v1
-kind: ClusterPolicy
+apiVersion: policies.kyverno.io/v1
+kind: ImageValidatingPolicy
 metadata:
   name: verify-slsa
   annotations:
@@ -7,33 +7,42 @@ metadata:
     policies.kyverno.io/category: Supply Chain Security
     policies.kyverno.io/severity: critical
 spec:
-  validationFailureAction: Enforce
-  background: false
-  webhookTimeoutSeconds: 30
-
-  rules:
-    - name: require-slsa-provenance
-      match:
-        any:
-          - resources:
-              kinds: ["Pod", "Deployment"]
-              namespaces: ["prod", "production"]
-      verifyImages:
-        - imageReferences:
-            - "index.docker.io/agslima/app-stayhealthy-backend@*"  
-            - "docker.io/agslima/app-stayhealthy-backend@*"  
-            - "index.docker.io/agslima/app-stayhealthy-worker@*"  
-            - "docker.io/agslima/app-stayhealthy-worker@*"  
-            - "index.docker.io/agslima/app-stayhealthy-frontend@*"  
-            - "docker.io/agslima/app-stayhealthy-frontend@*"
-
-          attestations:
-            - predicateType: "https://slsa.dev/provenance/v1"
-              attestors:
-                - entries:
-                    - keyless:
-                        issuer: "https://token.actions.githubusercontent.com"
-                        subjectRegExp: >-
-                          ^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\.yml@refs/tags/v.*$
-                        rekor:
-                          url: https://rekor.sigstore.dev
+  validationActions: [Deny]
+  webhookConfiguration:
+    timeoutSeconds: 30
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ['', 'apps']
+        apiVersions: ['v1']
+        operations: ['CREATE', 'UPDATE']
+        resources: ['pods', 'deployments']
+  matchImageReferences:
+    - glob: "*/agslima/app-stayhealthy-backend*"
+    - glob: "*/agslima/app-stayhealthy-frontend*"
+    - glob: "*/agslima/app-stayhealthy-worker*"
+  attestors:
+    - name: deliveryPipeline
+      cosign:
+        keyless:
+          identities:
+            - issuer: "https://token.actions.githubusercontent.com"
+              subjectRegExp: "^https://github\\.com/agslima/app-stayhealthy-pipeline/\\.github/workflows/release-build-push-dual-registry\\.yml@refs/tags/v[0-9]+\\.[0-9]+\\.[0-9]+$"
+        ctlog:
+          url: "https://rekor.sigstore.dev"
+  attestations:
+    - name: slsaProvenanceV1
+      intoto:
+        type: "https://slsa.dev/provenance/v1"
+  validations:
+    # ---------------------------------------------------------
+    # SIGNATURE VERIFICATIONS
+    # ---------------------------------------------------------
+    - expression: >-
+        !has(images.containers) || images.containers.map(image, verifyAttestationSignatures(image, attestations.slsaProvenanceV1, [attestors.deliveryPipeline])).all(e, e > 0)
+      message: "Signature verification failed: Standard containers must be built and attested by the central app-stayhealthy-pipeline."      
+    - expression: >-
+        !has(images.initContainers) || images.initContainers.map(image, verifyAttestationSignatures(image, attestations.slsaProvenanceV1, [attestors.deliveryPipeline])).all(e, e > 0)
+      message: "Signature verification failed: Init containers must be built and attested by the central app-stayhealthy-pipeline."
+    - expression: >-
+        !has(images.ephemeralContainers) || images.ephemeralContainers.map(image, verifyAttestationSignatures(image, attestations.slsaProvenanceV1, [attestors.deliveryPipeline])).all(e, e > 0)
+      message: "Signature verification failed: Ephemeral containers must be built and attested by the central app-stayhealthy-pipeline."
