@@ -221,6 +221,7 @@ validate_context_file() {
   }
 }
 
+# stage_context_file copies the configured ZAP context file into the staged workspace and output artifact, sets their file permissions to 644, and validates both copies.
 stage_context_file() {
   mkdir -p "$STAGED_CONTEXT_DIR"
   cp "$ZAP_CONTEXT_FILE" "$STAGED_CONTEXT_FILE"
