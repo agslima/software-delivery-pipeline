@@ -256,15 +256,4 @@ jobs:
       admin_pass: ${{ secrets.ADMIN_PASS }}
       db_pass: ${{ secrets.DB_PASS }}
       jwt_secret: ${{ secrets.JWT_SECRET }}
-      data_encryption_key: ${{ secrets.DATA_ENCRYPTION_KEY }}
-      
-
-
-      
-
-
-     
-
-
-
-    
+      data_encryption_key: ${{ secrets.DATA_ENCRYPTION_KEY }}    

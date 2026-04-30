@@ -14,7 +14,6 @@
 [![Infrastructure: Kubernetes](https://img.shields.io/badge/Infra-Kubernetes-326CE5?logo=kubernetes&logoColor=white)](https://github.com/agslima/software-delivery-pipeline/tree/main/k8s)
 [![SLSA 3](https://slsa.dev/images/gh-badge-level3.svg)](https://slsa.dev)
 
-
 ## TL;DR
 
 This repository demonstrates a **governed software delivery system** in which:
@@ -238,7 +237,7 @@ export IMAGE="docker.io/agslima/app-stayhealthy-backend@sha256:6fd327984db33ec24
 
 # 2. Verify the signature against the OpenID Connect (OIDC) identity
 cosign verify "$IMAGE" \
-  --certificate-identity-regexp "^https://github.com/agslima/software-delivery-pipeline/.github/workflows/ci-release-gate\\.yml@refs/tags/v.*" \
+  --certificate-identity-regexp "^https://github.com/agslima/app-stayhealthy-pipeline/.github/workflows/release-build-push-dual-registry\\.yml@refs/tags/v.*" \
   --certificate-oidc-issuer "https://token.actions.githubusercontent.com" | jq .
 ```
 
@@ -315,7 +314,7 @@ For detailed implementation guides, please refer to:
 - **Supply Chain:** Cosign, Syft (SBOM), GitHub build provenance (SLSA)
 - **Security Analysis:** Trivy, Snyk, OWASP ZAP, Gitleaks
 - **Policy enforcement:** Kyverno
-- **Runtime platform:** Docker, Kubernetes 
+- **Runtime platform:** Docker, Kubernetes
 - **Application:** React /Node.js
   
 ---
