@@ -107,8 +107,8 @@ graph TD
     subgraph "Delivery (GitOps)"
         K --> L["Provenance validation (cosign + SLSA)" ]
         L --> M[Kyverno Validate]
-        M --> N[Update k8s Prod Kustomization]
-        M --> O[PR to main]
+        M --> N[Update k8s Kustomization]
+        N --> O[PR to main]
     end
 ```
 
