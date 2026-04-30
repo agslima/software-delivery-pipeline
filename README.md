@@ -98,15 +98,17 @@ graph TD
 
     subgraph "Release Gate"
         F --> G["Build & Push (digest)"]
-        G --> H[Trivy Image Gate]
-        H --> I["DAST (ZAP baseline)"]
-        I --> J["Sign & Attest (cosign + SBOM + SLSA)"]
+        G --> H["Sign & Attest (cosign sign + SBOM)"]
+        H --> I[SLSA L3 Attestation]
+        I --> J[Trivy Image Gate]
+        J --> K["DAST (ZAP baseline)"]
     end
 
     subgraph "Delivery (GitOps)"
-        J --> K[Kyverno Validate]
-        K --> L[k8s/overlays/prod/kustomization.yaml]
-        L --> M[PR to main]
+        K --> L["Provenance validation (cosign + SLSA)" ]
+        L --> M[Kyverno Validate]
+        M --> N[Update k8s Prod Kustomization]
+        M --> O[PR to main]
     end
 ```
 
