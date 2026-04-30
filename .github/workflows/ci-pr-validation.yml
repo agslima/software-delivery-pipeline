@@ -2,7 +2,7 @@ name: CI - PR Validation
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, edited]
 permissions:
   contents: read
 concurrency:
@@ -282,14 +282,12 @@ jobs:
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
         run: |
-          cat > /tmp/pr-body.md <<'EOF'
-          $PR_BODY
-          EOF
+          printf '%s\n' "$PR_BODY" > "$RUNNER_TEMP/pr-body.md"
       - name: Validate migration safety
         env:
           MIGRATION_CHECK_BASE: ${{ github.event.pull_request.base.sha }}
           MIGRATION_CHECK_HEAD: ${{ github.event.pull_request.head.sha }}
-          MIGRATION_CHECK_PR_BODY_FILE: /tmp/pr-body.md
+          MIGRATION_CHECK_PR_BODY_FILE: $RUNNER_TEMP/pr-body.md
         run: python3 scripts/check-migration-safety.py
 
   # ==================================================================
