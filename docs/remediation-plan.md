@@ -10,19 +10,6 @@ This plan is an implementation-aware review of repository alignment against the 
 It is intentionally task-oriented so maintainers can execute and audit remediation incrementally.
 -->
 
-## Alignment Review
-
-### Objective A: Documentation Alignment and Validation
-
-| Area | Current state | Alignment verdict | Why this verdict matters |
-| :--- | :--- | :--- | :--- |
-| README governance claims are mapped to enforcement points | Claim-to-control mapping exists in `docs/governance-evidence-index.md` and is linked from governance docs | Mostly aligned | The repository can trace claims to workflows and policies, but the audit burden remains high when workflows or artifacts evolve. |
-| Governance model reflects trusted-path assumptions | `docs/governance.md` clearly defines trust boundaries and required GitHub settings | Aligned | This is strong governance evidence and supports auditability of external controls. |
-| Runtime policy claims for signed and attested deployment | README, governance docs, and the Kyverno policy set document and enforce signature and attestation checks | Aligned | This is the project's strongest integrity boundary and should remain fail-closed. |
-| Operational evidence narrative | README posture table is generated from Snyk evidence, while release enforcement is driven by Trivy and ZAP | Partially aligned, clarified but fragile | The boundary is documented, but multiple evidence streams can still confuse contributors and reviewers without stronger guardrails. |
-| Local developer onboarding promises | Root README includes the command map and points to `app/readme.md` and package-level flow | Aligned | Onboarding is substantially improved and reproducible for core local tasks. |
-
-
 ## Execution Plan
 
 ### Milestone M0: 0 to 30 days
