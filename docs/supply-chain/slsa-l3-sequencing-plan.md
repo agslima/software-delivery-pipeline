@@ -27,15 +27,6 @@ Out of scope for this plan:
 - replacing the current Sigstore, Kyverno, or GitOps architecture
 - weakening fail-closed release or admission behavior while pilots run
 
-## Current-State Gap Matrix
-
-| Dimension | Current posture | Gap to L3-aligned posture | Risk if deferred | Existing evidence |
-| :--- | :--- | :--- | :--- | :--- |
-| Hermeticity | Release builds run on ephemeral GitHub-hosted runners with pinned workflow actions, but builds still depend on live network access for package resolution, installer downloads, registry pushes, and scanner database refreshes. | Reduce mutable network inputs during trusted build stages, define which external fetches remain allowed, and introduce a controlled path for pre-fetched or mirrored build dependencies. | Upstream package or installer drift can change build behavior between releases and make provenance harder to interpret during incidents. | `.github/workflows/ci-release-gate.yml`; `docs/governance.md`; `docs/threat-model.md` |
-| Reproducibility | Artifact identity is digest-based and provenance is emitted, but the repo does not yet perform a deterministic rebuild comparison or record a reproducibility threshold. | Add a reproducibility check that rebuilds at least one target from the same source and compares digest or normalized output, with explicit tolerance criteria. | Incident response must trust a single build path; silent build drift can remain undetected until after release. | `digest-*` release artifacts; `actions/attest-build-provenance`; `docs/governance.md` |
-| Build isolation | Trusted builds are tag-gated, use hosted runners, and sign only after release gates pass. However, runner hardening assumptions remain external to the repo and job-level isolation expectations are not codified as a roadmap. | Document and incrementally tighten builder trust assumptions, including action pinning, image pinning, permission minimization, and isolation expectations for future self-hosted or hardened runners. | A compromised or drifted builder environment could still produce apparently valid provenance from a weak execution context. | `.github/workflows/ci-release-gate.yml`; `.github/workflows/gitops-enforce.yml`; `docs/threat-model.md` |
-| Dependency provenance | Release workflows already pin most third-party GitHub Actions by full SHA and pin the ZAP image by digest, but the repo lacks a dedicated control that continuously validates high-trust workflow input pinning or records exceptions. | Add an explicit dependency-provenance guardrail for workflow actions and OCI images, then extend it toward mirrored installers and package-source attestations. | Mutable third-party workflow inputs can weaken trust in build provenance even when artifact attestations are present. | Workflow files; `docs/adr/002-image-signing-attestation.md`; pilot evidence in [`docs/reproducibility-pilot-backend.md`](/docs/supply-chain/reproducibility-pilot-backend.md) |
-
 ## Prioritization Model
 
 Scoring guidance:
