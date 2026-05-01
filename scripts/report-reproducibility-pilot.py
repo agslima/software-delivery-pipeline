@@ -71,6 +71,8 @@ def extract_manifest_info(archive_path: Path) -> dict[str, Any]:
                 index_data = json.load(index_file)
             except (json.JSONDecodeError, UnicodeDecodeError) as exc:
                 fail(f"{archive_path} index.json is not valid JSON: {exc}")
+            if not isinstance(index_data, dict):
+                fail(f"{archive_path} index.json must be a JSON object")
     except (tarfile.TarError, OSError) as exc:
         fail(f"Failed to open OCI archive {archive_path}: {exc}")
 
