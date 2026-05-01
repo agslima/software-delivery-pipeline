@@ -84,6 +84,7 @@ jobs:
     needs: [resolve, build-push-backend]
     runs-on: ubuntu-latest
     continue-on-error: true
+    timeout-minutes: 25
     permissions:
       contents: read
     steps:

@@ -128,7 +128,7 @@ jobs:
           curl -fsSL "$YQ_BIN_URL" -o "${TMP_DIR}/yq_linux_amd64"
           curl -fsSL "$YQ_CHECKSUMS_URL" -o "${TMP_DIR}/checksums"
 
-          grep ' yq_linux_amd64$' "${TMP_DIR}/checksums" > "${TMP_DIR}/yq_linux_amd64.sha256" \
+          grep -E '[[:space:]]+\*?yq_linux_amd64$' "${TMP_DIR}/checksums" > "${TMP_DIR}/yq_linux_amd64.sha256" \
             || { echo "::error::yq checksum entry missing for ${YQ_VERSION}"; exit 1; }
 
           (

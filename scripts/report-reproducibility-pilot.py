@@ -67,8 +67,11 @@ def extract_manifest_info(archive_path: Path) -> dict[str, Any]:
             if index_file is None:
                 fail(f"{archive_path} index.json could not be read")
 
-            index_data = json.load(index_file)
-    except tarfile.TarError as exc:
+            try:
+                index_data = json.load(index_file)
+            except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+                fail(f"{archive_path} index.json is not valid JSON: {exc}")
+    except (tarfile.TarError, OSError) as exc:
         fail(f"Failed to open OCI archive {archive_path}: {exc}")
 
     manifests = index_data.get("manifests")
@@ -76,11 +79,15 @@ def extract_manifest_info(archive_path: Path) -> dict[str, Any]:
         fail(f"{archive_path} index.json must contain at least one manifest entry")
 
     manifest = manifests[0]
+    if not isinstance(manifest, dict):
+        fail(f"{archive_path} first manifest entry must be an object")
     digest = manifest.get("digest")
     if not isinstance(digest, str) or not digest.startswith("sha256:"):
         fail(f"{archive_path} manifest digest is missing or invalid")
 
     platform = manifest.get("platform", {})
+    if not isinstance(platform, dict):
+        platform = {}
     os_name = platform.get("os")
     architecture = platform.get("architecture")
     platform_name = (
@@ -90,7 +97,10 @@ def extract_manifest_info(archive_path: Path) -> dict[str, Any]:
     )
 
     annotations = manifest.get("annotations", {})
-    ref_name = annotations.get("org.opencontainers.image.ref.name", "")
+    if not isinstance(annotations, dict):
+        annotations = {}
+    ref_name_raw = annotations.get("org.opencontainers.image.ref.name", "")
+    ref_name = ref_name_raw if isinstance(ref_name_raw, str) else ""
 
     return {
         "manifest_digest": digest,
@@ -158,7 +168,7 @@ def write_report(
         "",
         f"- Image: `{image_name}`",
         f"- Status: `{status}`",
-        f"- Comparison basis: `oci_manifest_digest`",
+        "- Comparison basis: `oci_manifest_digest`",
         f"- First manifest digest: `{first_info['manifest_digest']}`",
         f"- Second manifest digest: `{second_info['manifest_digest']}`",
         f"- First platform: `{first_info['platform']}`",
