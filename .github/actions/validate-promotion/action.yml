@@ -56,14 +56,24 @@ runs:
         if [[ -z "$WR_EFFECTIVE_REF" ]]; then
           echo "::error::Missing upstream release ref for workflow_run trigger."
           exit 1
+        fi 
+        # Check if the ref is already fully qualified
+        if [[ "$WR_EFFECTIVE_REF" == refs/* ]]; then
+          if [[ "$WR_EFFECTIVE_REF" != refs/tags/* ]]; then
+            echo "::error::Upstream Release workflow must originate from a tag push (ref=$WR_EFFECTIVE_REF)."
+            exit 1
+          fi
+        else
+          # It's a bare ref (likely from WR_HEAD_REF). 
+          # Validate it looks like a semantic version tag before safely prepending.
+          if echo "$WR_EFFECTIVE_REF" | grep -Eq '^v?[0-9]+\.[0-9]+'; then
+            WR_EFFECTIVE_REF="refs/tags/$WR_EFFECTIVE_REF"
+          else
+            echo "::error::Invalid tag format. Bare ref '$WR_EFFECTIVE_REF' cannot be safely converted to a tag ref."
+            exit 1
+          fi
         fi
-        if [[ "$WR_EFFECTIVE_REF" != refs/* ]]; then
-          WR_EFFECTIVE_REF="refs/tags/$WR_EFFECTIVE_REF"
-        fi
-        if [[ "$WR_EFFECTIVE_REF" != refs/tags/* ]]; then
-          echo "::error::Upstream Release workflow must originate from a tag push (ref=$WR_EFFECTIVE_REF)."
-          exit 1
-        fi
+
         # 4. Final Export
         echo "release_run_id=$WR_RUN_ID" >> "$GITHUB_OUTPUT"
         echo "✅ workflow_run promotion source validated."
