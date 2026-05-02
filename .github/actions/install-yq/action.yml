@@ -1,10 +1,14 @@
 name: 'Install Secure yq'
-description: 'Downloads and installs yq with strict cryptographic checksum verification.'
+description: 'Downloads and installs yq with strict cryptographic checksum verification against a trusted, pinned hash.'
+
 inputs:
   version:
     description: 'The semantic version of yq to install (e.g., v4.44.3)'
     required: true
     default: 'v4.44.3'
+  expected_sha256:
+    description: 'The pinned, trusted SHA256 checksum of the yq binary'
+    required: true
 
 runs:
   using: "composite"
@@ -14,28 +18,28 @@ runs:
       run: |
         set -euo pipefail
         
-        VERSION="${{ inputs.version }}" 
+        VERSION="${{ inputs.version }}"
+        EXPECTED_SHA="${{ inputs.expected_sha256 }}"
+        
         YQ_BIN_URL="https://github.com/mikefarah/yq/releases/download/${VERSION}/yq_linux_amd64"
-        YQ_CHECKSUMS_URL="https://github.com/mikefarah/yq/releases/download/${VERSION}/checksums"
         
         TMP_DIR="$(mktemp -d)"
         trap 'rm -rf "$TMP_DIR"' EXIT
 
-        echo "⬇️ Downloading yq ${VERSION} and checksums..."
+        echo "⬇️ Downloading yq ${VERSION}..."
         curl -fsSL "$YQ_BIN_URL" -o "${TMP_DIR}/yq_linux_amd64"
-        curl -fsSL "$YQ_CHECKSUMS_URL" | tr -d '\r' > "${TMP_DIR}/checksums"
 
-        echo "🔍 Verifying binary signature..."
-        grep -E '[[:space:]]+\*?(\./)?yq_linux_amd64$' "${TMP_DIR}/checksums" > "${TMP_DIR}/yq_linux_amd64.sha256" \
-          || { echo "::error::yq checksum entry missing for ${VERSION}"; exit 1; }
-
-        (
-          cd "$TMP_DIR"
-          sha256sum -c yq_linux_amd64.sha256
-        )
+        echo "🔍 Verifying binary against pinned SHA256..."
+        COMPUTED_SHA=$(sha256sum "${TMP_DIR}/yq_linux_amd64" | awk '{print $1}')
+        
+        if [[ "$COMPUTED_SHA" != "$EXPECTED_SHA" ]]; then
+          echo "::error::SHA256 mismatch! Expected: ${EXPECTED_SHA}, Got: ${COMPUTED_SHA}"
+          exit 1
+        fi
 
         echo "📦 Installing to /usr/local/bin/yq..."
         sudo install -m 0755 "${TMP_DIR}/yq_linux_amd64" /usr/local/bin/yq
         
         echo "✅ Installation successful:"
         yq --version
+        
