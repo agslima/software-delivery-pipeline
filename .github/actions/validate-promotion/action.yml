@@ -1,0 +1,69 @@
+name: 'Validate Promotion Source'
+description: 'Validates that a promotion triggered via workflow_dispatch or workflow_run is secure, successful, and valid.'
+
+inputs:
+  run_id:
+    description: 'The run ID of the release workflow (required if triggered manually via workflow_dispatch)'
+    required: false
+
+outputs:
+  release_run_id:
+    description: 'The validated upstream run ID to use for downloading artifacts in subsequent steps'
+    value: ${{ steps.validate.outputs.release_run_id }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Guardrails - Validate promotion source
+      id: validate
+      shell: bash
+      env:
+        EVENT_NAME: ${{ github.event_name }}
+        CURRENT_REPO: ${{ github.repository }}
+        INPUT_RUN_ID: ${{ inputs.run_id }}
+        WR_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+        WR_HEAD_REPO: ${{ github.event.workflow_run.head_repository.full_name }}
+        WR_EVENT: ${{ github.event.workflow_run.event }}
+        WR_REF: ${{ github.event.workflow_run.ref }}
+        WR_HEAD_REF: ${{ github.event.workflow_run.head_branch }}
+        WR_RUN_ID: ${{ github.event.workflow_run.id }}
+      run: |
+        set -euo pipefail
+
+        # 1. Handle Manual Triggers
+        if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+          test -n "$INPUT_RUN_ID" || (echo "::error::workflow_dispatch requires a run_id input."; exit 1)
+          echo "release_run_id=$INPUT_RUN_ID" >> "$GITHUB_OUTPUT"
+          echo "✅ Manual promotion request validated (run_id provided)."
+          exit 0
+        fi
+        # 2. Handle Automated Triggers (workflow_run)
+        test -n "$WR_RUN_ID" || (echo "::error::Missing workflow_run.id for workflow_run trigger."; exit 1)
+        if [[ "$WR_CONCLUSION" != "success" ]]; then
+          echo "::error::Upstream Release workflow did not succeed (conclusion=$WR_CONCLUSION)."
+          exit 1
+        fi
+        if [[ "$WR_HEAD_REPO" != "$CURRENT_REPO" ]]; then
+          echo "::error::Security: workflow_run originated from a different repository ($WR_HEAD_REPO)."
+          exit 1
+        fi
+        if [[ "$WR_EVENT" != "push" ]]; then
+          echo "::error::Unsupported Release trigger event ($WR_EVENT). Expected push from a release tag."
+          exit 1
+        fi
+        # 3. Ref Validation
+        WR_EFFECTIVE_REF="${WR_REF:-$WR_HEAD_REF}"
+        if [[ -z "$WR_EFFECTIVE_REF" ]]; then
+          echo "::error::Missing upstream release ref for workflow_run trigger."
+          exit 1
+        fi
+        if [[ "$WR_EFFECTIVE_REF" != refs/* ]]; then
+          WR_EFFECTIVE_REF="refs/tags/$WR_EFFECTIVE_REF"
+        fi
+        if [[ "$WR_EFFECTIVE_REF" != refs/tags/* ]]; then
+          echo "::error::Upstream Release workflow must originate from a tag push (ref=$WR_EFFECTIVE_REF)."
+          exit 1
+        fi
+        # 4. Final Export
+        echo "release_run_id=$WR_RUN_ID" >> "$GITHUB_OUTPUT"
+        echo "✅ workflow_run promotion source validated."
