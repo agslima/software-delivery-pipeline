@@ -98,12 +98,10 @@ jobs:
         uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
         with:
           egress-policy: audit
-
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
-      
       - name: Install go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
         with:
@@ -111,34 +109,15 @@ jobs:
           check-latest: false
       - name: Install Cosign
         uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
-      
       - name: Install Kyverno CLI
         uses: kyverno/action-install-cli@fcee92fca5c883169ef9927acf543e0b5fc58289 # v0.2.0
         with:
           release: 'v1.17.1'
           verify: true
-      - name: Install yq
-        run: |
-          set -euo pipefail
-          YQ_BIN_URL="https://github.com/mikefarah/yq/releases/download/${{env.YQ_VERSION}}/yq_linux_amd64"
-          YQ_CHECKSUMS_URL="https://github.com/mikefarah/yq/releases/download/${{env.YQ_VERSION}}/checksums"
-          TMP_DIR="$(mktemp -d)"
-          trap 'rm -rf "$TMP_DIR"' EXIT
-
-          curl -fsSL "$YQ_BIN_URL" -o "${TMP_DIR}/yq_linux_amd64"
-          curl -fsSL "$YQ_CHECKSUMS_URL" -o "${TMP_DIR}/checksums"
-
-          grep -E '[[:space:]]+\*?yq_linux_amd64$' "${TMP_DIR}/checksums" > "${TMP_DIR}/yq_linux_amd64.sha256" \
-            || { echo "::error::yq checksum entry missing for ${YQ_VERSION}"; exit 1; }
-
-          (
-            cd "$TMP_DIR"
-            sha256sum -c yq_linux_amd64.sha256
-          )
-
-          sudo install -m 0755 "${TMP_DIR}/yq_linux_amd64" /usr/local/bin/yq
-          sudo chmod +x /usr/local/bin/yq
-          yq --version   
+      - name: Setup yq
+        uses: ./.github/actions/install-yq
+        with:
+          version: 'v4.52.5'   
       - name: Install Kustomize
         uses: imranismail/setup-kustomize@53f941b41dca13ed61874bbc6b4b6e1562877530 # v3.0.0
       
@@ -146,7 +125,6 @@ jobs:
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
-
       - name: Install SLSA-Verifier
         uses: slsa-framework/slsa-verifier/actions/installer@ea584f4502babc6f60d9bc799dbbb13c1caa9ee6 # v2.7.1
       - name: Resolve Release Run Metadata
