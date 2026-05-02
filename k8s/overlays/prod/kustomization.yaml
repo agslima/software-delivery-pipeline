@@ -5,8 +5,8 @@ resources:
   - ../../base
 images:
   - name: docker.io/agslima/app-stayhealthy-backend
-    digest: sha256:debecfcdbe3f7ba58e387a328016c392f0ffb296fc085625d82603cc76c1580e
+    digest: sha256:e6753ddf6682040d424643da23271ff3a1203e737ea539931b0f8095161a58ad
   - name: docker.io/agslima/app-stayhealthy-worker
-    digest: sha256:099f9901c25d554994d207c8c32ac7a50a8b3adb36a28f0fd0be4db7da2cc0a0
+    digest: sha256:9fc31544134ddf28db181c2e608f78c042e7af650cc82e23893c34521bbbec52
   - name: docker.io/agslima/app-stayhealthy-frontend
-    digest: sha256:63b43814fb5d1f2991da77937778f6184c88ac9bfa261349e913602a47283855
+    digest: sha256:48c5c23e187c013a46ea832e3d8b1dd544607715db0273082556c4f2d672f247
