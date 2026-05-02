@@ -69,7 +69,7 @@ runs:
           --type "https://slsa.dev/provenance/v1" \
           --certificate-oidc-issuer "${OIDC_ISSUE}" \
           --certificate-identity-regexp "${REPO_PREFIX}/${{ inputs.build-workflow-path }}${TAG_REGEX}" \
-          > /dev/null"
+          > /dev/null
 
         echo "🔎 Verifying SLSA builder/source expectations..."
         slsa-verifier verify-image "$IMAGE" \
