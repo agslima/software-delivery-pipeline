@@ -73,10 +73,8 @@ jobs:
         with:
           release: 'v1.17.1'
           verify: true
-      - name: Setup yq
-        uses: ./.github/actions/install-yq
-        with:
-          version: 'v4.53.2'
+      - name: yq - portable yaml processor
+        uses: mikefarah/yq@751d8ad57b84f1794661bc70c0afb92a22ad7b3c # v4.53.2
       - name: Install Kustomize
         uses: imranismail/setup-kustomize@53f941b41dca13ed61874bbc6b4b6e1562877530 # v3.0.0
       - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 #v4.1.0
