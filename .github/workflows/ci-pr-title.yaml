@@ -31,6 +31,8 @@ jobs:
             ci
             chore
             revert
+            ":seedling:"
+            ":robot:"
           # Optional: Require a scope? (e.g., feat(ui): new button)
           requireScope: false
           # Optional: Configure the feedback provided to the user

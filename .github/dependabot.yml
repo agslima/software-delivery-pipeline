@@ -1,15 +1,21 @@
+# Please see the documentation for all configuration options: https://docs.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
+
 version: 2
 updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    open-pull-requests-limit: 10
+    target-branch: main
     groups:
       github-actions:
         patterns:
           - "*"
     commit-message:
-      prefix: "ci"
+      prefix: ":seedling:"
       include: "scope"
     labels:
       - "ci"
@@ -21,6 +27,10 @@ updates:
     directory: "/app/server"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    open-pull-requests-limit: 10
+    target-branch: main
     groups:
       npm-dependencies:
         patterns:
@@ -33,19 +43,23 @@ updates:
         versions:
           - ">=10.0.0 <11.0.0"
     commit-message:
-      prefix: "fix"
+      prefix: ":robot:"
       include: "scope"
     labels:
       - "dependencies"
       - "nodejs"
       - "backend"
 
-  # 3. Backend Dependencies
-  # Looks for package.json in the backend folder
+  # 3. Frontend Dependencies
+  # Looks for package.json in the client folder
   - package-ecosystem: "npm"
     directory: "/app/client"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    open-pull-requests-limit: 10
+    target-branch: main
     groups:
       npm-dependencies:
         patterns:
@@ -58,7 +72,7 @@ updates:
         versions:
           - ">=10.0.0 <11.0.0"
     commit-message:
-      prefix: "fix"
+      prefix: ":robot:"
       include: "scope"
     labels:
       - "dependencies"
@@ -70,8 +84,13 @@ updates:
     directory: "/app/docker"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    open-pull-requests-limit: 10
+    target-branch: main
     commit-message:
-      prefix: "ci"
+      prefix: ":seedling:"
+      include: "scope"
     labels:
       - "backend"
       - "docker"
