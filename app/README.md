@@ -7,7 +7,6 @@
 ![OpenAPI](https://img.shields.io/badge/OpenAPI-3.0-6BA539?logo=openapiinitiative&logoColor=white)
 ![JWT](https://img.shields.io/badge/Auth-JWT-blue?logo=jsonwebtokens)
 ![PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL%2015-4169E1?logo=postgresql&logoColor=white)
-OIDC
 ![Tests](https://img.shields.io/badge/Tests-Jest-C21325?logo=jest)
 ![License](https://img.shields.io/badge/License-Apache%202.0-blue)
 ![Internal Reference](https://img.shields.io/badge/Usage-Internal%20Reference-lightgrey)
@@ -97,9 +96,9 @@ graph LR
 
 ### Demo
 
-| Login page| Main page |
-|---|---|
-| ![image](https://github.com/agslima/software-delivery-pipeline/blob/main/docs/images/frontend-login-01.png) | ![image](https://github.com/agslima/software-delivery-pipeline/blob/main/docs/images/frontend-pres-01.png) |
+| Login page | Main page |
+| --- | --- |
+| ![image](/docs/images/frontend-login-v2.png) | ![image](/docs/images/frontend-pres-02.png) |
 
 ---
 
@@ -357,17 +356,20 @@ The application implements **baseline security controls** appropriate for intern
 Secrets are not hardcoded. Provide them via env or Docker secrets.
 
 Primary secrets
+
 - `DB_PASS`
 - `ADMIN_PASS`
 - `JWT_SECRET`
 - `DATA_ENCRYPTION_KEY`
 
 Optional
+
 - `DATA_ENCRYPTION_KEYS` for key rotation
 - `OIDC_*` for OIDC integration
 - `METRICS_AUTH_TOKEN` for metrics access
 
 Example `.env` (non-production):
+
 ```ini
 NODE_ENV=production
 PORT=8080
@@ -405,6 +407,7 @@ app/scripts/test-db-compose.sh up
 ```
 
 Defaults:
+
 - Host port `5433` (`TEST_DB_PORT` to override)
 - Database `prescriptions_test`
 - Set `TEST_DB_USER`/`TEST_DB_PASS` for credentials
@@ -420,6 +423,7 @@ METRICS_AUTH_TOKEN=<set>
 ```
 
 Then fetch:
+
 ```text
 GET /metrics (with optional Bearer token)
 ```
@@ -445,6 +449,7 @@ CONFIRM_RESTORE=true app/scripts/restore-db.sh /path/to/backup.dump
 ```
 
 Encryption:
+
 - Set `BACKUP_ENCRYPTION_KEY` (or `BACKUP_ENCRYPTION_KEY_FILE`) to encrypt backups.
 - Set `BACKUP_REQUIRE_ENCRYPTION=true` to fail if no key is provided.
 
@@ -459,6 +464,7 @@ app/scripts/build-release-images.sh
 ```
 
 Release deploy (digest pinned):
+
 ```bash
 app/scripts/pin-release-images.sh
 docker compose -f app/docker-compose.release.yml --env-file app/.env.release up -d
@@ -508,8 +514,8 @@ docker compose up --build
 
 | Service | Address |
 | --- | --- |
-| Web UI | http://localhost:4173 |
-| API | http://localhost:4173/api/v1 |
+| Web UI | `http://localhost:4173` |
+| API | `http://localhost:4173/api/v1` |
 
 ---
 

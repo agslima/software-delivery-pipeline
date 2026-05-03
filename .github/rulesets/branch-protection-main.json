@@ -1,9 +1,9 @@
 {
-  "id": 12766668,
+  "id": 13901177,
   "name": "branch_protection",
   "target": "branch",
   "source_type": "Repository",
-  "source": "agslima/software-delivery-pipeline",
+  "source": "agslima/app-stayhealthy-pipeline",
   "enforcement": "active",
   "conditions": {
     "ref_name": {
@@ -23,7 +23,7 @@
     {
       "type": "pull_request",
       "parameters": {
-        "required_approving_review_count": 0,
+        "required_approving_review_count": 1,
         "dismiss_stale_reviews_on_push": true,
         "required_reviewers": [],
         "require_code_owner_review": true,
@@ -41,7 +41,7 @@
           {
             "tool": "CodeQL",
             "security_alerts_threshold": "medium_or_higher",
-            "alerts_threshold": "errors"
+            "alerts_threshold": "errors_and_warnings"
           }
         ]
       }
@@ -49,14 +49,14 @@
     {
       "type": "code_quality",
       "parameters": {
-        "severity": "errors"
+        "severity": "warnings"
       }
     },
     {
       "type": "copilot_code_review",
       "parameters": {
         "review_on_push": true,
-        "review_draft_pull_requests": false
+        "review_draft_pull_requests": true
       }
     },
     {
@@ -69,6 +69,10 @@
         "do_not_enforce_on_create": false,
         "required_status_checks": [
           {
+            "context": "CodeQL",
+            "integration_id": 57789
+          },
+          {
             "context": "Code Quality (client)",
             "integration_id": 15368
           },
@@ -77,27 +81,48 @@
             "integration_id": 15368
           },
           {
-            "context": "Infra Hygiene (backend)",
+            "context": "Dockerfile Hygiene",
             "integration_id": 15368
           },
           {
-            "context": "Infra Hygiene (frontend)",
+            "context": "Governance Checks",
             "integration_id": 15368
           },
           {
-            "context": "Governance & Security Quality Check",
+            "context": "Migration Safety",
             "integration_id": 15368
           },
           {
-            "context": "CodeQL",
-            "integration_id": 57789
+            "context": "Security Scans",
+            "integration_id": 15368
+          },
+          {
+            "context": "Analyze (actions)",
+            "integration_id": 15368
+          },
+          {
+            "context": "Analyze (javascript-typescript)",
+            "integration_id": 15368
+          },
+          {
+            "context": "Analyze (python)",
+            "integration_id": 15368
           }
         ]
       }
     },
     {
       "type": "required_signatures"
+    },
+    {
+      "type": "creation"
     }
   ],
-  "bypass_actors": []
+  "bypass_actors": [
+    {
+      "actor_id": 5,
+      "actor_type": "RepositoryRole",
+      "bypass_mode": "always"
+    }
+  ]
 }

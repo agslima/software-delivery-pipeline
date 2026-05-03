@@ -14,13 +14,11 @@ jobs:
   dast:
     name: OWASP ZAP DAST (SPA + API, Auth, Gate, SARIF)
     runs-on: ubuntu-latest
-
     permissions:
       contents: read
       actions: read
       issues: write
       security-events: write
-
     env:
       ZAP_IMG: ghcr.io/zaproxy/zaproxy@sha256:8e79e827afb9e8bdba390c829eb3062062cdb407570559e2ddebd49130c00a59
       ZAP_FRONTEND_URL: http://frontend:8080
@@ -28,36 +26,29 @@ jobs:
       RUNNER_FRONTEND_URL: http://127.0.0.1:4173
       RUNNER_BACKEND_URL: http://127.0.0.1:8080
       HEALTH_TIMEOUT: "180"
-
       COMPOSE_PROJECT_NAME: dast-${{ github.run_id }}-${{ github.run_attempt }}
-      # COMPOSE_NETWORK: ""
-
       ZAP_CONTEXT_FILE: ${{ github.workspace }}/.zap/context.context
       ZAP_RULES_FILE: ${{ github.workspace }}/.zap/rules.tsv
       MEDIUM_BLOCK_PATTERNS_FILE: ${{ github.workspace }}/.zap/medium-block-patterns.txt
-
       ZAP_SPIDER_MINS: "8"
       ZAP_STARTUP_TIMEOUT_MINS: "5"
       ZAP_PASSIVE_WAIT_SECS: "10"
-
       BLOCK_HIGH: "1"
       BLOCK_MEDIUM_CATEGORIES: "1"
       BLOCK_MEDIUM_PLUGINIDS: ""
-
       ZAP_LOGIN_EMAIL: ${{ vars.ZAP_LOGIN_EMAIL }}
       ZAP_LOGIN_PASSWORD: ${{ secrets.ZAP_LOGIN_PASSWORD }}
       DEBUG_DAST: "0"
-
       AUTH_COVERAGE_REGEX: '/api/v2/'
       MIN_FE_URLS: "10"
       MIN_BE_URLS: "10"
       FAIL_ON_LOW_URLS: "0"
-
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
-
       - name: Init DAST defaults (avoid empty envs)
         run: |
+          set -euo pipefail
+          
           echo "DAST_AUTH_ASSERTION_PASSED=0" >> "$GITHUB_ENV"
           echo "DAST_AUTH_COVERAGE_FRONTEND=0" >> "$GITHUB_ENV"
           echo "DAST_AUTH_COVERAGE_BACKEND=0" >> "$GITHUB_ENV"
@@ -69,6 +60,7 @@ jobs:
 
       - name: Docker info
         run: |
+          set -euo pipefail
           docker version
           docker compose version
 
@@ -106,13 +98,6 @@ jobs:
           name: zap-out
           path: app/zap-out/
           retention-days: 30
-
-      - name: Debug - Container Logs
-        if: failure()
-        working-directory: app
-        run: |
-          docker compose ps || true
-          docker compose logs --no-color || true
 
       - name: Create Issue on Failure
         if: failure()

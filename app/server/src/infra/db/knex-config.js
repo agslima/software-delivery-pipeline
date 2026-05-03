@@ -12,8 +12,10 @@ const readSecretFile = (secretPath) => {
       // eslint-disable-next-line security/detect-non-literal-fs-filename
       return fs.readFileSync(secretPath, 'utf8').trim();
     }
-  } catch {
-    // Ignore secret file access errors and fall back to environment variables.
+  } catch (error) {
+    process.stderr.write(
+      `Failed to read configured secret file (${error.code || 'read_error'})\n`
+    );
   }
 
   return undefined;
@@ -40,8 +42,8 @@ const readSecret = (secretName, envVar) => {
   const fileFromEnv = process.env[`${envVar}_FILE`];
   if (fileFromEnv) {
     const value = readSecretFile(fileFromEnv);
-    if (value) return value;
-  }
+    if (value !== undefined) return value;
+  } 
 
   const secretPath = `/run/secrets/${secretName}`;
   const secretValue = readSecretFile(secretPath);
