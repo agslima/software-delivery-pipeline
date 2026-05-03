@@ -112,12 +112,12 @@ jobs:
           echo "✅ Trivy outputs verified."
       # Reporting (Only runs if Validation passed)
       - name: Upload Trivy SARIF (Code)
-        uses: github/codeql-action/upload-sarif@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 #v4.0.0
+        uses: github/codeql-action/upload-sarif@e46ed2cbd01164d986452f91f178727624ae40d7 #v4.0.0
         with:
           sarif_file: trivy-code.sarif
           category: code
       - name: Upload Trivy SARIF (Infra)
-        uses: github/codeql-action/upload-sarif@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 # v4.0.0
+        uses: github/codeql-action/upload-sarif@e46ed2cbd01164d986452f91f178727624ae40d7 # v4.0.0
         with:
           sarif_file: trivy-infra.sarif
           category: infrastructure
