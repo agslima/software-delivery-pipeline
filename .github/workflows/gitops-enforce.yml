@@ -85,11 +85,13 @@ jobs:
         uses: slsa-framework/slsa-verifier/actions/installer@ea584f4502babc6f60d9bc799dbbb13c1caa9ee6 # v2.7.1
       - name: Provision Token File
         shell: bash
+        env:
+          SECRETS: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TOKEN_PATH="${RUNNER_TEMP}/github_token.txt"
           touch "$TOKEN_PATH"
           chmod 600 "$TOKEN_PATH"
-          echo "${{ secrets.GITHUB_TOKEN }}" > "$TOKEN_PATH"
+          echo "${SECRETS}" > "$TOKEN_PATH"
       - name: Resolve Release Run Metadata
         id: release-meta
         uses: ./.github/actions/resolve-run-metadata
