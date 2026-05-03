@@ -5,21 +5,17 @@ inputs:
   version:
     description: 'The semantic version of yq to install (e.g., v4.44.3)'
     required: true
-    default: 'v4.44.3'
-  expected_sha256:
-    description: 'The pinned, trusted SHA256 checksum of the yq binary'
-    required: true
+    default: 'v4.46.3'
 
 runs:
   using: "composite"
   steps:
     - name: Download, Verify, and Install
       shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
       run: |
         set -euo pipefail
-        
-        # Assign input to a variable for safer handling
-        VERSION="${{ inputs.version }}"
         
         YQ_BIN_URL="https://github.com/mikefarah/yq/releases/download/${VERSION}/yq_linux_amd64"
         YQ_CHECKSUMS_URL="https://github.com/mikefarah/yq/releases/download/${VERSION}/checksums"
