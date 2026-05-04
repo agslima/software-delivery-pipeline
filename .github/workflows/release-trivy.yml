@@ -169,9 +169,11 @@ jobs:
         run: |
           set -euo pipefail
           DIGEST="${{ matrix.image-digest }}"
-          echo "DIGEST=$DIGEST" >> "$GITHUB_ENV"
-          echo "DOCKER_IMAGE=docker.io/${DOCKER_USERNAME}/${{ matrix.image_repo }}@${DIGEST}" >> "$GITHUB_ENV"
-          echo "GHCR_IMAGE=ghcr.io/${{ github.repository_owner }}/${{ matrix.image_repo }}@${DIGEST}" >> "$GITHUB_ENV"
+          cat <<EOF >> "$GITHUB_ENV"
+          DIGEST=$DIGEST
+          DOCKER_IMAGE=docker.io/${DOCKER_USERNAME}/${{ matrix.image_repo }}@${DIGEST}
+          GHCR_IMAGE=ghcr.io/${{ github.repository_owner }}/${{ matrix.image_repo }}@${DIGEST}
+          EOF
       - name: Create the attestation predicate (from scan artifact)
         run: |
           set -euo pipefail
