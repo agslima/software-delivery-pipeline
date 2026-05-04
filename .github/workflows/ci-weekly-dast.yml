@@ -48,22 +48,16 @@ jobs:
       - name: Init DAST defaults (avoid empty envs)
         run: |
           set -euo pipefail
-          
-          echo "DAST_AUTH_ASSERTION_PASSED=0" >> "$GITHUB_ENV"
-          echo "DAST_AUTH_COVERAGE_FRONTEND=0" >> "$GITHUB_ENV"
-          echo "DAST_AUTH_COVERAGE_BACKEND=0" >> "$GITHUB_ENV"
-          echo "OPENAPI_FOUND=0" >> "$GITHUB_ENV"
-          echo "HIGH_FE=0" >> "$GITHUB_ENV"
-          echo "HIGH_BE=0" >> "$GITHUB_ENV"
-          echo "MED_FE=0" >> "$GITHUB_ENV"
-          echo "MED_BE=0" >> "$GITHUB_ENV"
-
-      - name: Docker info
-        run: |
-          set -euo pipefail
-          docker version
-          docker compose version
-
+          cat <<EOF >> "$GITHUB_ENV"
+          DAST_AUTH_ASSERTION_PASSED=0
+          DAST_AUTH_COVERAGE_FRONTEND=0
+          DAST_AUTH_COVERAGE_BACKEND=0
+          OPENAPI_FOUND=0
+          HIGH_FE=0
+          HIGH_BE=0
+          MED_FE=0
+          MED_BE=0
+          EOF
       - name: Run DAST Orchestration
         env:
           ADMIN_USER: ${{ vars.ADMIN_USER }}
@@ -76,21 +70,18 @@ jobs:
           ZAP_LOGIN_EMAIL: ${{ vars.ZAP_LOGIN_EMAIL }}
           ZAP_LOGIN_PASSWORD: ${{ secrets.ZAP_LOGIN_PASSWORD }}
         run: make dast-weekly
-
       - name: Upload SARIF (Frontend)
         if: always()
         uses: github/codeql-action/upload-sarif@e46ed2cbd01164d986452f91f178727624ae40d7
         with:
           sarif_file: app/zap-out/zap-frontend.sarif
           category: zap-frontend
-
       - name: Upload SARIF (Backend)
         if: always()
         uses: github/codeql-action/upload-sarif@e46ed2cbd01164d986452f91f178727624ae40d7
         with:
           sarif_file: app/zap-out/zap-backend.sarif
           category: zap-backend
-
       - name: Upload ZAP Artifacts (folder)
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -98,7 +89,6 @@ jobs:
           name: zap-out
           path: app/zap-out/
           retention-days: 30
-
       - name: Create Issue on Failure
         if: failure()
         env:
@@ -146,7 +136,6 @@ jobs:
           fi
 
           gh issue create --title "$TITLE" --body "$BODY" --label "security" --label "dast" --label "automated"
-
       - name: Cleanup Secrets + Env
         if: always()
         working-directory: app
@@ -157,7 +146,6 @@ jobs:
             rm -rf "${SECRETS_PATH}"
           fi
           rm -f zap-out/zap-auth-header.txt || true
-
       - name: Teardown
         if: always()
         working-directory: app
