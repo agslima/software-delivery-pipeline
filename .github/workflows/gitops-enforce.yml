@@ -213,8 +213,8 @@ jobs:
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 #v8.1.1 
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "chore: deploy promote ${{ steps.release-meta.outputs.release_sha }}"
-          title: "chore: deploy release (${{ steps.release-meta.outputs.release_sha }})"
+          commit-message: ":robot: deploy promote ${{ steps.release-meta.outputs.release_sha }}"
+          title: ":robot: deploy release (${{ steps.release-meta.outputs.release_sha }})"
           body: |
             Automated GitOps promotion from a successful Release workflow run.
             **Source**
