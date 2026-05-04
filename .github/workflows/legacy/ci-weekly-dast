@@ -57,14 +57,17 @@ jobs:
 
       - name: Init DAST defaults (avoid empty envs)
         run: |
-          echo "DAST_AUTH_ASSERTION_PASSED=0" >> "$GITHUB_ENV"
-          echo "DAST_AUTH_COVERAGE_FRONTEND=0" >> "$GITHUB_ENV"
-          echo "DAST_AUTH_COVERAGE_BACKEND=0" >> "$GITHUB_ENV"
-          echo "OPENAPI_FOUND=0" >> "$GITHUB_ENV"
-          echo "HIGH_FE=0" >> "$GITHUB_ENV"
-          echo "HIGH_BE=0" >> "$GITHUB_ENV"
-          echo "MED_FE=0" >> "$GITHUB_ENV"
-          echo "MED_BE=0" >> "$GITHUB_ENV"
+          set -euo pipefail
+          cat <<EOF >> "$GITHUB_ENV"
+          DAST_AUTH_ASSERTION_PASSED=0
+          DAST_AUTH_COVERAGE_FRONTEND=0
+          DAST_AUTH_COVERAGE_BACKEND=0
+          OPENAPI_FOUND=0
+          HIGH_FE=0
+          HIGH_BE=0
+          MED_FE=0
+          MED_BE=0
+          EOF
 
       - name: Docker info
         run: |
@@ -545,7 +548,6 @@ jobs:
           echo "OPENAPI_FILE=zap-out/openapi.yaml" >> "$GITHUB_ENV"
 
       - name: OWASP ZAP API Scan (Backend, OpenAPI, Auth) — preferred
-        if: env.OPENAPI_FOUND == '1'
         working-directory: app
         run: |
           set -euo pipefail

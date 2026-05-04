@@ -30,7 +30,7 @@ jobs:
           ref: ${{ github.sha }}      
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v6
         with:
           node-version-file: 'app/server/package.json'
           cache: 'npm'
@@ -216,9 +216,8 @@ jobs:
         # 2. SCAN: OWASP ZAP Baseline
         - name: OWASP ZAP Baseline Scan
           run: |
-            # Create writable directory for reports
             mkdir -p zap-out
-            chmod 777 zap-out
+            chmod 755 zap-out
 
             echo "Starting ZAP Scan..."
             docker run --rm \
@@ -228,8 +227,7 @@ jobs:
               -t http://localhost:3000 \
               -r zap-report.html \
               -J zap-report.json \
-              -I || true 
-              # -I ignores warnings. Use '|| true' to proceed to analysis steps.
+              -I || true
 
         # 3. ANALYSIS: The Gatekeeper
         # This parses the JSON. If ZAP crashed (empty JSON) or found Highs.
@@ -380,12 +378,11 @@ jobs:
 
       - name: Read Digest
         run: |
-          # Verify file exists
           ls -R digests/
           
           DIGEST=$(cat digests/digest-${{ matrix.name }})
           echo "DIGEST=$DIGEST" >> $GITHUB_ENV
-          echo "IMAGE=${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@$DIGEST" >> $GITHUB_ENV
+          echo "IMAGE=${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@${DIGEST}" >> $GITHUB_ENV
 
       # 1. Download Raw Reports
       - uses: actions/download-artifact@v4
@@ -401,7 +398,6 @@ jobs:
       # ------------------------------------------------------------------
       - name: Create & Push Trivy Attestation
         run: |
-          # Generate Predicate
           jq '
             ([.Results[].Vulnerabilities[]? | select(.Severity=="CRITICAL")] | length) as $crit |
             ([.Results[].Vulnerabilities[]? | select(.Severity=="HIGH")] | length) as $high |
@@ -455,7 +451,7 @@ jobs:
       
       - uses: anchore/sbom-action@v0
         with:
-          image: ${{env.IMAGE}}
+          image: ${{ env.IMAGE }}
           format: spdx-json
           output-file: sbom.spdx.json
 
@@ -497,9 +493,9 @@ jobs:
 
       - name: Read Digest
         run: |
-          DIGEST=$(cat digests/digest-${{ matrix.name }})
+          DIGEST="$(cat digests/digest-${{ matrix.name }})"
           echo "DIGEST=$DIGEST" >> $GITHUB_ENV
-          echo "IMAGE=docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@$DIGEST" >> $GITHUB_ENV
+          echo "IMAGE=docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_repo }}@${DIGEST}" >> $GITHUB_ENV
       
       - uses: docker/login-action@v3
         with:

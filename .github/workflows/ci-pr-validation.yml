@@ -307,7 +307,6 @@ jobs:
           fetch-depth: 0
 
       - name: Governance drift check
-        if: false
         run: make governance-drift-check
 
       - name: Governance metadata freshness check

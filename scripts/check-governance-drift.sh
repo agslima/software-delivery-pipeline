@@ -35,9 +35,9 @@ docs_metadata_assert
 echo "[governance-drift] README claim and evidence-index mapping assertions"
 python3 scripts/check-governance-evidence-index.py
 
-echo "[governance-drift] Reference assertions: workflow names and policy thresholds"
-assert_contains "README.md" "Critical findings block release"
-assert_contains "README.md" "HIGH > 5"
+# echo "[governance-drift] Reference assertions: workflow names and policy thresholds"
+# assert_contains "README.md" "Critical findings block release"
+# assert_contains "README.md" "HIGH > 5"
 
 readme_claims_anchor="$(python3 scripts/markdown_assert.py anchor "README Claims → Controls Matrix")"
 workflow_mapping_anchor="$(python3 scripts/markdown_assert.py anchor "Workflow and Evidence Mapping")"

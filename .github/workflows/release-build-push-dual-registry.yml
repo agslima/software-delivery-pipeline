@@ -104,8 +104,8 @@ jobs:
       - name: Extract build metadata
         id: build-meta
         run: |
-          echo "GIT_TREE_STATE=$(if [ -z "$(git status --porcelain)" ]; then echo "clean"; else echo "dirty"; fi)" >> $GITHUB_ENV
-          echo "BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_ENV
+          echo "GIT_TREE_STATE=$(if [ -z "$(git status --porcelain)" ]; then echo "clean"; else echo "dirty"; fi)" >> "$GITHUB_ENV"
+          echo "BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
       - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
@@ -189,8 +189,8 @@ jobs:
       - name: Prepare Images References
         run: |
           set -euo pipefail
-          echo "DOCKER_IMAGE=docker.io/${DOCKER_USERNAME}/${IMAGE_REPO}@${DIGEST}" >> $GITHUB_ENV
-          echo "GHCR_IMAGE=ghcr.io/${{ github.repository_owner }}/${IMAGE_REPO}@${DIGEST}" >> $GITHUB_ENV
+          echo "DOCKER_IMAGE=docker.io/${DOCKER_USERNAME}/${IMAGE_REPO}@${DIGEST}" >> "$GITHUB_ENV"
+          echo "GHCR_IMAGE=ghcr.io/${{ github.repository_owner }}/${IMAGE_REPO}@${DIGEST}" >> "$GITHUB_ENV"
       - name: Sign Images with Cosign
         run: |
           set -euo pipefail
