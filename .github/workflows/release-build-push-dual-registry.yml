@@ -65,7 +65,7 @@ jobs:
       contents: read
       packages: write # Used to push images to `ghcr.io` if used.
     container:
-      image: cgr.dev/chainguard/wolfi-base:latest
+      image: chainguard/wolfi-base@sha256:decb726e4b1d7fa554be22fc496165bdd540f138ad679382d921141a2b9a4f50
       options: --user root
     environment: ${{ inputs.environment }}
     runs-on: ubuntu-latest
