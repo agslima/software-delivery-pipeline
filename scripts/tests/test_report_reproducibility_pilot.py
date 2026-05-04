@@ -4,6 +4,7 @@ import importlib.util
 import io
 import json
 import pathlib
+import subprocess
 import sys
 import tarfile
 
@@ -119,6 +120,66 @@ def test_write_report_marks_different_digests_as_mismatch(tmp_path: pathlib.Path
 
     assert status == "mismatch"
     assert "different manifest digests" in summary_path.read_text(encoding="utf-8")
+
+
+def test_cli_exits_nonzero_for_mismatch_by_default(tmp_path: pathlib.Path):
+    first = tmp_path / "first.tar"
+    second = tmp_path / "second.tar"
+    write_oci_archive(first, "sha256:" + "c" * 64)
+    write_oci_archive(second, "sha256:" + "d" * 64)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPTS_DIR / "report-reproducibility-pilot.py"),
+            "--image-name",
+            "backend",
+            "--first-archive",
+            str(first),
+            "--second-archive",
+            str(second),
+            "--output-dir",
+            str(tmp_path / "out"),
+        ],
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode == 1
+    assert "[reproducibility-pilot] mismatch detected" in result.stdout
+
+
+def test_cli_allows_mismatch_for_non_blocking_pilot(tmp_path: pathlib.Path):
+    first = tmp_path / "first.tar"
+    second = tmp_path / "second.tar"
+    output_dir = tmp_path / "out"
+    write_oci_archive(first, "sha256:" + "c" * 64)
+    write_oci_archive(second, "sha256:" + "d" * 64)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPTS_DIR / "report-reproducibility-pilot.py"),
+            "--image-name",
+            "backend",
+            "--first-archive",
+            str(first),
+            "--second-archive",
+            str(second),
+            "--output-dir",
+            str(output_dir),
+            "--allow-mismatch",
+        ],
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+
+    report = json.loads((output_dir / "report.json").read_text(encoding="utf-8"))
+    assert result.returncode == 0
+    assert report["status"] == "mismatch"
+    assert "[reproducibility-pilot] mismatch allowed for non-blocking pilot" in result.stdout
 
 
 def test_extract_manifest_info_rejects_missing_index_json(tmp_path: pathlib.Path):

@@ -32,7 +32,7 @@ The workflow job:
    - `VERSION=<release tag>`
    - `SOURCE=https://github.com/<repo>`
 4. disables provenance and SBOM emission for the pilot build itself so the comparison focuses on the image output
-5. generates `report.json` and `summary.md` using `scripts/report-reproducibility-pilot.py`
+5. generates `report.json` and `summary.md` using `scripts/report-reproducibility-pilot.py --allow-mismatch`
 6. uploads artifact `reproducibility-pilot-backend`
 
 ## Success, Failure, and Rollback Criteria
@@ -48,6 +48,12 @@ Failure criteria:
 - either build fails
 - the OCI manifest digests differ
 - the artifact is missing or incomplete
+
+Mismatch handling:
+
+- digest mismatches are recorded as `status: mismatch` in the uploaded report and summary
+- mismatch evidence does not fail the release workflow while the job remains a non-blocking pilot
+- build failures and missing or malformed OCI archives still fail the pilot job
 
 Rollback path:
 

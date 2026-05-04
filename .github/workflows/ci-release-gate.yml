@@ -139,7 +139,8 @@ jobs:
             --image-name app-stayhealthy-backend \
             --first-archive artifacts/reproducibility-pilot/backend-run-1.oci.tar \
             --second-archive artifacts/reproducibility-pilot/backend-run-2.oci.tar \
-            --output-dir artifacts/reproducibility-pilot
+            --output-dir artifacts/reproducibility-pilot \
+            --allow-mismatch
 
       - name: Upload reproducibility pilot artifact
         if: always()

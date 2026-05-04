@@ -58,6 +58,7 @@ assert_contains "docs/governance.md" "HIGH > 5"
 assert_contains ".github/workflows/release-trivy.yml" "Gate (CRITICAL>0 or HIGH>5)"
 assert_contains ".github/workflows/ci-pr-validation.yml" "name: Governance Checks"
 assert_contains ".github/workflows/ci-pr-validation.yml" "name: Security Scans"
-assert_contains ".github/workflows/gitops-enforce.yml" "Guardrails - Validate promotion source"
+assert_contains ".github/workflows/gitops-enforce.yml" "./.github/actions/validate-promotion"
+assert_contains ".github/actions/validate-promotion/action.yml" "Guardrails - Validate promotion source"
 
 echo "[governance-drift] OK"

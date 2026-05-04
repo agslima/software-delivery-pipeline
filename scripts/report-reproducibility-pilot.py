@@ -210,6 +210,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--first-archive", required=True, type=Path)
     parser.add_argument("--second-archive", required=True, type=Path)
     parser.add_argument("--output-dir", required=True, type=Path)
+    parser.add_argument(
+        "--allow-mismatch",
+        action="store_true",
+        help="Write mismatch evidence but exit successfully for non-blocking pilot runs.",
+    )
     return parser.parse_args()
 
 
@@ -249,6 +254,9 @@ def main() -> int:
     print(f"[reproducibility-pilot] summary: {summary_path}")
     if status != "pass":
         print("[reproducibility-pilot] mismatch detected")
+        if args.allow_mismatch:
+            print("[reproducibility-pilot] mismatch allowed for non-blocking pilot")
+            return 0
         return 1
     print("[reproducibility-pilot] pass")
     return 0
