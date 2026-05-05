@@ -4,6 +4,9 @@ on:
   schedule:
     - cron: "0 4 * * 0" # Sundays 04:00 UTC
   workflow_dispatch: {}
+  pull_request:  # add itself for testing changes to this workflow
+    paths:
+      - '.github/workflows/workflow-selftest.yml'
 permissions:
       contents: read
 concurrency:
@@ -26,9 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
       - name: Install workflow provenance dependencies
         run: python3 -m pip install 'PyYAML==6.0.3'
-
       - name: Check workflow input provenance
-        run: make checke-provenance
+        run: make check-provenance
