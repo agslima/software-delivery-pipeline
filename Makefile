@@ -74,8 +74,8 @@ snyk-no-readme: guard-snyk ## Run full Snyk aggregation without touching README
 snyk-no-html: guard-snyk ## Run full Snyk aggregation without HTML reports
 	WRITE_HTML=0 "$(SNYK_SCRIPT)"
 
-.PHONY: snyk-sca
-snyk-sca: guard-snyk ## Run Snyk SCA only
+.PHONY: snyk-scan
+snyk-scan: guard-snyk ## Run Snyk SCA only
 	RUN_SCA=1 RUN_SAST=0 RUN_CONTAINER=0 RUN_IAC=0 "$(SNYK_SCRIPT)"
 
 .PHONY: snyk-code
@@ -113,8 +113,8 @@ governance-checks: governance-drift-check governance-metadata-check ## Run local
 workflow-input-provenance-check: guard-governance ## Check pinning of high-trust workflow inputs
 	python3 "$(WORKFLOW_PROVENANCE_SCRIPT)"
 
-.PHONY: checke-provenance
-checke-provenance: workflow-input-provenance-check ## Alias for high-trust workflow input provenance check
+.PHONY: check-provenance
+check-provenance: workflow-input-provenance-check ## Alias for high-trust workflow input provenance check
 
 .PHONY: docs-metadata-check
 docs-metadata-check: guard-governance ## Check standardized metadata comments in maintained docs pages
