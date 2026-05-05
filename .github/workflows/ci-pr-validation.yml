@@ -37,7 +37,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
       - name: Detect changed files
         id: filter
         uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
@@ -96,22 +95,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
       - name: Setup Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e #v6.4.0
         with:
           node-version: '22'
           cache: npm
           cache-dependency-path: app/server/package-lock.json
-
       - name: Install dependencies
         working-directory: app/server
         run: npm ci
-
       - name: Lint
         working-directory: app/server
         run: npm run lint
-
       - name: Unit tests
         working-directory: app/server
         run: npm test -- --ci
@@ -129,22 +124,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
       - name: Setup Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: '22'
           cache: npm
           cache-dependency-path: app/client/package-lock.json
-
       - name: Install dependencies
         working-directory: app/client
         run: npm ci
-
       - name: Lint
         working-directory: app/client
         run: npm run lint
-
       - name: Unit tests
         working-directory: app/client
         run: npm test
@@ -175,24 +166,20 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
       - name: Skip unchanged Dockerfile row
         if: matrix.changed != 'true' && needs.changes.outputs.policies != 'true'
         run: |
           echo "No relevant changes for ${{ matrix.service }} Dockerfile."
           exit 0
-
       - name: Lint Dockerfile (${{ matrix.service }})
         if: matrix.changed == 'true' || needs.changes.outputs.policies == 'true'
         uses: hadolint/hadolint-action@2332a7b74a6de0dda2e2221d575162eba76ba5e5 # v3.3.0
         with:
           dockerfile: ${{ matrix.path }}
           failure-threshold: error
-
       - name: Setup Conftest
         if: matrix.changed == 'true' || needs.changes.outputs.policies == 'true'
         uses: princespaghetti/setup-conftest@417586a9b2e806fc5a95c72dfe98e296ef092b6f # v1.0.0
-
       - name: Run Dockerfile OPA policy (${{ matrix.service }})
         if: matrix.changed == 'true' || needs.changes.outputs.policies == 'true'
         run: |
@@ -213,7 +200,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
       - name: Validate Kubernetes manifests
         uses: docker://ghcr.io/yannh/kubeconform@sha256:0474f7372c0089c41890101f0e293db5798e05942c98bbcf8359f206731115ea # v0.7.0
         with:
@@ -237,23 +223,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
       - name: Install Cosign
         uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
-
       - name: Install Kyverno CLI
         uses: kyverno/action-install-cli@fcee92fca5c883169ef9927acf543e0b5fc58289 # v0.2.0
         with:
           release: v1.17.1
           verify: true
-
       - name: Run baseline Kyverno tests
         run: kyverno test k8s/tests/
-
       - name: Run policy suite
         if: hashFiles('k8s/tests/policy-test.yaml') != ''
         run: kyverno test k8s/tests/ -f k8s/tests/policy-test.yaml
-
       - name: Run cluster verify suite
         if: hashFiles('k8s/tests/cluster-verify-test.yaml') != ''
         run: kyverno test k8s/tests/ -f k8s/tests/cluster-verify-test.yaml
@@ -305,18 +286,14 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
-
       - name: Governance drift check
         run: make governance-drift-check
-
       - name: Governance metadata freshness check
         run: make governance-metadata-check
-
       - name: Install workflow provenance dependencies
         run: python3 -m pip install 'PyYAML==6.0.3'
-
       - name: Workflow input provenance check
-        run: make checke-provenance
+        run: make check-provenance
 
   # ==================================================================
   # JOB 4B: SECURITY SCANS
@@ -333,7 +310,6 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
-
       - name: Secret scanning (Gitleaks)
         uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7
         env:
@@ -342,10 +318,8 @@ jobs:
       - name: Compute Trivy DB cache key
         id: trivy-db-key
         run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
-
       - name: Create cache dir
         run: mkdir -p "${{ env.TRIVY_CACHE_DIR }}"
-
       - name: Cache Trivy DB
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
@@ -353,7 +327,6 @@ jobs:
           key: trivy-db-${{ runner.os }}-${{ github.workflow }}-${{ steps.trivy-db-key.outputs.week }}
           restore-keys: |
             trivy-db-${{ runner.os }}-
-
       - name: Set scan skip dirs
         id: vars
         run: |
