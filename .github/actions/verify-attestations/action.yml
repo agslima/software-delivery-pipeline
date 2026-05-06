@@ -44,7 +44,7 @@ runs:
         echo "🔐 Verifying signature for $IMAGE"
         cosign verify "$IMAGE" \
           --certificate-oidc-issuer "${OIDC_ISSUE}" \
-          --certificate-identity-regexp "${REPO_PREFIX}/${BUIL_PATH}${TAG_REGEX}"
+          --certificate-identity-regexp "${REPO_PREFIX}/${BUILD_PATH}${TAG_REGEX}"
         
         echo "🧾 Verifying SBOM attestation..."
         cosign verify-attestation "$IMAGE" \
