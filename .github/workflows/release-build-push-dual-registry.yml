@@ -54,17 +54,65 @@ on:
         description: 'Docker Hub username'
         required: true
         type: string
+      gcp_project_id:
+        description: 'GCP Project ID for Artifact Registry'
+        required: true
+        type: string
+      gcp_project_number:
+        description: 'GCP Project Number for Workload Identity'
+        required: true
+        type: string
+      gar_location:
+        description: 'GCP region for Artifact Registry'
+        required: true
+        type: string
+      npm_virtual_repo:
+        description: 'Artifact Registry NPM virtual repository name'
+        required: true
+        type: string
     outputs:
       image-digest:
         description: "sha256 digest of container image"
         value: ${{ jobs.build-publish.outputs.image-digest }}
       
 jobs:
-  build-publish:
+  # ---------------------------------------------------------
+  # JOB 1: Trusted Control Plane (Token Generation)
+  # ---------------------------------------------------------
+  generate-auth-token:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
     permissions:
       contents: read
-      packages: write # Used to push images to `ghcr.io` if used.
-    environment: ${{ inputs.environment }}
+      id-token: write # Required for OIDC token generation
+    outputs:
+      gar_token: ${{ steps.auth.outputs.access_token }}
+    env:
+      GCP_PROJECT_ID: ${{ inputs.gcp_project_id }}
+      GCP_PROJECT_NUMBER: ${{ inputs.gcp_project_number }}
+      GAR_LOCATION: ${{ inputs.gar_location }}
+      NPM_VIRTUAL_REPO: ${{ inputs.npm_virtual_repo }}
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        with:
+          egress-policy: audit
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: 'projects/${{ env.GCP_PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github-actions-pool/providers/github-provider'
+          service_account: 'github-actions-sa@${{ env.GCP_PROJECT_ID }}.iam.gserviceaccount.com'
+          token_format: 'access_token'
+
+  # ---------------------------------------------------------
+  # JOB 2: Untrusted Data Plane (Build Execution)
+  # ---------------------------------------------------------
+  build-publish:
+    needs: generate-auth-token
+    permissions:
+      contents: read
+      packages: write # Used to push images to `ghcr.io`
     runs-on: ubuntu-latest
     env:
       CONTEXT: ${{ inputs.context }}
@@ -74,6 +122,10 @@ jobs:
       PLATFORMS: ${{ inputs.platforms }}
       GITHUB_SHA: ${{ inputs.github_sha }}
       DOCKER_USERNAME: ${{ inputs.dockerhub_username }}
+      GCP_PROJECT_ID: ${{ inputs.gcp_project_id }}
+      GCP_PROJECT_NUMBER: ${{ inputs.gcp_project_number }}
+      GAR_LOCATION: ${{ inputs.gar_location }}
+      NPM_VIRTUAL_REPO: ${{ inputs.npm_virtual_repo }}
     outputs:  
       image-digest: ${{ steps.build.outputs.digest }}
     steps:
@@ -87,18 +139,25 @@ jobs:
           ref: ${{ env.GITHUB_SHA }}
           fetch-depth: 0
           persist-credentials: false
+      - name: Generate Secure .npmrc
+        run: |
+          cat <<EOF > .npmrc.build
+          registry=https://${GAR_LOCATION}-npm.pkg.dev/${GCP_PROJECT_ID}/${NPM_VIRTUAL_REPO}/
+          //${GAR_LOCATION}-npm.pkg.dev/${GCP_PROJECT_ID}/${NPM_VIRTUAL_REPO}/:_authToken=${{ needs.generate-auth-token.outputs.gar_token }}
+          //${GAR_LOCATION}-npm.pkg.dev/${GCP_PROJECT_ID}/${NPM_VIRTUAL_REPO}/:always-auth=true
+          EOF
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v2.5.0
         with:
           # This forces the use of an isolated container for the build environment
           driver: docker-container
       - name: Login to Docker Hub
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v2.1.0
         with:
           username: ${{ inputs.dockerhub_username }}
           password: ${{ secrets.dockerhub_token }}
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v2.1.0
         with:
           registry: ghcr.io
           username: ${{ inputs.ghcr_username }}
@@ -126,7 +185,7 @@ jobs:
             org.opencontainers.image.version=${{ env.RELEASE_TAG }}
       - name: Build & Push
         id: build
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v4.0.0
         with:
           context: ${{ env.CONTEXT }}
           file: ${{ env.FILE }}
@@ -138,11 +197,16 @@ jobs:
           sbom: false
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          secret-files: |
+            npmrc=.npmrc.build
           build-args: |
             GIT_TAG=${{ env.RELEASE_TAG }}
             GIT_COMMIT=${{ env.GITHUB_SHA }}
             BUILD_DATE=${{ env.BUILD_DATE }}
             GIT_TREE_STATE=${{ env.GIT_TREE_STATE }}
+      - name: Clean up .npmrc
+        if: always()
+        run: rm -f .npmrc.build
       - name: Export Digest Artifact
         run: |
           set -euo pipefail
@@ -173,17 +237,22 @@ jobs:
       id-token: write # Needed to get OIDC token for keyless signing
       actions: read # Needed to read workflow info.
       packages: write # Needed to login and upload attestations to ghcr.io.
-      attestations: write    
+      attestations: write # Needed to upload attestations to the repository's native OPA registry.
+      artifact-metadata: write # Needed to upload SBOM as artifact    
     steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        with:
+          egress-policy: audit
       - name: Install Cosign
-        uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003
+        uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v2.1.0
       - name: Login to Docker Hub
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v2.1.0
         with:
           username: ${{ inputs.dockerhub_username }}
           password: ${{ secrets.dockerhub_token }}
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v2.1.0
         with:
           registry: ghcr.io
           username: ${{ inputs.ghcr_username }}
@@ -251,7 +320,7 @@ jobs:
           subject-digest: ${{ env.DIGEST }}
           push-to-registry: true
       - name: Upload SBOM Artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.3.0
         with:
           name: sbom-${{ env.IMAGE_REPO }}
           path: sbom-${{ env.IMAGE_REPO }}.spdx.json
