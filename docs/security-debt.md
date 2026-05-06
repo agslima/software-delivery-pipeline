@@ -23,7 +23,7 @@
 
 | CVE | Severity | Component | Current Version | Fixed Version | Exploitability | Justification | Decision | Owner | Expires (YYYY-MM-DD) | Ticket/Link | Notes |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| - | - | - | - | - | - | - | - | - | - | - |
+| CVE-2026-42338 | MEDIUM | npm:ip-address (ip-address@10.1.0) | 10.1.0 | 10.1.1 | - | - | agslima | 2026-05-10 | #271 | - |
 
 ---
 
