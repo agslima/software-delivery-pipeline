@@ -17,7 +17,7 @@ on:
         description: 'Docker Hub access token'
         required: true
       gpg_key:
-        description: 'GPG Password'
+        description: 'Passphrase for GPG symmetric decryption'
         required: true
     inputs:
       context:
@@ -117,7 +117,7 @@ jobs:
           PASSPHRASE: ${{ secrets.gpg_key }}
         run: |
           # Encrypt the token symmetrically
-          echo "$GCP_TOKEN" | gpg --symmetric --batch --passphrase "$PASSPHRASE" --output gcp-token.gpg
+          echo "$GCP_TOKEN" | gpg --symmetric --batch --pinentry-mode loopback --passphrase "$PASSPHRASE" --output gcp-token.gpg
       - name: Upload Encrypted Token
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.3.0
         with:
@@ -168,7 +168,7 @@ jobs:
           PASSPHRASE: ${{ secrets.gpg_key }}
         run: |
           set -euo pipefail
-          DECRYPTED_TOKEN=$(gpg --decrypt --batch --passphrase "$PASSPHRASE" gcp-token.gpg)
+          DECRYPTED_TOKEN=$(gpg --decrypt --batch --pinentry-mode loopback --passphrase "$PASSPHRASE" gcp-token.gpg)
           echo "::add-mask::$DECRYPTED_TOKEN"
           echo "GCP_ACCESS_TOKEN=$DECRYPTED_TOKEN" >> $GITHUB_ENV
           shred -u gcp-token.gpg      
