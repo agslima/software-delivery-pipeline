@@ -192,6 +192,7 @@ jobs:
       github_sha: ${{ github.sha }}
       platforms: linux/amd64
       dockerhub_username: ${{ vars.DOCKER_HUB_USERNAME }}
+      ghcr_username: ${{ github.repository_owner }}
     secrets:      
       dockerhub_token: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
       ghcr_token: ${{ secrets.GITHUB_TOKEN }}
