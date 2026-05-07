@@ -2,7 +2,7 @@
   "name": "secure-prescription-api",
   "version": "1.0.0",
   "engines": {
-    "node": "24.13.0"
+    "node": "25.9.0"
   },
   "description": "Production-ready Node.js API",
   "type": "commonjs",
