@@ -16,6 +16,9 @@ on:
       dockerhub_token:
         description: 'Docker Hub access token'
         required: true
+      gpg_key:
+        description: 'GPG Password'
+        required: true
     inputs:
       context:
         description: 'Build context path'
@@ -111,7 +114,7 @@ jobs:
       - name: Encrypt GCP Token
         env:
           GCP_TOKEN: ${{ steps.auth.outputs.access_token }}
-          PASSPHRASE: ${{ secrets.GPG_TRANSFER_PASSPHRASE }}
+          PASSPHRASE: ${{ secrets.gpg_key }}
         run: |
           # Encrypt the token symmetrically
           echo "$GCP_TOKEN" | gpg --symmetric --batch --passphrase "$PASSPHRASE" --output gcp-token.gpg
@@ -162,7 +165,7 @@ jobs:
           name: secure-token-payload
       - name: Decrypt and Mask Token
         env:
-          PASSPHRASE: ${{ secrets.GPG_TRANSFER_PASSPHRASE }}
+          PASSPHRASE: ${{ secrets.gpg_key }}
         run: |
           set -euo pipefail
           DECRYPTED_TOKEN=$(gpg --decrypt --batch --passphrase "$PASSPHRASE" gcp-token.gpg)
