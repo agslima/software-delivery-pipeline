@@ -77,44 +77,10 @@ on:
       
 jobs:
   # ---------------------------------------------------------
-  # JOB 1: Trusted Control Plane (Token Generation)
-  # ---------------------------------------------------------
-  generate-auth-token:
-    runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
-    permissions:
-      contents: read
-      id-token: write # Required for OIDC token generation
-    outputs:
-      gar_token: ${{ steps.auth.outputs.access_token }}
-    env:
-      GCP_PROJECT_ID: ${{ inputs.gcp_project_id }}
-      GCP_PROJECT_NUMBER: ${{ inputs.gcp_project_number }}
-      GAR_LOCATION: ${{ inputs.gar_location }}
-      NPM_VIRTUAL_REPO: ${{ inputs.npm_virtual_repo }}
-    steps:
-      - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
-        with:
-          egress-policy: block
-          allowed-endpoints: >
-            github.com
-            oauth2.googleapis.com
-            iamcredentials.googleapis.com
-            *.googleapis.com
-      - name: Authenticate to Google Cloud
-        id: auth
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
-        with:
-          workload_identity_provider: 'projects/${{ env.GCP_PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github-actions-pool/providers/github-provider'
-          service_account: 'github-actions-sa@${{ env.GCP_PROJECT_ID }}.iam.gserviceaccount.com'
-          token_format: 'access_token'
-
-  # ---------------------------------------------------------
-  # JOB 2: Untrusted Data Plane (Build Execution)
+  # JOB 1: Untrusted Data Plane (Build Execution)
   # ---------------------------------------------------------
   build-publish:
-    needs: generate-auth-token
+    environment: ${{ inputs.environment }}
     permissions:
       contents: read
       packages: write # Used to push images to `ghcr.io`
@@ -127,10 +93,6 @@ jobs:
       PLATFORMS: ${{ inputs.platforms }}
       GITHUB_SHA: ${{ inputs.github_sha }}
       DOCKER_USERNAME: ${{ inputs.dockerhub_username }}
-      GCP_PROJECT_ID: ${{ inputs.gcp_project_id }}
-      GCP_PROJECT_NUMBER: ${{ inputs.gcp_project_number }}
-      GAR_LOCATION: ${{ inputs.gar_location }}
-      NPM_VIRTUAL_REPO: ${{ inputs.npm_virtual_repo }}
     outputs:  
       image-digest: ${{ steps.build.outputs.digest }}
     steps:
@@ -144,17 +106,6 @@ jobs:
           ref: ${{ env.GITHUB_SHA }}
           fetch-depth: 0
           persist-credentials: false
-      - name: Generate Secure .npmrc
-        env:
-          GAR_TOKEN: ${{ needs.generate-auth-token.outputs.gar_token }}
-        run: |
-          set -euo pipefail
-          umask 077
-          cat > "${RUNNER_TEMP}/.npmrc.build" <<EOF
-          registry=https://${GAR_LOCATION}-npm.pkg.dev/${GCP_PROJECT_ID}/${NPM_VIRTUAL_REPO}/
-          //${GAR_LOCATION}-npm.pkg.dev/${GCP_PROJECT_ID}/${NPM_VIRTUAL_REPO}/:_authToken=${GAR_TOKEN}
-          //${GAR_LOCATION}-npm.pkg.dev/${GCP_PROJECT_ID}/${NPM_VIRTUAL_REPO}/:always-auth=true
-          EOF
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v2.5.0
         with:
@@ -206,16 +157,11 @@ jobs:
           sbom: false
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          secret-files: |
-            npmrc=${{ runner.temp }}/.npmrc.build
           build-args: |
             GIT_TAG=${{ env.RELEASE_TAG }}
             GIT_COMMIT=${{ env.GITHUB_SHA }}
             BUILD_DATE=${{ env.BUILD_DATE }}
             GIT_TREE_STATE=${{ env.GIT_TREE_STATE }}
-      - name: Clean up .npmrc
-        if: always()
-        run: rm -f "${RUNNER_TEMP}/.npmrc.build"
       - name: Export Digest Artifact
         run: |
           set -euo pipefail

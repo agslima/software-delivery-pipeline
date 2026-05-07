@@ -12,10 +12,7 @@ RUN apk update && apk upgrade --no-cache
 
 COPY server/package*.json ./
 
-# Securely mount the .npmrc secret and install dependencies
-# The secret is mounted to the default location npm looks for it
-RUN --mount=type=secret,id=npmrc,target=/root/.npmrc \
-    npm ci --omit=dev --ignore-scripts
+RUN npm ci --omit=dev --ignore-scripts
 
 # ==========================================
 # STAGE 2: Runtime
