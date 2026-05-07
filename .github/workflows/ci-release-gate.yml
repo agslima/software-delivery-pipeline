@@ -83,6 +83,7 @@ jobs:
     secrets:      
       dockerhub_token: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
       ghcr_token: ${{ secrets.GITHUB_TOKEN }}
+      gpg_key: ${{ secrets.GPG_TRANSFER_PASSPHRASE }}
 
   reproducibility-pilot-backend:
     name: Reproducibility Pilot (Backend)
@@ -179,6 +180,7 @@ jobs:
     secrets:      
       dockerhub_token: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
       ghcr_token: ${{ secrets.GITHUB_TOKEN }}
+      gpg_key: ${{ secrets.GPG_TRANSFER_PASSPHRASE }}
 
   build-push-worker:
     name: Build & Push
@@ -208,6 +210,7 @@ jobs:
     secrets:      
       dockerhub_token: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
       ghcr_token: ${{ secrets.GITHUB_TOKEN }}
+      gpg_key: ${{ secrets.GPG_TRANSFER_PASSPHRASE }}
   
   generate-slsa-provenance-backend-ghcr:
     needs: [build-push-backend]
