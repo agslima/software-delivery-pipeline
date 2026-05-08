@@ -187,7 +187,7 @@ Check that the image was signed by this specific GitHub Repository's CI pipeline
 
 ```bash
 # 1. Export a release image digest (backend or frontend)
-export IMAGE="docker.io/agslima/app-stayhealthy-backend@sha256:76b3bb622617761bea4cba1195454c373ade91f9014c08134fb341f5f8b14a68"
+export IMAGE="docker.io/agslima/app-stayhealthy-backend@sha256:1f6ff3e5bafac02cc27aefe364683dc879eb490dfd7e078ad13f83e6a97d3d30"
 
 # 2. Verify the signature against the OpenID Connect (OIDC) identity
 cosign verify "$IMAGE" \
