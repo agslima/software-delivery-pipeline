@@ -55,5 +55,5 @@ jobs:
       with:
         repo_path: ./
         policy_file: check-github-actions
-        policy_purl: pkg:github.com/agslima/app-stayhealthy-pipeline@.*
+        # policy_purl: pkg:github.com/agslima/app-stayhealthy-pipeline@.*
         reports_retention_days: 10
