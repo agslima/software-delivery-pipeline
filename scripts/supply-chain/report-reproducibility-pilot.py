@@ -11,17 +11,16 @@ import tarfile
 from pathlib import Path
 from typing import Any
 
-
 MAX_SUMMARY_FIELD_DIFFS = 20
 
 
 def fail(message: str) -> None:
     """
     Print an error to stderr prefixed with "::error::" and exit the program with status code 1.
-    
+
     Parameters:
         message (str): Text of the error message to print (will be prefixed with "::error::").
-    
+
     Raises:
         SystemExit: Exits with status code 1.
     """
@@ -32,7 +31,7 @@ def fail(message: str) -> None:
 def file_sha256(path: Path) -> str:
     """
     Compute the SHA-256 hexadecimal digest of a file.
-    
+
     Returns:
         hex_digest (str): Hexadecimal SHA-256 digest of the file contents.
     """
@@ -50,7 +49,9 @@ def blob_path(digest: str) -> str:
     return f"blobs/sha256/{digest.removeprefix('sha256:')}"
 
 
-def read_json_member(archive: tarfile.TarFile, member_name: str, archive_path: Path) -> dict[str, Any]:
+def read_json_member(
+    archive: tarfile.TarFile, member_name: str, archive_path: Path
+) -> dict[str, Any]:
     """Read a tar member as a JSON object."""
     try:
         member = archive.getmember(member_name)
@@ -136,16 +137,16 @@ def extract_digest_list(items: Any) -> list[str]:
 def extract_manifest_info(archive_path: Path) -> dict[str, Any]:
     """
     Extract manifest digest, platform, and reference name from an OCI image archive's index.json.
-    
+
     Parameters:
         archive_path (Path): Path to the OCI image archive tar file to inspect.
-    
+
     Returns:
         info (dict[str, Any]): A dictionary with:
             - manifest_digest (str): The manifest `sha256:` digest from the first manifest entry.
             - platform (str): A string formatted as `os/architecture` when available, otherwise `"unknown"`.
             - ref_name (str): The `org.opencontainers.image.ref.name` annotation value, or an empty string if absent.
-    
+
     Notes:
         This function calls `fail(...)` (which exits the program) if the archive cannot be opened, if `index.json` is missing or unreadable, if `manifests` is not a non-empty list, or if the first manifest's digest is missing or not a `sha256:` string.
     """
@@ -157,7 +158,9 @@ def extract_manifest_info(archive_path: Path) -> dict[str, Any]:
 
             manifests = index_data.get("manifests")
             if not isinstance(manifests, list) or not manifests:
-                fail(f"{archive_path} index.json must contain at least one manifest entry")
+                fail(
+                    f"{archive_path} index.json must contain at least one manifest entry"
+                )
 
             manifest = manifests[0]
             if not isinstance(manifest, dict):
@@ -171,8 +174,12 @@ def extract_manifest_info(archive_path: Path) -> dict[str, Any]:
                 config_descriptor = manifest_blob.get("config", {})
                 if isinstance(config_descriptor, dict):
                     config_digest_raw = config_descriptor.get("digest")
-                    if isinstance(config_digest_raw, str) and config_digest_raw.startswith("sha256:"):
-                        config_blob = read_optional_json_blob(archive, config_digest_raw, archive_path)
+                    if isinstance(
+                        config_digest_raw, str
+                    ) and config_digest_raw.startswith("sha256:"):
+                        config_blob = read_optional_json_blob(
+                            archive, config_digest_raw, archive_path
+                        )
     except (tarfile.TarError, OSError) as exc:
         fail(f"Failed to open OCI archive {archive_path}: {exc}")
 
@@ -198,10 +205,13 @@ def extract_manifest_info(archive_path: Path) -> dict[str, Any]:
     config_digest_raw = config_descriptor.get("digest", "")
     config_digest = (
         config_digest_raw
-        if isinstance(config_digest_raw, str) and config_digest_raw.startswith("sha256:")
+        if isinstance(config_digest_raw, str)
+        and config_digest_raw.startswith("sha256:")
         else ""
     )
-    layer_digests = extract_digest_list(manifest_blob.get("layers") if manifest_blob else [])
+    layer_digests = extract_digest_list(
+        manifest_blob.get("layers") if manifest_blob else []
+    )
 
     return {
         "manifest_digest": digest,
@@ -214,7 +224,9 @@ def extract_manifest_info(archive_path: Path) -> dict[str, Any]:
     }
 
 
-def build_comparison(first_info: dict[str, Any], second_info: dict[str, Any]) -> dict[str, Any]:
+def build_comparison(
+    first_info: dict[str, Any], second_info: dict[str, Any]
+) -> dict[str, Any]:
     """Build a structured comparison for two extracted OCI image descriptions."""
     first_layers = first_info.get("layer_digests", [])
     second_layers = second_info.get("layer_digests", [])
@@ -224,12 +236,17 @@ def build_comparison(first_info: dict[str, Any], second_info: dict[str, Any]) ->
         first_digest = first_layers[index] if index < len(first_layers) else None
         second_digest = second_layers[index] if index < len(second_layers) else None
         if first_digest != second_digest:
-            layer_diffs.append({"index": index, "first": first_digest, "second": second_digest})
+            layer_diffs.append(
+                {"index": index, "first": first_digest, "second": second_digest}
+            )
 
     return {
-        "manifest_digest_match": first_info["manifest_digest"] == second_info["manifest_digest"],
-        "config_digest_match": first_info.get("config_digest") == second_info.get("config_digest"),
-        "layer_count_match": first_info.get("layer_count") == second_info.get("layer_count"),
+        "manifest_digest_match": first_info["manifest_digest"]
+        == second_info["manifest_digest"],
+        "config_digest_match": first_info.get("config_digest")
+        == second_info.get("config_digest"),
+        "layer_count_match": first_info.get("layer_count")
+        == second_info.get("layer_count"),
         "layer_digests_match": first_layers == second_layers,
         "layer_diffs": layer_diffs,
         "config_field_diffs": compare_config_fields(
@@ -249,7 +266,7 @@ def write_report(
 ) -> tuple[Path, Path, str]:
     """
     Create a reproducibility report and human-readable summary comparing two OCI archive manifests.
-    
+
     Parameters:
         output_dir (Path): Directory where `report.json` and `summary.md` will be written; created if missing.
         image_name (str): Image identifier included in the report and summary.
@@ -257,11 +274,15 @@ def write_report(
         second_path (Path): Filesystem path to the second OCI archive.
         first_info (dict): Manifest metadata for the first archive. Expected keys: `manifest_digest` (str, starts with "sha256:"), `platform` (str, e.g., "linux/amd64" or "unknown"), and `ref_name` (str).
         second_info (dict): Manifest metadata for the second archive with the same expected keys as `first_info`.
-    
+
     Returns:
         tuple[Path, Path, str]: A tuple containing the path to `report.json`, the path to `summary.md`, and the comparison `status` which is `"pass"` when the two `manifest_digest` values match or `"mismatch"` otherwise.
     """
-    status = "pass" if first_info["manifest_digest"] == second_info["manifest_digest"] else "mismatch"
+    status = (
+        "pass"
+        if first_info["manifest_digest"] == second_info["manifest_digest"]
+        else "mismatch"
+    )
     output_dir.mkdir(parents=True, exist_ok=True)
     comparison = build_comparison(first_info, second_info)
 
@@ -337,7 +358,9 @@ def write_report(
             )
         remaining = len(comparison["config_field_diffs"]) - MAX_SUMMARY_FIELD_DIFFS
         if remaining > 0:
-            summary_lines.append(f"- ...and `{remaining}` more field differences in `report.json`")
+            summary_lines.append(
+                f"- ...and `{remaining}` more field differences in `report.json`"
+            )
 
     summary_lines.extend(
         [
@@ -361,13 +384,13 @@ def write_report(
 def parse_args() -> argparse.Namespace:
     """
     Parse and validate command-line arguments for the reproducibility report tool.
-    
+
     Defines and requires the following CLI options:
         --image-name (str): Logical name of the image being compared.
         --first-archive (Path): Path to the first OCI image archive (tar file).
         --second-archive (Path): Path to the second OCI image archive (tar file).
         --output-dir (Path): Directory where `report.json` and `summary.md` will be written.
-    
+
     Returns:
         args (argparse.Namespace): Parsed arguments with attributes `image_name` (str),
         `first_archive` (Path), `second_archive` (Path), and `output_dir` (Path).
@@ -388,12 +411,12 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     """
     Execute the CLI workflow that compares two OCI image archives and writes reproducibility artifacts.
-    
+
     Validates that both archive paths exist, extracts manifest information from each archive, writes a machine-readable report and a human-readable summary to the specified output directory, prints the generated artifact paths, and returns an exit code indicating comparison result.
-    
+
     Returns:
         0 if the two archives' manifest digests match, 1 if they differ.
-    
+
     Raises:
         SystemExit: If an archive is missing, cannot be opened as a tar archive, or required OCI manifest fields are invalid (these conditions cause immediate program termination via fail()).
     """

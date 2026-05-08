@@ -7,7 +7,6 @@ import re
 import sys
 from pathlib import Path
 
-
 TARGETS = [
     "docs/README.md",
     "docs/architecture.md",
@@ -46,7 +45,9 @@ def validate_file(path_str: str) -> None:
 
     lines = path.read_text(encoding="utf-8").splitlines()
     if not lines or not lines[0].startswith("# "):
-        fail(f"{path} must start with a top-level markdown heading before metadata comments.")
+        fail(
+            f"{path} must start with a top-level markdown heading before metadata comments."
+        )
 
     metadata_start = 1
     while metadata_start < len(lines) and lines[metadata_start] == "":
@@ -83,9 +84,13 @@ def validate_file(path_str: str) -> None:
         fail(f"{path} must include a blank line after the metadata block.")
 
     if metadata["review_cadence"] != "Quarterly":
-        fail(f"{path} review_cadence must be Quarterly, found: {metadata['review_cadence']}")
+        fail(
+            f"{path} review_cadence must be Quarterly, found: {metadata['review_cadence']}"
+        )
     if not DATE_RE.match(metadata["last_reviewed"]):
-        fail(f"{path} last_reviewed must use YYYY-MM-DD, found: {metadata['last_reviewed']}")
+        fail(
+            f"{path} last_reviewed must use YYYY-MM-DD, found: {metadata['last_reviewed']}"
+        )
 
     for key in METADATA_KEYS:
         occurrences = 0
@@ -94,7 +99,9 @@ def validate_file(path_str: str) -> None:
             if match and match.group("key") == key:
                 occurrences += 1
         if occurrences != 1:
-            fail(f"{path} must contain exactly one {key} metadata comment, found {occurrences}")
+            fail(
+                f"{path} must contain exactly one {key} metadata comment, found {occurrences}"
+            )
 
 
 def main() -> int:

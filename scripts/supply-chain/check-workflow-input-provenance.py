@@ -13,7 +13,7 @@ from typing import Any
 
 import yaml
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_TARGETS = [
     ".github/workflows/ci-release-gate.yml",
     ".github/workflows/gitops-enforce.yml",
@@ -43,12 +43,12 @@ class Finding:
 def fail(message: str) -> None:
     """
     Emit a GitHub Actions-style error annotation and terminate the process.
-    
+
     Prints `message` to standard error prefixed as a GitHub Actions `::error::` annotation, then exits the program with status code 1.
-    
+
     Parameters:
         message (str): Error message text to include in the GitHub Actions error annotation.
-    
+
     Raises:
         SystemExit: Always raised with exit code 1 after printing the error.
     """
@@ -111,12 +111,12 @@ def read_workflow_text(path: Path) -> str:
 def load_yaml(path: Path) -> dict[str, Any]:
     """
     Load and return a YAML mapping from the given file path.
-    
+
     Reads the file at `path`, parses it as YAML, and returns the top-level mapping. Calls `fail(...)` and exits if YAML parsing fails or if the parsed document is not a mapping.
-    
+
     Parameters:
         path (Path): Path to the YAML file to read and parse.
-    
+
     Returns:
         dict[str, Any]: The parsed YAML top-level mapping.
     """
@@ -132,12 +132,15 @@ def load_yaml(path: Path) -> dict[str, Any]:
 def iter_steps(document: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
     """
     Collects workflow step dictionaries from a GitHub Actions workflow document and returns their locations.
-    
+
     Parameters:
         document (dict[str, Any]): Parsed YAML mapping of a workflow file; expected to contain a top-level "jobs" mapping where each job may include a "steps" sequence.
-    
+
     Returns:
-        list[tuple[str, dict[str, Any]]]: A list of (location, step) tuples where `location` is a string like "jobs.<job_name>.steps[<1-based index>]" and `step` is the corresponding step dictionary. Only steps that are mappings are included; jobs or steps with unexpected types are skipped.
+        list[tuple[str, dict[str, Any]]]: A list of (location, step) tuples where `location` is a 
+        string like "jobs.<job_name>.steps[<1-based index>]" and `step` is 
+        the corresponding step dictionary. Only steps that are mappings are included; jobs or steps 
+        with unexpected types are skipped.
     """
     jobs = document.get("jobs")
     if not isinstance(jobs, dict):
@@ -159,14 +162,14 @@ def iter_steps(document: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
 def check_uses(path: Path, location: str, step: dict[str, Any]) -> list[Finding]:
     """
     Validate a workflow step's `uses` reference for provenance-friendly pinning.
-    
+
     Checks that non-local `uses` entries follow the owner/repo@ref format, that Docker-style actions include a `@sha256:` digest, and that non-Docker actions are pinned to a full 40-hex commit SHA. Records a Finding for each violation.
-    
+
     Parameters:
         path (Path): Path to the workflow file containing the step.
         location (str): Location string for the step (e.g., "jobs.<job>.steps[<n>]").
         step (dict[str, Any]): The step mapping to inspect.
-    
+
     Returns:
         list[Finding]: A list of findings for detected issues; empty if the `uses` value is acceptable or absent.
     """
@@ -214,12 +217,12 @@ def check_uses(path: Path, location: str, step: dict[str, Any]) -> list[Finding]
 def scan_strings(value: Any) -> list[str]:
     """
     Collect all string values from a nested structure of strings, lists, and dictionaries.
-    
+
     Recursively traverses the input and returns every string found. Non-string scalar types are ignored.
-    
+
     Parameters:
         value (Any): A value that may be a `str`, `list`, or `dict` (which may contain nested combinations of these types).
-    
+
     Returns:
         list[str]: A list of all strings discovered in `value` in traversal order.
     """
@@ -238,11 +241,11 @@ def scan_strings(value: Any) -> list[str]:
 def check_mutable_oci_refs(path: Path, text: str) -> list[Finding]:
     """
     Scan workflow text for OCI image references that use tags instead of digests and return findings for each.
-    
+
     Parameters:
         path (Path): File path used to build finding locations (line numbers appended).
         text (str): Raw file contents to scan line-by-line.
-    
+
     Returns:
         list[Finding]: A list of findings for OCI references that should be digest-pinned. Lines containing any TRUSTED_INSTALLERS prefix are ignored; occurrences on the same line as an `@sha256:` digest are not reported.
     """
@@ -267,11 +270,11 @@ def check_mutable_oci_refs(path: Path, text: str) -> list[Finding]:
 def collect_summary(document: dict[str, Any], raw_text: str) -> dict[str, int]:
     """
     Summarizes counts of action references, SHA/digest-pinned action references, and OCI digest-pinned image references found in a workflow.
-    
+
     Parameters:
         document (dict[str, Any]): Parsed YAML workflow mapping (the result of load_yaml).
         raw_text (str): Original workflow file text.
-    
+
     Returns:
         dict[str, int]: A dictionary with:
             - "action_refs": number of non-local `uses` entries (strings not starting with "./").
@@ -287,7 +290,11 @@ def collect_summary(document: dict[str, Any], raw_text: str) -> dict[str, int]:
         if isinstance(uses, str) and not uses.startswith("./"):
             action_refs += 1
             match = USES_RE.match(uses)
-            if match and (uses.startswith("docker://") and "@sha256:" in uses or FULL_SHA_RE.fullmatch(match.group("ref"))):
+            if match and (
+                uses.startswith("docker://")
+                and "@sha256:" in uses
+                or FULL_SHA_RE.fullmatch(match.group("ref"))
+            ):
                 pinned_action_refs += 1
 
     for line in raw_text.splitlines():
@@ -305,7 +312,7 @@ def collect_summary(document: dict[str, Any], raw_text: str) -> dict[str, int]:
 def evaluate_path(path: Path) -> tuple[list[Finding], dict[str, int]]:
     """
     Evaluate a workflow file for action pinning and mutable OCI references.
-    
+
     @returns A tuple where the first element is a list of Findings detected in the file and the second element is a summary dictionary with integer counters:
     - `action_refs`: number of non-local `uses` action references found
     - `pinned_action_refs`: number of those action references pinned to a full 40-hex SHA or (for docker `uses`) containing `@sha256:`
@@ -325,9 +332,9 @@ def evaluate_path(path: Path) -> tuple[list[Finding], dict[str, int]]:
 def parse_args() -> argparse.Namespace:
     """
     Parse command-line arguments for the workflow validation script.
-    
+
     The parser accepts an optional positional `paths` argument (nargs="*") which specifies workflow files to inspect.
-    
+
     Returns:
         argparse.Namespace: Parsed arguments. The `paths` attribute is a list of workflow file paths to inspect (defaults to DEFAULT_TARGETS).
     """
@@ -349,9 +356,9 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     """
     Validate the provided workflow files and emit GitHub Actions-style error annotations for any pinning findings.
-    
+
     Parses command-line paths (defaults applied if omitted), resolves and checks each workflow file, aggregates any findings produced by the evaluation routines, prints one GitHub Actions `::error` annotation line per finding when present, or prints a single OK summary line when no findings are found.
-    
+
     Returns:
         int: 0 on success (no findings), 1 if any findings were reported.
     """
@@ -374,7 +381,10 @@ def main() -> int:
 
     if all_findings:
         for finding in all_findings:
-            print(f"::error file={finding.path},title={finding.rule}::{finding.message}", file=sys.stderr)
+            print(
+                f"::error file={finding.path},title={finding.rule}::{finding.message}",
+                file=sys.stderr,
+            )
         return 1
 
     print(

@@ -12,7 +12,7 @@ GOV_EVIDENCE_INDEX_SCRIPT := $(ROOT_DIR)/scripts/check-governance-evidence-index
 GOV_METADATA_SCRIPT := $(ROOT_DIR)/scripts/check-governance-metadata-freshness.sh
 GOV_MARKDOWN_ASSERT := $(ROOT_DIR)/scripts/markdown_assert.py
 DOCS_METADATA_ASSERT := $(ROOT_DIR)/scripts/check-docs-metadata.py
-WORKFLOW_PROVENANCE_SCRIPT := $(ROOT_DIR)/scripts/check-workflow-input-provenance.py
+WORKFLOW_PROVENANCE_SCRIPT := $(ROOT_DIR)/scripts/supply-chain/check-workflow-input-provenance.py
 
 export RUN_SCA ?= 1
 export RUN_SAST ?= 1

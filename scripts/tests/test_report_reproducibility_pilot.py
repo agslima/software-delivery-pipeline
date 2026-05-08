@@ -12,20 +12,20 @@ import tarfile
 import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-SCRIPTS_DIR = ROOT / "scripts"
+SCRIPTS_DIR = ROOT / "scripts" / "supply-chain"
 
 
 def load_module(name: str, path: pathlib.Path):
     """
     Load a Python module from a filesystem path and register it in sys.modules.
-    
+
     Parameters:
         name (str): Import name to assign to the loaded module in sys.modules.
         path (pathlib.Path): Filesystem path to the source file to load.
-    
+
     Returns:
         module: The loaded module object.
-    
+
     Raises:
         AssertionError: If a module spec or loader cannot be created for the given path.
     """
@@ -63,7 +63,7 @@ def write_oci_archive(
 ) -> None:
     """
     Create a tar archive at `path` containing a minimal OCI image layout with a single `index.json` manifest.
-    
+
     Parameters:
         path (pathlib.Path): Filesystem path where the tar archive will be written.
         manifest_digest (str): Digest string to place in the manifest's `digest` field.
@@ -81,19 +81,23 @@ def write_oci_archive(
     }
     layer_digests = layer_digests or ["sha256:" + "1" * 64]
     config_digest = digest_json(config_json)
+    config_encoded = json.dumps(
+        config_json, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    config_digest = "sha256:" + hashlib.sha256(config_encoded).hexdigest()
     manifest_blob = {
         "schemaVersion": 2,
         "mediaType": "application/vnd.oci.image.manifest.v1+json",
         "config": {
             "mediaType": "application/vnd.oci.image.config.v1+json",
             "digest": config_digest,
-            "size": 456,
+            "size": len(config_encoded),
         },
         "layers": [
             {
                 "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
                 "digest": digest,
-                "size": 789,
+                "size": 0,
             }
             for digest in layer_digests
         ],
@@ -111,8 +115,12 @@ def write_oci_archive(
         ],
     }
     index_encoded = json.dumps(index).encode("utf-8")
-    manifest_encoded = json.dumps(manifest_blob, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    config_encoded = json.dumps(config_json, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    manifest_encoded = json.dumps(
+        manifest_blob, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    config_encoded = json.dumps(
+        config_json, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
     with tarfile.open(path, "w") as archive:
         add_bytes(archive, "index.json", index_encoded)
         add_bytes(
@@ -120,7 +128,11 @@ def write_oci_archive(
             f"blobs/sha256/{manifest_digest.removeprefix('sha256:')}",
             manifest_encoded,
         )
-        add_bytes(archive, f"blobs/sha256/{config_digest.removeprefix('sha256:')}", config_encoded)
+        add_bytes(
+            archive,
+            f"blobs/sha256/{config_digest.removeprefix('sha256:')}",
+            config_encoded,
+        )
 
 
 def test_extract_manifest_info_reads_digest_and_platform(tmp_path: pathlib.Path):
@@ -163,7 +175,9 @@ def test_write_report_marks_matching_digests_as_pass(tmp_path: pathlib.Path):
     assert "same manifest digest" in summary
 
 
-def test_write_report_marks_different_digests_as_mismatch_with_deep_diff(tmp_path: pathlib.Path):
+def test_write_report_marks_different_digests_as_mismatch_with_deep_diff(
+    tmp_path: pathlib.Path,
+):
     first = tmp_path / "first.tar"
     second = tmp_path / "second.tar"
     write_oci_archive(
@@ -275,7 +289,10 @@ def test_cli_allows_mismatch_for_non_blocking_pilot(tmp_path: pathlib.Path):
     report = json.loads((output_dir / "report.json").read_text(encoding="utf-8"))
     assert result.returncode == 0
     assert report["status"] == "mismatch"
-    assert "[reproducibility-pilot] mismatch allowed for non-blocking pilot" in result.stdout
+    assert (
+        "[reproducibility-pilot] mismatch allowed for non-blocking pilot"
+        in result.stdout
+    )
 
 
 def test_extract_manifest_info_rejects_missing_index_json(tmp_path: pathlib.Path):

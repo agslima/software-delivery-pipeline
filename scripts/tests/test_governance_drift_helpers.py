@@ -29,17 +29,18 @@ check_docs_metadata = load_module(
     "check_docs_metadata", SCRIPTS_DIR / "check-docs-metadata.py"
 )
 check_governance_evidence_index = load_module(
-    "check_governance_evidence_index", SCRIPTS_DIR / "check-governance-evidence-index.py"
+    "check_governance_evidence_index",
+    SCRIPTS_DIR / "check-governance-evidence-index.py",
 )
 
 
 def _well_formed_doc(extra_body: str = "Body content here.") -> str:
     """
     Produce a well-formed Markdown document with a top-level title, a three-line metadata comment block (owner, review_cadence, last_reviewed), a blank line, and the provided body text for use in tests.
-    
+
     Parameters:
         extra_body (str): Text to place as the document body after the metadata block.
-    
+
     Returns:
         doc (str): The complete Markdown document string.
     """
@@ -239,7 +240,9 @@ def test_validate_file_rejects_wrong_review_cadence(tmp_path: pathlib.Path):
         check_docs_metadata.validate_file(str(target))
 
 
-def test_validate_file_rejects_missing_blank_line_after_metadata(tmp_path: pathlib.Path):
+def test_validate_file_rejects_missing_blank_line_after_metadata(
+    tmp_path: pathlib.Path,
+):
     target = tmp_path / "doc.md"
     target.write_text(
         "\n".join(
@@ -297,7 +300,9 @@ def test_validate_file_accepts_metadata_directly_after_heading(tmp_path: pathlib
     check_docs_metadata.validate_file(str(target))
 
 
-def test_validate_file_rejects_last_reviewed_with_time_component(tmp_path: pathlib.Path):
+def test_validate_file_rejects_last_reviewed_with_time_component(
+    tmp_path: pathlib.Path,
+):
     target = tmp_path / "doc.md"
     target.write_text(
         "\n".join(
@@ -512,7 +517,9 @@ def test_command_link_any_exits_when_no_link_found(tmp_path: pathlib.Path):
 def test_command_link_any_matches_any_variant(tmp_path: pathlib.Path):
     f = tmp_path / "doc.md"
     f.write_text("[See this](docs/runbook.md)", encoding="utf-8")
-    args = argparse.Namespace(file=str(f), expected=["docs/other.md", "docs/runbook.md"])
+    args = argparse.Namespace(
+        file=str(f), expected=["docs/other.md", "docs/runbook.md"]
+    )
     assert markdown_assert.command_link_any(args) == 0
 
 
@@ -545,7 +552,7 @@ def test_command_anchor_slug_for_complex_heading(capsys):
 def _load_cluster_policy(filename: str) -> dict:
     """
     Load a Kubernetes ClusterPolicy YAML file from the repository policies directory and return its parsed contents.
-    
+
     Returns:
         policy (dict): Parsed YAML mapping representing the ClusterPolicy document.
     """
@@ -557,13 +564,13 @@ def _load_cluster_policy(filename: str) -> dict:
 def _first_attestation(filename: str) -> dict:
     """
     Retrieve the first attestation mapping from a cluster policy document.
-    
+
     Parameters:
         filename (str): Filename of the cluster policy YAML file (relative to the k8s/policies/cluster directory).
-    
+
     Returns:
         dict: The attestation mapping located at `spec.rules[0].verifyImages[0].attestations[0]`.
-    
+
     Raises:
         KeyError: If the loaded document does not contain the expected `spec.rules[0].verifyImages[0].attestations[0]` structure.
     """
@@ -574,37 +581,40 @@ def _first_attestation(filename: str) -> dict:
 def _condition_map(filename: str) -> dict[str, dict]:
     """
     Build a mapping of attestation condition keys to their condition objects for the first attestation in the given policy file.
-    
+
     Parameters:
         filename (str): Name of the cluster policy YAML file located in the k8s/policies/cluster directory.
-    
+
     Returns:
         dict[str, dict]: A dictionary mapping each condition's `key` to the condition object from the attestation's `conditions[0].all` list.
     """
     attestation = _first_attestation(filename)
     condition_group = attestation.get("conditions", [])[0]
-    return {
-        condition["key"]: condition
-        for condition in condition_group.get("all", [])
-    }
+    return {condition["key"]: condition for condition in condition_group.get("all", [])}
 
 
-@pytest.mark.parametrize("policy_file", [
-    "verify-sbom.yaml",
-    "verify-slsa.yaml",
-    "verify-trivy.yaml",
-])
+@pytest.mark.parametrize(
+    "policy_file",
+    [
+        "verify-sbom.yaml",
+        "verify-slsa.yaml",
+        "verify-trivy.yaml",
+    ],
+)
 def test_cluster_policy_is_valid_yaml(policy_file):
     doc = _load_cluster_policy(policy_file)
     assert doc is not None
     assert isinstance(doc, dict)
 
 
-@pytest.mark.parametrize("policy_file", [
-    "verify-sbom.yaml",
-    "verify-slsa.yaml",
-    "verify-trivy.yaml",
-])
+@pytest.mark.parametrize(
+    "policy_file",
+    [
+        "verify-sbom.yaml",
+        "verify-slsa.yaml",
+        "verify-trivy.yaml",
+    ],
+)
 def test_cluster_policy_has_required_top_level_fields(policy_file):
     doc = _load_cluster_policy(policy_file)
     assert doc.get("apiVersion") == "kyverno.io/v1"
@@ -613,32 +623,41 @@ def test_cluster_policy_has_required_top_level_fields(policy_file):
     assert "spec" in doc
 
 
-@pytest.mark.parametrize("policy_file", [
-    "verify-sbom.yaml",
-    "verify-slsa.yaml",
-    "verify-trivy.yaml",
-])
+@pytest.mark.parametrize(
+    "policy_file",
+    [
+        "verify-sbom.yaml",
+        "verify-slsa.yaml",
+        "verify-trivy.yaml",
+    ],
+)
 def test_cluster_policy_is_enforce_mode(policy_file):
     doc = _load_cluster_policy(policy_file)
     assert doc["spec"].get("validationFailureAction") == "Enforce"
 
 
-@pytest.mark.parametrize("policy_file", [
-    "verify-sbom.yaml",
-    "verify-slsa.yaml",
-    "verify-trivy.yaml",
-])
+@pytest.mark.parametrize(
+    "policy_file",
+    [
+        "verify-sbom.yaml",
+        "verify-slsa.yaml",
+        "verify-trivy.yaml",
+    ],
+)
 def test_cluster_policy_has_rules(policy_file):
     doc = _load_cluster_policy(policy_file)
     rules = doc["spec"].get("rules", [])
     assert len(rules) >= 1
 
 
-@pytest.mark.parametrize("policy_file", [
-    "verify-sbom.yaml",
-    "verify-slsa.yaml",
-    "verify-trivy.yaml",
-])
+@pytest.mark.parametrize(
+    "policy_file",
+    [
+        "verify-sbom.yaml",
+        "verify-slsa.yaml",
+        "verify-trivy.yaml",
+    ],
+)
 def test_cluster_policy_targets_prod_namespaces(policy_file):
     doc = _load_cluster_policy(policy_file)
     for rule in doc["spec"].get("rules", []):
@@ -646,16 +665,19 @@ def test_cluster_policy_targets_prod_namespaces(policy_file):
         namespaces = []
         for entry in any_resources:
             namespaces.extend(entry.get("resources", {}).get("namespaces", []))
-        assert any(ns in namespaces for ns in ("prod", "production")), (
-            f"{policy_file} rule '{rule.get('name')}' does not target prod or production namespace"
-        )
+        assert any(
+            ns in namespaces for ns in ("prod", "production")
+        ), f"{policy_file} rule '{rule.get('name')}' does not target prod or production namespace"
 
 
-@pytest.mark.parametrize("policy_file", [
-    "verify-sbom.yaml",
-    "verify-slsa.yaml",
-    "verify-trivy.yaml",
-])
+@pytest.mark.parametrize(
+    "policy_file",
+    [
+        "verify-sbom.yaml",
+        "verify-slsa.yaml",
+        "verify-trivy.yaml",
+    ],
+)
 def test_cluster_policy_uses_keyless_signing(policy_file):
     doc = _load_cluster_policy(policy_file)
     found_keyless = False
@@ -669,11 +691,14 @@ def test_cluster_policy_uses_keyless_signing(policy_file):
     assert found_keyless, f"{policy_file} does not use keyless signing"
 
 
-@pytest.mark.parametrize("policy_file", [
-    "verify-sbom.yaml",
-    "verify-slsa.yaml",
-    "verify-trivy.yaml",
-])
+@pytest.mark.parametrize(
+    "policy_file",
+    [
+        "verify-sbom.yaml",
+        "verify-slsa.yaml",
+        "verify-trivy.yaml",
+    ],
+)
 def test_cluster_policy_trusts_github_actions_issuer(policy_file):
     doc = _load_cluster_policy(policy_file)
     found_issuer = False
@@ -683,16 +708,22 @@ def test_cluster_policy_trusts_github_actions_issuer(policy_file):
                 for attestor_group in attestation.get("attestors", []):
                     for entry in attestor_group.get("entries", []):
                         keyless = entry.get("keyless", {})
-                        if keyless.get("issuer") == "https://token.actions.githubusercontent.com":
+                        if (
+                            keyless.get("issuer")
+                            == "https://token.actions.githubusercontent.com"
+                        ):
                             found_issuer = True
     assert found_issuer, f"{policy_file} does not trust the GitHub Actions OIDC issuer"
 
 
-@pytest.mark.parametrize("policy_file", [
-    "verify-sbom.yaml",
-    "verify-slsa.yaml",
-    "verify-trivy.yaml",
-])
+@pytest.mark.parametrize(
+    "policy_file",
+    [
+        "verify-sbom.yaml",
+        "verify-slsa.yaml",
+        "verify-trivy.yaml",
+    ],
+)
 def test_cluster_policy_has_metadata_name(policy_file):
     doc = _load_cluster_policy(policy_file)
     name = doc.get("metadata", {}).get("name")
@@ -717,7 +748,7 @@ def test_verify_slsa_uses_slsa_predicate_type():
 def test_verify_slsa_trusts_pinned_container_generator_identity():
     """
     Asserts the SLSA attestation trusts a pinned GitHub Actions generator container identity.
-    
+
     Checks that the first attestation's first attestor entry contains a `keyless.subjectRegExp`
     exactly matching the pinned GitHub Actions generator container tag:
     "^https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3\.yml@refs/tags/v2\.1\.0$"
@@ -733,7 +764,7 @@ def test_verify_slsa_trusts_pinned_container_generator_identity():
 def test_verify_slsa_requires_expected_build_contract_conditions():
     """
     Assert the SLSA cluster policy's first attestation enforces the expected build contract condition values.
-    
+
     Verifies that the policy's condition map contains the following exact values:
     - The builder id equals the pinned GitHub Actions generator release URL.
     - The buildType equals the pinned generator container type URL.
@@ -748,25 +779,28 @@ def test_verify_slsa_requires_expected_build_contract_conditions():
     assert conditions["{{ payload.predicate.buildType || '' }}"]["value"] == (
         "https://github.com/slsa-framework/slsa-github-generator/container@v1"
     )
-    assert conditions["{{ payload.predicate.invocation.configSource.entryPoint || '' }}"]["value"] == (
-        ".github/workflows/ci-release-gate.yml"
+    assert conditions[
+        "{{ payload.predicate.invocation.configSource.entryPoint || '' }}"
+    ]["value"] == (".github/workflows/ci-release-gate.yml")
+    assert (
+        conditions[
+            "{{ payload.predicate.invocation.environment.github_event_name || '' }}"
+        ]["value"]
+        == "push"
     )
-    assert conditions["{{ payload.predicate.invocation.environment.github_event_name || '' }}"]["value"] == "push"
 
 
 def test_verify_slsa_requires_tagged_repo_source_expectations():
     conditions = _condition_map("verify-slsa.yaml")
-    matches = {
-        key: value
-        for key, value in conditions.items()
-        if "regex_match" in key
-    }
+    matches = {key: value for key, value in conditions.items() if "regex_match" in key}
     config_source = next(
-        value for key, value in matches.items()
+        value
+        for key, value in matches.items()
         if "payload.predicate.invocation.configSource.uri" in key
     )
     github_ref = next(
-        value for key, value in matches.items()
+        value
+        for key, value in matches.items()
         if "payload.predicate.invocation.environment.github_ref" in key
     )
     assert config_source["value"] is True
@@ -783,36 +817,45 @@ def test_verify_trivy_uses_trivy_predicate_type():
     assert any("trivy" in pt for pt in predicate_types)
 
 
-@pytest.mark.parametrize("policy_file", [
-    "verify-sbom.yaml",
-    "verify-slsa.yaml",
-    "verify-trivy.yaml",
-])
+@pytest.mark.parametrize(
+    "policy_file",
+    [
+        "verify-sbom.yaml",
+        "verify-slsa.yaml",
+        "verify-trivy.yaml",
+    ],
+)
 def test_cluster_policy_webhook_timeout_is_positive(policy_file):
     doc = _load_cluster_policy(policy_file)
     timeout = doc["spec"].get("webhookTimeoutSeconds")
     assert timeout is not None and timeout > 0
 
 
-@pytest.mark.parametrize("policy_file", [
-    "verify-sbom.yaml",
-    "verify-slsa.yaml",
-    "verify-trivy.yaml",
-])
+@pytest.mark.parametrize(
+    "policy_file",
+    [
+        "verify-sbom.yaml",
+        "verify-slsa.yaml",
+        "verify-trivy.yaml",
+    ],
+)
 def test_cluster_policy_background_scanning_disabled(policy_file):
     doc = _load_cluster_policy(policy_file)
     assert doc["spec"].get("background") is False
 
 
-@pytest.mark.parametrize("policy_file", [
-    "verify-sbom.yaml",
-    "verify-slsa.yaml",
-    "verify-trivy.yaml",
-])
+@pytest.mark.parametrize(
+    "policy_file",
+    [
+        "verify-sbom.yaml",
+        "verify-slsa.yaml",
+        "verify-trivy.yaml",
+    ],
+)
 def test_cluster_policy_attestation_condition_requires_pass(policy_file):
     """
     Asserts that the ClusterPolicy file contains at least one attestation condition with value "PASS".
-    
+
     Parameters:
         policy_file (str): Path or filename of the ClusterPolicy YAML to validate (under k8s/policies/cluster).
     """
@@ -825,9 +868,10 @@ def test_cluster_policy_attestation_condition_requires_pass(policy_file):
                     for condition in condition_group.get("all", []):
                         if condition.get("value") == "PASS":
                             found_pass_condition = True
-    assert found_pass_condition, (
-        f"{policy_file} does not enforce a PASS condition on attestations"
-    )
+    assert (
+        found_pass_condition
+    ), f"{policy_file} does not enforce a PASS condition on attestations"
+
 
 # ---------------------------------------------------------------------------
 # check-governance-evidence-index.py
@@ -835,8 +879,7 @@ def test_cluster_policy_attestation_condition_requires_pass(policy_file):
 
 
 def test_extract_readme_claims_reads_top_level_tldr_bullets():
-    claims = check_governance_evidence_index.extract_readme_claims(
-        """# Title
+    claims = check_governance_evidence_index.extract_readme_claims("""# Title
 
 ## TL;DR
 
@@ -845,8 +888,7 @@ def test_extract_readme_claims_reads_top_level_tldr_bullets():
 
 ## Next
 Body
-"""
-    )
+""")
 
     assert claims == [
         "First governed claim",
@@ -868,7 +910,9 @@ def test_parse_workflow_references_requires_job_mappings():
         )
 
 
-def test_validate_workflow_references_flags_missing_jobs(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch):
+def test_validate_workflow_references_flags_missing_jobs(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+):
     workflow_dir = tmp_path / ".github" / "workflows"
     workflow_dir.mkdir(parents=True)
     workflow_path = workflow_dir / "ci.yml"
@@ -901,7 +945,11 @@ jobs:
     assert "Available jobs: real-job" in errors[0]
 
 
-def test_run_check_fails_when_readme_claim_is_unmapped(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
+def test_run_check_fails_when_readme_claim_is_unmapped(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
     readme_path = tmp_path / "README.md"
     readme_path.write_text(
         """# Repo
@@ -940,10 +988,14 @@ jobs:
 
     monkeypatch.setattr(check_governance_evidence_index, "ROOT", tmp_path)
     monkeypatch.setattr(check_governance_evidence_index, "README_PATH", readme_path)
-    monkeypatch.setattr(check_governance_evidence_index, "EVIDENCE_INDEX_PATH", evidence_path)
+    monkeypatch.setattr(
+        check_governance_evidence_index, "EVIDENCE_INDEX_PATH", evidence_path
+    )
 
     with pytest.raises(SystemExit, match="1"):
-        check_governance_evidence_index.run_check(readme_path=readme_path, evidence_index_path=evidence_path)
+        check_governance_evidence_index.run_check(
+            readme_path=readme_path, evidence_index_path=evidence_path
+        )
 
     captured = capsys.readouterr()
     assert "Claim B" in captured.err
