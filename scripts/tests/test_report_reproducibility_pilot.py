@@ -44,11 +44,30 @@ reproducibility_pilot = load_module(
 
 
 def digest_json(data: dict) -> str:
+    """
+    Compute a deterministic SHA-256 digest for a JSON-serializable dictionary.
+    
+    The dictionary is serialized to canonical JSON with keys sorted and compact separators, encoded as UTF-8, and hashed.
+    
+    Parameters:
+        data (dict): JSON-serializable mapping to be hashed.
+    
+    Returns:
+        str: Digest string in the form "sha256:<hexdigest>".
+    """
     encoded = json.dumps(data, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return "sha256:" + hashlib.sha256(encoded).hexdigest()
 
 
 def add_bytes(archive: tarfile.TarFile, name: str, data: bytes) -> None:
+    """
+    Add an in-memory file entry to a tar archive using the provided bytes.
+    
+    Parameters:
+    	archive (tarfile.TarFile): Target tar archive to which the file entry will be added.
+    	name (str): Path/name of the file inside the archive.
+    	data (bytes): File contents to write into the archive entry.
+    """
     info = tarfile.TarInfo(name)
     info.size = len(data)
     archive.addfile(info, io.BytesIO(data))
@@ -66,8 +85,10 @@ def write_oci_archive(
 
     Parameters:
         path (pathlib.Path): Filesystem path where the tar archive will be written.
-        manifest_digest (str): Digest string to place in the manifest's `digest` field.
+        manifest_digest (str): Digest string to place in the manifest's `digest` field (e.g. "sha256:<hexdigest>").
         ref_name (str): Value for the `org.opencontainers.image.ref.name` annotation in the manifest (default "test").
+        config_json (dict | None): JSON object to use as the image config blob; when None a sensible default config is used.
+        layer_digests (list[str] | None): List of layer digest strings to include in the manifest's `layers`; when None a single dummy digest is used.
     """
     config_json = config_json or {
         "architecture": "amd64",

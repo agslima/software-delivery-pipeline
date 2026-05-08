@@ -30,10 +30,13 @@ def fail(message: str) -> None:
 
 def file_sha256(path: Path) -> str:
     """
-    Compute the SHA-256 hexadecimal digest of a file.
-
+    Compute the SHA-256 hex digest of a file.
+    
+    Parameters:
+        path (Path): Path to the file to hash.
+    
     Returns:
-        hex_digest (str): Hexadecimal SHA-256 digest of the file contents.
+        hex_digest (str): Lowercase hexadecimal SHA-256 digest of the file contents.
     """
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -43,16 +46,38 @@ def file_sha256(path: Path) -> str:
 
 
 def blob_path(digest: str) -> str:
-    """Convert a sha256 digest into its OCI archive blob path."""
+    """
+    Produce the OCI tar member path corresponding to a `sha256:` blob digest.
+    
+    Parameters:
+        digest (str): OCI blob digest in the form `sha256:<hex>`.
+    
+    Returns:
+        str: The tar member path `blobs/sha256/<hex>` for the given digest.
+    
+    Raises:
+        SystemExit: If `digest` does not start with `sha256:`.
+    """
     if not digest.startswith("sha256:"):
         fail(f"Unsupported OCI blob digest: {digest}")
     return f"blobs/sha256/{digest.removeprefix('sha256:')}"
 
 
-def read_json_member(
-    archive: tarfile.TarFile, member_name: str, archive_path: Path
-) -> dict[str, Any]:
-    """Read a tar member as a JSON object."""
+def read_json_member(archive: tarfile.TarFile, member_name: str, archive_path: Path) -> dict[str, Any]:
+    """
+    Load a specific member from a tar archive and parse it as a JSON object.
+    
+    Parameters:
+        archive (tarfile.TarFile): Open tar archive to read from.
+        member_name (str): Member path inside the tar to extract (e.g. "index.json" or a blob path).
+        archive_path (Path): Filesystem path used in diagnostic messages.
+    
+    Returns:
+        dict[str, Any]: The parsed JSON object.
+    
+    Notes:
+        If the member is absent, cannot be read, contains invalid JSON, or the parsed value is not a JSON object, this function calls `fail(...)` (terminating the program).
+    """
     try:
         member = archive.getmember(member_name)
     except KeyError as exc:
@@ -76,7 +101,17 @@ def read_optional_json_blob(
     digest: str,
     archive_path: Path,
 ) -> dict[str, Any] | None:
-    """Read an OCI JSON blob when present; return None for missing optional blobs."""
+    """
+    Locate and parse the OCI JSON blob identified by `digest` in the given tar archive if it exists.
+    
+    Parameters:
+        archive (tarfile.TarFile): Open tar archive to read from.
+        digest (str): OCI digest string identifying the blob (e.g. "sha256:<hex>").
+        archive_path (Path): Path to the archive (used for error messages).
+    
+    Returns:
+        dict[str, Any] | None: The parsed JSON object from the blob as a dictionary if the blob is present, `None` if the blob member is missing.
+    """
     member_name = blob_path(digest)
     try:
         archive.getmember(member_name)
@@ -86,7 +121,16 @@ def read_optional_json_blob(
 
 
 def flatten_json(value: Any, prefix: str = "") -> dict[str, Any]:
-    """Flatten JSON into dot-and-index paths for field-level comparison."""
+    """
+    Produce a flat mapping from JSON leaf paths to their values using dot notation for object keys and `[index]` notation for list elements.
+    
+    Parameters:
+        value (Any): The JSON value to flatten (may be a dict, list, or scalar).
+        prefix (str): Optional starting path prefix; when provided, appended before subsequent keys/indexes.
+    
+    Returns:
+        dict[str, Any]: A mapping from path strings to leaf values. Paths use `key` and `key.subkey` for nested objects and `prefix[index]` for list elements; an empty list is recorded at its path when a list is empty.
+    """
     if isinstance(value, dict):
         flattened: dict[str, Any] = {}
         for key in sorted(value):
@@ -107,7 +151,19 @@ def compare_config_fields(
     first_config: dict[str, Any] | None,
     second_config: dict[str, Any] | None,
 ) -> list[dict[str, Any]]:
-    """Return field-level differences between two OCI config JSON objects."""
+    """
+    Compare two OCI image config JSON objects and produce per-field differences.
+    
+    Parameters:
+    	first_config (dict[str, Any] | None): First config JSON object, or None if absent.
+    	second_config (dict[str, Any] | None): Second config JSON object, or None if absent.
+    
+    Returns:
+    	diffs (list[dict[str, Any]]): List of difference records sorted by field path. Each record contains:
+    		- "path": dot-and-index path to the differing field
+    		- "first": value from the first config (or None if missing)
+    		- "second": value from the second config (or None if missing)
+    """
     first_fields = flatten_json(first_config) if first_config is not None else {}
     second_fields = flatten_json(second_config) if second_config is not None else {}
     diffs: list[dict[str, Any]] = []
@@ -121,7 +177,15 @@ def compare_config_fields(
 
 
 def extract_digest_list(items: Any) -> list[str]:
-    """Extract sha256 digest strings from an OCI descriptor list."""
+    """
+    Extract `sha256:` digest strings from an OCI descriptor list.
+    
+    Parameters:
+        items (Any): A value expected to be a list of descriptor objects; non-list inputs are treated as absent.
+    
+    Returns:
+        list[str]: Digest strings (e.g. `"sha256:<hex>"`) found in the input list, in iteration order. Non-dictionary elements and descriptors without a `sha256:` `digest` field are ignored.
+    """
     if not isinstance(items, list):
         return []
     digests: list[str] = []
@@ -136,19 +200,22 @@ def extract_digest_list(items: Any) -> list[str]:
 
 def extract_manifest_info(archive_path: Path) -> dict[str, Any]:
     """
-    Extract manifest digest, platform, and reference name from an OCI image archive's index.json.
-
-    Parameters:
-        archive_path (Path): Path to the OCI image archive tar file to inspect.
-
-    Returns:
-        info (dict[str, Any]): A dictionary with:
-            - manifest_digest (str): The manifest `sha256:` digest from the first manifest entry.
-            - platform (str): A string formatted as `os/architecture` when available, otherwise `"unknown"`.
-            - ref_name (str): The `org.opencontainers.image.ref.name` annotation value, or an empty string if absent.
-
+    Extract metadata from the first manifest entry in an OCI image archive's index.json.
+    
+    Reads the archive at archive_path, loads the first manifest listed in index.json, and (when available) loads the referenced manifest and config JSON blobs to collect manifest/config digests, layer digests, platform, reference name, and the parsed config JSON.
+    
     Notes:
-        This function calls `fail(...)` (which exits the program) if the archive cannot be opened, if `index.json` is missing or unreadable, if `manifests` is not a non-empty list, or if the first manifest's digest is missing or not a `sha256:` string.
+    - Calls fail(...) (which exits the program) if the archive cannot be opened, if index.json is missing or unreadable, if `manifests` is not a non-empty list, or if the first manifest's digest is missing or not a `sha256:` string.
+    
+    Returns:
+        info (dict[str, Any]): Dictionary containing:
+            - manifest_digest (str): The first manifest's `sha256:` digest.
+            - platform (str): Formatted as `os/architecture` when available, otherwise `"unknown"`.
+            - ref_name (str): The `org.opencontainers.image.ref.name` annotation value, or `""` if absent.
+            - config_digest (str): The config blob `sha256:` digest when present, otherwise `""`.
+            - layer_count (int): Number of layer digests found in the manifest blob.
+            - layer_digests (list[str]): Ordered list of layer `sha256:` digests (may be empty).
+            - config_json (dict[str, Any] | None): Parsed config JSON blob if present, otherwise `None`.
     """
     manifest_blob: dict[str, Any] | None = None
     config_blob: dict[str, Any] | None = None
@@ -224,10 +291,24 @@ def extract_manifest_info(archive_path: Path) -> dict[str, Any]:
     }
 
 
-def build_comparison(
-    first_info: dict[str, Any], second_info: dict[str, Any]
-) -> dict[str, Any]:
-    """Build a structured comparison for two extracted OCI image descriptions."""
+def build_comparison(first_info: dict[str, Any], second_info: dict[str, Any]) -> dict[str, Any]:
+    """
+    Produce a structured comparison between two OCI image extraction results.
+    
+    Parameters:
+        first_info (dict): Extraction info for the first archive. Expected keys include
+            "manifest_digest", "config_digest", "layer_count", "layer_digests", and "config_json".
+        second_info (dict): Extraction info for the second archive. Same expected keys as `first_info`.
+    
+    Returns:
+        dict: A comparison object containing:
+            - "manifest_digest_match" (bool): `true` if manifest digests are equal, `false` otherwise.
+            - "config_digest_match" (bool): `true` if config digests are equal, `false` otherwise.
+            - "layer_count_match" (bool): `true` if reported layer counts are equal, `false` otherwise.
+            - "layer_digests_match" (bool): `true` if the full ordered layer-digest lists are equal, `false` otherwise.
+            - "layer_diffs" (list): List of per-index mismatch records with keys "index", "first", and "second".
+            - "config_field_diffs" (list): List of per-field config JSON differences produced by `compare_config_fields`.
+    """
     first_layers = first_info.get("layer_digests", [])
     second_layers = second_info.get("layer_digests", [])
     layer_diffs = []
