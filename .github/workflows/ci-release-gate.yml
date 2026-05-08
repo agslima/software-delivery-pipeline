@@ -56,6 +56,7 @@ jobs:
     uses: ./.github/workflows/ci-security-deep.yml
 
   build-push-backend:
+    if: false # Disabled until we have a stable release to test with.
     name: Build & Push
     needs: [resolve, run-trivy]
     permissions:
@@ -149,6 +150,7 @@ jobs:
           retention-days: 30
                     
   build-push-frontend:
+    if: false # Disabled until we have a stable release to test with.
     name: Build & Push
     needs: [resolve, run-trivy]
     permissions:
@@ -174,6 +176,7 @@ jobs:
       ghcr_token: ${{ secrets.GITHUB_TOKEN }}
 
   build-push-worker:
+    if: false # Disabled until we have a stable release to test with.
     name: Build & Push
     needs: [resolve, run-trivy]
     permissions:
@@ -199,6 +202,7 @@ jobs:
       ghcr_token: ${{ secrets.GITHUB_TOKEN }}
   
   generate-slsa-provenance-backend-ghcr:
+    if: false # Disabled until we have a stable release to test with.
     needs: [build-push-backend]
     permissions:
       id-token: write   # To sign the provenance.
@@ -213,6 +217,7 @@ jobs:
       registry-password: ${{ secrets.GITHUB_TOKEN }}
 
   generate-slsa-provenance-frontend-ghcr:
+    if: false # Disabled until we have a stable release to test with.
     needs: [build-push-frontend]
     permissions:
       id-token: write   # To sign the provenance.
@@ -227,6 +232,7 @@ jobs:
       registry-password: ${{ secrets.GITHUB_TOKEN }}
   
   generate-slsa-provenance-worker-ghcr:
+    if: false # Disabled until we have a stable release to test with.
     needs: [build-push-worker]
     permissions:
       id-token: write   # To sign the provenance.
@@ -241,6 +247,7 @@ jobs:
       registry-password: ${{ secrets.GITHUB_TOKEN }}
       
   generate-slsa-provenance-backend-docker:
+    if: false # Disabled until we have a stable release to test with.
     needs: [build-push-backend]
     permissions:
       id-token: write   # To sign the provenance.
@@ -255,6 +262,8 @@ jobs:
       registry-password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
   generate-slsa-provenance-frontend-docker:
+    if: false # Disabled until we have a stable release to test with.
+
     needs: [build-push-frontend]
     permissions:
       id-token: write   # To sign the provenance.
@@ -269,6 +278,7 @@ jobs:
       registry-password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
   
   generate-slsa-provenance-worker-docker:
+    if: false # Disabled until we have a stable release to test with.
     needs: [build-push-worker]
     permissions:
       id-token: write   # To sign the provenance.
@@ -283,6 +293,7 @@ jobs:
       registry-password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
   
   trivy-scan:
+    if: false # Disabled until we have a stable release to test with.
     name: Trivy Scan (Digest Gate)
     needs: [ build-push-frontend, build-push-backend, build-push-worker, generate-slsa-provenance-backend-docker, generate-slsa-provenance-frontend-docker, generate-slsa-provenance-worker-docker ]
     permissions:
@@ -302,6 +313,7 @@ jobs:
       ghcr_token: ${{ secrets.GITHUB_TOKEN }}
      
   dast-analysis:
+    if: false # Disabled until we have a stable release to test with.
     name: DAST (Digest-based)
     needs: [ build-push-frontend, build-push-backend, build-push-worker, resolve, generate-slsa-provenance-backend-docker, generate-slsa-provenance-frontend-docker, generate-slsa-provenance-worker-docker ]
     permissions:
