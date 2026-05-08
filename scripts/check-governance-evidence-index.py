@@ -37,10 +37,10 @@ def normalize_text(text: str) -> str:
         text.replace("**", "")
         .replace("__", "")
         .replace("`", "")
-        .replace("’", "'")
-        .replace("‘", "'")
-        .replace("“", '"')
-        .replace("”", '"')
+        .replace("\u2019", "'")   # RIGHT SINGLE QUOTATION MARK
+        .replace("\u2018", "'")   # LEFT SINGLE QUOTATION MARK
+        .replace("\u201c", '"')   # LEFT DOUBLE QUOTATION MARK
+        .replace("\u201d", '"')   # RIGHT DOUBLE QUOTATION MARK
     )
     text = re.sub(r"\s+", " ", text)
     return text.strip()
