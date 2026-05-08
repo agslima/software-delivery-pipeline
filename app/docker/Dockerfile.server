@@ -6,10 +6,6 @@ FROM node:25.9.0-alpine@sha256:bdf2cca6fe3dabd014ea60163eca3f0f7015fbd5c7ee1b0e9
 
 WORKDIR /app
 
-# Patch OS vulnerabilities
-# hadolint ignore=DL3018
-RUN apk update && apk upgrade --no-cache
-
 COPY server/package*.json ./
 
 RUN npm ci --omit=dev --ignore-scripts
@@ -33,9 +29,7 @@ LABEL org.opencontainers.image.title="stayhealthy-backend" \
 
 WORKDIR /app
 
-# hadolint ignore=DL3018
-RUN apk update && apk upgrade --no-cache \
-    && apk add --no-cache tini
+RUN apk add --no-cache tini=0.19.0-r3
 
 # Remove NPM to reduce attack surface
 RUN npm uninstall -g npm && \

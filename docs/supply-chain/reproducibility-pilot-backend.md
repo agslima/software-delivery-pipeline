@@ -2,7 +2,7 @@
 
 [//]: # (owner: Project Maintainers)
 [//]: # (review_cadence: Quarterly)
-[//]: # (last_reviewed: 2026-04-30)
+[//]: # (last_reviewed: 2026-05-08)
 
 This document defines the first reproducibility pilot for the release path.
 
@@ -66,7 +66,48 @@ Expected artifact:
 - `reproducibility-pilot-backend/report.json`
 - `reproducibility-pilot-backend/summary.md`
 
+`report.json` includes the top-level OCI manifest comparison plus deeper diagnostics for:
+
+- config digest match or mismatch
+- layer count match or mismatch
+- per-layer digest differences
+- config JSON field differences
+
 Interpretation:
 
 - `pass` means the backend image was reproducible for the normalized pilot inputs used in that run
 - `mismatch` means the backend image is not yet reproducible under the pilot conditions and requires investigation before it can be used as stronger SLSA evidence
+
+## Pilot Evidence Record
+
+### 2026-05-08 release run report
+
+Outcome:
+
+- Status: `mismatch`
+- Comparison basis: `oci_manifest_digest`
+- Image: `app-stayhealthy-backend`
+- Platform: `linux/amd64`
+- First manifest digest: `sha256:b85abec6437d4eda4758b7591ba7e98c53955d42850f862a65fa1267aa7455f1`
+- Second manifest digest: `sha256:5270e945461e862b7cba30753a485f67333d916b58b67061e664c8288f535683`
+- First archive SHA-256: `f55afe6d96d4104a79bde039c143e7b6fcb63d808e68fba54ff0592057ad3798`
+- Second archive SHA-256: `2fa751c8d2a6f1dfe88378a24e69c4f42340cf9f3d71fd067794bfc81cbe2061`
+
+Governance interpretation:
+
+- This run is valid pilot evidence, but it is not successful reproducibility evidence.
+- The backend image is not currently suitable for use as stronger SLSA reproducibility evidence under this pilot's normalized inputs.
+- The release workflow behavior should remain unchanged: the pilot stays advisory while the mismatch is investigated.
+- The mismatch feeds Phase 2 reproducibility follow-up and Phase 3 work to reduce live package-source and other mutable build inputs.
+
+Initial investigation focus:
+
+- identify whether the manifest mismatch is caused by image config differences, layer digest differences, or both
+- inspect mutable build-time package sources in `app/docker/Dockerfile.server`, especially `apk update`, `apk upgrade`, unpinned `apk add`, and live `npm ci` resolution
+- preserve existing release signing, attestation, admission, and policy gates while investigating
+
+Follow-up remediation started:
+
+- `app/docker/Dockerfile.server` no longer runs broad `apk upgrade` during dependency or runtime image builds.
+- Runtime installation of `tini` is pinned to `tini=0.19.0-r3`.
+- OS patch uptake should be handled through reviewed updates to the digest-pinned `node:25.9.0-alpine` base image, with scanner evidence and PR review, rather than implicit package upgrades during each application build.

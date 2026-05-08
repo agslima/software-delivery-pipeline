@@ -64,7 +64,7 @@ runs:
           
           kyverno apply "$POLICY" \
             --resource "$RENDERED_MANIFEST" \
-            --registry \
+            --registry -v \
             --detailed-results \
             | tee -a "$LOG_FILE"
         done <<< "$POLICIES_INPUT"
