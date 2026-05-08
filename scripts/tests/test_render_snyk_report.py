@@ -385,6 +385,7 @@ def test_main_end_to_end():
     finally:
         shutil.rmtree(run_root, ignore_errors=True)
 
+
 def test_main_links_html_artifact_with_repo_relative_html_dir():
     run_root = ROOT / ".tmp" / f"pytest-render-snyk-html-link-{uuid.uuid4().hex}"
     run_root.mkdir(parents=True)

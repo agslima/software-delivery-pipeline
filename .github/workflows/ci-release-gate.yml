@@ -133,7 +133,7 @@ jobs:
       - name: Compare reproducibility pilot outputs
         id: reproducibility-pilot
         run: |
-          python3 scripts/report-reproducibility-pilot.py \
+          python3 scripts/supply-chain/report-reproducibility-pilot.py \
             --image-name app-stayhealthy-backend \
             --first-archive artifacts/reproducibility-pilot/backend-run-1.oci.tar \
             --second-archive artifacts/reproducibility-pilot/backend-run-2.oci.tar \

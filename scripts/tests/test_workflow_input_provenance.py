@@ -13,14 +13,14 @@ SCRIPTS_DIR = ROOT / "scripts"
 def load_module(name: str, path: pathlib.Path):
     """
     Load a Python module from a filesystem path and register it under the given import name.
-    
+
     Parameters:
         name (str): Module import name to register in sys.modules.
         path (pathlib.Path): Filesystem path to the module file.
-    
+
     Returns:
         module: The loaded module object.
-    
+
     Raises:
         AssertionError: If a module spec or loader cannot be created for the given path.
     """
@@ -118,7 +118,7 @@ def test_evaluate_path_ignores_known_installer_urls(
                 "      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
                 "      - name: Install Trivy",
                 "        run: |",
-                "          curl -sfL \"https://raw.githubusercontent.com/aquasecurity/trivy/v0.58.1/contrib/install.sh\" | sh -s -- -b /usr/local/bin",
+                '          curl -sfL "https://raw.githubusercontent.com/aquasecurity/trivy/v0.58.1/contrib/install.sh" | sh -s -- -b /usr/local/bin',
             ]
         ),
         encoding="utf-8",
@@ -130,7 +130,9 @@ def test_evaluate_path_ignores_known_installer_urls(
     assert summary["digest_pinned_oci_refs"] == 0
 
 
-def test_load_yaml_rejects_non_mapping_yaml(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch):
+def test_load_yaml_rejects_non_mapping_yaml(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setattr(workflow_input_provenance, "ROOT", tmp_path)
     workflow = tmp_path / ".github/workflows/workflow.yml"
     workflow.parent.mkdir(parents=True, exist_ok=True)

@@ -95,6 +95,10 @@ jobs:
         with:
           # Forces the use of an isolated container for the build environment
           driver: docker-container
+          # buildx-stable-1 v0.29.0
+          driver-opts: |
+            image=moby/buildkit@sha256:e5d9d1763945ca186d48cbf5b0ff3e062eb917fb8a80da6da87144edb7320a90
+          buildkitd-flags: ""
       - name: Login to Docker Hub
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:

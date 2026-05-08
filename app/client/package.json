@@ -1,7 +1,7 @@
 {
   "name": "prescription-ui",
   "engines": {
-    "node": "24.13.0"
+    "node": "25.9.0"
   },
   "private": true,
   "type": "module",

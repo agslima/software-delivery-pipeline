@@ -12,13 +12,10 @@ import subprocess
 import sys
 from typing import Iterable
 
-
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 MIGRATIONS_DIR = REPO_ROOT / "app/server/src/infra/db/migrations"
 
-SCHEMA_IMPACT_PATH_PREFIXES = (
-    "app/server/src/infra/db/",
-)
+SCHEMA_IMPACT_PATH_PREFIXES = ("app/server/src/infra/db/",)
 
 SCHEMA_IMPACT_FILES = {
     "app/server/src/config/database.js",
@@ -31,7 +28,9 @@ MIGRATION_PATH_PREFIX = "app/server/src/infra/db/migrations/"
 MIGRATION_FILENAME = re.compile(r"^[A-Za-z0-9._-]+\.js$")
 REPOSITORY_PATH_PATTERN = re.compile(r"^app/server/src/infra/v2/.+\.repository\.js$")
 DIFF_LINE_PREFIXES = ("+++", "---", "@@")
-SCHEMA_TOKEN_PATTERN = re.compile(r"""['"]([A-Za-z][A-Za-z0-9_]*)['"]|\b([a-z][a-z0-9_]*_[a-z0-9_]*)\b""")
+SCHEMA_TOKEN_PATTERN = re.compile(
+    r"""['"]([A-Za-z][A-Za-z0-9_]*)['"]|\b([a-z][a-z0-9_]*_[a-z0-9_]*)\b"""
+)
 
 DESTRUCTIVE_PATTERNS = (
     re.compile(r"\brenameColumn\s*\("),
@@ -43,7 +42,9 @@ DESTRUCTIVE_PATTERNS = (
     re.compile(r"\bdropForeign\s*\("),
     re.compile(r"\bdropUnique\s*\("),
     re.compile(r"\bdropIndex\s*\("),
-    re.compile(r"\balter\s*\(\s*\{[^)]*\bnullable\s*:\s*false", re.IGNORECASE | re.DOTALL),
+    re.compile(
+        r"\balter\s*\(\s*\{[^)]*\bnullable\s*:\s*false", re.IGNORECASE | re.DOTALL
+    ),
     re.compile(r"\bsetNullable\s*\(\s*false\s*\)"),
 )
 
@@ -52,7 +53,9 @@ SAFE_DESTRUCTIVE_ALLOWLIST = (
     re.compile(r"\brollback\b", re.IGNORECASE),
 )
 
-DOWN_BLOCK_START = re.compile(r"\bexports\.down\s*=\s*async\s+function\b|\bexports\.down\s*=\s*function\b")
+DOWN_BLOCK_START = re.compile(
+    r"\bexports\.down\s*=\s*async\s+function\b|\bexports\.down\s*=\s*function\b"
+)
 
 NO_MIGRATION_CHECKBOX = re.compile(
     r"- \[x\] Migration impact reviewed: no schema migration required", re.IGNORECASE
@@ -62,7 +65,9 @@ EXCEPTION_CHECKBOX = re.compile(
     r"- \[x\] Destructive migration exception approved", re.IGNORECASE
 )
 EXCEPTION_TICKET = re.compile(r"Migration exception ticket:\s*\S+", re.IGNORECASE)
-EXCEPTION_RATIONALE = re.compile(r"Migration exception rationale:\s*\S.+", re.IGNORECASE)
+EXCEPTION_RATIONALE = re.compile(
+    r"Migration exception rationale:\s*\S.+", re.IGNORECASE
+)
 
 
 def fail(message: str) -> None:
@@ -72,8 +77,12 @@ def fail(message: str) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--base", default=os.environ.get("MIGRATION_CHECK_BASE", "HEAD~1"))
-    parser.add_argument("--head", default=os.environ.get("MIGRATION_CHECK_HEAD", "HEAD"))
+    parser.add_argument(
+        "--base", default=os.environ.get("MIGRATION_CHECK_BASE", "HEAD~1")
+    )
+    parser.add_argument(
+        "--head", default=os.environ.get("MIGRATION_CHECK_HEAD", "HEAD")
+    )
     parser.add_argument(
         "--pr-body-file",
         default=os.environ.get("MIGRATION_CHECK_PR_BODY_FILE"),
@@ -97,7 +106,9 @@ def git_changed_files(base: str, head: str) -> list[str]:
         check=False,
     )
     if result.returncode != 0:
-        fail(f"Unable to compute changed files from git diff {base}...{head}: {result.stderr.strip()}")
+        fail(
+            f"Unable to compute changed files from git diff {base}...{head}: {result.stderr.strip()}"
+        )
     return [line.strip() for line in result.stdout.splitlines() if line.strip()]
 
 
@@ -126,7 +137,11 @@ def resolve_path_within_roots(
     path_is_absolute = os.path.isabs(expanded_raw)
     root_candidates = [os.path.realpath(root) for root in roots]
     for root_resolved in root_candidates:
-        candidate_base = expanded_raw if path_is_absolute else os.path.join(root_resolved, expanded_raw)
+        candidate_base = (
+            expanded_raw
+            if path_is_absolute
+            else os.path.join(root_resolved, expanded_raw)
+        )
         candidate_normalized = os.path.realpath(candidate_base)
 
         try:
@@ -143,7 +158,9 @@ def resolve_path_within_roots(
     fail(f"{error_label} path must be within one of: {allowed_roots}: {path_value}")
 
 
-def resolve_path_within_root(path_value: str, root: pathlib.Path, *, require_file: bool, error_label: str) -> pathlib.Path:
+def resolve_path_within_root(
+    path_value: str, root: pathlib.Path, *, require_file: bool, error_label: str
+) -> pathlib.Path:
     return resolve_path_within_roots(
         path_value,
         (root,),
@@ -171,7 +188,9 @@ def load_pr_body(path_value: str | None) -> str:
         os.path.realpath(temp_pr_body): temp_pr_body,
     }
 
-    body_path = allowed_pr_body_paths.get(os.path.realpath(os.path.expanduser(raw_value)))
+    body_path = allowed_pr_body_paths.get(
+        os.path.realpath(os.path.expanduser(raw_value))
+    )
     if body_path is None:
         fail(
             f"PR body path must be one of: pr-body.md, {os.path.realpath(repo_pr_body)}, "
@@ -189,12 +208,18 @@ def is_schema_impact_path(path_value: str) -> bool:
         return True
     if path_value in SCHEMA_IMPACT_FILES:
         return True
-    if any(path_value.startswith(candidate) for candidate in SCHEMA_IMPACT_PATH_PREFIXES):
+    if any(
+        path_value.startswith(candidate) for candidate in SCHEMA_IMPACT_PATH_PREFIXES
+    ):
         return True
-    return path_value.startswith("app/server/src/infra/v2/") and path_value.endswith(".repository.js")
+    return path_value.startswith("app/server/src/infra/v2/") and path_value.endswith(
+        ".repository.js"
+    )
 
 
-def load_diff_lines(base: str, head: str, path_value: str) -> tuple[list[str], list[str]]:
+def load_diff_lines(
+    base: str, head: str, path_value: str
+) -> tuple[list[str], list[str]]:
     result = subprocess.run(
         ["git", "diff", "--unified=0", f"{base}...{head}", "--", path_value],
         cwd=REPO_ROOT,
@@ -227,7 +252,9 @@ def extract_schema_tokens(lines: Iterable[str]) -> set[str]:
     return tokens
 
 
-def repository_change_requires_migration_review(path_value: str, base: str, head: str) -> bool:
+def repository_change_requires_migration_review(
+    path_value: str, base: str, head: str
+) -> bool:
     if not REPOSITORY_PATH_PATTERN.fullmatch(path_value):
         return True
 
@@ -243,15 +270,25 @@ def repository_change_requires_migration_review(path_value: str, base: str, head
 def sanitize_migration_path(path_value: str) -> str:
     normalized_input = path_value.replace("\\", "/")
     if not normalized_input.startswith(MIGRATION_PATH_PREFIX):
-        fail(f"Changed migration path must be under {MIGRATION_PATH_PREFIX}: {path_value}")
+        fail(
+            f"Changed migration path must be under {MIGRATION_PATH_PREFIX}: {path_value}"
+        )
     if normalized_input.startswith("/") or normalized_input.startswith("\\"):
         fail(f"Migration path must be repository-relative: {path_value}")
     if any(part in ("", "..") for part in normalized_input.split("/")):
-        fail(f"Changed migration path contains invalid traversal segments: {path_value}")
+        fail(
+            f"Changed migration path contains invalid traversal segments: {path_value}"
+        )
 
     file_name = normalized_input.removeprefix(MIGRATION_PATH_PREFIX)
-    if "/" in file_name or "\\" in file_name or not MIGRATION_FILENAME.fullmatch(file_name):
-        fail(f"Changed migration path must reference a direct migration file: {path_value}")
+    if (
+        "/" in file_name
+        or "\\" in file_name
+        or not MIGRATION_FILENAME.fullmatch(file_name)
+    ):
+        fail(
+            f"Changed migration path must reference a direct migration file: {path_value}"
+        )
 
     migration_file = MIGRATIONS_DIR / file_name
     if not migration_file.is_file():
@@ -343,7 +380,9 @@ def main() -> None:
         if path.startswith(MIGRATION_PATH_PREFIX)
     )
 
-    print(f"[migration-safety] changed_files={len(changed_files)} schema_paths={len(schema_paths)} migration_paths={len(migration_paths)}")
+    print(
+        f"[migration-safety] changed_files={len(changed_files)} schema_paths={len(schema_paths)} migration_paths={len(migration_paths)}"
+    )
 
     if not schema_paths:
         print("[migration-safety] no schema-impacting changes detected")
@@ -351,7 +390,9 @@ def main() -> None:
 
     if not migration_paths:
         require_no_migration_exception(pr_body)
-        print("[migration-safety] schema-impacting changes allowed without migration via explicit PR rationale")
+        print(
+            "[migration-safety] schema-impacting changes allowed without migration via explicit PR rationale"
+        )
         return
 
     findings = destructive_findings(migration_paths)

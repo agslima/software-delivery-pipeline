@@ -54,12 +54,16 @@ class TestCosignReadme:
         assert COSIGN_README.stat().st_size > 0, ".cosign/README.md must not be empty"
 
     def test_file_is_valid_utf8(self):
-        COSIGN_README.read_text(encoding="utf-8")  # raises UnicodeDecodeError if invalid
+        COSIGN_README.read_text(
+            encoding="utf-8"
+        )  # raises UnicodeDecodeError if invalid
 
     def test_has_top_level_heading(self):
         text = COSIGN_README.read_text(encoding="utf-8")
         headings = _extract_headings(text)
-        assert "Signed releases" in headings, "Expected top-level heading 'Signed releases'"
+        assert (
+            "Signed releases" in headings
+        ), "Expected top-level heading 'Signed releases'"
 
     def test_has_scope_heading(self):
         text = COSIGN_README.read_text(encoding="utf-8")
@@ -109,7 +113,9 @@ class TestCosignReadme:
 
     def test_references_oidc(self):
         text = COSIGN_README.read_text(encoding="utf-8")
-        assert "oidc" in text.lower(), "README must mention OIDC (keyless signing identity)"
+        assert (
+            "oidc" in text.lower()
+        ), "README must mention OIDC (keyless signing identity)"
 
     def test_references_sbom(self):
         text = COSIGN_README.read_text(encoding="utf-8")
@@ -121,7 +127,9 @@ class TestCosignReadme:
 
     def test_references_attestation(self):
         text = COSIGN_README.read_text(encoding="utf-8")
-        assert "attestation" in text.lower(), "README must reference attestation artefacts"
+        assert (
+            "attestation" in text.lower()
+        ), "README must reference attestation artefacts"
 
     def test_no_trailing_whitespace_on_lines(self):
         """Regression: file should not contain lines with trailing spaces (common editor artifact)."""
@@ -148,11 +156,15 @@ class TestCosignPub:
 
     def test_pem_has_begin_marker(self):
         text = COSIGN_PUB.read_text(encoding="utf-8")
-        assert "-----BEGIN PUBLIC KEY-----" in text, "PEM must contain BEGIN PUBLIC KEY header"
+        assert (
+            "-----BEGIN PUBLIC KEY-----" in text
+        ), "PEM must contain BEGIN PUBLIC KEY header"
 
     def test_pem_has_end_marker(self):
         text = COSIGN_PUB.read_text(encoding="utf-8")
-        assert "-----END PUBLIC KEY-----" in text, "PEM must contain END PUBLIC KEY footer"
+        assert (
+            "-----END PUBLIC KEY-----" in text
+        ), "PEM must contain END PUBLIC KEY footer"
 
     def test_pem_body_is_valid_base64(self):
         text = COSIGN_PUB.read_text(encoding="utf-8")
@@ -173,9 +185,9 @@ class TestCosignPub:
         der = _read_pub_key_body(text)
         # P-256 SubjectPublicKeyInfo is always 91 bytes; allow a small range for
         # alternative encodings (e.g. compressed point = 88 bytes).
-        assert 86 <= len(der) <= 96, (
-            f"DER length {len(der)} is outside the expected range for an ECDSA P-256 key"
-        )
+        assert (
+            86 <= len(der) <= 96
+        ), f"DER length {len(der)} is outside the expected range for an ECDSA P-256 key"
 
     def test_der_contains_p256_oid(self):
         """The P-256 curve OID (1.2.840.10045.3.1.7) must appear in the DER bytes."""
@@ -198,7 +210,9 @@ class TestCosignPub:
         text = COSIGN_PUB.read_text(encoding="utf-8")
         der = _read_pub_key_body(text)
         # A placeholder key would likely be all-zero or repeat bytes.
-        assert len(set(der)) > 10, "Key bytes appear to be a placeholder (too little entropy)"
+        assert (
+            len(set(der)) > 10
+        ), "Key bytes appear to be a placeholder (too little entropy)"
 
     def test_file_ends_with_newline(self):
         """PEM files should end with a trailing newline."""
@@ -213,18 +227,18 @@ class TestCosignPub:
 
 class TestSnykPolicyRemoved:
     def test_snyk_policy_file_does_not_exist(self):
-        assert not SNYK_POLICY.exists(), (
-            ".snyk policy file must be removed from the repository root"
-        )
+        assert (
+            not SNYK_POLICY.exists()
+        ), ".snyk policy file must be removed from the repository root"
 
     def test_no_snyk_ignore_for_k8s_test_namespace(self):
         """SNYK-CC-K8S-1 ignore for k8s/test/* must no longer be in effect."""
         # If the file somehow exists, it must not contain the removed ignore rule.
         if SNYK_POLICY.exists():
             content = SNYK_POLICY.read_text(encoding="utf-8")
-            assert "SNYK-CC-K8S-1" not in content, (
-                "SNYK-CC-K8S-1 ignore rule must be removed from .snyk"
-            )
+            assert (
+                "SNYK-CC-K8S-1" not in content
+            ), "SNYK-CC-K8S-1 ignore rule must be removed from .snyk"
 
     def test_no_snyk_file_anywhere_in_repo_root(self):
         """Ensure no .snyk file was moved to a neighbouring location."""
@@ -235,6 +249,6 @@ class TestSnykPolicyRemoved:
         """The v1.19.0 Snyk policy version string must not appear in the repo root .snyk."""
         if SNYK_POLICY.exists():
             content = SNYK_POLICY.read_text(encoding="utf-8")
-            assert "v1.19.0" not in content, (
-                "Removed .snyk policy version v1.19.0 must not be present"
-            )
+            assert (
+                "v1.19.0" not in content
+            ), "Removed .snyk policy version v1.19.0 must not be present"
