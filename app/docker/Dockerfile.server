@@ -38,20 +38,24 @@ RUN wget -q -O /sbin/tini "https://github.com/krallin/tini/releases/download/${T
     && sha256sum -c /tmp/tini.sha256 \
     && rm -f /tmp/tini.sha256 \
     && chmod 0755 /sbin/tini \
-    && touch -h -d @0 /sbin/tini
+    && touch -h -d @0 /sbin/tini /sbin
 
-# Remove NPM to reduce attack surface
+# Remove NPM to reduce attack surface and normalize altered directories
 RUN rm -rf /usr/local/lib/node_modules/npm \
     /usr/local/bin/npm \
     /usr/local/bin/npx \
     /root/.npm \
-    /tmp/node-compile-cache
+    /tmp/node-compile-cache \
+    && touch -h -d @0 /usr/local/bin /usr/local/lib/node_modules /usr/local/lib /root /tmp
 
 ENV NODE_ENV=production
 
 # Ownership for non-root user
 COPY --from=deps --chown=node:node /app/node_modules ./node_modules
 COPY --chown=node:node server ./
+
+# Normalize the working directory after copies to ensure layer determinism
+RUN touch -h -d @0 /app
 
 # Switch to non-root user (UID 1000)
 USER node
