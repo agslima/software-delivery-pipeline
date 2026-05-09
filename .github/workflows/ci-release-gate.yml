@@ -125,7 +125,7 @@ jobs:
               --build-arg VCS_REF="${GITHUB_SHA}" \
               --build-arg VERSION="${RELEASE_TAG}" \
               --build-arg SOURCE="${SOURCE_URL}" \
-              --output "type=oci,dest=${output_file}" \
+              --output "type=oci,dest=${output_file},rewrite-timestamp=true" \
               app
           }
 
