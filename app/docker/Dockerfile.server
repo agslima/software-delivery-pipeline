@@ -6,32 +6,18 @@ FROM node:25.9.0-alpine@sha256:bdf2cca6fe3dabd014ea60163eca3f0f7015fbd5c7ee1b0e9
 WORKDIR /app
 
 COPY server/package*.json ./
-
 RUN npm ci --omit=dev --ignore-scripts
 
 # ==========================================
-# STAGE 2: Assembler (The Reproducibility Fix)
-# ==========================================
-FROM node:25.9.0-alpine@sha256:bdf2cca6fe3dabd014ea60163eca3f0f7015fbd5c7ee1b0e9ccb4ced6eb02ef4 AS assembler
-
-WORKDIR /staging/app
-
-# Gather dependencies and source code into the staging area
-COPY --from=deps /app/node_modules ./node_modules
-COPY server ./
-
-# Normalize ALL files, subdirectories, AND the /staging/app parent directory
-RUN find . -exec touch -h -d @0 {} + \
-    && touch -h -d @0 /staging/app
-
-# ==========================================
-# STAGE 3: Runtime
+# STAGE 2: Runtime
 # ==========================================
 FROM node:25.9.0-alpine@sha256:bdf2cca6fe3dabd014ea60163eca3f0f7015fbd5c7ee1b0e9ccb4ced6eb02ef4 AS runtime
 
-ARG BUILD_DATE=unknown
 ARG TINI_VERSION=v0.19.0
 ARG TINI_STATIC_AMD64_SHA256=c5b0666b4cb676901f90dfcb37106783c5fe2077b04590973b885950611b30ee
+
+# Standard OCI labels
+ARG BUILD_DATE=unknown
 ARG VCS_REF=unknown
 ARG VERSION=unknown
 ARG SOURCE=unknown
@@ -43,7 +29,7 @@ LABEL org.opencontainers.image.title="stayhealthy-backend" \
       org.opencontainers.image.version=$VERSION \
       org.opencontainers.image.source=$SOURCE
 
-# 1. Normalize the root directories altered by Tini and NPM removal
+# Install tini and remove npm
 RUN wget -q -O /sbin/tini "https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-static-amd64" \
     && printf "%s  /sbin/tini\n" "${TINI_STATIC_AMD64_SHA256}" > /tmp/tini.sha256 \
     && sha256sum -c /tmp/tini.sha256 \
@@ -53,16 +39,15 @@ RUN wget -q -O /sbin/tini "https://github.com/krallin/tini/releases/download/${T
        /usr/local/bin/npm \
        /usr/local/bin/npx \
        /root/.npm \
-       /tmp/node-compile-cache \
-    && touch -h -d @0 /sbin/tini /sbin /usr/local/bin /usr/local/lib/node_modules /usr/local/lib /root /tmp
+       /tmp/node-compile-cache
 
 ENV NODE_ENV=production
 
-# 2. Single COPY from the assembler stage. 
-# This preserves the @0 timestamps for both the files and the /app directory itself.
-COPY --from=assembler --chown=node:node /staging/app /app
-
 WORKDIR /app
+
+# Copy deps and source code directly
+COPY --from=deps --chown=node:node /app/node_modules ./node_modules
+COPY --chown=node:node server ./
 
 USER node
 
