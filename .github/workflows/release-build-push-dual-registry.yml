@@ -169,7 +169,7 @@ jobs:
           retention-days: 30
 
   # ---------------------------------------------------------
-  # JOB 3: Trusted Control Plane (Signature and Attestation)
+  # JOB 2: Trusted Control Plane (Signature and Attestation)
   # ---------------------------------------------------------      
   sign-and-attest:
     runs-on: ubuntu-latest
@@ -190,12 +190,15 @@ jobs:
         uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
         with:
           egress-policy: audit
-      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
-      - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v2.1.0
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      - name: Login to Docker Hub
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           username: ${{ inputs.dockerhub_username }}
           password: ${{ secrets.dockerhub_token }}
-      - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v2.1.0
+      - name: Login to GHCR
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           registry: ghcr.io
           username: ${{ inputs.ghcr_username }}
@@ -250,31 +253,33 @@ jobs:
               "$IMAGE"
           done
           echo "Attestation finished: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-  
-  generate-slsa-provenance-ghcr:    
-    needs: [build-publish, sign-and-attest]
+
+  # ---------------------------------------------------------
+  # JOB 3: Trusted Control Plane (SLSA L3 Provenance)
+  # ---------------------------------------------------------
+  generate-slsa-provenance:
+    name: Generate SLSA Provenance (${{ matrix.registry }})
+    needs: [build-publish]
     permissions:
       id-token: write   # To sign the provenance.
       packages: write   # To upload assets to release.
       actions: read     # To read the workflow path.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - registry: ghcr
+            prefix: ghcr.io
+            username: ${{ inputs.ghcr_username }}
+            secret_name: ghcr_token
+          - registry: docker
+            prefix: docker.io
+            username: ${{ inputs.dockerhub_username }}
+            secret_name: dockerhub_token
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
     with:
-      image: ghcr.io/${{ github.repository_owner }}/${{ inputs.image_repo }}
+      image: ${{ matrix.prefix }}/${{ matrix.username }}/${{ inputs.image_repo }}
       digest: ${{ needs.build-publish.outputs.image-digest }}
-      registry-username: ${{ github.repository_owner }}
+      registry-username: ${{ matrix.username }}
     secrets:
-      registry-password: ${{ secrets.ghcr_token }}
-    
-  generate-slsa-provenance-docker:
-    needs: [build-publish, sign-and-attest]
-    permissions:
-      id-token: write   # To sign the provenance.
-      packages: write   # To upload assets to release.
-      actions: read     # To read the workflow path.
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
-    with:
-      image: docker.io/${{ vars.DOCKER_HUB_USERNAME }}/${{ inputs.image_repo }}
-      digest: ${{ needs.build-publish.outputs.image-digest }}
-      registry-username: ${{ inputs.dockerhub_username }}
-    secrets:
-      registry-password: ${{ secrets.dockerhub_token }}
+      registry-password: ${{ secrets[matrix.secret_name] }}
