@@ -526,7 +526,11 @@ def build_comparison(
             - `layer_count_match` (bool): `true` if reported layer counts are equal, `false` otherwise.
             - `layer_digests_match` (bool): `true` if the full ordered lists of layer digests are equal, `false` otherwise.
             - `layer_diffs` (list): Per-index digest mismatch records with keys `index`, `first`, and `second`.
-            - `layer_file_diffs` (list): Per-index results from comparing per-layer tar-entry metadata/content; each entry includes `index`, `first`, `second`, and the comparison result produced by `compare_layer_entries`.
+            - `layer_file_diffs` (list): Per-index results from comparing per-layer tar-entry metadata/content; each entry 
+               includes `index`, `first`, `second`, and the comparison result produced by `compare_layer_entries`.
+            - "layer_file_diffs" (list): Per-mismatched-layer file-level diff records with keys
+              "index", "first", "second", and the fields produced by `compare_layer_entries`
+              ("available", and either "diff_count"/"diffs" or "reason").
             - `config_field_diffs` (list): Field-level differences between flattened config JSON objects.
     """
     first_layers = first_info.get("layer_digests", [])
