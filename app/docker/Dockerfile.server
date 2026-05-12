@@ -1,7 +1,8 @@
 # ==========================================
 # STAGE 1: Dependencies (prod only)
 # ==========================================
-FROM node:25.9.0-alpine@sha256:bdf2cca6fe3dabd014ea60163eca3f0f7015fbd5c7ee1b0e9ccb4ced6eb02ef4 AS deps
+
+FROM node:26.1.0-alpine@sha256:e71ac5e964b9201072425d59d2e876359efa25dc96bb1768cb73295728d6e4ea AS deps
 
 WORKDIR /app
 
@@ -11,12 +12,8 @@ RUN npm ci --omit=dev --ignore-scripts
 # ==========================================
 # STAGE 2: Runtime
 # ==========================================
-FROM node:25.9.0-alpine@sha256:bdf2cca6fe3dabd014ea60163eca3f0f7015fbd5c7ee1b0e9ccb4ced6eb02ef4 AS runtime
+FROM node:26.1.0-alpine@sha256:e71ac5e964b9201072425d59d2e876359efa25dc96bb1768cb73295728d6e4ea AS runtime
 
-ARG TINI_VERSION=v0.19.0
-ARG TINI_STATIC_AMD64_SHA256=c5b0666b4cb676901f90dfcb37106783c5fe2077b04590973b885950611b30ee
-
-# Standard OCI labels
 ARG BUILD_DATE=unknown
 ARG VCS_REF=unknown
 ARG VERSION=unknown
