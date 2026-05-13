@@ -1,6 +1,6 @@
-# ==========================================
+# -----------------------------------
 # STAGE 1: Dependencies (prod only)
-# ==========================================
+# -----------------------------------
 
 FROM node:26.1.0-alpine@sha256:e71ac5e964b9201072425d59d2e876359efa25dc96bb1768cb73295728d6e4ea AS deps
 
@@ -9,9 +9,9 @@ WORKDIR /app
 COPY server/package*.json ./
 RUN npm ci --omit=dev --ignore-scripts
 
-# ==========================================
+# ---------------------------
 # STAGE 2: Runtime
-# ==========================================
+# ---------------------------
 FROM node:26.1.0-alpine@sha256:e71ac5e964b9201072425d59d2e876359efa25dc96bb1768cb73295728d6e4ea AS runtime
 
 ARG BUILD_DATE=unknown
@@ -47,9 +47,6 @@ COPY --from=deps --chown=node:node /app/node_modules ./node_modules
 COPY --chown=node:node server ./
 
 USER node
-
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-  CMD wget -q --spider http://localhost:8080/health || exit 1
 
 EXPOSE 8080
 
