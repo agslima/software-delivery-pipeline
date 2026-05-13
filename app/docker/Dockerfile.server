@@ -1,24 +1,37 @@
-# -----------------------------------
-# STAGE 1: Dependencies (prod only)
-# -----------------------------------
+# This Dockerfile is used solely for production deployments
 
-FROM node:26.1.0-alpine@sha256:e71ac5e964b9201072425d59d2e876359efa25dc96bb1768cb73295728d6e4ea AS deps
+# -----------------------------------------
+# BASE STAGE 1: Dependencies (prod only)
+# -----------------------------------------
+# Node release 24.15.0-alpine LTS
+# To update the sha:
+# https://hub.docker.com/layers/library/node/24.15.0-alpine
+FROM node:24.15.0-alpine@sha256:8e2c930fda481a6ec141fe5a88e8c249c69f8102fe98af505f38c081649ea749 AS deps
 
 WORKDIR /app
 
 COPY server/package*.json ./
-RUN npm ci --omit=dev --ignore-scripts
+
+# Install only production dependencies (skip scripts to avoid husky)
+RUN npm ci --omit=dev --ignore-scripts --registry https://registry.npmjs.org/
 
 # ---------------------------
-# STAGE 2: Runtime
+# BASE STAGE 2: Runtime
 # ---------------------------
-FROM node:26.1.0-alpine@sha256:e71ac5e964b9201072425d59d2e876359efa25dc96bb1768cb73295728d6e4ea AS runtime
+# Node release 24.15.0-alpine LTS
+FROM node:24.15.0-alpine@sha256:8e2c930fda481a6ec141fe5a88e8c249c69f8102fe98af505f38c081649ea749 AS runtime
 
+# Args for Tini installation
+ARG TINI_VERSION=v0.19.0
+ARG TINI_STATIC_AMD64_SHA256=c5b0666b4cb676901f90dfcb37106783c5fe2077b04590973b885950611b30ee
+
+# Args for OCI labels
 ARG BUILD_DATE=unknown
 ARG VCS_REF=unknown
 ARG VERSION=unknown
 ARG SOURCE=unknown
 
+# Standard OCI labels
 LABEL org.opencontainers.image.title="stayhealthy-backend" \
       org.opencontainers.image.description="StayHealthy prescription API" \
       org.opencontainers.image.created=$BUILD_DATE \
@@ -38,6 +51,7 @@ RUN wget -q -O /sbin/tini "https://github.com/krallin/tini/releases/download/${T
        /root/.npm \
        /tmp/node-compile-cache
 
+# Set production environment variable
 ENV NODE_ENV=production
 
 WORKDIR /app
@@ -46,9 +60,19 @@ WORKDIR /app
 COPY --from=deps --chown=node:node /app/node_modules ./node_modules
 COPY --chown=node:node server ./
 
+# Switch to non-root user (UID 1000)
 USER node
 
+# Limit Node's heap to 80% of container memory to prevent OOM kills and reduce GC pressure during spikes
+# (Node 24+ supports --max-old-space-size-percentage for this purpose)
+ENV NODE_OPTIONS="--max-old-space-size-percentage=80"
+
+# Remove Healthcheck so that Kubernetes can use the one defined in the Deployment spec with appropriate 
+# startupProbe and livenessProbe settings for the backend API
+
+# Expose backend API port (backend on 8080)
 EXPOSE 8080
 
+# Entrypoint to start the server with tini for proper signal handling
 ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["node", "src/server.js"]
