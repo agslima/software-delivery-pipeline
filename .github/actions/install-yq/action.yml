@@ -1,6 +1,5 @@
 name: 'Install Secure yq'
-description: 'Downloads yq and verifies the binary against the checksums file from the same release over TLS 1.2+ before installing.'
-
+description: 'Downloads yq for Linux amd64 and verifies SHA-256 checksum before installing.'
 
 inputs:
   version:
@@ -9,37 +8,41 @@ inputs:
     default: 'v4.46.3'
 
 runs:
-  using: "composite"
+  using: composite
   steps:
-    - name: Download, Verify, and Install
+    - name: Download, verify, and install
       shell: bash
       env:
         VERSION: ${{ inputs.version }}
       run: |
         set -euo pipefail
-        
-        YQ_BIN_URL="https://github.com/mikefarah/yq/releases/download/${VERSION}/yq_linux_amd64"
-        YQ_CHECKSUMS_URL="https://github.com/mikefarah/yq/releases/download/${VERSION}/checksums"
-        
+
+        YQ_BIN="yq_linux_amd64"
+        BASE_URL="https://github.com/mikefarah/yq/releases/download/${VERSION}"
+        YQ_BIN_URL="${BASE_URL}/${YQ_BIN}"
+        YQ_CHECKSUMS_URL="${BASE_URL}/checksums"
+
         TMP_DIR="$(mktemp -d)"
         trap 'rm -rf "$TMP_DIR"' EXIT
 
-        echo "⬇️ Downloading yq ${VERSION} and checksums..."
-        curl --proto '=https' --tlsv1.2 -fsSL "$YQ_BIN_URL" -o "${TMP_DIR}/yq_linux_amd64"
+        echo "⬇️ Downloading yq ${VERSION}..."
+        curl --proto '=https' --tlsv1.2 -fsSL "$YQ_BIN_URL" -o "${TMP_DIR}/${YQ_BIN}"
         curl --proto '=https' --tlsv1.2 -fsSL "$YQ_CHECKSUMS_URL" | tr -d '\r' > "${TMP_DIR}/checksums"
 
-        echo "🔍 Verifying binary signature..."
-        grep -E '[[:space:]]+\*?(\./)?yq_linux_amd64$' "${TMP_DIR}/checksums" > "${TMP_DIR}/yq_linux_amd64.sha256" \
-          || { echo "::error::yq checksum entry missing for ${VERSION}"; exit 1; }
+        echo "🔍 Verifying binary checksum..."
+        MATCH_COUNT="$(grep -Ec "[[:space:]]+\\*?(\\./)?${YQ_BIN}\$" "${TMP_DIR}/checksums")"
+        [ "$MATCH_COUNT" -eq 1 ] || { echo "::error::Expected exactly one checksum entry for ${YQ_BIN}"; exit 1; }
+
+        grep -E "[[:space:]]+\\*?(\\./)?${YQ_BIN}\$" "${TMP_DIR}/checksums" > "${TMP_DIR}/${YQ_BIN}.sha256"
 
         (
           cd "$TMP_DIR"
-          sha256sum -c yq_linux_amd64.sha256
+          sha256sum -c "${YQ_BIN}.sha256"
         )
 
-        echo "📦 Installing to /usr/local/bin/yq..."
-        sudo install -m 0755 "${TMP_DIR}/yq_linux_amd64" /usr/local/bin/yq
-        
-        echo "✅ Installation successful:"
+        mkdir -p "$HOME/.local/bin"
+        install -m 0755 "${TMP_DIR}/${YQ_BIN}" "$HOME/.local/bin/yq"
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+        echo "✅ Installed:"
         yq --version
-        
