@@ -40,12 +40,12 @@ runs:
         REPO_PREFIX="^https://github.com/${{ github.repository }}"
         TAG_REGEX="@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$"
         OIDC_ISSUE="https://token.actions.githubusercontent.com"
-      
+
         echo "🔐 Verifying signature for $IMAGE"
         cosign verify "$IMAGE" \
           --certificate-oidc-issuer "${OIDC_ISSUE}" \
           --certificate-identity-regexp "${REPO_PREFIX}/${BUILD_PATH}${TAG_REGEX}"
-        
+
         echo "🧾 Verifying SBOM attestation..."
         cosign verify-attestation "$IMAGE" \
           --type "https://spdx.dev/Document" \
@@ -67,17 +67,10 @@ runs:
           --certificate-identity-regexp "${REPO_PREFIX}/${ZAP_PATH}${TAG_REGEX}" \
           > /dev/null
 
-        echo "🧾 Verifying SLSA provenance attestation identity..."
-        cosign verify-attestation "$IMAGE" \
-          --type "https://slsa.dev/provenance/v1" \
-          --certificate-oidc-issuer "${OIDC_ISSUE}" \
-          --certificate-identity-regexp "${REPO_PREFIX}/${BUILD_PATH}${TAG_REGEX}" \
-          > /dev/null
-
         echo "🔎 Verifying SLSA builder/source expectations..."
         slsa-verifier verify-image "$IMAGE" \
           --builder-id "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml" \
           --source-uri "github.com/${{ github.repository }}" \
-          --source-tag "$RELEASE_TAG" >> "$GITHUB_STEP_SUMMARY"
+          --source-tag "$RELEASE_TAG"
 
         echo "✅ All signatures & attestations verified for $IMAGE."

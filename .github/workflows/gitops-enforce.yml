@@ -15,8 +15,8 @@ permissions:
 concurrency:
   group: gitops-${{ github.event.workflow_run.id || github.event.inputs.run_id || github.run_id }}
   cancel-in-progress: false
-  
-jobs:      
+
+jobs:
   verify-context:
     runs-on: ubuntu-latest
     permissions:
@@ -45,7 +45,6 @@ jobs:
           touch "$TOKEN_PATH"
           chmod 600 "$TOKEN_PATH"
           echo "${SECRETS}" > "$TOKEN_PATH"
-      
       - name: Resolve Release Run Metadata
         id: release-meta
         uses: ./.github/actions/resolve-run-metadata
@@ -66,8 +65,8 @@ jobs:
       contents: read
       actions: read
       id-token: write
-    env:      
-      TRIVY_WORKFLOW_PATH: ".github/workflows/release-trivy.yml"      
+    env:
+      TRIVY_WORKFLOW_PATH: ".github/workflows/release-trivy.yml"
       ZAP_WORKFLOW_PATH: ".github/workflows/release-dast.yml"
       BUILD_WORKFLOW_PATH: ".github/workflows/release-build-push-dual-registry.yml"
       RUN_ID: ${{ needs.verify-context.outputs.run_id }}
@@ -85,22 +84,19 @@ jobs:
             image_repo: app-stayhealthy-frontend
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.1
+        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
         with:
           egress-policy: audit
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
       - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 #v4.1.0
         with:
           username: ${{ vars.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
-      - name: Install SLSA-Verifier
-        uses: slsa-framework/slsa-verifier/actions/installer@ea584f4502babc6f60d9bc799dbbb13c1caa9ee6 # v2.7.1
-    
+      - uses: slsa-framework/slsa-verifier/actions/installer@ea584f4502babc6f60d9bc799dbbb13c1caa9ee6 # v2.7.1
       - name: Download Digests from Release Workflow
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -125,7 +121,7 @@ jobs:
             exit 1
           fi
           echo "CURRENT_IMAGE=docker.io/${DOCKER_USERNAME}/${{ matrix.image_repo }}@${DIGEST}" >> "$GITHUB_ENV"
-          echo "✅ Loaded and validated digest successfully." 
+          echo "✅ Loaded and validated digest successfully."
       - name: Verify Signatures (${{ matrix.service }})
         uses: ./.github/actions/verify-attestations
         with:
@@ -148,7 +144,7 @@ jobs:
       TRIVY_PREDICATE_TYPE: "https://security.sigstore.dev/attestations/vuln/trivy/v1"
       ZAP_PREDICATE_TYPE: "https://security.sigstore.dev/attestations/dast/zap/v1"
       SBOM_PREDICATE_TYPE: "https://spdx.dev/Document"
-      SLSA_PREDICATE_TYPE: "https://slsa.dev/provenance/v1"      
+      SLSA_PREDICATE_TYPE: "https://slsa.dev/provenance/v1"
       SHA: ${{ needs.verify-context.outputs.release_sha }}
       RUN_ID: ${{ needs.verify-context.outputs.run_id }}
       TAG: ${{ needs.verify-context.outputs.release_tag }}
@@ -162,17 +158,16 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
-      - name: Install Kyverno CLI
-        uses: kyverno/action-install-cli@fcee92fca5c883169ef9927acf543e0b5fc58289 # v0.2.0
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      - uses: kyverno/action-install-cli@fcee92fca5c883169ef9927acf543e0b5fc58289 # v0.2.0
         with:
           release: 'v1.17.1'
           verify: true
-      - name: yq - portable yaml processor
-        uses: mikefarah/yq@751d8ad57b84f1794661bc70c0afb92a22ad7b3c # v4.53.2
-      - name: Install Kustomize
-        uses: imranismail/setup-kustomize@53f941b41dca13ed61874bbc6b4b6e1562877530 # v3.0.0
+      - name: Setup YQ
+        uses: ./.github/actions/install-yq
+        with:
+          version: 'v4.53.2'
+      - uses: imranismail/setup-kustomize@53f941b41dca13ed61874bbc6b4b6e1562877530 # v3.0.0
       - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 #v4.1.0
         with:
           username: ${{ vars.DOCKER_HUB_USERNAME }}
@@ -208,7 +203,7 @@ jobs:
             echo "${PREFIX}_DIGEST=${DIGEST}" >> "$GITHUB_ENV"
             echo "${PREFIX}_IMAGE=docker.io/${DOCKER_USERNAME}/${REPO}@${DIGEST}" >> "$GITHUB_ENV"
           done
-          echo "✅ Loaded and validated all digests successfully."      
+          echo "✅ Loaded and validated all digests successfully."
       - name: Update README.MD - verification section
         env:
           BACKEND_IMAGE: ${{ env.BACKEND_IMAGE }}
@@ -239,7 +234,7 @@ jobs:
           yq -r '.images[].digest' "$FILE" | grep -q '^sha256:' || (
             echo "::error::Prod overlay digests not set correctly"
             exit 1
-          )            
+          )
       - name: Validate Prod Manifests
         uses: ./.github/actions/validate-kubernetes-manifests
         with:

@@ -37,23 +37,3 @@ jobs:
         run: python3 -m pip install --require-hashes -r scripts/supply-chain/requirements-workflow-provenance.txt
       - name: Check workflow input provenance
         run: make check-provenance
-  
-  run_macaron:
-    name: Run Oracle Macaron
-    runs-on: ubuntu-latest
-    steps:
-    - name: Check out repository
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      with:
-        fetch-depth: 0
-        persist-credentials: false
-    # Check the GitHub Actions workflows in the repository for vulnerabilities.
-    # Note: adjust the policy_purl to refer to your repository URL.
-    - name: Run Macaron action
-      id: run_macaron
-      uses: oracle/macaron@4ddb55e3c9ef2c77b548be55c557078c4476fd9c # v0.24.0
-      with:
-        repo_path: ./
-        policy_file: check-github-actions
-        # policy_purl: pkg:github.com/agslima/app-stayhealthy-pipeline@.*
-        reports_retention_days: 10

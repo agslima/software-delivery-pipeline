@@ -18,11 +18,13 @@ MAX_SUMMARY_LAYER_FILE_DIFFS = 30
 
 def fail(message: str) -> None:
     """
-    Print an error to stderr prefixed with "::error::" and exit the program with status code 1.
-
+    Terminate execution after reporting an error to standard error.
+    
+    Prints the provided message to stderr prefixed with "::error::" and exits the process with status code 1.
+    
     Parameters:
-        message (str): Text of the error message to print (will be prefixed with "::error::").
-
+        message (str): The error text to report (will be prefixed with "::error::" when printed).
+    
     Raises:
         SystemExit: Exits with status code 1.
     """
@@ -70,17 +72,17 @@ def read_json_member(
 ) -> dict[str, Any]:
     """
     Load a specific member from a tar archive and parse it as a JSON object.
-
+    
     Parameters:
-        archive (tarfile.TarFile): Open tar archive to read from.
+        archive (tarfile.TarFile): Open tar archive to read the member from.
         member_name (str): Member path inside the tar to extract (e.g. "index.json" or a blob path).
         archive_path (Path): Filesystem path used in diagnostic messages.
-
+    
     Returns:
         dict[str, Any]: The parsed JSON object.
-
-    Notes:
-        If the member is absent, cannot be read, contains invalid JSON, or the parsed value is not a JSON object, this function calls `fail(...)` (terminating the program).
+    
+    Raises:
+        SystemExit: The helper `fail(...)` is called (exiting with status 1) if the member is missing, cannot be read, contains invalid JSON, or the parsed value is not a JSON object.
     """
     try:
         member = archive.getmember(member_name)
@@ -107,14 +109,14 @@ def read_optional_json_blob(
 ) -> dict[str, Any] | None:
     """
     Locate and parse the OCI JSON blob identified by `digest` in the given tar archive if it exists.
-
+    
     Parameters:
         archive (tarfile.TarFile): Open tar archive to read from.
         digest (str): OCI digest string identifying the blob (e.g. "sha256:<hex>").
-        archive_path (Path): Path to the archive (used for error messages).
-
+        archive_path (Path): Path to the archive (used for diagnostic messages).
+    
     Returns:
-        dict[str, Any] | None: The parsed JSON object from the blob as a dictionary if the blob is present, `None` if the blob member is missing.
+        dict[str, Any] | None: Parsed JSON object as a dictionary if the blob member exists and contains valid JSON, otherwise `None`.
     """
     member_name = blob_path(digest)
     try:
@@ -128,7 +130,16 @@ def read_optional_blob_bytes(
     archive: tarfile.TarFile,
     digest: str,
 ) -> bytes | None:
-    """Read an OCI blob as bytes when present; return None when absent."""
+    """
+    Return the raw bytes of an OCI blob contained in the given tar archive, or `None` if the blob member is absent.
+    
+    Parameters:
+        archive (tarfile.TarFile): Open tar archive to read from.
+        digest (str): OCI blob digest string (e.g. starting with `sha256:`).
+    
+    Returns:
+        bytes | None: The blob contents as bytes when present, otherwise `None`.
+    """
     member_name = blob_path(digest)
     try:
         member = archive.getmember(member_name)
@@ -142,12 +153,25 @@ def read_optional_blob_bytes(
 
 
 def format_mode(mode: int) -> str:
-    """Format a tar mode as a stable four-digit octal string."""
+    """
+    Format a filesystem mode into a stable four-digit octal string.
+    
+    Returns:
+        octal_mode (str): Four-character octal representation of the mode (e.g., "0755").
+    """
     return f"{mode & 0o7777:04o}"
 
 
 def file_sha256_from_handle(handle: Any) -> str:
-    """Compute the SHA-256 hex digest for a readable file-like object."""
+    """
+    Compute the SHA-256 hex digest of data remaining in a readable file-like object.
+    
+    Parameters:
+    	handle (Any): A readable file-like object (binary mode) whose remaining bytes will be read; the object's read position is advanced to EOF.
+    
+    Returns:
+    	sha256_hex (str): Lowercase hexadecimal SHA-256 digest of the data read from the handle.
+    """
     digest = hashlib.sha256()
     for chunk in iter(lambda: handle.read(1024 * 1024), b""):
         digest.update(chunk)
@@ -155,7 +179,11 @@ def file_sha256_from_handle(handle: Any) -> str:
 
 
 def tar_member_type(member: tarfile.TarInfo) -> str:
-    """Return a compact, stable type label for a tar member."""
+    """
+    Produce a compact, stable type label for a tar member.
+    
+    @returns One of: 'file', 'directory', 'symlink', 'hardlink', 'char', 'block', 'fifo', or 'other'.
+    """
     if member.isfile():
         return "file"
     if member.isdir():
@@ -175,11 +203,25 @@ def tar_member_type(member: tarfile.TarInfo) -> str:
 
 def extract_layer_entries(layer_bytes: bytes, digest: str) -> dict[str, dict[str, Any]]:
     """
-    Extract comparable tar-entry metadata from an OCI layer blob.
-
-    The layer may be compressed or uncompressed; `tarfile` auto-detects with
-    `r:*`. Regular files include a content SHA-256. Non-regular entries record
-    metadata only.
+    Produce a mapping of tar member paths to comparable metadata extracted from an OCI layer blob.
+    
+    The blob may be compressed or uncompressed; tarfile auto-detects compression. Regular file members include a content SHA-256 digest; non-regular members record metadata only. If the blob cannot be read as a tar archive, returns a single-entry dict with key "__layer_error__" containing an error record (which includes the provided `digest` for context).
+    
+    Parameters:
+        layer_bytes (bytes): Raw bytes of the layer blob.
+        digest (str): Layer digest (used only for error reporting).
+    
+    Returns:
+        dict[str, dict[str, Any]]: Mapping from tar member path to a metadata dictionary with keys:
+            - "type": compact member type label (e.g., "file", "directory", "symlink", ...).
+            - "mode": four-digit octal mode string.
+            - "size": member size in bytes.
+            - "mtime": modification time.
+            - "uid": owner user id.
+            - "gid": owner group id.
+            - "linkname": link target for symlinks/hardlinks (empty string when not applicable).
+            - "sha256": for regular files, hex SHA-256 of file content; empty string if the file could not be extracted; `None` for non-regular members.
+        If tar reading fails, returns a dict with a single "__layer_error__" entry describing the failure.
     """
     entries: dict[str, dict[str, Any]] = {}
     try:
@@ -221,14 +263,16 @@ def extract_layer_entries(layer_bytes: bytes, digest: str) -> dict[str, dict[str
 
 def flatten_json(value: Any, prefix: str = "") -> dict[str, Any]:
     """
-    Produce a flat mapping from JSON leaf paths to their values using dot notation for object keys and `[index]` notation for list elements.
-
+    Flatten a JSON-like value into a mapping from leaf paths to their values.
+    
+    Paths use dot notation for object keys (e.g., `foo.bar`) and index notation for list elements (e.g., `items[0]`). Empty lists are recorded as the list value at their path. Object keys are processed in sorted order to produce a stable output.
+    
     Parameters:
-        value (Any): The JSON value to flatten (may be a dict, list, or scalar).
-        prefix (str): Optional starting path prefix; when provided, appended before subsequent keys/indexes.
-
+        value: The JSON value to flatten (dict, list, or scalar).
+        prefix: Optional starting path prefix that will be prepended to produced paths.
+    
     Returns:
-        dict[str, Any]: A mapping from path strings to leaf values. Paths use `key` and `key.subkey` for nested objects and `prefix[index]` for list elements; an empty list is recorded at its path when a list is empty.
+        dict[str, Any]: A mapping from path strings to leaf values.
     """
     if isinstance(value, dict):
         flattened: dict[str, Any] = {}
@@ -402,7 +446,26 @@ def compare_layer_entries(
     first_entries: dict[str, dict[str, Any]] | None,
     second_entries: dict[str, dict[str, Any]] | None,
 ) -> dict[str, Any]:
-    """Compare per-path tar metadata and content digests for one layer pair."""
+    """
+    Compute per-path differences between two layer entry maps.
+    
+    If either input is None, the function reports the layer as unavailable.
+    
+    Parameters:
+        first_entries (dict[str, dict[str, Any]] | None): Mapping of member path -> metadata for the first layer, or None if the layer blob is missing.
+        second_entries (dict[str, dict[str, Any]] | None): Mapping of member path -> metadata for the second layer, or None if the layer blob is missing.
+    
+    Returns:
+        result (dict[str, Any]): Comparison result with the following keys:
+            - available (bool): `False` when a layer blob is missing on one or both sides, otherwise `True`.
+            - reason (str): Present only when `available` is `False`; explains why comparison could not be performed.
+            - diff_count (int): Number of differing paths (present only when `available` is `True`).
+            - diffs (list[dict[str, Any]]): List of per-path diff records. Each record contains:
+                - path (str): The member path within the layer.
+                - status (str): One of `"added"`, `"removed"`, or `"changed"`.
+                - first (dict[str, Any] | None): Entry metadata from the first layer or `None` if absent.
+                - second (dict[str, Any] | None): Entry metadata from the second layer or `None` if absent.
+    """
     if first_entries is None or second_entries is None:
         return {
             "available": False,
@@ -448,21 +511,27 @@ def build_comparison(
     first_info: dict[str, Any], second_info: dict[str, Any]
 ) -> dict[str, Any]:
     """
-    Produce a structured comparison between two OCI image extraction results.
-
+    Compare two extracted OCI image info dictionaries and produce a structured summary of manifest, config, and layer differences.
+    
     Parameters:
-        first_info (dict): Extraction info for the first archive. Expected keys include
-            "manifest_digest", "config_digest", "layer_count", "layer_digests", and "config_json".
-        second_info (dict): Extraction info for the second archive. Same expected keys as `first_info`.
-
+        first_info (dict): Extraction result for the first archive. Expected keys include
+            `manifest_digest`, `config_digest`, `layer_count`, `layer_digests` (ordered list of digests),
+            `layer_entries` (mapping of layer digest to per-member metadata), and `config_json`.
+        second_info (dict): Extraction result for the second archive (same expected keys as `first_info`).
+    
     Returns:
-        dict: A comparison object containing:
-            - "manifest_digest_match" (bool): `true` if manifest digests are equal, `false` otherwise.
-            - "config_digest_match" (bool): `true` if config digests are equal, `false` otherwise.
-            - "layer_count_match" (bool): `true` if reported layer counts are equal, `false` otherwise.
-            - "layer_digests_match" (bool): `true` if the full ordered layer-digest lists are equal, `false` otherwise.
-            - "layer_diffs" (list): List of per-index mismatch records with keys "index", "first", and "second".
-            - "config_field_diffs" (list): List of per-field config JSON differences produced by `compare_config_fields`.
+        dict: Comparison object with the following keys:
+            - `manifest_digest_match` (bool): `true` if the two manifest digests are equal, `false` otherwise.
+            - `config_digest_match` (bool): `true` if the two config digests are equal, `false` otherwise.
+            - `layer_count_match` (bool): `true` if reported layer counts are equal, `false` otherwise.
+            - `layer_digests_match` (bool): `true` if the full ordered lists of layer digests are equal, `false` otherwise.
+            - `layer_diffs` (list): Per-index digest mismatch records with keys `index`, `first`, and `second`.
+            - `layer_file_diffs` (list): Per-index results from comparing per-layer tar-entry metadata/content; each entry 
+               includes `index`, `first`, `second`, and the comparison result produced by `compare_layer_entries`.
+            - "layer_file_diffs" (list): Per-mismatched-layer file-level diff records with keys
+              "index", "first", "second", and the fields produced by `compare_layer_entries`
+              ("available", and either "diff_count"/"diffs" or "reason").
+            - `config_field_diffs` (list): Field-level differences between flattened config JSON objects.
     """
     first_layers = first_info.get("layer_digests", [])
     second_layers = second_info.get("layer_digests", [])

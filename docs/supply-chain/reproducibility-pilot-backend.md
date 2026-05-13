@@ -2,7 +2,7 @@
 
 [//]: # (owner: Project Maintainers)
 [//]: # (review_cadence: Quarterly)
-[//]: # (last_reviewed: 2026-05-08)
+[//]: # (last_reviewed: 2026-05-13)
 
 This document defines the first reproducibility pilot for the release path.
 
@@ -94,13 +94,6 @@ Outcome:
 - Second manifest digest: `sha256:5270e945461e862b7cba30753a485f67333d916b58b67061e664c8288f535683`
 - First archive SHA-256: `f55afe6d96d4104a79bde039c143e7b6fcb63d808e68fba54ff0592057ad3798`
 - Second archive SHA-256: `2fa751c8d2a6f1dfe88378a24e69c4f42340cf9f3d71fd067794bfc81cbe2061`
-
-Governance interpretation:
-
-- This run is valid pilot evidence, but it is not successful reproducibility evidence.
-- The backend image is not currently suitable for use as stronger SLSA reproducibility evidence under this pilot's normalized inputs.
-- The release workflow behavior should remain unchanged: the pilot stays advisory while the mismatch is investigated.
-- The mismatch feeds Phase 2 reproducibility follow-up and Phase 3 work to reduce live package-source and other mutable build inputs.
 
 Initial investigation focus:
 

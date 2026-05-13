@@ -61,12 +61,12 @@ def digest_json(data: dict) -> str:
 
 def add_bytes(archive: tarfile.TarFile, name: str, data: bytes) -> None:
     """
-    Add an in-memory file entry to a tar archive using the provided bytes.
-
+    Add an in-memory file entry to a tar archive from the given bytes.
+    
     Parameters:
-        archive (tarfile.TarFile): Target tar archive to which the file entry will be added.
-        name (str): Path/name of the file inside the archive.
-        data (bytes): File contents to write into the archive entry.
+        archive (tarfile.TarFile): Tar archive to write into.
+        name (str): Path of the file inside the archive.
+        data (bytes): File contents to store.
     """
     info = tarfile.TarInfo(name)
     info.size = len(data)
@@ -74,6 +74,22 @@ def add_bytes(archive: tarfile.TarFile, name: str, data: bytes) -> None:
 
 
 def make_layer(entries: list[dict]) -> tuple[str, bytes]:
+    """
+    Create an in-memory tar "layer" from a list of filesystem entry definitions and return its digest and raw bytes.
+    
+    Each entry in `entries` is a dict that must include:
+    - `path` (str): path inside the tar.
+    - `type` (optional, str): `"symlink"`, `"directory"`, or omitted/other for a regular file.
+    Optional keys:
+    - `data` (bytes): file contents for regular files (default: b"").
+    - `mode` (int): permission bits (default: 0o644).
+    - `mtime` (int): modification time (default: 0).
+    - `uid` (int), `gid` (int): owner ids (default: 0).
+    - `linkname` (str): symlink target (default: "").
+    
+    @returns
+    A tuple (digest, bytes) where `digest` is the SHA-256 of the produced tar prefixed with `"sha256:"`, and `bytes` is the raw tar archive data.
+    """
     layer_io = io.BytesIO()
     with tarfile.open(fileobj=layer_io, mode="w") as layer:
         for entry in entries:
@@ -108,14 +124,15 @@ def write_oci_archive(
     layer_blobs: dict[str, bytes] | None = None,
 ) -> None:
     """
-    Create a tar archive at `path` containing a minimal OCI image layout with a single `index.json` manifest.
-
+    Create a tar archive at `path` containing a minimal OCI image layout with a single `index.json` and corresponding blobs.
+    
     Parameters:
         path (pathlib.Path): Filesystem path where the tar archive will be written.
-        manifest_digest (str): Digest string to place in the manifest's `digest` field (e.g. "sha256:<hexdigest>").
-        ref_name (str): Value for the `org.opencontainers.image.ref.name` annotation in the manifest (default "test").
-        config_json (dict | None): JSON object to use as the image config blob; when None a sensible default config is used.
+        manifest_digest (str): Digest to record for the manifest entry (e.g. "sha256:<hexdigest>").
+        ref_name (str): Value for the `org.opencontainers.image.ref.name` annotation in the manifest.
+        config_json (dict | None): JSON object to use as the image config blob; when None a default config is used.
         layer_digests (list[str] | None): List of layer digest strings to include in the manifest's `layers`; when None a single dummy digest is used.
+        layer_blobs (dict[str, bytes] | None): Optional mapping of layer digest -> raw blob bytes to include under `blobs/sha256/<digest>` in the archive.
     """
     config_json = config_json or {
         "architecture": "amd64",

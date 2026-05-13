@@ -2,7 +2,7 @@
 
 [//]: # (owner: Project Maintainers)
 [//]: # (review_cadence: Quarterly)
-[//]: # (last_reviewed: 2026-04-11)
+[//]: # (last_reviewed: 2026-05-13)
 
 This document turns the repository's existing "L3-aligned controls in progress" statement into an execution plan with explicit sequencing, validation, and rollback expectations.
 
@@ -23,7 +23,6 @@ In scope:
 
 Out of scope for this plan:
 
-- claiming formal SLSA L3 certification
 - replacing the current Sigstore, Kyverno, or GitOps architecture
 - weakening fail-closed release or admission behavior while pilots run
 

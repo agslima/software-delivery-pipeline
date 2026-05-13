@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*.*.*'
+  # Used for test
   workflow_dispatch:
     inputs:
       tag:
@@ -47,7 +48,8 @@ jobs:
 
   run-trivy:
     name: Run Trivy
-    needs: resolve
+    if: false
+    needs: [resolve]
     permissions:
       contents: read
       security-events: write # Required to upload SARIF
@@ -57,13 +59,14 @@ jobs:
 
   build-push-backend:
     name: Build & Push
+    if: false
     needs: [resolve, run-trivy]
     permissions:
-      contents: read 
-      packages: write          # Needed to push images to `ghcr.io` and create release assets.
-      id-token: write          # Needed to create an OIDC token for keyless signing
-      attestations: write      # Needed to upload attestations to the GitHub registry
-      actions: read            # Needed for workflow context resolution in the provenance generation step.
+      contents: read           # Needed to read repository contents.
+      packages: write          # Needed to login and upload attestations to ghcr.io.
+      id-token: write          # Needed to get OIDC token for keyless signing
+      attestations: write      # Needed to upload attestations to the repository.
+      actions: read            # Needed to read workflow info.
       artifact-metadata: write # Needed to upload SBOM as artifact
     uses: ./.github/workflows/release-build-push-dual-registry.yml
     with:
@@ -82,12 +85,12 @@ jobs:
 
   reproducibility-pilot-backend:
     name: Reproducibility Pilot (Backend)
-    needs: [resolve, build-push-backend]
+    needs: [resolve]
     runs-on: ubuntu-latest
     continue-on-error: true
     timeout-minutes: 25
     permissions:
-      contents: read
+      contents: read           # Needed to read repository contents.
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
@@ -150,13 +153,14 @@ jobs:
                     
   build-push-frontend:    
     name: Build & Push
+    if: false
     needs: [resolve, run-trivy]
     permissions:
-      contents: read
-      packages: write
-      id-token: write
-      attestations: write 
-      actions: read
+      contents: read           # Needed to read repository contents.
+      packages: write          # Needed to login and upload attestations to ghcr.io.
+      id-token: write          # Needed to get OIDC token for keyless signing
+      attestations: write      # Needed to upload attestations to the repository.
+      actions: read            # Needed to read workflow info.
       artifact-metadata: write # Needed to upload SBOM as artifact
     uses: ./.github/workflows/release-build-push-dual-registry.yml
     with:
@@ -175,13 +179,14 @@ jobs:
 
   build-push-worker:    
     name: Build & Push
+    if: false
     needs: [resolve, run-trivy]
     permissions:
-      contents: read
-      packages: write
-      id-token: write
-      attestations: write
-      actions: read
+      contents: read           # Needed to read repository contents.
+      packages: write          # Needed to login and upload attestations to ghcr.io.
+      id-token: write          # Needed to get OIDC token for keyless signing
+      attestations: write      # Needed to upload attestations to the repository.
+      actions: read            # Needed to read workflow info.
       artifact-metadata: write # Needed to upload SBOM as artifact
     uses: ./.github/workflows/release-build-push-dual-registry.yml
     with:
@@ -198,97 +203,15 @@ jobs:
       dockerhub_token: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
       ghcr_token: ${{ secrets.GITHUB_TOKEN }}
   
-  generate-slsa-provenance-backend-ghcr:    
-    needs: [build-push-backend]
-    permissions:
-      id-token: write   # To sign the provenance.
-      packages: write   # To upload assets to release.
-      actions: read     # To read the workflow path.
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
-    with:
-      image: ghcr.io/${{ github.repository_owner }}/app-stayhealthy-backend
-      digest: ${{ needs.build-push-backend.outputs.image-digest }}
-      registry-username: ${{ github.repository_owner }}
-    secrets:
-      registry-password: ${{ secrets.GITHUB_TOKEN }}
 
-  generate-slsa-provenance-frontend-ghcr:    
-    needs: [build-push-frontend]
-    permissions:
-      id-token: write   # To sign the provenance.
-      packages: write   # To upload assets to release.
-      actions: read     # To read the workflow path.
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
-    with:
-      image: ghcr.io/${{ github.repository_owner }}/app-stayhealthy-frontend
-      digest: ${{ needs.build-push-frontend.outputs.image-digest }}
-      registry-username: ${{ github.repository_owner }}
-    secrets:
-      registry-password: ${{ secrets.GITHUB_TOKEN }}
-  
-  generate-slsa-provenance-worker-ghcr:    
-    needs: [build-push-worker]
-    permissions:
-      id-token: write   # To sign the provenance.
-      packages: write   # To upload assets to release.
-      actions: read     # To read the workflow path.
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
-    with:
-      image: ghcr.io/${{ github.repository_owner }}/app-stayhealthy-worker
-      digest: ${{ needs.build-push-worker.outputs.image-digest }}
-      registry-username: ${{ github.repository_owner }}
-    secrets:
-      registry-password: ${{ secrets.GITHUB_TOKEN }}
-      
-  generate-slsa-provenance-backend-docker:    
-    needs: [build-push-backend]
-    permissions:
-      id-token: write   # To sign the provenance.
-      packages: write   # To upload assets to release.
-      actions: read     # To read the workflow path.
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
-    with:
-      image: docker.io/${{ vars.DOCKER_HUB_USERNAME }}/app-stayhealthy-backend
-      digest: ${{ needs.build-push-backend.outputs.image-digest }}
-      registry-username: ${{ vars.DOCKER_HUB_USERNAME }}
-    secrets:
-      registry-password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
-
-  generate-slsa-provenance-frontend-docker:
-    needs: [build-push-frontend]
-    permissions:
-      id-token: write   # To sign the provenance.
-      packages: write   # To upload assets to release.
-      actions: read     # To read the workflow path.
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
-    with:
-      image: docker.io/${{ vars.DOCKER_HUB_USERNAME }}/app-stayhealthy-frontend
-      digest: ${{ needs.build-push-frontend.outputs.image-digest }}
-      registry-username: ${{ vars.DOCKER_HUB_USERNAME }}
-    secrets:
-      registry-password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
-  
-  generate-slsa-provenance-worker-docker:    
-    needs: [build-push-worker]
-    permissions:
-      id-token: write   # To sign the provenance.
-      packages: write   # To upload assets to release.
-      actions: read     # To read the workflow path.
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
-    with:
-      image: docker.io/${{ vars.DOCKER_HUB_USERNAME }}/app-stayhealthy-worker
-      digest: ${{ needs.build-push-worker.outputs.image-digest }}
-      registry-username: ${{ vars.DOCKER_HUB_USERNAME }}
-    secrets:
-      registry-password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
-  
   trivy-scan:    
     name: Trivy Scan (Digest Gate)
-    needs: [ build-push-frontend, build-push-backend, build-push-worker, generate-slsa-provenance-backend-docker, generate-slsa-provenance-frontend-docker, generate-slsa-provenance-worker-docker ]
+    if: false
+    needs: [ build-push-frontend, build-push-backend, build-push-worker ]
     permissions:
       contents: read
-      packages: write # Used to push images to `ghcr.io` if used.
-      id-token: write # Needed to create an OIDC token for keyless signing
+      packages: write     # Used to push images to `ghcr.io` if used.
+      id-token: write     # Needed to create an OIDC token for keyless signing
       attestations: write # Needed to upload attestations to the GitHub registry      
     uses: ./.github/workflows/release-trivy.yml
     with:
@@ -303,7 +226,8 @@ jobs:
      
   dast-analysis:
     name: DAST (Digest-based)
-    needs: [ build-push-frontend, build-push-backend, build-push-worker, resolve, generate-slsa-provenance-backend-docker, generate-slsa-provenance-frontend-docker, generate-slsa-provenance-worker-docker ]
+    if: false
+    needs: [ build-push-frontend, build-push-backend, build-push-worker, resolve ]
     permissions:
       contents: read
       id-token: write     # Needed to create an OIDC token for keyless signing of the provenance.

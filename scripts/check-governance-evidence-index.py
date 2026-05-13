@@ -27,10 +27,12 @@ class WorkflowReference:
 
 def normalize_text(text: str) -> str:
     """
-    Normalize markdown text by removing formatting and normalizing whitespace and quotes.
-
+    Normalize a markdown string by removing common formatting, converting curly quotes to straight quotes, and collapsing whitespace.
+    
+    Rewrites markdown links from `[label](url)` to `label`, removes `**`, `__`, and backtick markers, converts curly single/double quotes to straight `'`/`"`, collapses consecutive whitespace to single spaces, and trims leading/trailing whitespace.
+    
     Returns:
-        The input string with markdown links replaced by their label, `**`/`__`/backticks removed, curly quotes converted to straight quotes, consecutive whitespace collapsed to single spaces, and leading/trailing whitespace trimmed.
+        The normalized string.
     """
     text = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", text)
     text = (
