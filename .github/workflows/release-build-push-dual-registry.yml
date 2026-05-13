@@ -257,29 +257,32 @@ jobs:
   # ---------------------------------------------------------
   # JOB 3: Trusted Control Plane (SLSA L3 Provenance)
   # ---------------------------------------------------------
-  generate-slsa-provenance:
-    name: Generate SLSA Provenance (${{ matrix.registry }})
+  generate-slsa-provenance-ghcr:
+    name: Generate SLSA Provenance (ghcr)
     needs: [build-publish]
     permissions:
       id-token: write   # To sign the provenance.
       packages: write   # To upload assets to release.
       actions: read     # To read the workflow path.
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - registry: ghcr
-            prefix: ghcr.io
-            username: ${{ inputs.ghcr_username }}
-            secret_name: ghcr_token
-          - registry: docker
-            prefix: docker.io
-            username: ${{ inputs.dockerhub_username }}
-            secret_name: dockerhub_token
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
     with:
-      image: ${{ matrix.prefix }}/${{ matrix.username }}/${{ inputs.image_repo }}
+      image: ghcr.io/${{ inputs.ghcr_username }}/${{ inputs.image_repo }}
       digest: ${{ needs.build-publish.outputs.image-digest }}
-      registry-username: ${{ matrix.username }}
+      registry-username: ${{ inputs.ghcr_username }}
     secrets:
-      registry-password: ${{ secrets[matrix.secret_name] }}
+      registry-password: ${{ secrets.ghcr_token }}
+
+  generate-slsa-provenance-docker:
+    name: Generate SLSA Provenance (docker)
+    needs: [build-publish]
+    permissions:
+      id-token: write   # To sign the provenance.
+      packages: write   # To upload assets to release.
+      actions: read     # To read the workflow path.
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
+    with:
+      image: docker.io/${{ inputs.dockerhub_username }}/${{ inputs.image_repo }}
+      digest: ${{ needs.build-publish.outputs.image-digest }}
+      registry-username: ${{ inputs.dockerhub_username }}
+    secrets:
+      registry-password: ${{ secrets.dockerhub_token }}
