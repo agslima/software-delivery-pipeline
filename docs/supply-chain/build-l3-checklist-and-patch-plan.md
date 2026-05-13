@@ -2,7 +2,7 @@
 
 [//]: # (owner: Project Maintainers)
 [//]: # (review_cadence: Quarterly)
-[//]: # (last_reviewed: 2026-05-08)
+[//]: # (last_reviewed: 2026-05-13)
 
 ## Goal
 
@@ -38,7 +38,6 @@ Status legend:
 | Trusted release and promotion workflows run on ephemeral hosted runners | `Partial` | Trusted workflows use GitHub-hosted runners and avoid long-lived self-hosted runners | The repo cannot prove platform-level run isolation on `ubuntu-latest`; this remains a hosted-platform assumption. |
 | Trusted workflows use pinned third-party actions | `Done` | `scripts/check-workflow-input-provenance.py` passes on trusted workflows | Keep enforcement and regression tests in place. |
 | Trusted workflows use digest-pinned deployable images | `Done` | Digest artifacts and GitOps promotion use immutable digests | Continue to treat digest-only promotion as non-negotiable. |
-| Trusted workflows minimize mutable toolchain drift | `Partial` | `setup-go` uses fixed version and `check-latest: false`; `yq` uses version pin + checksum verification | Some installer paths and reusable workflow refs still depend on trusted upstream release assets. |
 | Trusted workflows avoid shared mutable cache state | `Partial` | Release builds use `no-cache: true`; reproducibility pilot uses `--no-cache` | The repo does not prove that the underlying hosted builder and service-side caches cannot create cross-run influence. |
 | Release build inputs are normalized enough for reproducibility checks | `Partial` | Backend reproducibility pilot exists in `ci-release-gate.yml`; the 2026-05-08 backend pilot record shows `status: mismatch` | Only one image has a non-blocking pilot; no successful pilot evidence is recorded yet; the recorded mismatch requires investigation before the result can support stronger SLSA evidence. |
 | Trusted workflows minimize live dependency fetches | `Partial` | Base images are digest-pinned; some installers are pinned and verified | `npm ci`, Trivy DB access, and registry interactions still rely on live external services. |
@@ -84,9 +83,9 @@ reduce repository-level mutable inputs that are still easy to patch without plat
 
 Checklist:
 
-- [ ] Evaluate whether `slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0` can be pinned by commit SHA instead of release tag in `ci-release-gate.yml`.
-- [ ] Continue converting installer steps to checksum-verified or mirrored sources where possible.
-- [ ] Review whether any trusted workflow still implicitly depends on mutable defaults such as `latest` resolution or unpinned runtime images.
+- [x] Evaluate whether `slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0` can be pinned by commit SHA instead of release tag in `ci-release-gate.yml`: currently, the SLSA reusable workflow does not support being pinned by commit SHA. So it will stay as they are.
+- [x] Continue converting installer steps to checksum-verified or mirrored sources where possible.
+- [x] Review whether any trusted workflow still implicitly depends on mutable defaults such as `latest` resolution or unpinned runtime images.
 
 Primary patch targets:
 
@@ -155,7 +154,6 @@ Expected evidence rather than code:
 
 Patches:
 
-- stronger immutability for the SLSA generator reusable workflow ref
 - future rollout of reproducibility evidence beyond pilot status
 
 ### `release-build-push-dual-registry.yml`

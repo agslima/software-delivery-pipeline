@@ -2,7 +2,7 @@
 
 [//]: # (owner: Project Maintainers)
 [//]: # (review_cadence: Quarterly)
-[//]: # (last_reviewed: 2026-04-30)
+[//]: # (last_reviewed: 2026-05-13)
 
 This document records the repository's current builder-isolation assumptions for trusted release and promotion workflows.
 
@@ -41,7 +41,6 @@ The repository directly enforces or verifies these builder-isolation-adjacent co
 | Artifact identity | Promotion and deployment use digest-pinned images only | `digest-*` artifacts; GitOps promotion workflow; Kyverno policy |
 | Builder identity verification | GitOps verifies SLSA provenance, workflow path, source tag, and builder identity before promotion | `.github/workflows/gitops-enforce.yml`; `k8s/policies/cluster/verify-slsa.yaml` |
 | Permission minimization | Trusted workflows declare scoped GitHub token permissions per job rather than relying on broad defaults | workflow `permissions:` blocks |
-| Mutable-input review | Remaining mutable external inputs are documented and reviewed in `docs/trusted-workflow-input-inventory.md` | input inventory and quarterly review record |
 
 ## Explicit Non-Claims
 
@@ -74,8 +73,8 @@ Current mitigations:
 
 Near-term strengthening steps:
 
-1. keep all trusted workflows under `step-security/harden-runner` egress audit
-2. continue replacing mutable installer behavior with checksum verification or mirrored sources
+1. The release workflow will keep all jobs under `step-security/harden-runner` egress audit or block when possible.
+2. replacing mutable installer behavior with checksum verification or mirrored sources
 3. use reproducibility pilots to identify nondeterministic build inputs
 4. document a future decision on whether L3 pursuit requires a stronger builder model than `ubuntu-latest`
 
@@ -85,5 +84,4 @@ When this document is reviewed, confirm:
 
 - trusted workflows still use scoped `permissions:`
 - `step-security/harden-runner` remains present in trusted workflows
-- mutable input exceptions still match `docs/trusted-workflow-input-inventory.md`
 - GitOps builder-identity verification still matches the active release provenance path

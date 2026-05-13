@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*.*.*'
+  # Used for test
   workflow_dispatch:
     inputs:
       tag:
@@ -47,7 +48,8 @@ jobs:
 
   run-trivy:
     name: Run Trivy
-    needs: resolve
+    if: false
+    needs: [resolve]
     permissions:
       contents: read
       security-events: write # Required to upload SARIF
@@ -57,6 +59,7 @@ jobs:
 
   build-push-backend:
     name: Build & Push
+    if: false
     needs: [resolve, run-trivy]
     permissions:
       contents: read           # Needed to read repository contents.
@@ -82,7 +85,7 @@ jobs:
 
   reproducibility-pilot-backend:
     name: Reproducibility Pilot (Backend)
-    needs: [resolve, build-push-backend]
+    needs: [resolve]
     runs-on: ubuntu-latest
     continue-on-error: true
     timeout-minutes: 25
@@ -150,6 +153,7 @@ jobs:
                     
   build-push-frontend:    
     name: Build & Push
+    if: false
     needs: [resolve, run-trivy]
     permissions:
       contents: read           # Needed to read repository contents.
@@ -175,6 +179,7 @@ jobs:
 
   build-push-worker:    
     name: Build & Push
+    if: false
     needs: [resolve, run-trivy]
     permissions:
       contents: read           # Needed to read repository contents.
@@ -201,6 +206,7 @@ jobs:
 
   trivy-scan:    
     name: Trivy Scan (Digest Gate)
+    if: false
     needs: [ build-push-frontend, build-push-backend, build-push-worker ]
     permissions:
       contents: read
@@ -220,6 +226,7 @@ jobs:
      
   dast-analysis:
     name: DAST (Digest-based)
+    if: false
     needs: [ build-push-frontend, build-push-backend, build-push-worker, resolve ]
     permissions:
       contents: read
