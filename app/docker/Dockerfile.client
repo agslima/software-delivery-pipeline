@@ -1,25 +1,50 @@
-# ==========================================
+# This Dockerfile is used solely for production deployments
+# syntax=docker/dockerfile:1.7
+# -----------------------------------------
 # STAGE 1: Build the React App
-# ==========================================
+# -----------------------------------------
+# Node release 24.15.0-alpine LTS
+# To update the sha:
+# https://hub.docker.com/layers/library/node/24.15.0-alpine
 
 FROM node:24.15.0-alpine@sha256:8e2c930fda481a6ec141fe5a88e8c249c69f8102fe98af505f38c081649ea749 AS builder
 
 WORKDIR /app
 
-RUN apk update && apk upgrade --no-cache
+# Reproducible environment
+ENV TZ=UTC \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
+    NODE_ENV=production \
+    npm_config_update_notifier=false \
+    npm_config_fund=false \
+    npm_config_audit=false \
+    npm_config_progress=false \
+    CI=true
 
-COPY client/package*.json ./
+# Copy lockfiles first
+COPY client/package.json client/package-lock.json ./
 
-RUN npm ci --ignore-scripts
+# Deterministic install
+RUN npm ci --ignore-scripts --no-audit --no-fund
 
+# Copy source
 COPY client/ ./
+
 RUN npm run build
 
-# ==========================================
+# ------------------------------------------
 # STAGE 2: Runtime (Unprivileged Nginx)
-# ==========================================
+# ------------------------------------------
+# Nginx release 1.29-alpine LTS
+# To update the sha:
+# https://hub.docker.com/layers/nginxinc/nginx-unprivileged/alpine/images
 
 FROM nginxinc/nginx-unprivileged:1.29-alpine@sha256:bae24904860527735a08e04722a92add40784b91e61389b710367c7d0e6d3b25
+
+ENV TZ=UTC \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8
 
 ARG BUILD_DATE=unknown
 ARG VCS_REF=unknown
@@ -36,19 +61,14 @@ LABEL org.opencontainers.image.title="stayhealthy-frontend" \
 # Patch the Runtime OS
 USER root
 
-# hadolint ignore=DL3018
-RUN apk update && apk upgrade --no-cache \
-    && apk add --no-cache openssl \
-    && mkdir -p /tmp/client_body_temp \
-                /tmp/proxy_temp \
-                /tmp/fastcgi_temp \
-                /tmp/uwsgi_temp \
-                /tmp/scgi_temp \
-                /etc/nginx/certs \
+RUN mkdir -p /tmp/client_body_temp \
+             /tmp/proxy_temp \
+             /tmp/fastcgi_temp \
+             /tmp/uwsgi_temp \
+             /tmp/scgi_temp \
+             /etc/nginx/certs \
     && chown -R nginx:nginx /tmp /etc/nginx/certs \
     && chmod -R 700 /tmp/*
-
-COPY --chown=nginx:nginx --chmod=755 docker/generate-client-cert.sh /docker-entrypoint.d/50-generate-client-cert.sh
 
 USER nginx
 
