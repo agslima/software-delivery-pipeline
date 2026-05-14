@@ -7,10 +7,16 @@ on:
   # Used for test
   workflow_dispatch:
     inputs:
-      enable_full_gate:
-        description: 'Enable run-trivy, build/push and downstream scans'
-        type: boolean
-        default: false
+    workflow_dispatch:
+      inputs:
+        tag:
+          description: 'Release tag to build (vX.Y.Z)'
+          type: string
+          required: true
+        enable_full_gate:
+          description: 'Enable run-trivy, build/push and downstream scans'
+          type: boolean
+          default: false
 permissions:
   contents: read
 concurrency:
