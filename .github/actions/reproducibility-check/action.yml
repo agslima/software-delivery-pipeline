@@ -44,7 +44,7 @@ runs:
         BUILD_DATE_ISO=$(date -u -d @"$COMMIT_TIMESTAMP" +'%Y-%m-%dT%H:%M:%SZ')
         echo "BUILD_DATE_ISO=$BUILD_DATE_ISO" >> $GITHUB_ENV
 
-    - name: Run reproducible builds
+    - name: Run reproducible builds (${{ inputs.image-name }})
       shell: bash
       env:
         IMAGE_NAME: ${{ inputs.image-name }}
