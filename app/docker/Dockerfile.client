@@ -19,7 +19,6 @@ WORKDIR /app
 ENV TZ=UTC \
     LANG=C.UTF-8 \
     LC_ALL=C.UTF-8 \
-    NODE_ENV=production \
     npm_config_update_notifier=false \
     npm_config_fund=false \
     npm_config_audit=false \
