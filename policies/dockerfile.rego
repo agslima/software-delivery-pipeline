@@ -2,117 +2,239 @@ package main
 
 import rego.v1
 
-# ----------------------------
-# Helpers
-# ----------------------------
+# ============================================================
+# INPUT HELPERS
+# ============================================================
 
 from_instructions := [x |
-  some i
-  x := input[i]
-  lower(x.Cmd) == "from"
+	some i
+	x := input[i]
+	lower(x.Cmd) == "from"
 ]
 
-base_image(x) := img if {
-  img := x.Value[0]
+base_image(x) := x.Value[0]
+
+# ============================================================
+# IMAGE PARSING
+# ============================================================
+
+# Returns repo portion only:
+# node:20-alpine                   -> node
+# node@sha256:abcd                 -> node
+# chainguard/node@sha256:abcd      -> chainguard/node
+# cgr.dev/chainguard/node:latest   -> cgr.dev/chainguard/node
+repo_name(img) := repo if {
+	no_digest := split(img, "@")[0]
+	repo := split(no_digest, ":")[0]
 }
 
-is_latest(img) if { endswith(img, ":latest") }
-has_digest(img) if { contains(img, "@sha256:") }
-is_alpine(img) if { contains(img, "alpine") }
+has_digest(img) if {
+	contains(img, "@sha256:")
+}
 
-# Allowed stage aliases (optional governance)
+is_latest(img) if {
+	endswith(img, ":latest")
+}
+
+is_alpine(img) if {
+	contains(lower(img), "alpine")
+}
+
+# ============================================================
+# STAGE GOVERNANCE
+# ============================================================
+
 builder_stage_names := {"builder", "build", "deps"}
 runtime_stage_names := {"runtime", "final", "prod"}
 
-# Determine stage name if present: FROM <img> AS <name>
 stage_name(x) := name if {
-  v := x.Value
-  count(v) >= 3
-  lower(v[1]) == "as"
-  name := lower(v[2])
+	count(x.Value) >= 3
+	lower(x.Value[1]) == "as"
+	name := lower(x.Value[2])
 }
 
 is_builder_stage(x) if {
-  n := stage_name(x)
-  builder_stage_names[n]
+	builder_stage_names[stage_name(x)]
 }
 
 is_runtime_stage(x) if {
-  n := stage_name(x)
-  runtime_stage_names[n]
+	runtime_stage_names[stage_name(x)]
 }
 
-# ---- Base image allowlist
+# ============================================================
+# APPROVED BASE REPOSITORIES
+# ============================================================
 
-is_node(img) if { startswith(img, "node:") }
-is_node(img) if { startswith(img, "docker.io/node:") }
-is_node(img) if { startswith(img, "library/node:") }
-is_node(img) if { startswith(img, "docker.io/library/node:") }
+approved_repos := {
+	# Node official
+	"node",
+	"docker.io/node",
+	"library/node",
+	"docker.io/library/node",
 
-is_nginx_unprivileged(img) if { startswith(img, "nginxinc/nginx-unprivileged:") }
-is_nginx_unprivileged(img) if { startswith(img, "docker.io/nginxinc/nginx-unprivileged:") }
+	# Nginx unprivileged
+	"nginxinc/nginx-unprivileged",
+	"docker.io/nginxinc/nginx-unprivileged",
 
-allowed_base_for_any_stage(img) if { is_node(img) }
-allowed_base_for_any_stage(img) if { is_nginx_unprivileged(img) }
+	# Chainguard
+	"chainguard/node",
+	"cgr.dev/chainguard/node",
+	"chainguard/nginx",
+	"cgr.dev/chainguard/nginx",
+}
 
-# Release mode toggle:
-# Use data params instead (see notes below).
+allowed_base(img) if {
+	approved_repos[repo_name(img)]
+}
+
+# ============================================================
+# IMAGE CLASSIFICATION
+# ============================================================
+
+is_node(img) if {
+	repo := repo_name(img)
+	repo == "node"
+}
+is_node(img) if {
+	repo := repo_name(img)
+	repo == "docker.io/node"
+}
+is_node(img) if {
+	repo := repo_name(img)
+	repo == "library/node"
+}
+is_node(img) if {
+	repo := repo_name(img)
+	repo == "docker.io/library/node"
+}
+is_node(img) if {
+	repo := repo_name(img)
+	repo == "chainguard/node"
+}
+is_node(img) if {
+	repo := repo_name(img)
+	repo == "cgr.dev/chainguard/node"
+}
+
+is_nginx(img) if {
+	repo := repo_name(img)
+	repo == "nginxinc/nginx-unprivileged"
+}
+is_nginx(img) if {
+	repo := repo_name(img)
+	repo == "docker.io/nginxinc/nginx-unprivileged"
+}
+is_nginx(img) if {
+	repo := repo_name(img)
+	repo == "chainguard/nginx"
+}
+is_nginx(img) if {
+	repo := repo_name(img)
+	repo == "cgr.dev/chainguard/nginx"
+}
+
+is_chainguard(img) if {
+	startswith(repo_name(img), "chainguard/")
+}
+is_chainguard(img) if {
+	startswith(repo_name(img), "cgr.dev/chainguard/")
+}
+
+# ============================================================
+# POLICY FLAGS
+# ============================================================
+
 release_mode_enabled if {
-  data.params.release == true
+	data.params.release == true
 }
 
-# ----------------------------
-# DENY rules (hard failures)
-# ----------------------------
+# ============================================================
+# DENY RULES
+# ============================================================
 
-# 1) Only approved base images (node or nginx-unprivileged)
+# Only approved base repos
 deny contains msg if {
-  x := from_instructions[_]
-  img := base_image(x)
-  not allowed_base_for_any_stage(img)
+	x := from_instructions[_]
+	img := base_image(x)
 
-  msg := sprintf("Base image '%v' is not allowed. Use node:* (builder/backend runtime) or nginxinc/nginx-unprivileged:* (frontend runtime).", [img])
+	not allowed_base(img)
+
+	msg := sprintf(
+		"Base image '%v' is not allowed. Allowed repos: node, nginxinc/nginx-unprivileged, chainguard/node, chainguard/nginx.",
+		[img],
+	)
 }
 
-# 2) Ban :latest
+# Ban mutable latest
 deny contains msg if {
-  x := from_instructions[_]
-  img := base_image(x)
-  is_latest(img)
+	x := from_instructions[_]
+	img := base_image(x)
 
-  msg := sprintf("Mutable tag ':latest' is not allowed for base images (%v). Pin to a version or digest.", [img])
+	is_latest(img)
+
+	msg := sprintf(
+		"Mutable tag ':latest' is not allowed for base image '%v'. Pin to version or digest.",
+		[img],
+	)
 }
 
-# 3) Require digest pinning in release mode (optional)
+# Require digest in release mode
 deny contains msg if {
-  release_mode_enabled
-  x := from_instructions[_]
-  img := base_image(x)
-  not has_digest(img)
+	release_mode_enabled
+	x := from_instructions[_]
+	img := base_image(x)
 
-  msg := sprintf("Release mode: base image '%v' must be digest-pinned (@sha256:...).", [img])
+	not has_digest(img)
+
+	msg := sprintf(
+		"Release mode: base image '%v' must be digest-pinned (@sha256:...).",
+		[img],
+	)
 }
 
-# ----------------------------
-# WARN rules (advisory)
-# ----------------------------
+# Chainguard must always use digest
+deny contains msg if {
+	x := from_instructions[_]
+	img := base_image(x)
 
-# Prefer alpine for node images
+	is_chainguard(img)
+	not has_digest(img)
+
+	msg := sprintf(
+		"Chainguard image '%v' must always be pinned by digest.",
+		[img],
+	)
+}
+
+# ============================================================
+# WARN RULES
+# ============================================================
+
+# Prefer alpine for standard node images (not Chainguard)
 warn contains msg if {
-  x := from_instructions[_]
-  img := base_image(x)
-  is_node(img)
-  not is_alpine(img)
+	x := from_instructions[_]
+	img := base_image(x)
 
-  msg := sprintf("Prefer Alpine-based Node images for smaller surface area: '%v'.", [img])
+	is_node(img)
+	not is_alpine(img)
+	not is_chainguard(img)
+
+	msg := sprintf(
+		"Prefer Alpine-based Node images for reduced attack surface: '%v'.",
+		[img],
+	)
 }
 
-# Runtime stage hint (if runtime stage uses node)
+# Frontend runtime hint
 warn contains msg if {
-  x := from_instructions[_]
-  img := base_image(x)
-  is_runtime_stage(x)
-  is_node(img)
+	x := from_instructions[_]
+	img := base_image(x)
 
-  msg := sprintf("Runtime stage base is Node ('%v'). For frontend serving, consider nginxinc/nginx-unprivileged:*.", [img])
+	is_runtime_stage(x)
+	is_node(img)
+
+	msg := sprintf(
+		"Runtime stage uses Node ('%v'). For static frontend delivery, consider nginxinc/nginx-unprivileged or Chainguard nginx.",
+		[img],
+	)
 }
