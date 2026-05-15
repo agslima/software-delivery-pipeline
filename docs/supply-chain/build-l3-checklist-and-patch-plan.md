@@ -100,7 +100,7 @@ move from pilot definition to actual reproducibility evidence from release runs.
 
 Checklist:
 
-- [x] Collect at least one successful `reproducibility-pilot-backend` artifact from a real `Release` run.
+- [x] Collect successful `reproducibility-check` evidence from a real `Release` run (at minimum for backend).
 - [x] Record the first pilot outcome in durable governance evidence.
 - [x] Decide whether the backend pilot should stay advisory or become a stronger gate.
 - [x] Extend the same pilot pattern to frontend or worker only if backend results are stable.
