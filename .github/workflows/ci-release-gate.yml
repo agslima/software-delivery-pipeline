@@ -115,7 +115,7 @@ jobs:
           release-tag: ${{ needs.resolve.outputs.release_tag }}
           source-url: 'https://github.com/${{ github.repository }}'
           # If the manual input is true, allow the mismatch. Otherwise, enforce the hard gate.
-          allow-mismatch: ${{ github.event.inputs.emergency_override == 'true' && 'true' || 'false' }}
+          allow-mismatch: ${{ github.event.inputs.OVERRIDE_REPRODUCIBILITY_GATE == 'true' && 'true' || 'false' }}
 
   build-push-backend:
     name: Build & Push
