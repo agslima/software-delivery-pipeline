@@ -15,6 +15,11 @@ on:
           description: 'Enable run-trivy, build/push and downstream scans'
           type: boolean
           default: false
+        emergency_override:
+          description: '⚠️ BREAK GLASS: Bypass reproducibility gate (Requires Incident Ticket)'
+          type: boolean
+          required: true
+          default: false
 permissions:
   contents: read
 concurrency:
@@ -34,7 +39,8 @@ jobs:
         uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
         with:
           egress-policy: block
-          allowed-endpoints: >+
+          allowed-endpoints: >
+            github.com:443
       - name: Set Release Tag
         id: tag
         env:
@@ -108,7 +114,8 @@ jobs:
           build-context: 'app'
           release-tag: ${{ needs.resolve.outputs.release_tag }}
           source-url: 'https://github.com/${{ github.repository }}'
-          allow-mismatch: 'false' # Change to 'false' to transition to a hard gate
+          # If the manual input is true, allow the mismatch. Otherwise, enforce the hard gate.
+          allow-mismatch: ${{ github.event.inputs.emergency_override == 'true' && 'true' || 'false' }}
 
   build-push-backend:
     name: Build & Push

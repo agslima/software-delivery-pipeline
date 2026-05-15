@@ -36,13 +36,34 @@ runs:
       id: timestamps
       shell: bash
       run: |
+        set -euo pipefail
+
         # Extract the Git commit timestamp for SOURCE_DATE_EPOCH
         COMMIT_TIMESTAMP=$(git log -1 --format=%ct ${{ github.sha }})
+        # Validate that COMMIT_TIMESTAMP is numeric
+        if ! [[ "$COMMIT_TIMESTAMP" =~ ^[0-9]+$ ]]; then
+          echo "::error::Invalid commit timestamp: $COMMIT_TIMESTAMP"
+          exit 1
+        fi
         echo "SOURCE_DATE_EPOCH=$COMMIT_TIMESTAMP" >> $GITHUB_ENV
         
         # Format the timestamp for BUILD_DATE in ISO 8601 format
         BUILD_DATE_ISO=$(date -u -d @"$COMMIT_TIMESTAMP" +'%Y-%m-%dT%H:%M:%SZ')
         echo "BUILD_DATE_ISO=$BUILD_DATE_ISO" >> $GITHUB_ENV
+
+    - name: Audit Break-Glass Status
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        if [ "${{ inputs.allow-mismatch }}" == "true" ]; then
+          echo "::warning title=SECURITY OVERRIDE ACTIVATED::The reproducibility hard gate has been bypassed via manual emergency override. This release is no longer guaranteed deterministic."
+          
+          # Add a "tainted" or "emergency" label to the final Docker image.
+          echo "IMAGE_TAINTED=true" >> $GITHUB_ENV
+        else
+          echo "Standard enforcement mode active. Reproducibility gate is enforced."
+        fi
 
     - name: Run reproducible builds (${{ inputs.image-name }})
       shell: bash

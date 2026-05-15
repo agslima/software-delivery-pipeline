@@ -75,7 +75,8 @@ COPY --chown=65532:65532 nginx/nginx.conf /etc/nginx/nginx.conf
 # Explicit numeric UID for K8s Pod Security Admission compatibility
 USER 65532:65532
 
-# Docker HEALTHCHECK removed. Delegated to K8s Kubelet.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+  CMD wget -q --spider http://localhost:8080/health || exit 1
 # generate-client-cert.sh removed. Delegated to K8s initContainer.
 
 EXPOSE 8080 8443

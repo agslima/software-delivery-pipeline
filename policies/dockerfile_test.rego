@@ -100,7 +100,7 @@ test_no_warn_for_alpine if {
 
 test_no_warn_for_chainguard_node if {
 	input := [mk_from("chainguard/node@sha256:abc123")]
-	not some msg in warn with input as input
+	count(warn with input as input) == 0
 }
 
 test_warn_runtime_node_stage if {

@@ -8,7 +8,7 @@
 #
 # Quick Start:
 #
-#   chmod +x app/setup-dev.sh
+#   chmod +x app/scripts/setup-dev.sh
 #   ./app/scripts/setup-dev.sh
 #
 # Ensure you add the following to your .gitignore to prevent

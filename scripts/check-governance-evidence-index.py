@@ -28,9 +28,9 @@ class WorkflowReference:
 def normalize_text(text: str) -> str:
     """
     Normalize a markdown string by removing common formatting, converting curly quotes to straight quotes, and collapsing whitespace.
-    
+
     Rewrites markdown links from `[label](url)` to `label`, removes `**`, `__`, and backtick markers, converts curly single/double quotes to straight `'`/`"`, collapses consecutive whitespace to single spaces, and trims leading/trailing whitespace.
-    
+
     Returns:
         The normalized string.
     """

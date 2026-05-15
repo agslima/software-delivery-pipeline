@@ -62,7 +62,7 @@ def digest_json(data: dict) -> str:
 def add_bytes(archive: tarfile.TarFile, name: str, data: bytes) -> None:
     """
     Add an in-memory file entry to a tar archive from the given bytes.
-    
+
     Parameters:
         archive (tarfile.TarFile): Tar archive to write into.
         name (str): Path of the file inside the archive.
@@ -76,7 +76,7 @@ def add_bytes(archive: tarfile.TarFile, name: str, data: bytes) -> None:
 def make_layer(entries: list[dict]) -> tuple[str, bytes]:
     """
     Create an in-memory tar "layer" from a list of filesystem entry definitions and return its digest and raw bytes.
-    
+
     Each entry in `entries` is a dict that must include:
     - `path` (str): path inside the tar.
     - `type` (optional, str): `"symlink"`, `"directory"`, or omitted/other for a regular file.
@@ -86,7 +86,7 @@ def make_layer(entries: list[dict]) -> tuple[str, bytes]:
     - `mtime` (int): modification time (default: 0).
     - `uid` (int), `gid` (int): owner ids (default: 0).
     - `linkname` (str): symlink target (default: "").
-    
+
     @returns
     A tuple (digest, bytes) where `digest` is the SHA-256 of the produced tar prefixed with `"sha256:"`, and `bytes` is the raw tar archive data.
     """
@@ -125,7 +125,7 @@ def write_oci_archive(
 ) -> None:
     """
     Create a tar archive at `path` containing a minimal OCI image layout with a single `index.json` and corresponding blobs.
-    
+
     Parameters:
         path (pathlib.Path): Filesystem path where the tar archive will be written.
         manifest_digest (str): Digest to record for the manifest entry (e.g. "sha256:<hexdigest>").
