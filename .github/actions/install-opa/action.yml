@@ -43,4 +43,4 @@ runs:
         echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
         echo "✅ Installed:"
-        opa version
+        "$HOME/.local/bin/opa" version
