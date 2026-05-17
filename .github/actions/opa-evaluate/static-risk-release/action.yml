@@ -18,40 +18,73 @@ inputs:
   criticality:
     required: true
     description: "Criticality level"
+  environment-tier:
+    required: false
+    default: "production"
+    description: "Runtime environment tier for policy context"
+  release-channel:
+    required: false
+    default: "stable"
+    description: "Release channel for policy context"
+  image-repo:
+    required: false
+    default: ""
+    description: "Image repository name for evidence context"
+  image-digest:
+    required: false
+    default: ""
+    description: "Image digest for evidence context"
+
+outputs:
+  decision:
+    description: "OPA release decision: allow or deny"
+    value: ${{ steps.eval.outputs.decision }}
+  risk_score:
+    description: "OPA-calculated risk score"
+    value: ${{ steps.risk.outputs.risk_score }}
 
 runs:
   using: "composite"
   steps:
     - name: Install OPA
-      shell: bash
-      run: |
-        set -euo pipefail
-        curl -L -o opa https://openpolicyagent.org/downloads/latest/opa_linux_amd64_static
-        chmod +x opa
-        sudo mv opa /usr/local/bin/
+      uses: ./.github/actions/install-opa
+      with:
+        version: 'v1.16.2'
     - name: Prepare Input
       env:
         EXPOSURE: ${{ inputs.exposure }}
         CRITICALITY: ${{ inputs.criticality }}
         THRESHOLD: ${{ inputs.threshold }}
         EVIDENCE_FILE: ${{ inputs.evidence-file }}
+        ENVIRONMENT_TIER: ${{ inputs.environment-tier }}
+        RELEASE_CHANNEL: ${{ inputs.release-channel }}
+        IMAGE_REPO: ${{ inputs.image-repo }}
+        IMAGE_DIGEST: ${{ inputs.image-digest }}
       shell: bash
       run: |
         set -euo pipefail
         jq \
           --arg exposure "${EXPOSURE}" \
           --arg criticality "${CRITICALITY}" \
+          --arg environment_tier "${ENVIRONMENT_TIER}" \
+          --arg release_channel "${RELEASE_CHANNEL}" \
+          --arg image_repo "${IMAGE_REPO}" \
+          --arg image_digest "${IMAGE_DIGEST}" \
           --argjson threshold "${THRESHOLD}" \
           '
-          . + {
-            context: {
+          .context = ((.context // {}) + {
               exposure: $exposure,
-              criticality: $criticality
-            },
-            policy: {
+              criticality: $criticality,
+              environment_tier: $environment_tier,
+              release_channel: $release_channel
+            }) |
+          .policy = ((.policy // {}) + {
               threshold: $threshold
-            }
-          }
+            }) |
+          .asset = ((.asset // {}) + {
+              image_repo: $image_repo,
+              image_digest: $image_digest
+            })
           ' "${EVIDENCE_FILE}" > enriched.json
     - name: Evaluate Policy
       id: eval
@@ -70,7 +103,8 @@ runs:
         echo "$RESULT" > decision.json
         echo "$RESULT"
 
-        if echo "$RESULT" | grep -q '"allow": true'; then
+        ALLOW=$(jq -r '.result[0].expressions[0].value.allow // false' decision.json)
+        if [[ "$ALLOW" = "true" ]]; then
           echo "decision=allow" >> $GITHUB_OUTPUT
         else
           echo "decision=deny" >> $GITHUB_OUTPUT
@@ -94,7 +128,7 @@ runs:
       run: |
         set -euo pipefail
 
-        if [ "${{ steps.eval.outputs.decision }}" = "deny" ]; then
+        if [[ "${{ steps.eval.outputs.decision }}" = "deny" ]]; then
           echo "::error::Policy denied"
           exit 1
         fi

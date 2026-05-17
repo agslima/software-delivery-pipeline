@@ -20,13 +20,27 @@ criticality_weight = {
   "low": 0.8
 }
 
-# Only count REAL risk
+reachable(v) if {
+  not v.reachable == false
+}
+
+exploitable(v) if {
+  not v.exploitable == false
+}
+
+severity_score(v) = score if {
+  score := severity_weight[v.severity]
+}
+
+# V2 is conservative for release: unknown reachability still contributes risk,
+# while CodeQL-proven non-reachability and VEX non-exploitability reduce it.
 base_risk = sum([
-  severity_weight[v.severity]
+  severity_score(v)
   |
   v := input.vulnerabilities[_]
-  v.reachable == true
-  v.exploitable == true
+  reachable(v)
+  exploitable(v)
+  not v.vex_suppressed == true
 ])
 
 risk_score = base_risk *
@@ -34,16 +48,23 @@ risk_score = base_risk *
   criticality_weight[input.context.criticality]
 
 # Additional guardrails
-deny[msg] {
-  some v
+deny contains msg if {
   v := input.vulnerabilities[_]
   v.severity == "CRITICAL"
-  v.reachable
-  v.exploitable
+  reachable(v)
+  exploitable(v)
+  not v.vex_suppressed == true
   msg := sprintf("Blocking: exploitable CRITICAL vuln %v", [v.id])
 }
 
-allow {
-  not deny[_]
+deny contains msg if {
+  input.context.environment_tier == "production"
+  input.context.release_channel == "stable"
+  risk_score >= input.policy.threshold
+  msg := sprintf("Blocking: production stable release risk %v exceeds threshold %v", [risk_score, input.policy.threshold])
+}
+
+allow if {
+  count(deny) == 0
   risk_score < input.policy.threshold
 }

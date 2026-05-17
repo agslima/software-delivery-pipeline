@@ -149,14 +149,14 @@ Preferred rollback is to remove canary exposure while preserving the last known-
 
 ### Symptom
 
-CI job `Security Quality Check` fails on a pull request because Trivy reported `HIGH` or `CRITICAL` findings, or release job `Trivy Scan (Digest Gate)` fails for `backend` or `frontend`.
+CI job `Security Quality Check` fails on a pull request because Trivy reported `HIGH` or `CRITICAL` findings, or release job `Trivy Scan (Digest Gate)` fails after OPA evaluates normalized static risk evidence for an image.
 
 - exit code: `1`
 
 ### Error message
 
 - PR path: `HIGH` or `CRITICAL` vulnerabilities found in the PR scan
-- release path: `⛔ Trivy Gate Failed for <image> (CRIT=<n> HIGH=<n>)`
+- release path: `Policy denied` from the OPA static risk evaluation step
 
 ### Triage steps
 
@@ -167,7 +167,7 @@ CI job `Security Quality Check` fails on a pull request because Trivy reported `
 For the failing path:
 
 - PR path: inspect the `Security Quality Check` logs for the Trivy FS/config step output and confirm whether the failing threshold was `HIGH` or `CRITICAL`.
-- release path: download the relevant artifact, either `trivy-results-backend` or `trivy-results-frontend`.
+- release path: download the relevant `static-risk-results-<image>` artifact first, then cross-check the matching `trivy-results-<image>` artifact.
 
 ### Resolution paths
 
@@ -199,7 +199,7 @@ Option 2: managed security debt
 Important guardrails:
 
 - critical vulnerabilities must never be ignored without explicit justification
-- high vulnerabilities are release-blocking once they exceed the documented threshold of `HIGH > 5` per image
+- release image findings are blocking when OPA denies the normalized static risk evidence
 
 ## Pipeline Failure: Governance Evidence Drift
 

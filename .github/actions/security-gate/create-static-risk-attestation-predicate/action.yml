@@ -1,0 +1,127 @@
+name: "Create Static Risk Attestation Predicate"
+description: "Build the static risk attestation predicate from normalized evidence and OPA decision output"
+
+inputs:
+  decision-file:
+    required: true
+    description: "Path to the OPA decision JSON"
+  evidence-file:
+    required: true
+    description: "Path to enriched normalized static risk evidence"
+  image-digest:
+    required: true
+    description: "Image digest being attested"
+  image-repo:
+    required: true
+    description: "Image repository name"
+  exposure:
+    required: true
+    description: "Asset exposure level"
+  criticality:
+    required: true
+    description: "Asset criticality level"
+  policy-version:
+    required: true
+    description: "OPA release policy version"
+  trivy-version:
+    required: true
+    description: "Trivy version used for the image scan"
+  output-file:
+    required: true
+    description: "Output predicate JSON path"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Create predicate
+      shell: bash
+      env:
+        DECISION_FILE: ${{ inputs.decision-file }}
+        EVIDENCE_FILE: ${{ inputs.evidence-file }}
+        IMAGE_DIGEST: ${{ inputs.image-digest }}
+        IMAGE_REPO: ${{ inputs.image-repo }}
+        EXPOSURE: ${{ inputs.exposure }}
+        CRITICALITY: ${{ inputs.criticality }}
+        POLICY_VERSION: ${{ inputs.policy-version }}
+        TRIVY_VERSION: ${{ inputs.trivy-version }}
+        OUTPUT_FILE: ${{ inputs.output-file }}
+      run: |
+        set -euo pipefail
+
+        test -s "$DECISION_FILE" || (echo "::error::Missing OPA decision JSON"; exit 1)
+        test -s "$EVIDENCE_FILE" || (echo "::error::Missing enriched evidence JSON"; exit 1)
+
+        EVIDENCE_SHA256="$(sha256sum "$EVIDENCE_FILE" | cut -d ' ' -f 1)"
+
+        jq -e '
+          .result[0].expressions[0].value
+          | type == "object"
+          and (.allow | type == "boolean")
+        ' "$DECISION_FILE" >/dev/null || {
+          echo "::error::Unexpected OPA decision format"
+          exit 1
+        }
+
+        EVIDENCE_SCHEMA_VERSION="$(jq -er '.schema_version' "$EVIDENCE_FILE")"
+        test "$EVIDENCE_SCHEMA_VERSION" = "release.security_evidence.v1" || {
+          echo "::error::Unsupported evidence schema version: $EVIDENCE_SCHEMA_VERSION"
+          exit 1
+        }
+
+        jq -n \
+          --arg digest "$IMAGE_DIGEST" \
+          --arg repo "$IMAGE_REPO" \
+          --arg exposure "$EXPOSURE" \
+          --arg criticality "$CRITICALITY" \
+          --arg policy_version "$POLICY_VERSION" \
+          --arg trivy_version "$TRIVY_VERSION" \
+          --arg evidence_sha256 "$EVIDENCE_SHA256" \
+          --slurpfile evidence "$EVIDENCE_FILE" \
+          --slurpfile decision "$DECISION_FILE" \
+          '
+           # Safely extract OPA decision with a fallback to avoid null pointer crashes
+           ($decision[0].result[0].expressions[0].value) as $policy |
+           {
+             scanner: {
+               name: "static-risk-profile",
+               components: [
+                 { name: "trivy", version: $trivy_version, uri: "https://github.com/aquasecurity/trivy" },
+                 { name: "codeql", uri: "https://github.com/github/codeql-action" },
+                 { name: "vex", uri: "https://www.cisa.gov/resources-tools/resources/software-bill-materials-sbom" },
+                 { name: "opa", uri: "https://www.openpolicyagent.org/" }
+               ]
+             },
+             image_digest: $digest,
+             image_repo: $repo,
+             context: { exposure: $exposure, criticality: $criticality },
+             summary: {
+               vulnerabilities: ($evidence[0].vulnerabilities | length),
+               reachable: ([$evidence[0].vulnerabilities[]? | select(.reachable == true)] | length),
+               reachability_unknown: ([$evidence[0].vulnerabilities[]? | select(.reachable == null)] | length),
+               vex_suppressed: ([$evidence[0].vulnerabilities[]? | select(.vex_suppressed == true)] | length),
+               sast_findings: ($evidence[0].sast_findings | length)
+             },
+             policy: {
+               engine: "opa",
+               package: "supplychain",
+               version: $policy_version,
+               allow: ($policy.allow // false),
+               risk_score: ($policy.risk_score // null),
+               deny: ($policy.deny // [])
+             },
+             evidence: {
+               schema_version: $evidence[0].schema_version,
+               sha256: $evidence_sha256,
+               sources: $evidence[0].sources
+             },
+             result: (if ($policy.allow // false) then "PASS" else "FAIL" end),
+             timestamp: (now | todate)
+           }
+          ' > "$OUTPUT_FILE"
+
+        # Explicitly enforce the output contract
+        jq -e '
+          .scanner.name == "static-risk-profile" and
+          .policy.engine == "opa" and
+          .evidence.schema_version == "release.security_evidence.v1"
+        ' "$OUTPUT_FILE" >/dev/null

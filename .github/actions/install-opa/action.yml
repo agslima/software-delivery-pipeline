@@ -1,0 +1,46 @@
+name: 'Install Secure OPA'
+description: 'Downloads Open Policy Agent (OPA) for Linux amd64 and verifies a pinned SHA-256 before installing.'
+
+inputs:
+  version:
+    description: 'The semantic version of OPA to install (e.g. v0.64.0). Must match the provided sha256.'
+    required: true
+    default: 'v1.16.2'
+  sha256:
+    description: 'SHA-256 of the opa_linux_amd64_static binary for the requested version.'
+    required: true
+    default: '4ab4b89c131e6df3fed28b0b164083b6641ad67c86ab4c12d417ecfb93838ef1' 
+
+runs:
+  using: composite
+  steps:
+    - name: Download, verify, and install OPA
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+        OPA_SHA256: ${{ inputs.sha256 }}
+      run: |
+        set -euo pipefail
+
+        OPA_BIN="opa_linux_amd64_static"
+        
+        # Using the official GitHub releases URL ensures a stable, immutable artifact source
+        OPA_URL="https://github.com/open-policy-agent/opa/releases/download/${VERSION}/${OPA_BIN}"
+
+        TMP_DIR="$(mktemp -d)"
+        trap 'rm -rf "$TMP_DIR"' EXIT
+
+        echo "⬇️ Downloading OPA ${VERSION}..."
+        curl --proto '=https' --tlsv1.2 -fsSL "$OPA_URL" -o "${TMP_DIR}/${OPA_BIN}"
+
+        echo "🔍 Verifying pinned SHA-256..."
+        echo "${OPA_SHA256}  ${TMP_DIR}/${OPA_BIN}" | sha256sum -c -
+
+        echo "📦 Installing..."
+        # Installing to the user's local bin avoids the need for sudo
+        mkdir -p "$HOME/.local/bin"
+        install -m 0755 "${TMP_DIR}/${OPA_BIN}" "$HOME/.local/bin/opa"
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+        echo "✅ Installed:"
+        "$HOME/.local/bin/opa" version

@@ -18,7 +18,7 @@ The trusted workflow set for this plan is:
 
 - `.github/workflows/ci-release-gate.yml`
 - `.github/workflows/release-build-push-dual-registry.yml`
-- `.github/workflows/release-trivy.yml`
+- `.github/workflows/release-static-risk.yml`
 - `.github/workflows/release-dast.yml`
 - `.github/workflows/gitops-enforce.yml`
 
@@ -71,7 +71,7 @@ Expected repo touchpoints:
 - `.github/workflows/ci-pr-validation.yml`
 - `.github/workflows/ci-release-gate.yml`
 - `.github/workflows/release-build-push-dual-registry.yml`
-- `.github/workflows/release-trivy.yml`
+- `.github/workflows/release-static-risk.yml`
 - `.github/workflows/release-dast.yml`
 - `.github/workflows/gitops-enforce.yml`
 
@@ -126,7 +126,7 @@ Checklist:
 Primary patch targets:
 
 - `.github/workflows/release-build-push-dual-registry.yml`
-- `.github/workflows/release-trivy.yml`
+- `.github/workflows/release-static-risk.yml`
 - `docs/trusted-workflow-input-inventory.md`
 
 ### Phase 4: Resolve Platform-Level Builder Isolation Questions
@@ -155,7 +155,7 @@ Patches:
 
 - reduce live `npm ci` dependency influence
 
-### `release-trivy.yml`
+### `release-static-risk.yml`
 
 Patches:
 
