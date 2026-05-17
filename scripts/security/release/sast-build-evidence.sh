@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Build normalized release evidence from Trivy + CodeQL + VEX.
+# usage prints a usage line to stderr in the form: usage: $0 <trivy-json> <codeql-sarif-json> <vex-json> [output-json].
 
 usage() {
   echo "usage: $0 <trivy-json> <codeql-sarif-json> <vex-json> [output-json]" >&2
