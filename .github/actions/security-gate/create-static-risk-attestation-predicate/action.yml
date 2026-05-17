@@ -53,6 +53,21 @@ runs:
 
         EVIDENCE_SHA256="$(sha256sum "$EVIDENCE_FILE" | cut -d ' ' -f 1)"
 
+        jq -e '
+          .result[0].expressions[0].value
+          | type == "object"
+          and (.allow | type == "boolean")
+        ' "$DECISION_FILE" >/dev/null || {
+          echo "::error::Unexpected OPA decision format"
+          exit 1
+        }
+
+        EVIDENCE_SCHEMA_VERSION="$(jq -er '.schema_version' "$EVIDENCE_FILE")"
+        test "$EVIDENCE_SCHEMA_VERSION" = "release.security_evidence.v1" || {
+          echo "::error::Unsupported evidence schema version: $EVIDENCE_SCHEMA_VERSION"
+          exit 1
+        }
+
         jq -n \
           --arg digest "$IMAGE_DIGEST" \
           --arg repo "$IMAGE_REPO" \
@@ -65,7 +80,7 @@ runs:
           --slurpfile decision "$DECISION_FILE" \
           '
            # Safely extract OPA decision with a fallback to avoid null pointer crashes
-           ($decision[0].result[0].expressions[0].value // {}) as $policy |
+           ($decision[0].result[0].expressions[0].value) as $policy |
            {
              scanner: {
                name: "static-risk-profile",
@@ -108,5 +123,5 @@ runs:
         jq -e '
           .scanner.name == "static-risk-profile" and
           .policy.engine == "opa" and
-          (.evidence.schema_version | startswith("release.security_evidence"))
+          .evidence.schema_version == "release.security_evidence.v1"
         ' "$OUTPUT_FILE" >/dev/null
