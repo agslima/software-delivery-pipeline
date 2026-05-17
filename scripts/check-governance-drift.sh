@@ -35,10 +35,6 @@ docs_metadata_assert
 echo "[governance-drift] README claim and evidence-index mapping assertions"
 python3 scripts/check-governance-evidence-index.py
 
-# echo "[governance-drift] Reference assertions: workflow names and policy thresholds"
-# assert_contains "README.md" "Critical findings block release"
-# assert_contains "README.md" "HIGH > 5"
-
 readme_claims_anchor="$(python3 scripts/markdown_assert.py anchor "README Claims → Controls Matrix")"
 workflow_mapping_anchor="$(python3 scripts/markdown_assert.py anchor "Workflow and Evidence Mapping")"
 
@@ -52,10 +48,11 @@ markdown_assert link-any "README.md" \
 assert_contains "docs/governance.md" "ci-release-gate.yml"
 assert_contains "docs/governance.md" "ci-pr-validation.yml"
 assert_contains "docs/governance.md" "gitops-enforce.yml"
-assert_contains "docs/governance.md" "CRITICAL > 0"
-assert_contains "docs/governance.md" "HIGH > 5"
+assert_contains "docs/governance.md" "normalized Trivy, CodeQL, and VEX evidence"
 
-assert_contains ".github/workflows/release-trivy.yml" "Gate (CRITICAL>0 or HIGH>5)"
+assert_contains ".github/workflows/release-static-risk.yml" "name: CodeQL Release Analysis"
+assert_contains ".github/workflows/release-static-risk.yml" "name: Generate conservative VEX assertions"
+assert_contains ".github/workflows/release-static-risk.yml" "name: Evaluate static risk policy"
 assert_contains ".github/workflows/ci-pr-validation.yml" "name: Governance Checks"
 assert_contains ".github/workflows/ci-pr-validation.yml" "name: Security Scans"
 assert_contains ".github/workflows/gitops-enforce.yml" "./.github/actions/validate-promotion"

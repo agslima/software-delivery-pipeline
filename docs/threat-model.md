@@ -31,7 +31,7 @@ The security model follows a zero-trust posture for delivery:
 
 | Threat Scenario | Attack Vector | Mitigation Control | Implementation Details |
 | :--- | :--- | :--- | :--- |
-| Dependency poisoning / vulnerable transitive packages | Malicious package or critical CVE in dependencies/base image | Trivy image/filesystem scanning with release gating | Trivy runs in PR checks (`fs` vuln + config), daily deep scan (`vuln,secret,config` outputs), and release image gate by digest; release blocks on `CRITICAL > 0` or `HIGH > 5` per image. |
+| Dependency poisoning / vulnerable transitive packages | Malicious package or critical CVE in dependencies/base image | Trivy image/filesystem scanning with release static risk gating | Trivy runs in PR checks (`fs` vuln + config), daily deep scan (`vuln,secret,config` outputs), and release image gate by digest; release blocks when OPA denies normalized Trivy, CodeQL, and VEX evidence. |
 | Code-level security defects | Vulnerable logic introduced by code change | PR quality gates and DAST in release/weekly workflows | Lint/tests run on PRs; OWASP ZAP baseline scans run in release gate and weekly DAST workflows for dynamic validation. |
 | Artifact mutation in registry | Malicious image pushed to mutable tag | Immutable digests + signing + attestation checks | Deployment uses digest-pinned images; Cosign keyless signatures and attestations are verified in the GitOps enforcement workflow before promotion and again by admission controls in-cluster. |
 | Dockerfile/manifest hardening regressions | Insecure Dockerfile or weak manifest config | Hadolint + Conftest + Kubeconform | PR validation blocks non-compliant Dockerfiles/manifests before merge. |

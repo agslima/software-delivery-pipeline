@@ -204,7 +204,7 @@ jobs:
       packages: write     # Used to push images to `ghcr.io` if used.
       id-token: write     # Needed to create an OIDC token for keyless signing
       attestations: write # Needed to upload attestations to the GitHub registry      
-    uses: ./.github/workflows/release-trivy.yml
+    uses: ./.github/workflows/release-static-risk.yml
     with:
       image-digest-backend: ${{ needs.build-push-backend.outputs.image-digest }}
       image-digest-frontend: ${{ needs.build-push-frontend.outputs.image-digest }}

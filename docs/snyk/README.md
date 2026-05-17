@@ -35,7 +35,7 @@ To validate that the governance model works in practice, the application describ
 
 - **Baseline:** initial scans surfaced known dependency vulnerabilities and selected application-layer issues introduced for validation.
 - **Triage:** Dependabot automated dependency upgrades; manual changes mitigated issues such as XSS and Prototype Pollution.
-- **Governance outcome:** Critical findings block release, and High findings block release when they exceed the documented threshold (`HIGH > 5` per image). Medium and Low findings may proceed only under documented, time-bound exception governance.
+- **Governance outcome:** Release image findings block when OPA denies normalized static risk evidence. Medium and Low findings may proceed only when contextual evidence and exception governance support the decision.
 
 ### Evidence
 

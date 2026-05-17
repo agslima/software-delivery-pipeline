@@ -20,23 +20,36 @@ criticality_weight = {
   "low": 0.8
 }
 
+reachable(v) if {
+  not v.reachable == false
+}
+
+exploitable(v) if {
+  not v.exploitable == false
+}
+
+severity_score(v) = score if {
+  score := severity_weight[v.severity]
+}
+
 base_risk = sum([
-  severity_weight[v.severity]
+  severity_score(v)
   |
   v := input.vulnerabilities[_]
-  v.reachable
-  v.exploitable
+  reachable(v)
+  exploitable(v)
+  not v.vex_suppressed == true
 ])
 
 risk_score = base_risk *
   exposure_weight[input.context.exposure] *
   criticality_weight[input.context.criticality]
 
-allow {
+allow if {
   risk_score < input.policy.threshold
 }
 
-deny[msg] {
+deny contains msg if {
   risk_score >= input.policy.threshold
   msg := sprintf("Risk too high: %v", [risk_score])
 }

@@ -16,7 +16,7 @@ Trusted workflow set:
 
 - `.github/workflows/ci-release-gate.yml`
 - `.github/workflows/release-build-push-dual-registry.yml`
-- `.github/workflows/release-trivy.yml`
+- `.github/workflows/release-static-risk.yml`
 - `.github/workflows/release-dast.yml`
 - `.github/workflows/gitops-enforce.yml`
 

@@ -9,7 +9,7 @@
 
 - `ci-release-gate.yml` (`Release`): Tag-based release orchestration and gating, including a non-blocking backend reproducibility pilot artifact.
 - `release-build-push-dual-registry.yml` (`Release - Build and Push Dual Registry`): Builds and publishes release images.
-- `release-trivy.yml` (`Release - Trivy Scan & Attest`): Release image vulnerability scan and attestation.
+- `release-static-risk.yml` (`Release - Static Risk Profile & Attest`): Release image vulnerability scan, CodeQL analysis, VEX evidence generation, normalized static risk policy evaluation, and attestation.
 - `release-dast.yml` (`Release - DAST Analysis (Digest-based)`): Release DAST gate.
 - `gitops-enforce.yml` (`GitOps Enforcement`): Verifies release evidence and promotes pinned digests through GitOps.
 
