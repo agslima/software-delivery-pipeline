@@ -11,7 +11,7 @@
 # Chainguard latest-dev
 # To update the sha:
 # https://hub.docker.com/layers/chainguard/node/latest-dev/
-FROM chainguard/node@sha256:6235dcab97b473db46c454f0e2cd0f391bf353c1a3767272c2c71a85f5c11d6e AS builder
+FROM chainguard/node@sha256:b03abc833c40b5795c7740c83b44dbfe054db0da7bc93f924edcc64f2f26c05b AS builder
 
 WORKDIR /app
 
@@ -47,7 +47,7 @@ RUN npm run build
 # Chainguard Nginx release latest
 # To update the sha:
 # https://hub.docker.com/layers/chainguard/nginx/latest
-FROM chainguard/nginx@sha256:ca38beedcc40cbe521b9ec4bf5c16d543ab9d5ad264cc80905f1e7005175a85a AS runtime
+FROM chainguard/nginx@sha256:b66791d04723935f4c3fa436bc6c445eecece8b5136490b7dc976b4555d74fa9 AS runtime
 
 ENV TZ=UTC \
     LANG=C.UTF-8 \
