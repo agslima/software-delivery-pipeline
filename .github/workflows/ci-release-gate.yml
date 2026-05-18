@@ -107,7 +107,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v2.5.0
       - name: Run Composite Reproducibility Check (${{ matrix.image_name }})
-        uses: ./.github/actions/reproducibility-check
+        uses: agslima/app-stayhealthy-pipeline/.github/actions/reproducibility-check@main
         with:
           image-name: '${{ matrix.image_name }}'
           dockerfile-path: 'app/docker/${{ matrix.manifest }}'
@@ -128,7 +128,7 @@ jobs:
       attestations: write      # Needed to upload attestations to the repository.
       actions: read            # Needed to read workflow info.
       artifact-metadata: write # Needed to upload SBOM as artifact
-    uses: ./.github/workflows/release-build-push-dual-registry.yml
+    uses: agslima/app-stayhealthy-pipeline/.github/workflows/release-build-push-dual-registry.yml@main
     with:
       environment: production
       context: app
@@ -154,7 +154,7 @@ jobs:
       attestations: write      # Needed to upload attestations to the repository.
       actions: read            # Needed to read workflow info.
       artifact-metadata: write # Needed to upload SBOM as artifact
-    uses: ./.github/workflows/release-build-push-dual-registry.yml
+    uses: agslima/app-stayhealthy-pipeline/.github/workflows/release-build-push-dual-registry.yml@main
     with:
       environment: production
       context: app
@@ -180,7 +180,7 @@ jobs:
       attestations: write      # Needed to upload attestations to the repository.
       actions: read            # Needed to read workflow info.
       artifact-metadata: write # Needed to upload SBOM as artifact
-    uses: ./.github/workflows/release-build-push-dual-registry.yml
+    uses: agslima/app-stayhealthy-pipeline/.github/workflows/release-build-push-dual-registry.yml@main
     with:
       environment: production
       context: app
@@ -206,7 +206,7 @@ jobs:
       packages: write     # Used to push images to `ghcr.io` if used.
       id-token: write     # Needed to create an OIDC token for keyless signing
       attestations: write # Needed to upload attestations to the GitHub registry      
-    uses: ./.github/workflows/release-static-risk.yml
+    uses: agslima/app-stayhealthy-pipeline/.github/workflows/release-static-risk.yml@main
     with:
       image-digest-backend: ${{ needs.build-push-backend.outputs.image-digest }}
       image-digest-frontend: ${{ needs.build-push-frontend.outputs.image-digest }}
@@ -226,7 +226,7 @@ jobs:
       id-token: write     # Needed to create an OIDC token for keyless signing of the provenance.
       packages: write     # Used to pull images from `ghcr.io` if used.
       attestations: write # Needed to upload attestations to the GitHub registry
-    uses: ./.github/workflows/release-dast.yml
+    uses: agslima/app-stayhealthy-pipeline/.github/workflows/release-dast.yml@main
     with:
       release_tag: ${{ needs.resolve.outputs.release_tag }}
       github_sha: ${{ github.sha }}
