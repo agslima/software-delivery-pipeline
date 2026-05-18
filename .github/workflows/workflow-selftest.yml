@@ -3,6 +3,7 @@ name: Workflow Self-Test
 on:
   schedule:
     - cron: "0 4 * * 0" # Sundays 04:00 UTC
+      timezone: America/Sao_Paulo
   workflow_dispatch: {}
   pull_request:  # add itself for testing changes to this workflow
     paths:
@@ -21,8 +22,8 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Check workflow files
         uses: ./.github/actions/install-actionlint
-        with:
-          args: -color
+      - name: Check workflow files
+        run: actionlint -color
 
   workflow-input-provenance:
     name: Workflow Input Provenance
