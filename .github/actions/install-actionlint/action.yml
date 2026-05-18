@@ -1,0 +1,49 @@
+name: 'Install Secure actionlint'
+description: 'Downloads actionlint for Linux amd64, verifies a pinned SHA-256 archive hash, and installs it securely.'
+
+inputs:
+  version:
+    description: 'The semantic version of actionlint to install (e.g. 1.7.12). Do not include the "v" prefix.'
+    required: true
+    default: '1.7.12'
+  sha256:
+    description: 'SHA-256 of the actionlint .tar.gz archive for the requested version.'
+    required: true
+    default: '8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8' 
+
+runs:
+  using: composite
+  steps:
+    - name: Download, verify, and install actionlint
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+        ACTIONLINT_SHA256: ${{ inputs.sha256 }}
+      run: |
+        set -euo pipefail
+
+        ACTIONLINT_ARCHIVE="actionlint_${VERSION}_linux_amd64.tar.gz"
+        
+        # Using the official GitHub releases URL ensures a stable, immutable artifact source
+        ACTIONLINT_URL="https://github.com/rhysd/actionlint/releases/download/v${VERSION}/${ACTIONLINT_ARCHIVE}"
+
+        TMP_DIR="$(mktemp -d)"
+        trap 'rm -rf "$TMP_DIR"' EXIT
+
+        echo "⬇️ Downloading actionlint v${VERSION}..."
+        curl --proto '=https' --tlsv1.2 -fsSL "$ACTIONLINT_URL" -o "${TMP_DIR}/${ACTIONLINT_ARCHIVE}"
+
+        echo "🔍 Verifying pinned SHA-256 on the archive..."
+        echo "${ACTIONLINT_SHA256}  ${TMP_DIR}/${ACTIONLINT_ARCHIVE}" | sha256sum -c -
+
+        echo "📦 Extracting and Installing..."
+        # Extract only the 'actionlint' binary from the verified tarball
+        tar -xzf "${TMP_DIR}/${ACTIONLINT_ARCHIVE}" -C "$TMP_DIR" actionlint
+
+        # Installing to the user's local bin avoids the need for sudo
+        mkdir -p "$HOME/.local/bin"
+        install -m 0755 "${TMP_DIR}/actionlint" "$HOME/.local/bin/actionlint"
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+        echo "✅ Installed:"
+        actionlint -version
