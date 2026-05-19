@@ -3,15 +3,13 @@
 # -----------------------------------------
 # STAGE 1: Build the React App
 # -----------------------------------------
-# Node release 24.15.0-alpine LTS
+# Node release 26.1.0-alpine LTS
 # To update the sha:
 # https://hub.docker.com/layers/library/node/24.15.0-alpine
 
 FROM node:26.1.0-alpine@sha256:e71ac5e964b9201072425d59d2e876359efa25dc96bb1768cb73295728d6e4ea AS builder
 
 WORKDIR /app
-
-RUN apk add --no-cache
 
 # Reproducible environment
 ENV TZ=UTC \
@@ -64,6 +62,8 @@ USER root
 
 # hadolint ignore=DL3018
 RUN apk add --no-cache openssl \
+    && rm -rf /var/cache/apk/* \
+    && rm -f /var/log/apk.log \
     && mkdir -p /tmp/client_body_temp \
                 /tmp/proxy_temp \
                 /tmp/fastcgi_temp \
