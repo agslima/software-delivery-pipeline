@@ -7,7 +7,7 @@
 # To update the sha:
 # https://hub.docker.com/layers/library/node/24.15.0-alpine
 
-FROM node:24.15.0-alpine@sha256:8e2c930fda481a6ec141fe5a88e8c249c69f8102fe98af505f38c081649ea749 AS builder
+FROM node:24.15.0-alpine@sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f AS builder
 
 WORKDIR /app
 
@@ -41,7 +41,7 @@ RUN npm run build
 # To update the sha:
 # https://hub.docker.com/layers/nginxinc/nginx-unprivileged/alpine/images
 
-FROM nginxinc/nginx-unprivileged:1.29-alpine@sha256:bae24904860527735a08e04722a92add40784b91e61389b710367c7d0e6d3b25
+FROM nginxinc/nginx-unprivileged:1.29-alpine@sha256:0c79d56aee561a1d81c63f00eee5fb5fe29279560cdc55e91425133104c7fbe6
 
 ENV TZ=UTC \
     LANG=C.UTF-8 \
@@ -71,8 +71,17 @@ RUN apk update && apk upgrade --no-cache \
                 /tmp/uwsgi_temp \
                 /tmp/scgi_temp \
                 /etc/nginx/certs \
-    && chown -R nginx:nginx /tmp /etc/nginx/certs \
-    && chmod -R 700 /tmp/*
+    && chown -R nginx:nginx /tmp/client_body_temp \
+                            /tmp/proxy_temp \
+                            /tmp/fastcgi_temp \
+                            /tmp/uwsgi_temp \
+                            /tmp/scgi_temp \
+                            /etc/nginx/certs \
+    && chmod 700 /tmp/client_body_temp \
+                 /tmp/proxy_temp \
+                 /tmp/fastcgi_temp \
+                 /tmp/uwsgi_temp \
+                 /tmp/scgi_temp
 
 COPY --chown=nginx:nginx --chmod=755 docker/generate-client-cert.sh /docker-entrypoint.d/50-generate-client-cert.sh
 
