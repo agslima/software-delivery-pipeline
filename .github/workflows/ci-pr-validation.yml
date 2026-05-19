@@ -179,7 +179,7 @@ jobs:
           failure-threshold: error
       - name: Setup Conftest
         if: matrix.changed == 'true' || needs.changes.outputs.policies == 'true'
-        uses: princespaghetti/setup-conftest@417586a9b2e806fc5a95c72dfe98e296ef092b6f # v1.0.0
+        uses: ./.github/actions/install-conftest
       - name: Run Dockerfile OPA policy (${{ matrix.service }})
         if: matrix.changed == 'true' || needs.changes.outputs.policies == 'true'
         run: |
