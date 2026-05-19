@@ -41,7 +41,7 @@ RUN npm run build
 # To update the sha:
 # https://hub.docker.com/layers/nginxinc/nginx-unprivileged/alpine/images
 
-FROM nginxinc/nginx-unprivileged:1.29-alpine@sha256:0c79d56aee561a1d81c63f00eee5fb5fe29279560cdc55e91425133104c7fbe6
+FROM nginxinc/nginx-unprivileged:alpine@sha256:126b5274df32ef8846950c18810164bdd6315427c33c42ae28acd6d053733e2d
 
 ENV TZ=UTC \
     LANG=C.UTF-8 \
