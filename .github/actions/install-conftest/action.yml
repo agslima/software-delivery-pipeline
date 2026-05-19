@@ -1,0 +1,57 @@
+name: 'Install OPA Conftest'
+description: 'Downloads conftest for Linux x86_64, verifies a pinned SHA-256 archive hash, and installs it securely.'
+
+inputs:
+  version:
+    description: 'The semantic version of conftest to install (e.g. 0.68.2). Do not include the "v" prefix.'
+    required: true
+    default: '0.68.2'
+  sha256:
+    description: 'SHA-256 of the conftest .tar.gz archive for the requested version.'
+    required: true
+    default: 'e8144c6d6d2ae0260b869caa60c7c262a1f95ac63ec1e5d2fb19be452d606347'
+
+runs:
+  using: composite
+  steps:
+    - name: Download, verify, and install conftest
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+        CONFTEST_SHA256: ${{ inputs.sha256 }}
+      run: |
+        set -euo pipefail
+
+        [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+          echo "Invalid version format: $VERSION" >&2
+          exit 1
+        }
+
+        [[ "$CONFTEST_SHA256" =~ ^[a-fA-F0-9]{64}$ ]] || {
+          echo "Invalid SHA-256 value" >&2
+          exit 1
+        }
+
+        CONFTEST_ARCHIVE="conftest_${VERSION}_Linux_x86_64.tar.gz"
+        CONFTEST_URL="https://github.com/open-policy-agent/conftest/releases/download/v${VERSION}/${CONFTEST_ARCHIVE}"
+
+        TMP_DIR="$(mktemp -d)"
+        trap 'rm -rf "$TMP_DIR"' EXIT
+
+        echo "⬇️ Downloading conftest v${VERSION}..."
+        curl --proto '=https' --tlsv1.2 --retry 3 --retry-delay 2 -fsSL \
+          "$CONFTEST_URL" \
+          -o "${TMP_DIR}/${CONFTEST_ARCHIVE}"
+
+        echo "🔍 Verifying pinned SHA-256 on the archive..."
+        echo "${CONFTEST_SHA256}  ${TMP_DIR}/${CONFTEST_ARCHIVE}" | sha256sum -c -
+
+        echo "📦 Extracting and installing..."
+        tar -xzf "${TMP_DIR}/${CONFTEST_ARCHIVE}" -C "$TMP_DIR" conftest
+
+        mkdir -p "$HOME/.local/bin"
+        install -m 0755 "${TMP_DIR}/conftest" "$HOME/.local/bin/conftest"
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+        echo "✅ Installed:"
+        "$HOME/.local/bin/conftest" --version
