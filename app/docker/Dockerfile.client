@@ -71,17 +71,8 @@ RUN apk update && apk upgrade --no-cache \
                 /tmp/uwsgi_temp \
                 /tmp/scgi_temp \
                 /etc/nginx/certs \
-    && chown -R nginx:nginx /tmp/client_body_temp \
-                            /tmp/proxy_temp \
-                            /tmp/fastcgi_temp \
-                            /tmp/uwsgi_temp \
-                            /tmp/scgi_temp \
-                            /etc/nginx/certs \
-    && chmod 700 /tmp/client_body_temp \
-                 /tmp/proxy_temp \
-                 /tmp/fastcgi_temp \
-                 /tmp/uwsgi_temp \
-                 /tmp/scgi_temp
+    && chown -R nginx:nginx /tmp /etc/nginx/certs \
+    && chmod -R 700 /tmp/*
 
 COPY --chown=nginx:nginx --chmod=755 docker/generate-client-cert.sh /docker-entrypoint.d/50-generate-client-cert.sh
 
