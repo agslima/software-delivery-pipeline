@@ -179,7 +179,7 @@ jobs:
           failure-threshold: error
       - name: Setup Conftest
         if: matrix.changed == 'true' || needs.changes.outputs.policies == 'true'
-        uses: agslima/app-stayhealthy-pipeline/.github/actions/install-conftest@9e41d79b2b4e5a55923b7653102c7f66a05bde8b
+        uses: ./.github/actions/install-conftest
       - name: Run Dockerfile OPA policy (${{ matrix.service }})
         if: matrix.changed == 'true' || needs.changes.outputs.policies == 'true'
         run: |
