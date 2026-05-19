@@ -11,7 +11,7 @@ FROM node:26.1.0-alpine@sha256:e71ac5e964b9201072425d59d2e876359efa25dc96bb1768c
 
 WORKDIR /app
 
-RUN apk update && apk upgrade --no-cache
+RUN apk add --no-cache
 
 # Reproducible environment
 ENV TZ=UTC \
@@ -63,8 +63,7 @@ LABEL org.opencontainers.image.title="stayhealthy-frontend" \
 USER root
 
 # hadolint ignore=DL3018
-RUN apk update && apk upgrade --no-cache \
-    && apk add --no-cache openssl \
+RUN apk add --no-cache openssl \
     && mkdir -p /tmp/client_body_temp \
                 /tmp/proxy_temp \
                 /tmp/fastcgi_temp \
