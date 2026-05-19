@@ -6,7 +6,7 @@
 # Node release 24.15.0-alpine LTS
 # To update the sha:
 # https://hub.docker.com/layers/library/node/24.15.0-alpine
-FROM node:24.15.0-alpine@sha256:8e2c930fda481a6ec141fe5a88e8c249c69f8102fe98af505f38c081649ea749 AS deps
+FROM node:26.1.0-alpine@sha256:e71ac5e964b9201072425d59d2e876359efa25dc96bb1768cb73295728d6e4ea AS deps
 
 WORKDIR /app
 
@@ -19,7 +19,7 @@ RUN npm ci --omit=dev --ignore-scripts --registry https://registry.npmjs.org/
 # BASE STAGE 2: Runtime
 # ---------------------------
 # Node release 24.15.0-alpine LTS
-FROM node:24.15.0-alpine@sha256:8e2c930fda481a6ec141fe5a88e8c249c69f8102fe98af505f38c081649ea749 AS runtime
+FROM node:26.1.0-alpine@sha256:e71ac5e964b9201072425d59d2e876359efa25dc96bb1768cb73295728d6e4ea AS runtime
 
 # Args for Tini installation
 ARG TINI_VERSION=v0.19.0
