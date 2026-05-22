@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: agslima/app-stayhealthy-pipeline/.github/actions/install-actionlint@15d9dd4d59697a40376935f5b8b795f6b34793e9
+      - uses: agslima/app-stayhealthy-pipeline/.github/actions/install-actionlint@949f7854d0db87b46534073fb7416b9165469de7 # 0.7.0
       - name: Check workflow files
         run: actionlint -color
   
