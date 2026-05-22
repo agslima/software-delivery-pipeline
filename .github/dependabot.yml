@@ -1,4 +1,5 @@
-# Please see the documentation for all configuration options: https://docs.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
+# Please see the documentation for all configuration options:
+# https://docs.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
 
 version: 2
 updates:
@@ -8,6 +9,9 @@ updates:
       interval: "weekly"
       day: "monday"
       time: "06:00"
+      timezone: "America/Sao_Paulo"
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 10
     target-branch: main
     groups:
@@ -29,6 +33,9 @@ updates:
       interval: "weekly"
       day: "monday"
       time: "06:00"
+      timezone: "America/Sao_Paulo"
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 10
     target-branch: main
     groups:
@@ -58,6 +65,9 @@ updates:
       interval: "weekly"
       day: "monday"
       time: "06:00"
+      timezone: "America/Sao_Paulo"
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 10
     target-branch: main
     groups:
@@ -86,6 +96,9 @@ updates:
       interval: "weekly"
       day: "monday"
       time: "06:00"
+      timezone: "America/Sao_Paulo"
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 10
     target-branch: main
     commit-message:
@@ -95,5 +108,4 @@ updates:
       - "backend"
       - "docker"
       - "frontend"
-
-  
+      - "worker"
