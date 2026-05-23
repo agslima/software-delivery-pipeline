@@ -95,11 +95,9 @@ runs:
         
         [[ -f "${DOCKERFILE_PATH}" ]] || exit 1
         [[ -d "${BUILD_CONTEXT}" ]] || exit 1
-        [[ -f "${REPORT_SCRIPT_PATH}" ]] || exit 1
         
         # Isolate artifacts per image to prevent collisions in matrix builds
-        SAFE_IMAGE_NAME=$(echo "${IMAGE_NAME}" | tr '/:' '__')
-        ARTIFACT_DIR="artifacts/repro-${SAFE_IMAGE_NAME}"
+        ARTIFACT_DIR="artifacts/repro-${IMAGE_NAME}"
         mkdir -p "${ARTIFACT_DIR}"
 
         build_once() {
@@ -114,7 +112,7 @@ runs:
             --provenance=false \
             --sbom=false \
             --build-arg BUILD_DATE="${BUILD_DATE_ISO}" \
-            --build-arg SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH}"
+            --build-arg SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH}" \
             --build-arg VCS_REF="${GITHUB_SHA}" \
             --build-arg VERSION="${RELEASE_TAG}" \
             --build-arg SOURCE="${SOURCE_URL}" \
@@ -144,6 +142,8 @@ runs:
         REPORT_SCRIPT_PATH: ${{ inputs.report-script-path }}
       run: |
         set -euo pipefail
+        
+        [[ -f "${REPORT_SCRIPT_PATH}" ]] || exit 1
 
         ARTIFACT_DIR="artifacts/repro-${IMAGE_NAME}"
         
