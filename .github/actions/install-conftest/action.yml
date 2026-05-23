@@ -41,7 +41,7 @@ runs:
         echo "⬇️ Downloading conftest v$VERSION..."
         curl --proto '=https' --tlsv1.2 --retry 3 --retry-delay 2 -fsSL \
           "$CONFTEST_URL" \
-          -o "${TMP_DIR}/$CONFTEST_ARCHIVE"
+          -o "${TMP_DIR}/${CONFTEST_ARCHIVE}"
 
         echo "🔍 Verifying pinned SHA-256 on the archive..."
         echo "${CONFTEST_SHA256}  ${TMP_DIR}/${CONFTEST_ARCHIVE}" | sha256sum -c -
@@ -49,9 +49,7 @@ runs:
         echo "📦 Extracting and installing..."
         tar -xzf "${TMP_DIR}/${CONFTEST_ARCHIVE}" -C "${TMP_DIR}" conftest
 
-        mkdir -p "$HOME/.local/bin"
-        install -m 0755 "$TMP_DIR/conftest" "$HOME/.local/bin/conftest"
-        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        sudo install -m 0755 "${TMP_DIR}/conftest" /usr/local/bin/conftest
 
         echo "✅ Installed:"
-        "$HOME/.local/bin/conftest" --version
+        conftest --version
