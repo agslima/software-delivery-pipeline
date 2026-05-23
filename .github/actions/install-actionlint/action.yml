@@ -27,7 +27,7 @@ runs:
           exit 1
         }
 
-        [[ "ACTIONLINT_SHA256" =~ ^[a-fA-F0-9]{64}$ ]] || {
+        [[ "$ACTIONLINT_SHA256" =~ ^[a-fA-F0-9]{64}$ ]] || {
           echo "Invalid SHA-256 value" >&2
           exit 1
         }
