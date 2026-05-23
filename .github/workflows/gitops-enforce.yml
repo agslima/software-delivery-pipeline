@@ -222,6 +222,10 @@ jobs:
           grep "IMAGE=\"${BACKEND_REPO}@" "$FILE"
           grep -q "$BACKEND_IMAGE" "$FILE" || (echo "::error::BACKEND_IMAGE not found in $FILE"; exit 1)
       - name: Update prod overlay digests
+        env:
+          BACKEND_DIGEST: ${{ steps.extract_digests.outputs.BACKEND_DIGEST }}
+          WORKER_DIGEST: ${{ steps.extract_digests.outputs.WORKER_DIGEST }}
+          FRONTEND_DIGEST: ${{ steps.extract_digests.outputs.FRONTEND_DIGEST }}
         run: |
           set -euo pipefail
           FILE="k8s/overlays/prod/kustomization.yaml"
