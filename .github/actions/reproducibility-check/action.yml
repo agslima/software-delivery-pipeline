@@ -35,34 +35,40 @@ runs:
     - name: Calculate Deterministic Timestamps
       id: timestamps
       shell: bash
+      env:
+        GITHUB_SHA: ${{ github.sha }}
       run: |
         set -euo pipefail
 
         # Extract the Git commit timestamp for SOURCE_DATE_EPOCH
-        COMMIT_TIMESTAMP=$(git log -1 --format=%ct ${{ github.sha }})
+        COMMIT_TIMESTAMP=$(git log -1 --format=%ct ${GITHUB_SHA})
         # Validate that COMMIT_TIMESTAMP is numeric
         if ! [[ "$COMMIT_TIMESTAMP" =~ ^[0-9]+$ ]]; then
           echo "::error::Invalid commit timestamp: $COMMIT_TIMESTAMP"
           exit 1
         fi
-        echo "SOURCE_DATE_EPOCH=$COMMIT_TIMESTAMP" >> $GITHUB_ENV
+        echo "source_date_epoch=$COMMIT_TIMESTAMP" >> "$GITHUB_OUTPUT"
         
         # Format the timestamp for BUILD_DATE in ISO 8601 format
-        BUILD_DATE_ISO=$(date -u -d @"$COMMIT_TIMESTAMP" +'%Y-%m-%dT%H:%M:%SZ')
-        echo "BUILD_DATE_ISO=$BUILD_DATE_ISO" >> $GITHUB_ENV
+        BUILD_DATE_ISO=$(date -u -d "@${COMMIT_TIMESTAMP}" +"%Y-%m-%dT%H:%M:%SZ")
+        echo "build_date_iso=$BUILD_DATE_ISO" >> "$GITHUB_OUTPUT"
 
     - name: Audit Break-Glass Status
+      id: audit
       shell: bash
+      env:
+        ALLOW_MISMATCH: ${{ inputs.allow-mismatch }}
       run: |
         set -euo pipefail
 
-        if [ "${{ inputs.allow-mismatch }}" == "true" ]; then
+        if [ "${ALLOW_MISMATCH}" == "true" ]; then
           echo "::warning title=SECURITY OVERRIDE ACTIVATED::The reproducibility hard gate has been bypassed via manual emergency override. This release is no longer guaranteed deterministic."
           
           # Add a "tainted" or "emergency" label to the final Docker image.
-          echo "IMAGE_TAINTED=true" >> $GITHUB_ENV
+          echo "image_tainted=true" >> "$GITHUB_OUTPUT"
         else
           echo "Standard enforcement mode active. Reproducibility gate is enforced."
+          echo "image_tainted=false" >> "$GITHUB_OUTPUT"
         fi
 
     - name: Run reproducible builds (${{ inputs.image-name }})
@@ -73,8 +79,19 @@ runs:
         BUILD_CONTEXT: ${{ inputs.build-context }}
         RELEASE_TAG: ${{ inputs.release-tag }}
         SOURCE_URL: ${{ inputs.source-url }}
+        GITHUB_SHA: ${{ github.sha }}
+        SOURCE_DATE_EPOCH: ${{ steps.timestamps.outputs.source_date_epoch }}
+        BUILD_DATE_ISO: ${{ steps.timestamps.outputs.build_date_iso }}
+        IMAGE_TAINTED: ${{ steps.audit.outputs.image_tainted }}
       run: |
         set -euo pipefail
+
+        export TZ=UTC
+        export LANG=C.UTF-8
+        export LC_ALL=C.UTF-8
+        
+        [[ -f "${DOCKERFILE_PATH}" ]] || exit 1
+        [[ -d "${BUILD_CONTEXT}" ]] || exit 1
         
         # Isolate artifacts per image to prevent collisions in matrix builds
         ARTIFACT_DIR="artifacts/repro-${IMAGE_NAME}"
@@ -82,15 +99,17 @@ runs:
 
         build_once() {
           local output_file="$1"
-          # SOURCE_DATE_EPOCH is implicitly picked up from $GITHUB_ENV
+          echo "Building with epoch: $SOURCE_DATE_EPOCH"
+          echo "Tainted status: $IMAGE_TAINTED"
+          
           docker buildx build \
             --platform linux/amd64 \
             --file "${DOCKERFILE_PATH}" \
-            --pull \
             --no-cache \
             --provenance=false \
             --sbom=false \
             --build-arg BUILD_DATE="${BUILD_DATE_ISO}" \
+            --build-arg SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH}" \
             --build-arg VCS_REF="${GITHUB_SHA}" \
             --build-arg VERSION="${RELEASE_TAG}" \
             --build-arg SOURCE="${SOURCE_URL}" \
@@ -104,6 +123,14 @@ runs:
         echo "Executing Build 2..."
         build_once "${ARTIFACT_DIR}/run-2.oci.tar"
 
+        echo "Generating SHA256 digests..."
+
+        sha256sum "${ARTIFACT_DIR}/run-1.oci.tar" \
+          > "${ARTIFACT_DIR}/run-1.sha256"
+
+        sha256sum "${ARTIFACT_DIR}/run-2.oci.tar" \
+          > "${ARTIFACT_DIR}/run-2.sha256"
+
     - name: Compare OCI outputs
       shell: bash
       env:
@@ -112,13 +139,16 @@ runs:
         REPORT_SCRIPT_PATH: ${{ inputs.report-script-path }}
       run: |
         set -euo pipefail
+        
+        [[ -f "${REPORT_SCRIPT_PATH}" ]] || exit 1
 
         ARTIFACT_DIR="artifacts/repro-${IMAGE_NAME}"
         
         # Conditionally apply the mismatch flag
-        MISMATCH_FLAG=""
-        if [ "${ALLOW_MISMATCH}" == "true" ]; then
-          MISMATCH_FLAG="--allow-mismatch"
+        ARGS=()
+
+        if [ "${ALLOW_MISMATCH}" = "true" ]; then
+          ARGS+=(--allow-mismatch)
         fi
 
         python3 "${REPORT_SCRIPT_PATH}" \
@@ -126,11 +156,11 @@ runs:
           --first-archive "${ARTIFACT_DIR}/run-1.oci.tar" \
           --second-archive "${ARTIFACT_DIR}/run-2.oci.tar" \
           --output-dir "${ARTIFACT_DIR}" \
-          ${MISMATCH_FLAG}
+          "${ARGS[@]}"
 
     - name: Upload evidence artifact
       if: always()
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v6.0.2
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: reproducibility-evidence-${{ inputs.image-name }}
         path: artifacts/repro-${{ inputs.image-name }}/

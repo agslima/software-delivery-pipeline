@@ -293,12 +293,16 @@ jobs:
           GHCR_IMAGE=ghcr.io/${{ github.repository_owner }}/${{ matrix.image_repo }}@${DIGEST}
           EOF
       - name: Log Attestation Identity
+        env:
+          WORKFLOW_REF: ${{ github.workflow_ref }}
+          REPOSITORY: ${{ github.repository }}
+          REF: ${{ github.ref }}
         run: |
           set -euo pipefail
           echo "Attestation Identity Check:"
           echo "  Issuer: https://token.actions.githubusercontent.com"
-          echo "  Workflow: ${{ github.repository }}/.github/workflows/${{ github.workflow_ref }}"
-          echo "  Ref: ${{ github.ref }}"
+          echo "  Workflow: ${REPOSITORY}/.github/workflows/${WORKFLOW_REF}"
+          echo "  Ref: ${REF}"
       - name: Create ZAP Attestation (from DAST artifacts)
         run: |
           set -euo pipefail

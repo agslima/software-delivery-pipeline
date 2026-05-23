@@ -186,6 +186,7 @@ jobs:
           pattern: digest-*
           path: digests
       - name: Read & Validate Digests
+        id: extract_digests
         env:
           DOCKER_USERNAME: ${{ vars.DOCKER_HUB_USERNAME }}
         run: |
@@ -205,13 +206,14 @@ jobs:
             fi
             # Convert component name to uppercase (e.g., "backend" -> "BACKEND")
             PREFIX=$(echo "$COMP" | tr '[:lower:]' '[:upper:]')
-            echo "${PREFIX}_DIGEST=${DIGEST}" >> "$GITHUB_ENV"
-            echo "${PREFIX}_IMAGE=docker.io/${DOCKER_USERNAME}/${REPO}@${DIGEST}" >> "$GITHUB_ENV"
+            # Output dynamically to GITHUB_OUTPUT
+            echo "${PREFIX}_DIGEST=${DIGEST}" >> "$GITHUB_OUTPUT"
+            echo "${PREFIX}_IMAGE=docker.io/${DOCKER_USERNAME}/${REPO}@${DIGEST}" >> "$GITHUB_OUTPUT"
           done
           echo "✅ Loaded and validated all digests successfully."
       - name: Update README.MD - verification section
         env:
-          BACKEND_IMAGE: ${{ env.BACKEND_IMAGE }}
+          BACKEND_IMAGE: ${{ steps.extract_digests.outputs.BACKEND_IMAGE }}
         run: |
           FILE="README.md"
           test -f "$FILE" || (echo "::error::Missing $FILE"; exit 1)
@@ -220,6 +222,10 @@ jobs:
           grep "IMAGE=\"${BACKEND_REPO}@" "$FILE"
           grep -q "$BACKEND_IMAGE" "$FILE" || (echo "::error::BACKEND_IMAGE not found in $FILE"; exit 1)
       - name: Update prod overlay digests
+        env:
+          BACKEND_DIGEST: ${{ steps.extract_digests.outputs.BACKEND_DIGEST }}
+          WORKER_DIGEST: ${{ steps.extract_digests.outputs.WORKER_DIGEST }}
+          FRONTEND_DIGEST: ${{ steps.extract_digests.outputs.FRONTEND_DIGEST }}
         run: |
           set -euo pipefail
           FILE="k8s/overlays/prod/kustomization.yaml"
@@ -247,12 +253,16 @@ jobs:
           log-artifact-name: 'kyverno-gitops-prod-log'
           policies: |
             k8s/policies/cluster/verify-signature.yaml
-            k8s/policies/cluster/verify-trivy.yaml
+            k8s/policies/cluster/verify-sast.yaml
             k8s/policies/cluster/verify-zap.yaml
             k8s/policies/cluster/verify-sbom.yaml
             k8s/policies/cluster/verify-slsa.yaml
       - name: Create GitOps PR
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 #v8.1.1 
+        env:
+          BACKEND_IMAGE: ${{ steps.extract_digests.outputs.BACKEND_IMAGE }}
+          WORKER_IMAGE: ${{ steps.extract_digests.outputs.WORKER_IMAGE }}
+          FRONTEND_IMAGE: ${{ steps.extract_digests.outputs.FRONTEND_IMAGE }}
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: ":robot: deploy promote ${{ env.SHA }}"
@@ -263,9 +273,9 @@ jobs:
             - Release Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ env.RUN_ID }}
             - Head SHA: `${{ env.SHA }}`
             - Release Tag: `${{ env.TAG }}`
-            - Backend candidate canary: `${{ env.BACKEND_IMAGE }}`
-            - Worker: `${{ env.WORKER_IMAGE }}`
-            - Frontend: `${{ env.FRONTEND_IMAGE }}`
+            - Backend candidate canary: `${BACKEND_IMAGE}`
+            - Worker: `${WORKER_IMAGE}`
+            - Frontend: `${FRONTEND_IMAGE}`
             **Rollout intent**
             - Prod backend stable digest remains unchanged until explicit promotion.
             - Prod backend canary digest is advanced automatically by this PR.

@@ -33,12 +33,12 @@ runs:
         }
 
         CONFTEST_ARCHIVE="conftest_${VERSION}_Linux_x86_64.tar.gz"
-        CONFTEST_URL="https://github.com/open-policy-agent/conftest/releases/download/v${VERSION}/${CONFTEST_ARCHIVE}"
+        CONFTEST_URL="https://github.com/open-policy-agent/conftest/releases/download/v$VERSION/$CONFTEST_ARCHIVE"
 
         TMP_DIR="$(mktemp -d)"
         trap 'rm -rf "$TMP_DIR"' EXIT
 
-        echo "⬇️ Downloading conftest v${VERSION}..."
+        echo "⬇️ Downloading conftest v$VERSION..."
         curl --proto '=https' --tlsv1.2 --retry 3 --retry-delay 2 -fsSL \
           "$CONFTEST_URL" \
           -o "${TMP_DIR}/${CONFTEST_ARCHIVE}"
@@ -47,11 +47,9 @@ runs:
         echo "${CONFTEST_SHA256}  ${TMP_DIR}/${CONFTEST_ARCHIVE}" | sha256sum -c -
 
         echo "📦 Extracting and installing..."
-        tar -xzf "${TMP_DIR}/${CONFTEST_ARCHIVE}" -C "$TMP_DIR" conftest
+        tar -xzf "${TMP_DIR}/${CONFTEST_ARCHIVE}" -C "${TMP_DIR}" conftest
 
-        mkdir -p "$HOME/.local/bin"
-        install -m 0755 "${TMP_DIR}/conftest" "$HOME/.local/bin/conftest"
-        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        sudo install -m 0755 "${TMP_DIR}/conftest" /usr/local/bin/conftest
 
         echo "✅ Installed:"
-        "$HOME/.local/bin/conftest" --version
+        conftest --version

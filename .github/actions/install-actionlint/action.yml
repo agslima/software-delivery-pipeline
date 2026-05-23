@@ -22,6 +22,16 @@ runs:
       run: |
         set -euo pipefail
 
+        [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+          echo "Invalid version format: $VERSION" >&2
+          exit 1
+        }
+
+        [[ "$ACTIONLINT_SHA256" =~ ^[a-fA-F0-9]{64}$ ]] || {
+          echo "Invalid SHA-256 value" >&2
+          exit 1
+        }
+
         ACTIONLINT_ARCHIVE="actionlint_${VERSION}_linux_amd64.tar.gz"
         
         # Using the official GitHub releases URL ensures a stable, immutable artifact source
@@ -31,7 +41,9 @@ runs:
         trap 'rm -rf "$TMP_DIR"' EXIT
 
         echo "⬇️ Downloading actionlint v${VERSION}..."
-        curl --proto '=https' --tlsv1.2 -fsSL "$ACTIONLINT_URL" -o "${TMP_DIR}/${ACTIONLINT_ARCHIVE}"
+        curl --proto '=https' --tlsv1.2 --retry 3 --retry-delay 2 -fsSL \
+          "$ACTIONLINT_URL" \
+          -o "${TMP_DIR}/${ACTIONLINT_ARCHIVE}"
 
         echo "🔍 Verifying pinned SHA-256 on the archive..."
         echo "${ACTIONLINT_SHA256}  ${TMP_DIR}/${ACTIONLINT_ARCHIVE}" | sha256sum -c -
@@ -40,10 +52,7 @@ runs:
         # Extract only the 'actionlint' binary from the verified tarball
         tar -xzf "${TMP_DIR}/${ACTIONLINT_ARCHIVE}" -C "$TMP_DIR" actionlint
 
-        # Installing to the user's local bin avoids the need for sudo
-        mkdir -p "$HOME/.local/bin"
-        install -m 0755 "${TMP_DIR}/actionlint" "$HOME/.local/bin/actionlint"
-        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
+        sudo install -m 0755 "${TMP_DIR}/actionlint" /usr/local/bin/actionlint
+        
         echo "✅ Installed:"
         actionlint -version
