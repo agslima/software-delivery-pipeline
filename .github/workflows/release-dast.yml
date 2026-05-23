@@ -295,8 +295,8 @@ jobs:
       - name: Log Attestation Identity
         env:
           WORKFLOW_REF: ${{ github.workflow_ref }}
-          REPOSITORY: $ {{ github.repository }}
-          REF: $ {{ github.ref }}
+          REPOSITORY: ${{ github.repository }}
+          REF: ${{ github.ref }}
         run: |
           set -euo pipefail
           echo "Attestation Identity Check:"
