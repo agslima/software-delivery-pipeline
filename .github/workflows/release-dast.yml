@@ -287,13 +287,13 @@ jobs:
         env:
           IMAGE_REPO: ${{ matrix.image_repo }}
           IMAGE_DIGEST: ${{ matrix.image_digest }}
+          GHCR_USERNAME: ${{ inputs.ghcr_username }}
         run: |
           set -euo pipefail
-          DIGEST="${{ matrix.image_digest }}"
+          DIGEST="${IMAGE_DIGEST}"
           cat <<EOF >> "$GITHUB_ENV"
-          DIGEST=$DIGEST
           DOCKER_IMAGE=docker.io/${DOCKER_USERNAME}/${IMAGE_REPO}@${DIGEST}
-          GHCR_IMAGE=ghcr.io/${{ github.repository_owner }}/${IMAGE_REPO}@${DIGEST}
+          GHCR_IMAGE=ghcr.io/${GHCR_USERNAME}/${IMAGE_REPO}@${DIGEST}
           EOF
       - name: Log Attestation Identity
         env:

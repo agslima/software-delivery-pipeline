@@ -77,6 +77,7 @@ jobs:
       PLATFORMS: ${{ inputs.platforms }}
       GITHUB_SHA: ${{ inputs.github_sha }}
       DOCKER_USERNAME: ${{ inputs.dockerhub_username }}
+      GHCR_USERNAME: ${{ inputs.ghcr_username }}
     outputs:  
       image-digest: ${{ steps.build.outputs.digest }}
     steps:
@@ -121,8 +122,8 @@ jobs:
         with:
           # Automatically generate tags for both GHCR and Docker.
           images: |
-            docker.io/${{ inputs.dockerhub_username }}/${{ env.IMAGE_REPO}}
-            ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_REPO }}
+            docker.io/${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_REPO}}
+            ghcr.io/${{ env.GHCR_USERNAME }}/${{ env.IMAGE_REPO }}
           tags: |
             type=raw,value=${{ env.RELEASE_TAG }},enable=${{ env.RELEASE_TAG != '' }}
             type=raw,value=${{ env.GITHUB_SHA }}
@@ -178,6 +179,7 @@ jobs:
       IMAGE_REPO: ${{ inputs.image_repo }}
       GITHUB_SHA: ${{ inputs.github_sha }}
       DOCKER_USERNAME: ${{ inputs.dockerhub_username }}
+      GHCR_USERNAME: ${{ inputs.ghcr_username }}
       DIGEST: ${{ needs.build-publish.outputs.image-digest }}
     permissions:
       id-token: write          # Needed to get OIDC token for keyless signing
@@ -207,7 +209,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "DOCKER_IMAGE=docker.io/${DOCKER_USERNAME}/${IMAGE_REPO}@${DIGEST}" >> "$GITHUB_ENV"
-          echo "GHCR_IMAGE=ghcr.io/${{ github.repository_owner }}/${IMAGE_REPO}@${DIGEST}" >> "$GITHUB_ENV"
+          echo "GHCR_IMAGE=ghcr.io/${GHCR_USERNAME}/${IMAGE_REPO}@${DIGEST}" >> "$GITHUB_ENV"
       - name: Sign Images with Cosign
         env:
           REPOSITORY: ${{ github.repository }}

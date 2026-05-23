@@ -371,7 +371,7 @@ jobs:
           for IMAGE in "${IMAGES[@]}"; do
             echo "Attest image: $IMAGE"
             if cosign attest --yes \
-              --predicate sast-attestation-${NAME}.json \
+              --predicate "sast-attestation-${NAME}.json" \
               --type "$TRIVY_PREDICATE_TYPE" \
               "$IMAGE"; then
               echo "✅ Attested: $IMAGE"
