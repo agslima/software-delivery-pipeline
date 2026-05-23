@@ -326,13 +326,15 @@ jobs:
           name: static-risk-results-${{ matrix.name }}
           path: static-risk-downloads
       - name: Read Digest
+        env:
+          GHCR_USER: ${{ inputs.ghcr_username }}
         run: |
           set -euo pipefail
           DIGEST="${{ matrix.image-digest }}"
           cat <<EOF >> "$GITHUB_ENV"
           DIGEST=$DIGEST
           DOCKER_IMAGE=docker.io/${DOCKER_USERNAME}/${{ matrix.image_repo }}@${DIGEST}
-          GHCR_IMAGE=ghcr.io/${{ inputs.ghcr_username }}/${{ matrix.image_repo }}@${DIGEST}
+          GHCR_IMAGE=ghcr.io/${GHCR_USER}/${{ matrix.image_repo }}@${DIGEST}
           EOF
       - name: Create static risk attestation predicate
         uses: ./.github/actions/security-gate/create-static-risk-attestation-predicate
