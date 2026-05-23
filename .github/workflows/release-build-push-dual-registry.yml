@@ -91,7 +91,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v2.5.0
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.1.0
         with:
           # Forces the use of an isolated container for the build environment
           driver: docker-container
@@ -209,6 +209,10 @@ jobs:
           echo "DOCKER_IMAGE=docker.io/${DOCKER_USERNAME}/${IMAGE_REPO}@${DIGEST}" >> "$GITHUB_ENV"
           echo "GHCR_IMAGE=ghcr.io/${{ github.repository_owner }}/${IMAGE_REPO}@${DIGEST}" >> "$GITHUB_ENV"
       - name: Sign Images with Cosign
+        env:
+          REPOSITORY: ${{ github.repository }}
+          WORKFLOW: ${{ github.workflow }}
+          WORKFLOW_REF: ${{ github.workflow_ref }}
         run: |
           set -euo pipefail
           echo "Signing starts: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
@@ -220,9 +224,9 @@ jobs:
             echo "Signing image: $IMAGE"
             cosign sign --yes \
               --verbose \
-              -a "repo=${{ github.repository }}" \
-              -a "workflow=${{ github.workflow }}" \
-              -a "workflow_ref=${{ github.workflow_ref }}" \
+              -a "repo=${REPOSITORY}" \
+              -a "workflow=${WORKFLOW}" \
+              -a "workflow_ref=${WORKFLOW_REF}" \
               -a "ref=$GITHUB_SHA" \
               "$IMAGE"
           done
