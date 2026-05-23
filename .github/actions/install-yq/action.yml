@@ -22,6 +22,16 @@ runs:
       run: |
         set -euo pipefail
 
+        [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+          echo "Invalid version format: $VERSION" >&2
+          exit 1
+        }
+
+        [[ "$YQ_SHA256" =~ ^[a-fA-F0-9]{64}$ ]] || {
+          echo "Invalid SHA-256 value" >&2
+          exit 1
+        }
+
         YQ_BIN="yq_linux_amd64"
         YQ_URL="https://github.com/mikefarah/yq/releases/download/${VERSION}/${YQ_BIN}"
 
@@ -35,9 +45,7 @@ runs:
         echo "${YQ_SHA256}  ${TMP_DIR}/${YQ_BIN}" | sha256sum -c -
 
         echo "📦 Installing..."
-        mkdir -p "$HOME/.local/bin"
-        install -m 0755 "${TMP_DIR}/${YQ_BIN}" "$HOME/.local/bin/yq"
-        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
+        sudo install -m 0755 "${TMP_DIR}/yq" /usr/local/bin/yq
+        
         echo "✅ Installed:"
         yq --version
