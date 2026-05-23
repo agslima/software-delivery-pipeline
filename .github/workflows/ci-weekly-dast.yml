@@ -97,7 +97,7 @@ jobs:
           GH_REPOSITORY: ${{ github.repository }}
           GH_RUN_ID: ${{ github.run_id }}
           GH_SHA: ${{ github.sha }}
-          GH_ACTOR: ${{ github.actor}}
+          GH_ACTOR: ${{ github.actor }}
         run: |
           set -euo pipefail
           TODAY="$(date -u +%Y-%m-%d)"
