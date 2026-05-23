@@ -77,6 +77,7 @@ jobs:
       PLATFORMS: ${{ inputs.platforms }}
       GITHUB_SHA: ${{ inputs.github_sha }}
       DOCKER_USERNAME: ${{ inputs.dockerhub_username }}
+      GHCR_USERNAME: ${{ inputs.ghcr_username }}
     outputs:  
       image-digest: ${{ steps.build.outputs.digest }}
     steps:
@@ -121,8 +122,8 @@ jobs:
         with:
           # Automatically generate tags for both GHCR and Docker.
           images: |
-            docker.io/${{ inputs.dockerhub_username }}/${{ env.IMAGE_REPO}}
-            ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_REPO }}
+            docker.io/${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_REPO}}
+            ghcr.io/${{ env.GHCR_USERNAME }}/${{ env.IMAGE_REPO }}
           tags: |
             type=raw,value=${{ env.RELEASE_TAG }},enable=${{ env.RELEASE_TAG != '' }}
             type=raw,value=${{ env.GITHUB_SHA }}
@@ -133,7 +134,7 @@ jobs:
             org.opencontainers.image.version=${{ env.RELEASE_TAG }}
       - name: Build & Push
         id: build
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v4.0.0
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.2.0
         with:
           context: ${{ env.CONTEXT }}
           file: ${{ env.FILE }}
@@ -162,7 +163,7 @@ jobs:
           fi
           echo "$DIGEST" > "digests/digest-${DIGEST_ARTIFACT_NAME}"
       - name: Upload Digest Artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: digest-${{ env.IMAGE_REPO }}
           path: digests/digest-${{ env.IMAGE_REPO }}
@@ -178,6 +179,7 @@ jobs:
       IMAGE_REPO: ${{ inputs.image_repo }}
       GITHUB_SHA: ${{ inputs.github_sha }}
       DOCKER_USERNAME: ${{ inputs.dockerhub_username }}
+      GHCR_USERNAME: ${{ inputs.ghcr_username }}
       DIGEST: ${{ needs.build-publish.outputs.image-digest }}
     permissions:
       id-token: write          # Needed to get OIDC token for keyless signing
@@ -207,7 +209,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "DOCKER_IMAGE=docker.io/${DOCKER_USERNAME}/${IMAGE_REPO}@${DIGEST}" >> "$GITHUB_ENV"
-          echo "GHCR_IMAGE=ghcr.io/${{ github.repository_owner }}/${IMAGE_REPO}@${DIGEST}" >> "$GITHUB_ENV"
+          echo "GHCR_IMAGE=ghcr.io/${GHCR_USERNAME}/${IMAGE_REPO}@${DIGEST}" >> "$GITHUB_ENV"
       - name: Sign Images with Cosign
         env:
           REPOSITORY: ${{ github.repository }}
@@ -268,6 +270,9 @@ jobs:
       id-token: write   # To sign the provenance.
       packages: write   # To upload assets to release.
       actions: read     # To read the workflow path.
+    # slsa-framework/slsa-github-generator doesn't support pinning version
+    # > Invalid ref: 68bad40844440577b33778c9f29077a3388838e9. Expected ref of the form refs/tags/vX.Y.Z
+    # https://github.com/slsa-framework/slsa-github-generator/issues/722
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
     with:
       image: ghcr.io/${{ inputs.ghcr_username }}/${{ inputs.image_repo }}
@@ -286,6 +291,9 @@ jobs:
       id-token: write   # To sign the provenance.
       packages: write   # To upload assets to release.
       actions: read     # To read the workflow path.
+    # slsa-framework/slsa-github-generator doesn't support pinning version
+    # > Invalid ref: 68bad40844440577b33778c9f29077a3388838e9. Expected ref of the form refs/tags/vX.Y.Z
+    # https://github.com/slsa-framework/slsa-github-generator/issues/722
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
     with:
       image: docker.io/${{ inputs.dockerhub_username }}/${{ inputs.image_repo }}
