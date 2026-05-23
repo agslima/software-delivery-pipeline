@@ -50,10 +50,7 @@ runs:
         echo "source_date_epoch=$COMMIT_TIMESTAMP" >> "$GITHUB_OUTPUT"
         
         # Format the timestamp for BUILD_DATE in ISO 8601 format
-        BUILD_DATE_ISO=$(python3 - <<EOF
-          from datetime import datetime, UTC
-          print(datetime.fromtimestamp(${COMMIT_TIMESTAMP}, UTC).strftime('%Y-%m-%dT%H:%M:%SZ'))
-        EOF)
+        BUILD_DATE_ISO=$(date -u -d "@${COMMIT_TIMESTAMP}" +"%Y-%m-%dT%H:%M:%SZ")
         echo "build_date_iso=$BUILD_DATE_ISO" >> "$GITHUB_OUTPUT"
 
     - name: Audit Break-Glass Status
