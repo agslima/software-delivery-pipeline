@@ -3,9 +3,9 @@ description: 'Downloads yq for Linux amd64 and verifies a pinned SHA-256 before 
 
 inputs:
   version:
-    description: 'The semantic version of yq to install (e.g. v4.53.2). Must match the provided sha256.'
+    description: 'The semantic version of yq to install (e.g. 4.53.2). Do not include the "v" prefix.'
     required: true
-    default: 'v4.53.2'
+    default: '4.53.2'
   sha256:
     description: 'SHA-256 of the yq_linux_amd64 binary for the requested version.'
     required: true
@@ -33,7 +33,7 @@ runs:
         }
 
         YQ_BIN="yq_linux_amd64"
-        YQ_URL="https://github.com/mikefarah/yq/releases/download/${VERSION}/${YQ_BIN}"
+        YQ_URL="https://github.com/mikefarah/yq/releases/download/v${VERSION}/${YQ_BIN}"
 
         TMP_DIR="$(mktemp -d)"
         trap 'rm -rf "$TMP_DIR"' EXIT
@@ -45,7 +45,7 @@ runs:
         echo "${YQ_SHA256}  ${TMP_DIR}/${YQ_BIN}" | sha256sum -c -
 
         echo "📦 Installing..."
-        sudo install -m 0755 "${TMP_DIR}/yq" /usr/local/bin/yq
+        sudo install -m 0755 "${TMP_DIR}/${YQ_BIN}" /usr/local/bin/yq
         
         echo "✅ Installed:"
         yq --version
