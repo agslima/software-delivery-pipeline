@@ -149,22 +149,26 @@ jobs:
           username: ${{ inputs.dockerhub_username }}  
           password: ${{ secrets.dockerhub_token }}  
       - name: Scan Image (JSON)
+        env:
+          IMAGE_REPO: ${{ matrix.image_repo }}
+          IMAGE_DIGEST: ${{ matrix.image-digest }}
+          NAME: ${{ matrix.name }}
         run: |
           set -euo pipefail
     
-          IMAGE="docker.io/${DOCKER_USERNAME}/${{ matrix.image_repo }}@${{ matrix.image-digest }}"
+          IMAGE="docker.io/${DOCKER_USERNAME}/${IMAGE_REPO}@${IMAGE_DIGEST}"
           docker manifest inspect "$IMAGE" >/dev/null 2>&1 \
             || { echo "::error::Image not found (digest check failed)"; exit 1; }
 
           echo "Scanning $IMAGE"
           trivy image \
             --format json \
-            --output "trivy-${{ matrix.name }}.json" \
+            --output "trivy-${NAME}.json" \
             "$IMAGE"
           
           # Explicit output checks (fail closed)
-          test -s "trivy-${{ matrix.name }}.json" || (echo "::error::Trivy JSON missing/empty"; exit 1)
-          jq -e '.Results? | type=="array"' "trivy-${{ matrix.name }}.json" >/dev/null
+          test -s "trivy-${NAME}.json" || (echo "::error::Trivy JSON missing/empty"; exit 1)
+          jq -e '.Results? | type=="array"' "trivy-${NAME}.json" >/dev/null
       - name: Upload Trivy Scan Artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -180,6 +184,8 @@ jobs:
       # The OPA step has a complete view of the potential vulnerabilities, 
       # This prevent any known vulnerabilities from being overlooked.
       - name: Generate conservative VEX assertions
+        env:
+          NAME: ${{ matrix.name }}
         run: |
           set -euo pipefail
           mkdir -p static-risk-inputs/vex
@@ -204,24 +210,26 @@ jobs:
                 | unique_by(.id)
               )
             }
-          ' "trivy-${{ matrix.name }}.json" > "vex-${{ matrix.name }}.json"
-          jq -e '.vulnerabilities | type == "array"' "vex-${{ matrix.name }}.json" >/dev/null
+          ' "trivy-${NAME}.json" > "vex-${NAME}.json"
+          jq -e '.vulnerabilities | type == "array"' "vex-${NAME}.json" >/dev/null
       - name: Normalize static risk evidence
+        env:
+          NAME: ${{ matrix.name }}
         run: |
           set -euo pipefail
           mkdir -p static-risk-inputs/codeql static-risk-inputs/vex
 
           CODEQL_FILE="$(find static-risk-inputs/codeql -type f \( -name '*.sarif' -o -name '*.json' \) | sort | head -n 1 || true)"
-          VEX_FILE="vex-${{ matrix.name }}.json"
+          VEX_FILE="vex-${NAME}.json"
           test -n "$CODEQL_FILE" || { echo "::error::CodeQL SARIF artifact missing"; exit 1; }
           test -s "$CODEQL_FILE" || { echo "::error::CodeQL SARIF artifact empty"; exit 1; }
           test -s "$VEX_FILE" || { echo "::error::VEX JSON missing/empty"; exit 1; }
 
           bash scripts/security/release/sast-build-evidence.sh \
-            "trivy-${{ matrix.name }}.json" \
+            "trivy-${NAME}.json" \
             "$CODEQL_FILE" \
             "$VEX_FILE" \
-            "security-evidence-${{ matrix.name }}.json"
+            "security-evidence-${NAME}.json"
       - name: Evaluate static risk policy
         id: opa
         continue-on-error: true
@@ -238,10 +246,12 @@ jobs:
           image-digest: ${{ matrix.image-digest }}
       - name: Preserve static risk decision artifacts
         if: always()
+        env:
+          NAME: ${{ matrix.name }}
         run: |
           set -euo pipefail
-          cp enriched.json "security-evidence-enriched-${{ matrix.name }}.json"
-          cp decision.json "opa-decision-${{ matrix.name }}.json"
+          cp enriched.json "security-evidence-enriched-${NAME}.json"
+          cp decision.json "opa-decision-${NAME}.json"
       - name: Upload static risk artifacts
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -303,14 +313,14 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 #v4.1.2
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
       - name: Docker Hub Login
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           username: ${{ inputs.dockerhub_username }}
           password: ${{ secrets.dockerhub_token }}
       - name: GHCR Login
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 #v4.1.0  
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:  
           registry: ghcr.io  
           username: ${{ inputs.ghcr_username }}  
@@ -328,13 +338,15 @@ jobs:
       - name: Read Digest
         env:
           GHCR_USER: ${{ inputs.ghcr_username }}
+          IMAGE_REPO: ${{ matrix.image_repo }}
+          IMAGE_DIGEST: ${{ matrix.image-digest }}
         run: |
           set -euo pipefail
-          DIGEST="${{ matrix.image-digest }}"
+          DIGEST="${IMAGE_DIGEST}"
           cat <<EOF >> "$GITHUB_ENV"
           DIGEST=$DIGEST
-          DOCKER_IMAGE=docker.io/${DOCKER_USERNAME}/${{ matrix.image_repo }}@${DIGEST}
-          GHCR_IMAGE=ghcr.io/${GHCR_USER}/${{ matrix.image_repo }}@${DIGEST}
+          DOCKER_IMAGE=docker.io/${DOCKER_USERNAME}/${IMAGE_REPO}@${DIGEST}
+          GHCR_IMAGE=ghcr.io/${GHCR_USER}/${IMAGE_REPO}@${DIGEST}
           EOF
       - name: Create static risk attestation predicate
         uses: ./.github/actions/security-gate/create-static-risk-attestation-predicate
@@ -349,6 +361,8 @@ jobs:
           trivy-version: ${{ env.TRIVY_VERSION }}
           output-file: sast-attestation-${{ matrix.name }}.json
       - name: Static Risk Attestations
+        env:
+          NAME: ${{ matrix.name }}
         run: |
           set -euo pipefail
           echo "Signing starts: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
@@ -357,7 +371,7 @@ jobs:
           for IMAGE in "${IMAGES[@]}"; do
             echo "Attest image: $IMAGE"
             if cosign attest --yes \
-              --predicate sast-attestation-${{ matrix.name }}.json \
+              --predicate sast-attestation-${NAME}.json \
               --type "$TRIVY_PREDICATE_TYPE" \
               "$IMAGE"; then
               echo "✅ Attested: $IMAGE"
