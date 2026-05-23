@@ -3,9 +3,9 @@ description: 'Downloads Open Policy Agent (OPA) for Linux amd64 and verifies a p
 
 inputs:
   version:
-    description: 'The semantic version of OPA to install (e.g. v0.64.0). Must match the provided sha256.'
+    description: 'The semantic version of OPA to install (e.g. 0.64.0). Must match the provided sha256. Do not include the "v" prefix.'
     required: true
-    default: 'v1.16.2'
+    default: '1.16.2'
   sha256:
     description: 'SHA-256 of the opa_linux_amd64_static binary for the requested version.'
     required: true
@@ -22,25 +22,33 @@ runs:
       run: |
         set -euo pipefail
 
+        [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+          echo "Invalid version format: $VERSION" >&2
+          exit 1
+        }
+
+        [[ "$OPA_SHA256" =~ ^[a-fA-F0-9]{64}$ ]] || {
+          echo "Invalid SHA-256 value" >&2
+          exit 1
+        }
         OPA_BIN="opa_linux_amd64_static"
         
         # Using the official GitHub releases URL ensures a stable, immutable artifact source
-        OPA_URL="https://github.com/open-policy-agent/opa/releases/download/${VERSION}/${OPA_BIN}"
+        OPA_URL="https://github.com/open-policy-agent/opa/releases/download/v${VERSION}/${OPA_BIN}"
 
         TMP_DIR="$(mktemp -d)"
         trap 'rm -rf "$TMP_DIR"' EXIT
 
         echo "⬇️ Downloading OPA ${VERSION}..."
-        curl --proto '=https' --tlsv1.2 -fsSL "$OPA_URL" -o "${TMP_DIR}/${OPA_BIN}"
+        curl --proto '=https' --tlsv1.2 --retry 3 --retry-delay 2 -fsSL \
+          "$OPA_URL" \
+          -o "${TMP_DIR}/${OPA_BIN}"
 
         echo "🔍 Verifying pinned SHA-256..."
         echo "${OPA_SHA256}  ${TMP_DIR}/${OPA_BIN}" | sha256sum -c -
 
         echo "📦 Installing..."
-        # Installing to the user's local bin avoids the need for sudo
-        mkdir -p "$HOME/.local/bin"
-        install -m 0755 "${TMP_DIR}/${OPA_BIN}" "$HOME/.local/bin/opa"
-        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        sudo install -m 0755 "${TMP_DIR}/${OPA_BIN}" /usr/local/bin/opa
 
         echo "✅ Installed:"
-        "$HOME/.local/bin/opa" version
+        opa version
